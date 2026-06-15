@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sistema de Ressuprimento</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box}html,body{margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#e2e8f0;color:#0f172a;-webkit-font-smoothing:antialiased}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 1s linear infinite}
+  select,input,button{font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect, useCallback } = React;
+
+/* ===== credenciais ===== */
+const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function fetchAll(table, sel, filt){
+  const size=1000; let from=0, all=[];
+  while(true){
+    let q=db.from(table).select(sel||"*").range(from,from+size-1);
+    if(filt) q=filt(q);
+    const {data,error}=await q; if(error) throw error;
+    all=all.concat(data||[]); if(!data||data.length<size) break; from+=size;
+  }
+  return all;
+}
+
+/* ===== tokens ===== */
+const C={ink:"#0f172a",paper:"#f1f5f9",line:"#e2e8f0",teal:"#0d9488",amber:"#ea580c",muted:"#64748b",A:"#e11d48",B:"#d97706",Cc:"#0891b2"};
+const ABC={A:{cor:C.A,label:"Curva A",desc:"Alto giro / crítico"},B:{cor:C.B,label:"Curva B",desc:"Giro médio"},C:{cor:C.Cc,label:"Curva C",desc:"Baixo giro"}};
+const TIPOS=["Ressuprimento","Mobilização","Outros"];
+const fmt=(n)=>{const v=Number(n)||0;return v%1===0?String(v):v.toFixed(1)};
+
+/* ===== ícones (SVG inline) ===== */
+function I({d,size=18,color="currentColor",sw=2,fill="none",extra}){
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={extra}>{d}</svg>;
+}
+const Ic={
+  box:(p)=><I {...p} d={<><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></>}/>,
+  dash:(p)=><I {...p} d={<><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></>}/>,
+  pkg:(p)=><I {...p} d={<><path d="M12 2v20M2 7l10 5 10-5M2 7v10l10 5 10-5V7L12 2 2 7z"/><path d="M16 4v4M14 6h4"/></>}/>,
+  cart:(p)=><I {...p} d={<><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></>}/>,
+  down:(p)=><I {...p} d={<path d="M6 9l6 6 6-6"/>}/>,
+  right:(p)=><I {...p} d={<path d="M9 6l6 6-6 6"/>}/>,
+  users:(p)=><I {...p} d={<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>}/>,
+  filter:(p)=><I {...p} d={<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>}/>,
+  x:(p)=><I {...p} d={<path d="M18 6L6 18M6 6l12 12"/>}/>,
+  check:(p)=><I {...p} d={<path d="M20 6L9 17l-5-5"/>}/>,
+  truck:(p)=><I {...p} d={<><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></>}/>,
+  swap:(p)=><I {...p} d={<path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/>}/>,
+  search:(p)=><I {...p} d={<><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></>}/>,
+  alert:(p)=><I {...p} d={<><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></>}/>,
+  trash:(p)=><I {...p} d={<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>}/>,
+  plus:(p)=><I {...p} d={<path d="M12 5v14M5 12h14"/>}/>,
+  minus:(p)=><I {...p} d={<path d="M5 12h14"/>}/>,
+  gear:(p)=><I {...p} d={<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 7.5 19.4l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 5 13.6H4.9a2 2 0 0 1 0-4H5a1.65 1.65 0 0 0 1.51-1z"/></>}/>,
+  out:(p)=><I {...p} d={<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>}/>,
+  login:(p)=><I {...p} d={<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>}/>,
+  loader:(p)=><I {...p} extra={{animation:"spin 1s linear infinite"}} d={<path d="M21 12a9 9 0 1 1-6.219-8.56"/>}/>,
+  up:(p)=><I {...p} d={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></>}/>,
+  db:(p)=><I {...p} d={<><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></>}/>,
+};
+
+function CurvaBadge({c}){const a=ABC[c]||ABC.C;return <span style={{background:a.cor,color:"#fff",fontWeight:700,fontSize:11,width:20,height:20,borderRadius:4,display:"inline-flex",alignItems:"center",justifyContent:"center",fontFamily:"ui-monospace,monospace",flexShrink:0}}>{c}</span>;}
+function FilterSelect({label,value,onChange,options}){
+  return <div style={{display:"flex",flexDirection:"column",gap:4,minWidth:0,flex:"1 1 160px"}}>
+    <span style={{fontSize:11,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:.4}}>{label}</span>
+    <select value={value} onChange={(e)=>onChange(e.target.value)} style={{appearance:"none",background:"#fff",border:`1px solid ${C.line}`,borderRadius:8,padding:"9px 12px",fontSize:13,color:C.ink,fontWeight:500,cursor:"pointer",outline:"none"}}>
+      <option value="">Todos</option>{options.map(o=><option key={o} value={o}>{o}</option>)}
+    </select>
+  </div>;
+}
+
+/* ===================== APP (login gate) ===================== */
+function App(){
+  const [session,setSession]=useState(undefined);
+  const [email,setEmail]=useState(""); const [senha,setSenha]=useState("");
+  const [erro,setErro]=useState(""); const [entrando,setEntrando]=useState(false);
+  useEffect(()=>{
+    db.auth.getSession().then(({data})=>setSession(data.session));
+    const {data:sub}=db.auth.onAuthStateChange((_e,s)=>setSession(s));
+    return ()=>sub.subscription.unsubscribe();
+  },[]);
+  async function entrar(e){e.preventDefault();setErro("");setEntrando(true);
+    const {error}=await db.auth.signInWithPassword({email,password:senha});
+    setEntrando(false); if(error) setErro("E-mail ou senha inválidos.");}
+  if(session===undefined) return <div style={{display:"grid",placeItems:"center",minHeight:"100vh",color:C.muted}}>Carregando…</div>;
+  if(!session) return (
+    <div style={{display:"grid",placeItems:"center",minHeight:"100vh",padding:20}}>
+      <form onSubmit={entrar} style={{width:"100%",maxWidth:360,background:"#fff",border:`1px solid ${C.line}`,borderRadius:16,padding:28,boxShadow:"0 10px 40px rgba(15,23,42,.08)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+          <div style={{width:36,height:36,borderRadius:9,background:C.teal,display:"grid",placeItems:"center"}}><Ic.box size={20} color="#fff"/></div>
+          <div><div style={{fontWeight:800,fontSize:16,lineHeight:1}}>Ressuprimento</div><div style={{fontSize:11,color:C.muted,marginTop:3}}>Gestão de Materiais</div></div>
+        </div>
+        <label style={{fontSize:12,fontWeight:600,color:C.muted}}>E-mail</label>
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required style={{width:"100%",padding:"10px 12px",margin:"6px 0 14px",borderRadius:9,border:`1px solid ${C.line}`,fontSize:14,outline:"none"}}/>
+        <label style={{fontSize:12,fontWeight:600,color:C.muted}}>Senha</label>
+        <input type="password" value={senha} onChange={e=>setSenha(e.target.value)} required style={{width:"100%",padding:"10px 12px",margin:"6px 0 16px",borderRadius:9,border:`1px solid ${C.line}`,fontSize:14,outline:"none"}}/>
+        {erro && <div style={{display:"flex",alignItems:"center",gap:6,color:C.A,fontSize:13,marginBottom:12}}><Ic.alert size={15} color={C.A}/> {erro}</div>}
+        <button type="submit" disabled={entrando} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:9,border:"none",background:C.teal,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+          <Ic.login size={17} color="#fff"/> {entrando?"Entrando…":"Entrar"}
+        </button>
+        <div style={{fontSize:11.5,color:"#94a3b8",marginTop:14,textAlign:"center"}}>Usuários são criados no painel do Supabase (Authentication → Users).</div>
+      </form>
+    </div>
+  );
+  return <Sistema onLogout={()=>db.auth.signOut()} userEmail={session.user.email}/>;
+}
+
+/* ===================== SISTEMA ===================== */
+function Sistema({onLogout,userEmail}){
+  const [carregando,setCarregando]=useState(true);
+  const [erro,setErro]=useState("");
+  const [ccs,setCcs]=useState([]); const [itens,setItens]=useState([]); const [scs,setScs]=useState([]);
+  const [consumoCache,setConsumoCache]=useState({}); const [carregandoCC,setCarregandoCC]=useState({});
+  const [tab,setTab]=useState("painel"); const [carrinho,setCarrinho]=useState({});
+  const [fEstado,setFEstado]=useState(""); const [fMacro,setFMacro]=useState(""); const [fCC,setFCC]=useState(""); const [fGrupo,setFGrupo]=useState("");
+  const [busca,setBusca]=useState(""); const [showMotivos,setShowMotivos]=useState(false); const [motivoMap,setMotivoMap]=useState({});
+  const [salvando,setSalvando]=useState(false);
+
+  const carregarTudo=useCallback(async()=>{
+    setCarregando(true);setErro("");
+    try{
+      const [ccsDb,itensDb,scsDb,pedDb]=await Promise.all([fetchAll("centros_custo"),fetchAll("itens"),fetchAll("scs"),fetchAll("pedidos")]);
+      const porSc={}; pedDb.forEach(p=>{(porSc[p.sc_id]=porSc[p.sc_id]||[]).push(p)});
+      setCcs(ccsDb);setItens(itensDb);setScs(scsDb.map(s=>({...s,pedidos:porSc[s.id]||[]})));
+    }catch(e){setErro("Não consegui carregar os dados. Confira se o SQL foi rodado e se os dados foram importados (importar.html).");}
+    finally{setCarregando(false);}
+  },[]);
+  useEffect(()=>{carregarTudo();},[carregarTudo]);
+
+  const ensureConsumo=useCallback(async(cc)=>{
+    if(!cc||consumoCache[cc]||carregandoCC[cc]) return;
+    setCarregandoCC(p=>({...p,[cc]:true}));
+    try{
+      const rows=await fetchAll("consumo","*",q=>q.eq("cc",cc));
+      setConsumoCache(p=>({...p,[cc]:rows.map(r=>({cc:r.cc,codigo:r.codigo,consumoMedio:Number(r.consumo_medio)||0,curva:r.curva}))}));
+    }catch{setConsumoCache(p=>({...p,[cc]:[]}));}
+    finally{setCarregandoCC(p=>({...p,[cc]:false}));}
+  },[consumoCache,carregandoCC]);
+
+  const itemMap=useMemo(()=>Object.fromEntries(itens.map(i=>[i.codigo,i])),[itens]);
+  const ccMap=useMemo(()=>Object.fromEntries(ccs.map(b=>[b.cc,b])),[ccs]);
+  const consumoMap=useMemo(()=>{const m={};Object.values(consumoCache).forEach(a=>a.forEach(c=>m[`${c.cc}__${c.codigo}`]=c));return m;},[consumoCache]);
+  const tipoDeMotivo=(m)=>motivoMap[m]||"Ressuprimento";
+  const motivosNaData=useMemo(()=>[...new Set(scs.map(s=>s.motivo))].filter(Boolean).sort(),[scs]);
+
+  const estados=useMemo(()=>[...new Set(ccs.map(b=>b.estado).filter(Boolean))].sort(),[ccs]);
+  const macros=useMemo(()=>[...new Set(ccs.map(b=>b.macro).filter(Boolean))].sort(),[ccs]);
+  const grupos=useMemo(()=>[...new Set(itens.map(i=>i.grupo).filter(Boolean))].sort(),[itens]);
+  const ccOptions=useMemo(()=>ccs.filter(b=>(!fEstado||b.estado===fEstado)&&(!fMacro||b.macro===fMacro)).sort((a,b)=>(b.pessoas||0)-(a.pessoas||0)).map(b=>`${b.cc} — ${b.nome}`),[ccs,fEstado,fMacro]);
+  const fCCcode=fCC?fCC.split(" — ")[0]:"";
+  const ccsFiltrados=useMemo(()=>ccs.filter(b=>(!fEstado||b.estado===fEstado)&&(!fMacro||b.macro===fMacro)&&(!fCCcode||b.cc===fCCcode)).sort((a,b)=>(b.pessoas||0)-(a.pessoas||0)),[ccs,fEstado,fMacro,fCCcode]);
+  const ccsSet=useMemo(()=>new Set(ccsFiltrados.map(b=>b.cc)),[ccsFiltrados]);
+  const scsFiltradas=useMemo(()=>scs.filter(sc=>{if(!ccsSet.has(sc.cc))return false;if(fGrupo)return sc.pedidos.some(p=>itemMap[p.codigo]?.grupo===fGrupo);return true;}),[scs,ccsSet,fGrupo,itemMap]);
+  const ress=scsFiltradas.filter(s=>tipoDeMotivo(s.motivo)==="Ressuprimento");
+  const mob=scsFiltradas.filter(s=>tipoDeMotivo(s.motivo)==="Mobilização");
+
+  const carKey=(cc,codigo)=>`${cc}__${codigo}`;
+  const toggleItem=(cc,codigo)=>setCarrinho(p=>{const k=carKey(cc,codigo),n={...p};if(n[k])delete n[k];else n[k]={cc,codigo,qtd:""};return n;});
+  const setQtd=(cc,codigo,qtd)=>setCarrinho(p=>({...p,[carKey(cc,codigo)]:{...p[carKey(cc,codigo)],qtd}}));
+  const removerItem=(cc,codigo)=>setCarrinho(p=>{const n={...p};delete n[carKey(cc,codigo)];return n;});
+  const totalSel=Object.keys(carrinho).length;
+
+  async function abrirRessuprimento(porCC){
+    setSalvando(true);
+    try{
+      for(const [cc,lista] of Object.entries(porCC)){
+        const numero="APP-"+Date.now().toString().slice(-6);
+        const {data:scIns,error:e1}=await db.from("scs").insert({numero,cc,motivo:"3",emissao:new Date().toISOString().slice(0,10),origem:"app"}).select("id").single();
+        if(e1) throw e1;
+        const peds=lista.map(c=>({sc_id:scIns.id,codigo:c.codigo,qtd:Number(c.qtd)||0,atendido:0,um:itemMap[c.codigo]?.unidade||""}));
+        const {error:e2}=await db.from("pedidos").insert(peds); if(e2) throw e2;
+      }
+      setCarrinho({}); await carregarTudo(); setTab("painel");
+    }catch(e){alert("Erro ao gravar: "+(e.message||e));}
+    finally{setSalvando(false);}
+  }
+
+  if(carregando) return <div style={{display:"grid",placeItems:"center",minHeight:"100vh",color:C.muted,gap:12}}><Ic.loader size={28} color={C.muted}/><div>Carregando dados…</div></div>;
+  if(erro) return <div style={{display:"grid",placeItems:"center",minHeight:"100vh",padding:24}}><div style={{maxWidth:440,background:"#fff",border:`1px solid ${C.line}`,borderRadius:12,padding:24,textAlign:"center"}}><Ic.alert size={28} color={C.A}/><div style={{fontWeight:700,margin:"10px 0 6px"}}>Erro ao carregar</div><div style={{fontSize:13.5,color:C.muted,marginBottom:16}}>{erro}</div><button onClick={carregarTudo} style={{background:C.teal,color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontWeight:600,cursor:"pointer"}}>Tentar de novo</button></div></div>;
+
+  return (
+    <div style={{display:"flex",minHeight:"100vh",background:C.paper,color:C.ink}}>
+      <nav style={{width:230,background:C.ink,color:"#cbd5e1",padding:"20px 14px",display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,padding:"0 8px 18px"}}>
+          <div style={{width:30,height:30,borderRadius:7,background:C.teal,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic.box size={17} color="#fff"/></div>
+          <div><div style={{color:"#fff",fontWeight:700,fontSize:14,lineHeight:1}}>Ressuprimento</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>Gestão de Materiais</div></div>
+        </div>
+        {[{id:"painel",label:"Painel de SCs",icon:Ic.dash},{id:"solicitar",label:"Solicitar",icon:Ic.pkg},{id:"carrinho",label:"Abrir Ressuprimento",icon:Ic.cart,badge:totalSel},{id:"importar",label:"Importar bases",icon:Ic.up}].map(t=>{
+          const Icon=t.icon,ativo=tab===t.id;
+          return <button key={t.id} onClick={()=>setTab(t.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,border:"none",cursor:"pointer",textAlign:"left",background:ativo?C.teal:"transparent",color:ativo?"#fff":"#94a3b8",fontWeight:ativo?600:500,fontSize:13.5}}>
+            <Icon size={17} color={ativo?"#fff":"#94a3b8"}/><span style={{flex:1}}>{t.label}</span>
+            {t.badge?<span style={{background:ativo?"#fff":C.teal,color:ativo?C.teal:"#fff",fontSize:11,fontWeight:700,borderRadius:999,minWidth:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 6px"}}>{t.badge}</span>:null}
+          </button>;
+        })}
+        <div style={{marginTop:"auto",paddingTop:16,borderTop:"1px solid #1e293b"}}>
+          <div style={{fontSize:11,color:"#64748b",padding:"8px 8px 6px",wordBreak:"break-all"}}>{userEmail}</div>
+          <button onClick={onLogout} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"9px 12px",borderRadius:8,border:"1px solid #334155",background:"#1e293b",color:"#cbd5e1",fontWeight:500,fontSize:13,cursor:"pointer"}}><Ic.out size={15} color="#cbd5e1"/> Sair</button>
+        </div>
+      </nav>
+
+      <main style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+        <div style={{background:"#fff",borderBottom:`1px solid ${C.line}`,padding:"16px 24px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}><Ic.filter size={14} color={C.muted}/> Filtros</div>
+            {tab==="painel" && <button onClick={()=>setShowMotivos(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600,color:C.teal,background:"none",border:"none",cursor:"pointer"}}><Ic.gear size={14} color={C.teal}/> Classificar motivos</button>}
+          </div>
+          <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
+            <FilterSelect label="Estado" value={fEstado} onChange={v=>{setFEstado(v);setFCC("");}} options={estados}/>
+            <FilterSelect label="Macro" value={fMacro} onChange={v=>{setFMacro(v);setFCC("");}} options={macros}/>
+            <FilterSelect label="Centro de Custo" value={fCC} onChange={setFCC} options={ccOptions}/>
+            <FilterSelect label="Grupo de Material" value={fGrupo} onChange={setFGrupo} options={grupos}/>
+            {(fEstado||fMacro||fCC||fGrupo)&&<button onClick={()=>{setFEstado("");setFMacro("");setFCC("");setFGrupo("");}} style={{display:"flex",alignItems:"center",gap:5,padding:"9px 14px",borderRadius:8,border:`1px solid ${C.line}`,background:"#fff",color:C.muted,fontSize:13,fontWeight:600,cursor:"pointer",height:38}}><Ic.x size={14} color={C.muted}/> Limpar</button>}
+          </div>
+          {showMotivos&&tab==="painel"&&<div style={{marginTop:14,padding:14,background:"#f8fafc",border:`1px solid ${C.line}`,borderRadius:10}}>
+            <div style={{fontSize:12,color:C.muted,marginBottom:10}}>Defina o que cada <b>código de motivo</b> representa, para separar os cards em Ressuprimento e Mobilização.</div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{motivosNaData.map(m=>(
+              <div key={m} style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:`1px solid ${C.line}`,borderRadius:8,padding:"6px 10px"}}>
+                <span style={{fontFamily:"ui-monospace,monospace",fontWeight:700,fontSize:12}}>Motivo {m}</span>
+                <select value={tipoDeMotivo(m)} onChange={e=>setMotivoMap(p=>({...p,[m]:e.target.value}))} style={{border:`1px solid ${C.line}`,borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer"}}>{TIPOS.map(t=><option key={t} value={t}>{t}</option>)}</select>
+              </div>))}
+            </div>
+          </div>}
+        </div>
+
+        <div style={{flex:1,overflowY:"auto",padding:24}}>
+          {tab==="painel"&&<Painel ress={ress} mob={mob} itemMap={itemMap} ccMap={ccMap} consumoMap={consumoMap} onExpand={ensureConsumo}/>}
+          {tab==="solicitar"&&<Solicitar ccsFiltrados={ccsFiltrados} consumoCache={consumoCache} carregandoCC={carregandoCC} ensureConsumo={ensureConsumo} itemMap={itemMap} carrinho={carrinho} carKey={carKey} toggleItem={toggleItem} fGrupo={fGrupo} busca={busca} setBusca={setBusca}/>}
+          {tab==="carrinho"&&<Carrinho carrinho={carrinho} itemMap={itemMap} ccMap={ccMap} consumoMap={consumoMap} setQtd={setQtd} removerItem={removerItem} irSolicitar={()=>setTab("solicitar")} onAbrir={abrirRessuprimento} salvando={salvando}/>}
+          {tab==="importar"&&<Importar onConcluir={()=>{setConsumoCache({});carregarTudo();setTab("painel");}}/>}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* ===================== PAINEL ===================== */
+function Painel({ress,mob,itemMap,ccMap,consumoMap,onExpand}){
+  return <div style={{display:"flex",flexDirection:"column",gap:28}}>
+    <Secao titulo="Ressuprimentos" icon={Ic.truck} cor={C.teal} scs={ress} itemMap={itemMap} ccMap={ccMap} consumoMap={consumoMap} onExpand={onExpand}/>
+    <Secao titulo="Mobilizações" icon={Ic.swap} cor={C.amber} scs={mob} itemMap={itemMap} ccMap={ccMap} consumoMap={consumoMap} onExpand={onExpand} dica="Classifique os códigos de motivo (botão acima) para que SCs apareçam aqui."/>
+  </div>;
+}
+function Secao({titulo,icon:Icon,cor,scs,itemMap,ccMap,consumoMap,onExpand,dica}){
+  return <div>
+    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:14}}>
+      <div style={{width:28,height:28,borderRadius:7,background:cor+"1a",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon size={16} color={cor}/></div>
+      <h2 style={{fontSize:16,fontWeight:700,margin:0}}>{titulo}</h2>
+      <span style={{background:"#fff",border:`1px solid ${C.line}`,color:C.muted,fontSize:12,fontWeight:700,borderRadius:999,padding:"2px 10px"}}>{scs.length}</span>
+    </div>
+    {scs.length===0?<div style={{background:"#fff",border:`1px dashed ${C.line}`,borderRadius:12,padding:24,textAlign:"center",color:C.muted,fontSize:13}}>{dica||"Nenhuma SC para os filtros atuais."}</div>
+    :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(310px, 1fr))",gap:14}}>{scs.map(sc=><SCCard key={sc.id} sc={sc} cor={cor} itemMap={itemMap} ccMap={ccMap} consumoMap={consumoMap} onExpand={onExpand}/>)}</div>}
+  </div>;
+}
+function SCCard({sc,cor,itemMap,ccMap,consumoMap,onExpand}){
+  const [aberto,setAberto]=useState(false); const base=ccMap[sc.cc];
+  const totalSaldo=sc.pedidos.reduce((s,p)=>s+Math.max(0,(p.qtd||0)-(p.atendido||0)),0);
+  function toggle(){const n=!aberto;setAberto(n);if(n)onExpand&&onExpand(sc.cc);}
+  return <div style={{background:"#fff",borderRadius:12,border:`1px solid ${C.line}`,borderLeft:`4px solid ${cor}`,overflow:"hidden"}}>
+    <button onClick={toggle} style={{width:"100%",border:"none",background:"none",cursor:"pointer",padding:16,textAlign:"left",display:"block"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+        <div><div style={{fontFamily:"ui-monospace,monospace",fontWeight:700,fontSize:14}}>SC {sc.numero}{sc.origem==="app"?" ·novo":""}</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>{sc.cc} · {base?base.nome:"—"}</div></div>
+        <span style={{color:cor,background:cor+"1a",fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:999,whiteSpace:"nowrap"}}>Motivo {sc.motivo}</span>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:12.5,color:C.muted,display:"flex",alignItems:"center",gap:5}}><Ic.box size={13} color={C.muted}/> {sc.pedidos.length} {sc.pedidos.length===1?"item":"itens"} · saldo {fmt(totalSaldo)}</span>
+        <span style={{fontSize:12.5,color:cor,fontWeight:600,display:"flex",alignItems:"center",gap:3}}>{aberto?"Recolher":"Ver pedidos"} {aberto?<Ic.down size={15} color={cor}/>:<Ic.right size={15} color={cor}/>}</span>
+      </div>
+    </button>
+    {aberto&&<div style={{borderTop:`1px solid ${C.line}`,background:"#f8fafc"}}>
+      {sc.pedidos.length===0?<div style={{padding:16,fontSize:13,color:C.muted,textAlign:"center"}}>SC sem itens.</div>
+      :<table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}><thead><tr style={{color:C.muted,textAlign:"left"}}>
+        <th style={{padding:"9px 16px",fontWeight:600}}>Item</th><th style={{padding:"9px 8px",fontWeight:600,textAlign:"right"}}>Solic.</th><th style={{padding:"9px 8px",fontWeight:600,textAlign:"right"}}>Atend.</th><th style={{padding:"9px 16px",fontWeight:600,textAlign:"right"}}>Saldo</th>
+      </tr></thead><tbody>
+        {sc.pedidos.map((p,i)=>{const it=itemMap[p.codigo];const cv=consumoMap[`${sc.cc}__${p.codigo}`]?.curva;const saldo=Math.max(0,(p.qtd||0)-(p.atendido||0));
+          return <tr key={i} style={{borderTop:`1px solid ${C.line}`}}>
+            <td style={{padding:"9px 16px"}}><div style={{display:"flex",alignItems:"center",gap:8}}>{cv&&<CurvaBadge c={cv}/>}<div style={{minWidth:0}}><div style={{fontFamily:"ui-monospace,monospace",fontSize:11,color:C.muted}}>{p.codigo}</div><div style={{fontWeight:500}}>{it?it.descricao:"—"}</div></div></div></td>
+            <td style={{padding:"9px 8px",textAlign:"right",fontFamily:"ui-monospace,monospace"}}>{fmt(p.qtd)} {p.um||""}</td>
+            <td style={{padding:"9px 8px",textAlign:"right",fontFamily:"ui-monospace,monospace",color:C.muted}}>{fmt(p.atendido)}</td>
+            <td style={{padding:"9px 16px",textAlign:"right",fontFamily:"ui-monospace,monospace",fontWeight:700,color:saldo>0?C.amber:C.muted}}>{fmt(saldo)}</td>
+          </tr>;})}
+      </tbody></table>}
+    </div>}
+  </div>;
+}
+
+/* ===================== SOLICITAR ===================== */
+function Solicitar({ccsFiltrados,consumoCache,carregandoCC,ensureConsumo,itemMap,carrinho,carKey,toggleItem,fGrupo,busca,setBusca}){
+  const [ccAberto,setCcAberto]=useState(null);
+  useEffect(()=>{const first=ccsFiltrados[0]?.cc||null;setCcAberto(first);if(first)ensureConsumo(first);},[ccsFiltrados,ensureConsumo]);
+  if(ccsFiltrados.length===0) return <div style={{background:"#fff",border:`1px dashed ${C.line}`,borderRadius:12,padding:40,textAlign:"center",color:C.muted,fontSize:13.5}}>Nenhum centro de custo para os filtros selecionados.</div>;
+  return <div style={{display:"flex",flexDirection:"column",gap:14}}>
+    <div style={{position:"relative",maxWidth:360}}><Ic.search size={15} color={C.muted} extra={{position:"absolute",left:11,top:10}}/><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar material por nome ou código..." style={{width:"100%",padding:"9px 12px 9px 34px",borderRadius:8,border:`1px solid ${C.line}`,fontSize:13,outline:"none"}}/></div>
+    {ccsFiltrados.map(base=><CCBloco key={base.cc} base={base} aberto={ccAberto===base.cc} onToggle={()=>{const novo=ccAberto===base.cc?null:base.cc;setCcAberto(novo);if(novo)ensureConsumo(novo);}} lista={consumoCache[base.cc]} carregando={carregandoCC[base.cc]} itemMap={itemMap} carrinho={carrinho} carKey={carKey} toggleItem={toggleItem} fGrupo={fGrupo} busca={busca}/>)}
+  </div>;
+}
+function CCBloco({base,aberto,onToggle,lista,carregando,itemMap,carrinho,carKey,toggleItem,fGrupo,busca}){
+  const filtrada=useMemo(()=>{
+    if(!lista) return [];
+    let l=lista.map(c=>({...c,it:itemMap[c.codigo]})).filter(x=>x.it);
+    if(fGrupo) l=l.filter(x=>x.it.grupo===fGrupo);
+    if(busca){const q=busca.toLowerCase();l=l.filter(x=>x.it.descricao.toLowerCase().includes(q)||x.codigo.toLowerCase().includes(q));}
+    const o={A:0,B:1,C:2}; return l.sort((a,b)=>(o[a.curva]-o[b.curva])||(b.consumoMedio-a.consumoMedio));
+  },[lista,itemMap,fGrupo,busca]);
+  const selNoCC=Object.values(carrinho).filter(c=>c.cc===base.cc).length;
+  return <div style={{background:"#fff",borderRadius:12,border:`1px solid ${C.line}`,overflow:"hidden"}}>
+    <button onClick={onToggle} style={{width:"100%",border:"none",background:aberto?"#f8fafc":"#fff",cursor:"pointer",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",textAlign:"left"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>{aberto?<Ic.down size={18} color={C.muted}/>:<Ic.right size={18} color={C.muted}/>}
+        <div><div style={{fontWeight:700,fontSize:14.5}}>{base.nome} <span style={{color:C.muted,fontWeight:500,fontFamily:"ui-monospace,monospace",fontSize:12}}>· {base.cc}</span></div><div style={{fontSize:12,color:C.muted,marginTop:1}}>{base.estado}{base.macro?` · ${base.macro}`:""}{aberto&&lista?` · ${filtrada.length} itens`:""}</div></div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:14}}>{selNoCC>0&&<span style={{background:C.teal+"1a",color:C.teal,fontSize:12,fontWeight:700,borderRadius:999,padding:"3px 11px"}}>{selNoCC} selec.</span>}
+        <div style={{display:"flex",alignItems:"center",gap:6,background:"#f1f5f9",padding:"6px 12px",borderRadius:8}}><Ic.users size={15} color={C.ink}/><span style={{fontWeight:700,fontSize:14,fontFamily:"ui-monospace,monospace"}}>{base.pessoas}</span><span style={{fontSize:11.5,color:C.muted}}>pessoas</span></div>
+      </div>
+    </button>
+    {aberto&&<div style={{borderTop:`1px solid ${C.line}`}}>
+      {carregando||!lista?<div style={{padding:24,textAlign:"center",color:C.muted,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Ic.loader size={16} color={C.muted}/> Carregando materiais…</div>
+      :filtrada.length===0?<div style={{padding:20,textAlign:"center",color:C.muted,fontSize:13}}>Nenhum material para esse filtro.</div>
+      :<table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{color:C.muted,fontSize:11,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",background:"#f8fafc"}}>
+        <th style={{padding:"8px 18px",width:40}}></th><th style={{padding:"8px 8px",width:46}}>ABC</th><th style={{padding:"8px 8px"}}>Material</th><th style={{padding:"8px 8px"}}>Grupo</th><th style={{padding:"8px 18px",textAlign:"right"}}>Consumo médio</th>
+      </tr></thead><tbody>
+        {["A","B","C"].map(curva=>{const doG=filtrada.filter(x=>x.curva===curva);if(!doG.length)return null;
+          return <React.Fragment key={curva}>
+            <tr style={{background:ABC[curva].cor+"12"}}><td colSpan={5} style={{padding:"6px 18px",fontSize:11.5,fontWeight:700,color:ABC[curva].cor}}>{ABC[curva].label} · {ABC[curva].desc} ({doG.length})</td></tr>
+            {doG.map(x=>{const sel=!!carrinho[carKey(base.cc,x.codigo)];
+              return <tr key={x.codigo} onClick={()=>toggleItem(base.cc,x.codigo)} style={{borderTop:`1px solid ${C.line}`,cursor:"pointer",background:sel?C.teal+"0d":"#fff"}}>
+                <td style={{padding:"9px 18px"}}><div style={{width:19,height:19,borderRadius:5,border:`2px solid ${sel?C.teal:C.line}`,background:sel?C.teal:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>{sel&&<Ic.check size={13} color="#fff" sw={3}/>}</div></td>
+                <td style={{padding:"9px 8px"}}><CurvaBadge c={x.curva}/></td>
+                <td style={{padding:"9px 8px"}}><div style={{fontFamily:"ui-monospace,monospace",fontSize:11,color:C.muted}}>{x.codigo}</div><div style={{fontWeight:500}}>{x.it.descricao}</div></td>
+                <td style={{padding:"9px 8px",color:C.muted,fontSize:12}}>{x.it.grupo}</td>
+                <td style={{padding:"9px 18px",textAlign:"right",fontFamily:"ui-monospace,monospace",fontWeight:700}}>{fmt(x.consumoMedio)} <span style={{fontWeight:400,color:C.muted,fontSize:11}}>{x.it.unidade}/mês</span></td>
+              </tr>;})}
+          </React.Fragment>;})}
+      </tbody></table>}
+    </div>}
+  </div>;
+}
+
+/* ===================== CARRINHO ===================== */
+function Carrinho({carrinho,itemMap,ccMap,consumoMap,setQtd,removerItem,onAbrir,irSolicitar,salvando}){
+  const itens=Object.values(carrinho);
+  const porCC=useMemo(()=>{const g={};itens.forEach(c=>{(g[c.cc]=g[c.cc]||[]).push(c)});return g;},[itens]);
+  if(itens.length===0) return <div style={{background:"#fff",border:`1px dashed ${C.line}`,borderRadius:12,padding:48,textAlign:"center"}}><Ic.cart size={34} color={C.line} extra={{margin:"0 auto 14px"}}/><div style={{fontWeight:700,fontSize:15,marginBottom:4}}>Nenhum item selecionado</div><div style={{fontSize:13,color:C.muted,marginBottom:18}}>Marque os materiais na aba Solicitar para abrir um ressuprimento.</div><button onClick={irSolicitar} style={{background:C.teal,color:"#fff",border:"none",borderRadius:8,padding:"10px 18px",fontWeight:600,fontSize:13.5,cursor:"pointer"}}>Ir para Solicitar</button></div>;
+  const algumSemQtd=itens.some(c=>!c.qtd||Number(c.qtd)<=0);
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+    {Object.entries(porCC).map(([cc,lista])=>{const base=ccMap[cc];
+      return <div key={cc} style={{background:"#fff",borderRadius:12,border:`1px solid ${C.line}`,overflow:"hidden"}}>
+        <div style={{padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f8fafc",borderBottom:`1px solid ${C.line}`}}>
+          <div><div style={{fontWeight:700,fontSize:14.5}}>{base?base.nome:cc} <span style={{color:C.muted,fontWeight:500,fontFamily:"ui-monospace,monospace",fontSize:12}}>· {cc}</span></div><div style={{fontSize:12,color:C.muted,marginTop:1}}>{base?.estado}{base?.macro?` · ${base.macro}`:""} · {lista.length} {lista.length===1?"item":"itens"}</div></div>
+          <div style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:`1px solid ${C.line}`,padding:"6px 12px",borderRadius:8}}><Ic.users size={15} color={C.ink}/><span style={{fontWeight:700,fontSize:14,fontFamily:"ui-monospace,monospace"}}>{base?base.pessoas:"—"}</span><span style={{fontSize:11.5,color:C.muted}}>pessoas</span></div>
+        </div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{color:C.muted,fontSize:11,textTransform:"uppercase",letterSpacing:.4,textAlign:"left"}}>
+          <th style={{padding:"8px 18px",width:46}}>ABC</th><th style={{padding:"8px 8px"}}>Material</th><th style={{padding:"8px 8px",textAlign:"right"}}>Consumo médio</th><th style={{padding:"8px 8px",textAlign:"center",width:132}}>Quantidade</th><th style={{padding:"8px 18px",width:40}}></th>
+        </tr></thead><tbody>
+          {lista.map(c=>{const it=itemMap[c.codigo];const cm=consumoMap[`${cc}__${c.codigo}`];
+            return <tr key={c.codigo} style={{borderTop:`1px solid ${C.line}`}}>
+              <td style={{padding:"10px 18px"}}>{cm&&<CurvaBadge c={cm.curva}/>}</td>
+              <td style={{padding:"10px 8px"}}><div style={{fontFamily:"ui-monospace,monospace",fontSize:11,color:C.muted}}>{c.codigo}</div><div style={{fontWeight:500}}>{it?it.descricao:"—"}</div></td>
+              <td style={{padding:"10px 8px",textAlign:"right",fontFamily:"ui-monospace,monospace",fontWeight:700}}>{cm?fmt(cm.consumoMedio):"—"} <span style={{fontWeight:400,color:C.muted,fontSize:11}}>{it?.unidade}/mês</span></td>
+              <td style={{padding:"10px 8px"}}><Stepper value={c.qtd} onChange={v=>setQtd(cc,c.codigo,v)}/></td>
+              <td style={{padding:"10px 18px",textAlign:"center"}}><button onClick={()=>removerItem(cc,c.codigo)} style={{border:"none",background:"none",cursor:"pointer",color:C.muted}}><Ic.trash size={16} color={C.muted}/></button></td>
+            </tr>;})}
+        </tbody></table>
+      </div>;})}
+    <div style={{position:"sticky",bottom:0,background:"#fff",border:`1px solid ${C.line}`,borderRadius:12,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 -4px 12px rgba(15,23,42,.04)"}}>
+      <div style={{fontSize:13.5}}><b>{itens.length}</b> {itens.length===1?"item":"itens"} em <b>{Object.keys(porCC).length}</b> {Object.keys(porCC).length===1?"centro de custo":"centros de custo"}{algumSemQtd&&<span style={{color:C.A,marginLeft:10,fontSize:12.5}}><Ic.alert size={13} color={C.A} extra={{verticalAlign:"-2px"}}/> Preencha as quantidades</span>}</div>
+      <button onClick={()=>onAbrir(porCC)} disabled={algumSemQtd||salvando} style={{background:(algumSemQtd||salvando)?C.line:C.teal,color:"#fff",border:"none",borderRadius:8,padding:"11px 22px",fontWeight:700,fontSize:14,cursor:(algumSemQtd||salvando)?"not-allowed":"pointer",display:"flex",alignItems:"center",gap:7}}>{salvando?<Ic.loader size={17} color="#fff"/>:<Ic.pkg size={17} color="#fff"/>} {salvando?"Gravando…":"Abrir Ressuprimento"}</button>
+    </div>
+  </div>;
+}
+function Stepper({value,onChange}){const n=Number(value)||0;
+  return <div style={{display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.line}`,borderRadius:8,width:124,margin:"0 auto",overflow:"hidden"}}>
+    <button onClick={()=>onChange(String(Math.max(0,n-1)))} style={{border:"none",background:"#f8fafc",width:32,height:34,cursor:"pointer",color:C.ink,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic.minus size={14} color={C.ink}/></button>
+    <input value={value} onChange={e=>onChange(e.target.value.replace(/[^0-9]/g,""))} placeholder="0" style={{width:56,border:"none",textAlign:"center",fontFamily:"ui-monospace,monospace",fontWeight:700,fontSize:14,outline:"none",height:34}}/>
+    <button onClick={()=>onChange(String(n+1))} style={{border:"none",background:"#f8fafc",width:32,height:34,cursor:"pointer",color:C.ink,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic.plus size={14} color={C.ink}/></button>
+  </div>;
+}
+
+/* ===================== IMPORTAR BASES (processa no navegador) ===================== */
+const _norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function _pick(row,...keys){const m={};for(const k in row)m[_norm(k)]=row[k];for(const k of keys){const v=m[_norm(k)];if(v!==undefined&&v!=='')return v;}return undefined;}
+const _title=s=>String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+const _ymd=s=>{s=String(s||'').trim();return /^\d{8}$/.test(s)?s:null;};
+function _minus12m(y){const Y=+y.slice(0,4),M=+y.slice(4,6),D=+y.slice(6,8);const dt=new Date(Date.UTC(Y,M-1,D));dt.setUTCMonth(dt.getUTCMonth()-12);const p=n=>String(n).padStart(2,'0');return ''+dt.getUTCFullYear()+p(dt.getUTCMonth()+1)+p(dt.getUTCDate());}
+const _ch=(a,n)=>Array.from({length:Math.ceil(a.length/n)},(_,i)=>a.slice(i*n,i*n+n));
+function _parseCsvFull(file){return new Promise((res,rej)=>{Papa.parse(file,{header:true,skipEmptyLines:true,complete:r=>res(r.data),error:rej});});}
+function _parseScp(file,onLog){return new Promise((res,rej)=>{const rows=[];let n=0;
+  Papa.parse(file,{header:true,skipEmptyLines:true,transformHeader:_norm,
+    step:(r)=>{const d=r.data;rows.push({cc:String(d.cpcc||'').trim(),prod:String(d.cpproduto||'').trim(),q:parseFloat(d.cpquant)||0,qj:parseFloat(d.cpquje)||0,dt:_ymd(d.cpemissao),num:String(d.cpnum||'').trim(),mot:String(d.cpymotivo||'').trim(),um:String(d.cpum||'').trim()});if(++n%50000===0&&onLog)onLog('  SCP lidas: '+n.toLocaleString('pt-BR'));},
+    complete:()=>{if(onLog)onLog('  SCP total: '+rows.length.toLocaleString('pt-BR'));res(rows);},error:rej});});}
+
+async function processarBases(files,onLog){
+  onLog('Lendo Centro de Custo (.xlsx)…');
+  const wb=XLSX.read(await files.cc.arrayBuffer(),{type:'array'});
+  const ccRows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+  const ccMaster={};
+  for(const r of ccRows){const code=String(_pick(r,'Cod CC','cc')||'').trim();if(!code)continue;
+    ccMaster[code]={cc:code,nome:_title(_pick(r,'Descrição','descricao')),estado:_title(_pick(r,'Estado')),macro:String(_pick(r,'Macro')||''),servico:String(_pick(r,'Serviço','servico')||''),pessoas:0};}
+
+  onLog('Lendo funcionários (SRA) e contando pessoas ativas…');
+  const sraRows=await _parseCsvFull(files.sra);
+  const ativos={};
+  for(const r of sraRows){const sit=String(_pick(r,'SIT_FOLHA')||'').trim();if(!['NORMAL','FÉRIAS','AFASTADO'].includes(sit))continue;
+    const c=String(_pick(r,'CCUSTO')||'').trim();const m=String(_pick(r,'MATRICULA')||'').trim();(ativos[c]=ativos[c]||new Set()).add(m);}
+  for(const c in ativos){if(ccMaster[c])ccMaster[c].pessoas=ativos[c].size;else ccMaster[c]={cc:c,nome:'(sem cadastro)',estado:'',macro:'',servico:'',pessoas:ativos[c].size};}
+
+  onLog('Lendo cadastro de itens (SB1)…');
+  const sb1Rows=await _parseCsvFull(files.sb1);
+  const itM={};
+  for(const r of sb1Rows){const cod=String(_pick(r,'B1_COD')||'').trim();if(!cod)continue;
+    itM[cod]={codigo:cod,descricao:String(_pick(r,'B1_DESC')||'').replace(/\s+/g,' ').trim(),grupo:String(_pick(r,'B1_DESCGP','B1_GRUPO')||'').replace(/\s+/g,' ').trim()||'OUTROS',unidade:String(_pick(r,'B1_UM')||'UN').trim(),custo:parseFloat(_pick(r,'B1_UPRC'))||0};}
+
+  onLog('Lendo solicitações (SCP) — arquivo grande, aguarde…');
+  const scp=await _parseScp(files.scp,onLog);
+  let maxd='00000000';for(const r of scp){if(r.dt&&r.dt>maxd)maxd=r.dt;}
+  const cut=_minus12m(maxd);
+  onLog('Calculando consumo médio (12 meses até '+maxd+')…');
+  const cons={};for(const r of scp){if(!r.dt||r.dt<cut||!r.cc||!r.prod)continue;const k=r.cc+'|'+r.prod;cons[k]=(cons[k]||0)+r.q;}
+  const abertas={};for(const r of scp){if(r.q<=r.qj||!ccMaster[r.cc])continue;(abertas[r.num]=abertas[r.num]||{numero:r.num,cc:r.cc,motivo:r.mot,emissao:r.dt,pedidos:[]}).pedidos.push({codigo:r.prod,qtd:r.q,atendido:r.qj,um:r.um});}
+
+  onLog('Calculando curva ABC por centro de custo…');
+  const byCc={};for(const k in cons){const i=k.indexOf('|');const c=k.slice(0,i),p=k.slice(i+1);const cm=cons[k]/12;if(cm<=0)continue;(byCc[c]=byCc[c]||[]).push({prod:p,cm,custo:(itM[p]?.custo||0)});}
+  const consumo=[];const usados=new Set();
+  for(const c in byCc){let a=byCc[c];const tv=a.reduce((s,x)=>s+x.cm*x.custo,0);
+    if(tv>0){a.sort((x,y)=>y.cm*y.custo-x.cm*x.custo);let cu=0;for(const x of a){cu+=x.cm*x.custo;const rr=cu/tv;x.curva=rr<=.8?'A':rr<=.95?'B':'C';}}
+    else{a.sort((x,y)=>y.cm-x.cm);const tq=a.reduce((s,x)=>s+x.cm,0);let cu=0;for(const x of a){cu+=x.cm;const rr=tq>0?cu/tq:1;x.curva=rr<=.8?'A':rr<=.95?'B':'C';}}
+    if(!ccMaster[c])continue;for(const x of a){consumo.push({cc:c,codigo:x.prod,consumoMedio:Math.round(x.cm*100)/100,curva:x.curva});usados.add(x.prod);}}
+  Object.values(abertas).forEach(s=>s.pedidos.forEach(p=>usados.add(p.codigo)));
+  const itens=[...usados].map(c=>({codigo:c,descricao:itM[c]?.descricao||c,grupo:itM[c]?.grupo||'OUTROS',unidade:itM[c]?.unidade||'UN'}));
+  const ccSet=new Set(consumo.map(x=>x.cc));
+  const ccs=Object.values(ccMaster).filter(c=>c.pessoas>0||ccSet.has(c.cc));
+  const scs=Object.values(abertas);
+  onLog(`✓ Processado: ${ccs.length} CCs · ${itens.length} itens · ${consumo.length} consumos · ${scs.length} SCs em aberto`);
+  return {ccs,itens,consumo,scs};
+}
+
+async function enviarSupabase(b,onLog){
+  async function up(t,rows,conf){let d=0;for(const part of _ch(rows,500)){const{error}=await db.from(t).upsert(part,conf?{onConflict:conf}:undefined);if(error)throw new Error(t+': '+error.message);d+=part.length;onLog(`  ${t}: ${d}/${rows.length}`);}}
+  await up('centros_custo',b.ccs.map(c=>({cc:c.cc,nome:c.nome,estado:c.estado,macro:c.macro,servico:c.servico,pessoas:c.pessoas||0})),'cc');
+  await up('itens',b.itens,'codigo');
+  await up('consumo',b.consumo.map(c=>({cc:c.cc,codigo:c.codigo,consumo_medio:c.consumoMedio,curva:c.curva})),'cc,codigo');
+  onLog('  limpando SCs antigas (origem protheus)…');
+  await db.from('scs').delete().eq('origem','protheus');
+  let tp=0,n=0;
+  for(const part of _ch(b.scs,100)){const scRows=part.map(s=>({numero:s.numero,cc:s.cc,motivo:s.motivo,emissao:s.emissao,origem:'protheus'}));
+    const{data:ins,error}=await db.from('scs').insert(scRows).select('id');if(error)throw new Error('scs: '+error.message);
+    const peds=[];part.forEach((s,i)=>(s.pedidos||[]).forEach(p=>peds.push({sc_id:ins[i].id,codigo:p.codigo,qtd:p.qtd,atendido:p.atendido,um:p.um})));
+    for(const pp of _ch(peds,500)){const{error:e2}=await db.from('pedidos').insert(pp);if(e2)throw new Error('pedidos: '+e2.message);}
+    tp+=peds.length;n+=part.length;onLog(`  scs: ${n}/${b.scs.length} (pedidos ${tp})`);}
+  onLog('✓ Enviado ao Supabase!');
+}
+
+function Importar({onConcluir}){
+  const [files,setFiles]=useState({cc:null,sra:null,sb1:null,scp:null});
+  const [log,setLog]=useState([]); const [rodando,setRodando]=useState(false);
+  const addLog=(m)=>setLog(l=>[...l,m]);
+  const defs=[{k:"cc",t:"Centro de Custo",sub:"Excel (.xlsx)",a:".xlsx,.xls"},{k:"sb1",t:"Cadastro de Itens — SB1",sub:"CSV",a:".csv"},{k:"sra",t:"Funcionários — SRA",sub:"CSV (pessoas por base)",a:".csv"},{k:"scp",t:"Solicitações — SCP",sub:"CSV (consumo + SCs)",a:".csv"}];
+  const pronto=files.cc&&files.sra&&files.sb1&&files.scp&&!rodando;
+  async function processar(){setRodando(true);setLog([]);
+    try{const bundle=await processarBases(files,addLog);addLog("Enviando ao banco de dados…");await enviarSupabase(bundle,addLog);addLog("Tudo pronto! Atualizando o sistema…");setTimeout(onConcluir,1000);}
+    catch(e){addLog("✗ Erro: "+(e.message||e));setRodando(false);}
+  }
+  return <div style={{maxWidth:760}}>
+    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:6}}>
+      <div style={{width:30,height:30,borderRadius:7,background:C.teal+"1a",display:"flex",alignItems:"center",justifyContent:"center"}}><Ic.db size={17} color={C.teal}/></div>
+      <h2 style={{fontSize:16,fontWeight:700,margin:0}}>Importar bases do Protheus</h2>
+    </div>
+    <p style={{color:C.muted,fontSize:13,marginTop:0,marginBottom:18}}>Selecione os 4 arquivos exportados. O sistema conta pessoas ativas, calcula consumo médio (12 meses) e curva ABC, e grava tudo no banco. Os arquivos são processados no seu navegador — não saem do computador a não ser já agregados.</p>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(330px,1fr))",gap:12,marginBottom:16}}>
+      {defs.map(d=>(
+        <label key={d.k} style={{display:"block",border:`1px solid ${files[d.k]?C.teal:C.line}`,background:files[d.k]?C.teal+"0d":"#fff",borderRadius:10,padding:14,cursor:rodando?"default":"pointer"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div><div style={{fontWeight:600,fontSize:13.5}}>{d.t}</div><div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{d.sub}</div></div>
+            {files[d.k]?<Ic.check size={18} color={C.teal}/>:<Ic.up size={18} color={C.muted}/>}
+          </div>
+          {files[d.k]&&<div style={{fontSize:11.5,color:C.teal,marginTop:8,fontWeight:600,wordBreak:"break-all"}}>{files[d.k].name}</div>}
+          <input type="file" accept={d.a} disabled={rodando} style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)setFiles(p=>({...p,[d.k]:f}));}}/>
+        </label>
+      ))}
+    </div>
+    <button onClick={processar} disabled={!pronto} style={{background:pronto?C.teal:C.line,color:"#fff",border:"none",borderRadius:8,padding:"12px 22px",fontWeight:700,fontSize:14,cursor:pronto?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:8}}>
+      {rodando?<Ic.loader size={17} color="#fff"/>:<Ic.db size={17} color="#fff"/>} {rodando?"Processando…":"Processar e enviar ao banco"}
+    </button>
+    {log.length>0&&<div style={{marginTop:16,background:C.ink,color:"#cbd5e1",borderRadius:10,padding:14,fontFamily:"ui-monospace,monospace",fontSize:12.5,lineHeight:1.7,maxHeight:300,overflow:"auto",whiteSpace:"pre-wrap"}}>
+      {log.map((l,i)=><div key={i} style={{color:l.startsWith("✓")?"#34d399":l.startsWith("✗")?"#fb7185":"#cbd5e1"}}>{l}</div>)}
+    </div>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
