@@ -53,83 +53,86 @@ const Ic={
 function CurvaBadge({c}){if(!c)return null;const a=ABC[c]||ABC.C;return <span style={{background:a.cor,color:"#fff",fontWeight:700,fontSize:10,width:18,height:18,borderRadius:4,display:"inline-flex",alignItems:"center",justifyContent:"center",fontFamily:"ui-monospace,monospace"}}>{c}</span>;}
 function StatusPill({s}){const x=STATUS[s]||{l:s,c:C.muted};return <span style={{color:x.c,background:x.c+"1a",fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:999,whiteSpace:"nowrap"}}>{x.l}</span>;}
 
-/* ============ PROCESSAMENTO DE BASES (no navegador) ============ */
+/* ============ PROCESSAMENTO DE BASES (no navegador, em 2º plano) ============ */
 const _norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function _pick(row,...keys){const m={};for(const k in row)m[_norm(k)]=row[k];for(const k of keys){const v=m[_norm(k)];if(v!==undefined&&v!=='')return v;}return undefined;}
 const _title=s=>String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 const _ymd=s=>{s=String(s||'').trim();return /^\d{8}$/.test(s)?s:null;};
-function _minus12m(y){const Y=+y.slice(0,4),M=+y.slice(4,6),D=+y.slice(6,8);const dt=new Date(Date.UTC(Y,M-1,D));dt.setUTCMonth(dt.getUTCMonth()-12);const p=n=>String(n).padStart(2,'0');return ''+dt.getUTCFullYear()+p(dt.getUTCMonth()+1)+p(dt.getUTCDate());}
+function _hoje12(){const d=new Date();d.setUTCMonth(d.getUTCMonth()-12);const p=n=>String(n).padStart(2,'0');return ''+d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate());}
 const _ch=(a,n)=>Array.from({length:Math.ceil(a.length/n)},(_,i)=>a.slice(i*n,i*n+n));
 const _csv=file=>new Promise((res,rej)=>Papa.parse(file,{header:true,skipEmptyLines:true,complete:r=>res(r.data),error:rej}));
-function _stream(file,map,onLog,label){return new Promise((res,rej)=>{const rows=[];let n=0;Papa.parse(file,{header:true,skipEmptyLines:true,transformHeader:_norm,step:r=>{const v=map(r.data);if(v)rows.push(v);if(++n%50000===0&&onLog)onLog(`  ${label}: ${n.toLocaleString('pt-BR')}`);},complete:()=>{if(onLog)onLog(`  ${label}: ${rows.length.toLocaleString('pt-BR')} úteis`);res(rows);},error:rej});});}
+// streaming em Web Worker (não trava a tela) + chunk (rápido). Não guarda linhas.
+function _reduzir(file,reducer,onLog,label){return new Promise((res,rej)=>{let n=0,marca=0;
+  Papa.parse(file,{header:true,skipEmptyLines:true,transformHeader:_norm,worker:true,
+    chunk:(r)=>{const rows=r.data;for(let i=0;i<rows.length;i++)reducer(rows[i]);n+=rows.length;if(onLog&&n-marca>=100000){marca=n;onLog(`  ${label}: ${n.toLocaleString('pt-BR')}`);}},
+    complete:()=>{if(onLog)onLog(`  ${label}: ${n.toLocaleString('pt-BR')} linhas`);res(n);},error:rej});});}
 
-async function processarCadastros(files,onLog){
-  onLog('Lendo Centro de Custo (.xlsx)…');
-  const wb=XLSX.read(await files.cc.arrayBuffer(),{type:'array'});
-  const ccRows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
-  const ccM={};
-  for(const r of ccRows){const code=String(_pick(r,'Cod CC','cc')||'').trim();if(!code)continue;
-    ccM[code]={cc:code,nome:_title(_pick(r,'Descrição','descricao')),estado:_title(_pick(r,'Estado')),macro:String(_pick(r,'Macro')||''),servico:String(_pick(r,'Serviço','servico')||''),pessoas:0};}
+async function upsert(t,rows,conf,onLog){let d=0;for(const part of _ch(rows,500)){const{error}=await db.from(t).upsert(part,conf?{onConflict:conf}:undefined);if(error)throw new Error(t+': '+error.message);d+=part.length;if(onLog)onLog(`  ${t}: ${d}/${rows.length}`);}}
 
-  onLog('Lendo SRA (pessoas ativas)…');
-  const sra=await _csv(files.sra);const ativos={};
-  for(const r of sra){const sit=String(_pick(r,'SIT_FOLHA')||'').trim();if(!['NORMAL','FÉRIAS','AFASTADO'].includes(sit))continue;
-    const c=String(_pick(r,'CCUSTO')||'').trim();const m=String(_pick(r,'MATRICULA')||'').trim();(ativos[c]=ativos[c]||new Set()).add(m);}
-  for(const c in ativos){if(ccM[c])ccM[c].pessoas=ativos[c].size;else ccM[c]={cc:c,nome:'(sem cadastro)',estado:'',macro:'',servico:'',pessoas:ativos[c].size};}
-
+/* --- Consumo + curva ABC (SCP + SB1) --- */
+async function atualizarConsumo(files,onLog){
   onLog('Lendo cadastro de itens (SB1)…');
   const sb1=await _csv(files.sb1);const itM={};
   for(const r of sb1){const cod=String(_pick(r,'B1_COD')||'').trim();if(!cod)continue;
-    itM[cod]={codigo:cod,descricao:String(_pick(r,'B1_DESC')||'').replace(/\s+/g,' ').trim(),grupo:String(_pick(r,'B1_DESCGP','B1_GRUPO')||'').replace(/\s+/g,' ').trim()||'OUTROS',unidade:String(_pick(r,'B1_UM')||'UN').trim(),custo:parseFloat(_pick(r,'B1_UPRC'))||0};}
-
-  onLog('Lendo SCP (solicitações) — arquivo grande…');
-  const scp=await _stream(files.scp,d=>({cc:String(d.cpcc||'').trim(),prod:String(d.cpproduto||'').trim(),q:parseFloat(d.cpquant)||0,dt:_ymd(d.cpemissao)}),onLog,'SCP linhas');
-  let maxd='00000000';for(const r of scp){if(r.dt&&r.dt>maxd)maxd=r.dt;}const cut=_minus12m(maxd);
-  onLog('Calculando consumo médio (12 meses até '+maxd+')…');
-  const cons={};for(const r of scp){if(!r.dt||r.dt<cut||!r.cc||!r.prod)continue;cons[r.cc+'|'+r.prod]=(cons[r.cc+'|'+r.prod]||0)+r.q;}
-
+    itM[cod]={descricao:String(_pick(r,'B1_DESC')||'').replace(/\s+/g,' ').trim(),grupo:String(_pick(r,'B1_DESCGP','B1_GRUPO')||'').replace(/\s+/g,' ').trim()||'OUTROS',unidade:String(_pick(r,'B1_UM')||'UN').trim(),custo:parseFloat(_pick(r,'B1_UPRC'))||0};}
+  const cutoff=_hoje12();const cons={};
+  onLog('Lendo SCP e somando consumo dos últimos 12 meses…');
+  await _reduzir(files.scp,d=>{const dt=_ymd(d.cpemissao);if(!dt||dt<cutoff)return;const cc=String(d.cpcc||'').trim(),prod=String(d.cpproduto||'').trim();if(!cc||!prod)return;cons[cc+'|'+prod]=(cons[cc+'|'+prod]||0)+(parseFloat(d.cpquant)||0);},onLog,'SCP');
   onLog('Calculando curva ABC por CC…');
   const byCc={};for(const k in cons){const i=k.indexOf('|');const c=k.slice(0,i),p=k.slice(i+1);const cm=cons[k]/12;if(cm<=0)continue;(byCc[c]=byCc[c]||[]).push({prod:p,cm,custo:(itM[p]?.custo||0)});}
   const consumo=[];const usados=new Set();
   for(const c in byCc){let a=byCc[c];const tv=a.reduce((s,x)=>s+x.cm*x.custo,0);
     if(tv>0){a.sort((x,y)=>y.cm*y.custo-x.cm*x.custo);let cu=0;for(const x of a){cu+=x.cm*x.custo;const r=cu/tv;x.curva=r<=.8?'A':r<=.95?'B':'C';}}
     else{a.sort((x,y)=>y.cm-x.cm);const tq=a.reduce((s,x)=>s+x.cm,0);let cu=0;for(const x of a){cu+=x.cm;const r=tq>0?cu/tq:1;x.curva=r<=.8?'A':r<=.95?'B':'C';}}
-    if(!ccM[c])continue;for(const x of a){consumo.push({cc:c,codigo:x.prod,consumo_medio:Math.round(x.cm*100)/100,curva:x.curva});usados.add(x.prod);}}
+    for(const x of a){consumo.push({cc:c,codigo:x.prod,consumo_medio:Math.round(x.cm*100)/100,curva:x.curva});usados.add(x.prod);}}
   const itens=[...usados].map(c=>({codigo:c,descricao:itM[c]?.descricao||c,grupo:itM[c]?.grupo||'OUTROS',unidade:itM[c]?.unidade||'UN'}));
-  const ccSet=new Set(consumo.map(x=>x.cc));
-  const ccs=Object.values(ccM).filter(c=>c.pessoas>0||ccSet.has(c.cc));
-
-  let estoque=[];
-  if(files.sb2){
-    onLog('Lendo SB2 (estoque)…');
-    const seen={};
-    const e=await _stream(files.sb2,d=>{const cod=String(_pick(d,'b2cod','codigo')||'').trim();if(!cod)return null;return {codigo:cod,local:String(_pick(d,'b2local','local')||'01').trim(),saldo:parseFloat(_pick(d,'b2qatu','b2saldo','saldo'))||0};},onLog,'SB2 linhas');
-    for(const r of e){seen[r.codigo+'|'+r.local]=r;} estoque=Object.values(seen);
-  }
-  onLog(`✓ Processado: ${ccs.length} CCs · ${itens.length} itens · ${consumo.length} consumos${estoque.length?` · ${estoque.length} saldos`:''}`);
-  return {ccs,itens,consumo,estoque};
+  onLog(`Gravando ${itens.length} itens e ${consumo.length} consumos…`);
+  await upsert('itens',itens,'codigo',onLog);
+  await upsert('consumo',consumo,'cc,codigo',onLog);
 }
 
-async function enviarCadastros(b,onLog){
-  async function up(t,rows,conf){let d=0;for(const part of _ch(rows,500)){const{error}=await db.from(t).upsert(part,conf?{onConflict:conf}:undefined);if(error)throw new Error(t+': '+error.message);d+=part.length;onLog(`  ${t}: ${d}/${rows.length}`);}}
-  await up('centros_custo',b.ccs,'cc');
-  await up('itens',b.itens,'codigo');
-  await up('consumo',b.consumo,'cc,codigo');
-  if(b.estoque.length){await db.from('estoque').delete().neq('id',-1);await up('estoque',b.estoque,'codigo,local');}
-  onLog('✓ Cadastros atualizados no banco!');
+/* --- Pessoas por base (SRA) --- */
+async function atualizarPessoas(files,onLog){
+  onLog('Lendo SRA e contando pessoas ativas…');
+  const sra=await _csv(files.sra);const ativos={};
+  for(const r of sra){const sit=String(_pick(r,'SIT_FOLHA')||'').trim();if(!['NORMAL','FÉRIAS','AFASTADO'].includes(sit))continue;
+    const c=String(_pick(r,'CCUSTO')||'').trim();const m=String(_pick(r,'MATRICULA')||'').trim();if(!c)continue;(ativos[c]=ativos[c]||new Set()).add(m);}
+  const rows=Object.entries(ativos).map(([cc,set])=>({cc,pessoas:set.size}));
+  onLog(`Atualizando pessoas em ${rows.length} centros de custo…`);
+  await upsert('centros_custo',rows,'cc',onLog);
 }
 
-async function processarSC7(file,scNums,onLog){
-  const pcs=await _stream(file,d=>{const ns=String(d.c7numsc||'').trim();if(!scNums.has(ns))return null;return {numsc:ns,produto:String(d.c7produto||'').trim(),pc_num:String(d.c7num||'').trim(),qtd:parseFloat(d.c7quant)||0,recebido:parseFloat(d.c7quje)||0,status:String(d.statusdesc||'').replace(/\s+/g,' ').trim(),emissao:_ymd(d.c7emissao)};},onLog,'SC7 linhas');
-  onLog(`✓ ${pcs.length} pedidos de compra ligados às SCs associadas`);
-  return pcs;
+/* --- Centros de custo (xlsx) — não mexe em pessoas --- */
+async function atualizarCC(files,onLog){
+  onLog('Lendo Centro de Custo (.xlsx)…');
+  const wb=XLSX.read(await files.cc.arrayBuffer(),{type:'array'});
+  const ccRows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+  const rows=[];
+  for(const r of ccRows){const code=String(_pick(r,'Cod CC','cc')||'').trim();if(!code)continue;
+    rows.push({cc:code,nome:_title(_pick(r,'Descrição','descricao')),estado:_title(_pick(r,'Estado')),macro:String(_pick(r,'Macro')||''),servico:String(_pick(r,'Serviço','servico')||'')});}
+  onLog(`Atualizando ${rows.length} centros de custo…`);
+  await upsert('centros_custo',rows,'cc',onLog);
 }
-async function enviarSC7(pcs,onLog){
+
+/* --- Estoque (SB2) --- */
+async function atualizarEstoque(files,onLog){
+  onLog('Lendo SB2 (estoque)…');const seen={};
+  await _reduzir(files.sb2,d=>{const cod=String(_pick(d,'b2cod','codigo')||'').trim();if(!cod)return;const local=String(_pick(d,'b2local','local')||'01').trim();seen[cod+'|'+local]={codigo:cod,local,saldo:parseFloat(_pick(d,'b2qatu','b2saldo','saldo'))||0};},onLog,'SB2');
+  const rows=Object.values(seen);
+  onLog(`Gravando ${rows.length} saldos…`);
+  await db.from('estoque').delete().neq('id',-1);
+  await upsert('estoque',rows,'codigo,local',onLog);
+}
+
+/* --- Pedidos de compra (SC7) — só das SCs associadas --- */
+async function atualizarSC7(files,scNums,onLog){
+  onLog(`Lendo SC7 e filtrando ${scNums.size} SC(s) associada(s)…`);
+  const pcs=[];
+  await _reduzir(files.sc7,d=>{const ns=String(d.c7numsc||'').trim();if(!scNums.has(ns))return;pcs.push({numsc:ns,produto:String(d.c7produto||'').trim(),pc_num:String(d.c7num||'').trim(),qtd:parseFloat(d.c7quant)||0,recebido:parseFloat(d.c7quje)||0,status:String(d.statusdesc||'').replace(/\s+/g,' ').trim(),emissao:_ymd(d.c7emissao)});},onLog,'SC7');
+  onLog(`${pcs.length} pedidos ligados. Gravando…`);
   await db.from('pedidos_compra').delete().neq('id',-1);
   let d=0;for(const part of _ch(pcs,500)){const{error}=await db.from('pedidos_compra').insert(part);if(error)throw new Error('pedidos_compra: '+error.message);d+=part.length;onLog(`  enviados: ${d}/${pcs.length}`);}
-  onLog('✓ Status de pedidos atualizado!');
 }
-
 /* ===================== APP (login) ===================== */
 function App(){
   const [session,setSession]=useState(undefined);
@@ -337,53 +340,54 @@ function AcompCard({sol,ccMap,pcMap}){
   </div>;
 }
 
-/* ===================== BASES ===================== */
+/* ===================== BASES (cada uma atualiza sozinha) ===================== */
+function BaseUpdater({titulo,desc,campos,acao,onConcluir}){
+  const [files,setFiles]=useState({});const [log,setLog]=useState([]);const [rod,setRod]=useState(false);
+  const add=m=>setLog(l=>[...l,m]);
+  const pronto=campos.filter(c=>!c.opcional).every(c=>files[c.k])&&!rod;
+  async function run(){setRod(true);setLog([]);
+    try{await acao(files,add);add('✓ Concluído!');setTimeout(()=>{setRod(false);onConcluir();},800);}
+    catch(e){add('✗ Erro: '+(e.message||e));setRod(false);}}
+  return <div style={{background:"#fff",border:`1px solid ${C.line}`,borderRadius:14,padding:18,marginBottom:14}}>
+    <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{titulo}</div>
+    <div style={{fontSize:12.5,color:C.muted,marginBottom:14}}>{desc}</div>
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>
+      {campos.map(c=><label key={c.k} style={{flex:"1 1 200px",border:`1px solid ${files[c.k]?C.teal:C.line}`,background:files[c.k]?C.teal+"0d":"#fff",borderRadius:10,padding:11,cursor:rod?"default":"pointer"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13}}>{c.label}{c.opcional?" (opcional)":""}</div><div style={{fontSize:11,color:C.muted}}>{c.sub}</div></div>{files[c.k]?<Ic.check size={16} color={C.teal}/>:<Ic.up size={16} color={C.muted}/>}</div>
+        {files[c.k]&&<div style={{fontSize:11,color:C.teal,marginTop:6,fontWeight:600,wordBreak:"break-all"}}>{files[c.k].name}</div>}
+        <input type="file" accept={c.a} disabled={rod} style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)setFiles(p=>({...p,[c.k]:f}));}}/>
+      </label>)}
+    </div>
+    <button onClick={run} disabled={!pronto} style={{background:pronto?C.teal:C.line,color:"#fff",border:"none",borderRadius:8,padding:"10px 18px",fontWeight:700,fontSize:13.5,cursor:pronto?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:8}}>{rod?<Ic.loader size={16} color="#fff"/>:<Ic.db size={16} color="#fff"/>} {rod?"Processando…":"Atualizar"}</button>
+    {log.length>0&&<Log linhas={log}/>}
+  </div>;
+}
+
 function Bases({sols,onConcluir}){
-  const [files,setFiles]=useState({cc:null,sb1:null,sra:null,scp:null,sb2:null});
-  const [sc7,setSc7]=useState(null);
-  const [log,setLog]=useState([]);const [rod,setRod]=useState(false);
-  const [log2,setLog2]=useState([]);const [rod2,setRod2]=useState(false);
-  const add=m=>setLog(l=>[...l,m]);const add2=m=>setLog2(l=>[...l,m]);
-  const defs=[{k:"cc",t:"Centro de Custo",s:"Excel (.xlsx)",a:".xlsx,.xls"},{k:"sb1",t:"Itens — SB1",s:"CSV",a:".csv"},{k:"sra",t:"Funcionários — SRA",s:"CSV",a:".csv"},{k:"scp",t:"Solicitações — SCP",s:"CSV",a:".csv"},{k:"sb2",t:"Estoque — SB2",s:"CSV (opcional)",a:".csv"}];
-  const pronto=files.cc&&files.sb1&&files.sra&&files.scp&&!rod;
   const scNums=useMemo(()=>new Set(sols.map(s=>(s.sc_numero||"").trim()).filter(Boolean)),[sols]);
-
-  async function atualizar(){setRod(true);setLog([]);
-    try{const b=await processarCadastros(files,add);add("Enviando ao banco…");await enviarCadastros(b,add);add("Concluído!");setTimeout(onConcluir,800);}
-    catch(e){add("✗ Erro: "+(e.message||e));setRod(false);}}
-  async function subirSc7(){setRod2(true);setLog2([]);
-    try{if(scNums.size===0){add2("Nenhuma SC associada ainda. Associe o nº da SC numa solicitação aprovada primeiro.");setRod2(false);return;}
-      add2(`Buscando pedidos das ${scNums.size} SCs associadas…`);const pcs=await processarSC7(sc7,scNums,add2);await enviarSC7(pcs,add2);add2("Concluído!");setTimeout(onConcluir,800);}
-    catch(e){add2("✗ Erro: "+(e.message||e));setRod2(false);}}
-
   return <div style={{maxWidth:820}}>
     <h2 style={{fontSize:16,marginTop:0,marginBottom:4}}>Bases de dados</h2>
-    <p style={{color:C.muted,fontSize:13,marginTop:0}}>Os dados ficam guardados no banco. Você só sobe quando quiser atualizar.</p>
+    <p style={{color:C.muted,fontSize:13,marginTop:0,marginBottom:16}}>Tudo fica guardado no banco — você só sobe quando quiser atualizar. Cada base é independente, e o processamento roda em segundo plano (pode usar as outras abas enquanto roda).</p>
 
-    <div style={{background:"#fff",border:`1px solid ${C.line}`,borderRadius:14,padding:18,marginTop:8}}>
-      <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Atualizar cadastros</div>
-      <div style={{fontSize:12.5,color:C.muted,marginBottom:14}}>Recalcula pessoas por base, consumo médio (12 meses), curva ABC e estoque. SB2 é opcional.</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10,marginBottom:14}}>
-        {defs.map(d=><label key={d.k} style={{display:"block",border:`1px solid ${files[d.k]?C.teal:C.line}`,background:files[d.k]?C.teal+"0d":"#fff",borderRadius:10,padding:12,cursor:rod?"default":"pointer"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13}}>{d.t}</div><div style={{fontSize:11,color:C.muted}}>{d.s}</div></div>{files[d.k]?<Ic.check size={17} color={C.teal}/>:<Ic.up size={17} color={C.muted}/>}</div>
-          {files[d.k]&&<div style={{fontSize:11,color:C.teal,marginTop:6,fontWeight:600,wordBreak:"break-all"}}>{files[d.k].name}</div>}
-          <input type="file" accept={d.a} disabled={rod} style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)setFiles(p=>({...p,[d.k]:f}));}}/>
-        </label>)}
-      </div>
-      <button onClick={atualizar} disabled={!pronto} style={{background:pronto?C.teal:C.line,color:"#fff",border:"none",borderRadius:8,padding:"11px 20px",fontWeight:700,fontSize:14,cursor:pronto?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:8}}>{rod?<Ic.loader size={17} color="#fff"/>:<Ic.db size={17} color="#fff"/>} {rod?"Processando…":"Processar e atualizar"}</button>
-      {log.length>0&&<Log linhas={log}/>}
-    </div>
+    <BaseUpdater titulo="Consumo médio e curva ABC" desc="Recalcula o consumo dos últimos 12 meses e a curva ABC por CC. Precisa da SCP e do SB1."
+      campos={[{k:"scp",label:"SCP — Solicitações",sub:"CSV",a:".csv"},{k:"sb1",label:"SB1 — Itens",sub:"CSV",a:".csv"}]}
+      acao={atualizarConsumo} onConcluir={onConcluir}/>
 
-    <div style={{background:"#fff",border:`1px solid ${C.line}`,borderRadius:14,padding:18,marginTop:14}}>
-      <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Pedidos de compra — SC7 (diário)</div>
-      <div style={{fontSize:12.5,color:C.muted,marginBottom:14}}>Atualiza o status dos pedidos das SCs que você associou. {scNums.size>0?`${scNums.size} SC(s) associada(s).`:"Nenhuma SC associada ainda."}</div>
-      <label style={{display:"inline-block",border:`1px solid ${sc7?C.teal:C.line}`,background:sc7?C.teal+"0d":"#fff",borderRadius:10,padding:"10px 14px",cursor:rod2?"default":"pointer",marginRight:12}}>
-        <span style={{fontSize:13,fontWeight:600,color:sc7?C.teal:C.muted}}>{sc7?sc7.name:"Selecionar SC7 (.csv)"}</span>
-        <input type="file" accept=".csv" disabled={rod2} style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)setSc7(f);}}/>
-      </label>
-      <button onClick={subirSc7} disabled={!sc7||rod2} style={{background:(sc7&&!rod2)?C.teal:C.line,color:"#fff",border:"none",borderRadius:8,padding:"11px 20px",fontWeight:700,fontSize:14,cursor:(sc7&&!rod2)?"pointer":"not-allowed",display:"inline-flex",alignItems:"center",gap:8,verticalAlign:"middle"}}>{rod2?<Ic.loader size={17} color="#fff"/>:<Ic.track size={17} color="#fff"/>} {rod2?"Processando…":"Atualizar status"}</button>
-      {log2.length>0&&<Log linhas={log2}/>}
-    </div>
+    <BaseUpdater titulo="Pessoas por base" desc="Conta os funcionários ativos por centro de custo (SRA). Não altera o resto do cadastro do CC."
+      campos={[{k:"sra",label:"SRA — Funcionários",sub:"CSV",a:".csv"}]}
+      acao={atualizarPessoas} onConcluir={onConcluir}/>
+
+    <BaseUpdater titulo="Estoque" desc="Atualiza o saldo por item (SB2). Use quando tiver o arquivo de estoque."
+      campos={[{k:"sb2",label:"SB2 — Estoque",sub:"CSV",a:".csv"}]}
+      acao={atualizarEstoque} onConcluir={onConcluir}/>
+
+    <BaseUpdater titulo="Centros de custo" desc="Atualiza nome/estado/macro das bases (sem mexer na contagem de pessoas). Só use se mudou o cadastro de CC."
+      campos={[{k:"cc",label:"Centro de Custo",sub:"Excel (.xlsx)",a:".xlsx,.xls"}]}
+      acao={atualizarCC} onConcluir={onConcluir}/>
+
+    <BaseUpdater titulo="Pedidos de compra — SC7 (diário)" desc={scNums.size>0?`Atualiza o status dos pedidos das ${scNums.size} SC(s) associada(s).`:"Associe o nº de uma SC numa solicitação aprovada antes de subir a SC7."}
+      campos={[{k:"sc7",label:"SC7 — Pedidos de compra",sub:"CSV",a:".csv"}]}
+      acao={(f,add)=>{if(scNums.size===0)throw new Error("Nenhuma SC associada ainda.");return atualizarSC7(f,scNums,add);}} onConcluir={onConcluir}/>
   </div>;
 }
 function Log({linhas}){return <div style={{marginTop:14,background:C.ink,color:"#cbd5e1",borderRadius:10,padding:14,fontFamily:"ui-monospace,monospace",fontSize:12.5,lineHeight:1.7,maxHeight:280,overflow:"auto",whiteSpace:"pre-wrap"}}>{linhas.map((l,i)=><div key={i} style={{color:l.startsWith("✓")?"#34d399":l.startsWith("✗")?"#fb7185":"#cbd5e1"}}>{l}</div>)}</div>;}
