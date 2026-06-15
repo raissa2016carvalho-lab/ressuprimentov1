@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Solicitação de Ressuprimento</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect } = React;
+const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const C={ink:"#0f172a",line:"#e2e8f0",teal:"#0d9488",muted:"#64748b",red:"#e11d48"};
+
+function App(){
+  const [ccs,setCcs]=useState([]);
+  const [carregandoCcs,setCarregandoCcs]=useState(true);
+  const [nome,setNome]=useState(""); const [matricula,setMatricula]=useState("");
+  const [cc,setCc]=useState("");
+  const [itensCC,setItensCC]=useState([]); const [carregandoItens,setCarregandoItens]=useState(false);
+  const [carrinho,setCarrinho]=useState([]);   // {codigo,descricao,unidade,quantidade,justificativa}
+  const [busca,setBusca]=useState("");
+  const [enviando,setEnviando]=useState(false); const [enviado,setEnviado]=useState(false);
+  const [erro,setErro]=useState("");
+
+  useEffect(()=>{(async()=>{
+    const {data,error}=await db.from("ccs_publico").select("*");
+    if(!error) setCcs(data||[]);
+    setCarregandoCcs(false);
+  })();},[]);
+
+  useEffect(()=>{ if(!cc){setItensCC([]);return;}
+    setCarregandoItens(true); setCarrinho([]); setBusca("");
+    (async()=>{
+      let from=0,all=[];
+      while(true){const {data,error}=await db.from("itens_por_cc").select("*").eq("cc",cc).range(from,from+999);
+        if(error)break; all=all.concat(data||[]); if(!data||data.length<1000)break; from+=1000;}
+      all.sort((a,b)=>(a.descricao||"").localeCompare(b.descricao||""));
+      setItensCC(all); setCarregandoItens(false);
+    })();
+  },[cc]);
+
+  const noCarrinho=useMemo(()=>new Set(carrinho.map(c=>c.codigo)),[carrinho]);
+  const filtrados=useMemo(()=>{
+    const q=busca.toLowerCase().trim();
+    return itensCC.filter(i=>!noCarrinho.has(i.codigo)&&(!q||(i.descricao||"").toLowerCase().includes(q)||(i.codigo||"").toLowerCase().includes(q))).slice(0,40);
+  },[itensCC,busca,noCarrinho]);
+
+  function addItem(it){setCarrinho(c=>[...c,{codigo:it.codigo,descricao:it.descricao,unidade:it.unidade,quantidade:"",justificativa:""}]);setBusca("");}
+  function upd(cod,campo,val){setCarrinho(c=>c.map(x=>x.codigo===cod?{...x,[campo]:val}:x));}
+  function rem(cod){setCarrinho(c=>c.filter(x=>x.codigo!==cod));}
+
+  const valido = nome.trim() && matricula.trim() && cc && carrinho.length>0 &&
+    carrinho.every(x=>Number(x.quantidade)>0 && x.justificativa.trim());
+
+  async function enviar(){
+    setEnviando(true); setErro("");
+    const itens=carrinho.map(x=>({codigo:x.codigo,descricao:x.descricao,quantidade:Number(x.quantidade),justificativa:x.justificativa.trim()}));
+    const {error}=await db.rpc("criar_solicitacao",{p_cc:cc,p_nome:nome.trim(),p_matricula:matricula.trim(),p_itens:itens});
+    setEnviando(false);
+    if(error){setErro("Não foi possível enviar. Tente novamente. ("+error.message+")");return;}
+    setEnviado(true);
+  }
+
+  if(enviado) return (
+    <div style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:20}}>
+      <div style={{maxWidth:440,background:"#fff",border:`1px solid ${C.line}`,borderRadius:16,padding:32,textAlign:"center"}}>
+        <div style={{width:56,height:56,borderRadius:"50%",background:C.teal+"1a",display:"grid",placeItems:"center",margin:"0 auto 16px"}}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={C.teal} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <h2 style={{margin:"0 0 8px"}}>Solicitação enviada!</h2>
+        <p style={{color:C.muted,fontSize:14,lineHeight:1.5,marginBottom:20}}>Recebemos seu pedido de ressuprimento. A equipe vai avaliar e dar andamento. Obrigado, {nome.split(" ")[0]}.</p>
+        <button onClick={()=>{setEnviado(false);setNome("");setMatricula("");setCc("");setCarrinho([]);}} style={{background:C.teal,color:"#fff",border:"none",borderRadius:9,padding:"11px 20px",fontWeight:700,fontSize:14,cursor:"pointer"}}>Nova solicitação</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{maxWidth:720,margin:"0 auto",padding:"24px 16px 60px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+        <div style={{width:34,height:34,borderRadius:8,background:C.teal,display:"grid",placeItems:"center"}}>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
+        </div>
+        <div><h1 style={{margin:0,fontSize:19}}>Solicitação de Ressuprimento</h1><div style={{fontSize:12.5,color:C.muted}}>Preencha seus dados, escolha sua base e adicione os itens.</div></div>
+      </div>
+
+      <Card titulo="Seus dados">
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          <Campo label="Nome completo" flex={2}><input value={nome} onChange={e=>setNome(e.target.value)} placeholder="Seu nome" style={inp}/></Campo>
+          <Campo label="Matrícula" flex={1}><input value={matricula} onChange={e=>setMatricula(e.target.value)} placeholder="Ex.: 12345" style={inp}/></Campo>
+        </div>
+        <Campo label="Centro de custo / base">
+          {carregandoCcs ? <div style={{color:C.muted,fontSize:13,padding:"8px 0"}}>Carregando bases…</div> :
+          <select value={cc} onChange={e=>setCc(e.target.value)} style={{...inp,cursor:"pointer"}}>
+            <option value="">Selecione sua base…</option>
+            {ccs.map(c=><option key={c.cc} value={c.cc}>{c.nome} — {c.cc}</option>)}
+          </select>}
+        </Campo>
+      </Card>
+
+      {cc && <Card titulo="Adicionar itens">
+        {carregandoItens ? <div style={{color:C.muted,fontSize:13}}>Carregando itens da base…</div> : <>
+          <div style={{position:"relative"}}>
+            <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar item por nome ou código…" style={inp}/>
+            {busca && filtrados.length>0 && <div style={{position:"absolute",zIndex:5,left:0,right:0,background:"#fff",border:`1px solid ${C.line}`,borderRadius:10,marginTop:4,maxHeight:260,overflow:"auto",boxShadow:"0 8px 24px rgba(15,23,42,.1)"}}>
+              {filtrados.map(it=><div key={it.codigo} onClick={()=>addItem(it)} style={{padding:"10px 12px",cursor:"pointer",borderBottom:`1px solid ${C.line}`}}>
+                <div style={{fontWeight:500,fontSize:13.5}}>{it.descricao}</div><div style={{fontSize:11,color:C.muted,fontFamily:"ui-monospace,monospace"}}>{it.codigo} · {it.unidade}</div>
+              </div>)}
+            </div>}
+          </div>
+          {busca && filtrados.length===0 && <div style={{fontSize:12.5,color:C.muted,marginTop:6}}>Nenhum item encontrado nessa base com esse termo.</div>}
+        </>}
+      </Card>}
+
+      {carrinho.length>0 && <Card titulo={`Itens da solicitação (${carrinho.length})`}>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {carrinho.map(x=>(
+            <div key={x.codigo} style={{border:`1px solid ${C.line}`,borderRadius:10,padding:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                <div><div style={{fontWeight:600,fontSize:13.5}}>{x.descricao}</div><div style={{fontSize:11,color:C.muted,fontFamily:"ui-monospace,monospace"}}>{x.codigo}</div></div>
+                <button onClick={()=>rem(x.codigo)} style={{border:"none",background:"none",cursor:"pointer",color:C.muted}}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div style={{display:"flex",gap:12,marginTop:10,flexWrap:"wrap"}}>
+                <Campo label={`Quantidade (${x.unidade||"un"})`} flex={1}><input type="number" min="0" value={x.quantidade} onChange={e=>upd(x.codigo,"quantidade",e.target.value)} placeholder="0" style={inp}/></Campo>
+                <Campo label="Justificativa" flex={3}><input value={x.justificativa} onChange={e=>upd(x.codigo,"justificativa",e.target.value)} placeholder="Por que precisa deste item?" style={inp}/></Campo>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>}
+
+      {erro && <div style={{color:C.red,fontSize:13,margin:"4px 4px 12px"}}>{erro}</div>}
+      <button onClick={enviar} disabled={!valido||enviando} style={{width:"100%",background:(valido&&!enviando)?C.teal:C.line,color:"#fff",border:"none",borderRadius:10,padding:"14px",fontWeight:700,fontSize:15,cursor:(valido&&!enviando)?"pointer":"not-allowed",marginTop:8}}>
+        {enviando?"Enviando…":"Enviar solicitação"}
+      </button>
+      {!valido && carrinho.length>0 && <div style={{textAlign:"center",fontSize:12,color:C.muted,marginTop:8}}>Preencha nome, matrícula, base e a quantidade + justificativa de cada item.</div>}
+    </div>
+  );
+}
+const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:`1px solid ${C.line}`,fontSize:14,outline:"none"};
+function Card({titulo,children}){return <div style={{background:"#fff",border:`1px solid ${C.line}`,borderRadius:14,padding:18,marginTop:14}}><div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:12}}>{titulo}</div>{children}</div>;}
+function Campo({label,children,flex}){return <label style={{display:"block",flex:flex?`${flex} 1 120px`:"none",marginTop:label&&"2px"}}><span style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",margin:"8px 0 5px"}}>{label}</span>{children}</label>;}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
