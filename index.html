@@ -350,7 +350,7 @@
     const numerosSc = [...new Set(associadas.map(s => s.sc_numero.trim()))];
     const { data: pcs, error: e2 } = await dbProtheus
       .from("pedidos_compra")
-      .select("c7_numsc,c7_produto,c7_num,c7_quant,c7_quje,status_desc,c7_descri")
+      .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri")
       .in("c7_numsc", numerosSc);
 
     if (e2) {
@@ -381,7 +381,7 @@
           <div class="card-corpo" id="corpo-ac-${s.id}">
             ${pedidosDaSc.length === 0 ? '<div style="color:#64748b;font-size:13px">Nenhum pedido de compra encontrado ainda para essa SC no painel-protheus.</div>' : `
             <table>
-              <tr><th>Item</th><th>Pedido (PC)</th><th style="text-align:right">Qtd</th><th style="text-align:right">Receb.</th><th>Status</th></tr>
+              <tr><th>Item</th><th>Pedido (PC)</th><th style="text-align:right">Qtd</th><th>Status</th></tr>
               ${pedidosDaSc.map(p => {
                 const st = (p.status_desc || "").toLowerCase();
                 const cls = st.includes("receb") ? "st-recebido" : (st.includes("pend") || st.includes("aprov")) ? "st-pendente" : "st-outro";
@@ -389,7 +389,6 @@
                   <td>${p.c7_descri || p.c7_produto || ""}</td>
                   <td style="font-family:ui-monospace,monospace">${p.c7_num || ""}</td>
                   <td class="qtd">${p.c7_quant || 0}</td>
-                  <td class="qtd">${p.c7_quje || 0}</td>
                   <td class="status-pc ${cls}">${p.status_desc || "—"}</td>
                 </tr>`;
               }).join("")}
