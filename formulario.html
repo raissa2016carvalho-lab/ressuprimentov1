@@ -84,11 +84,11 @@
     const sugEl = wrap.querySelector(".item-sugestoes");
     const termo = inputEl.value.trim();
     if (termo.length < 2) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
-    const { data, error } = await db.from("itens_publico").select("codigo,descricao,unidade").ilike("descricao", `%${termo}%`).limit(15);
+    const { data, error } = await db.from("itens_publico").select("codigo,descricao,unidade").ilike("descricao", `%${termo}%`).limit(100);
     if (error || !data || data.length === 0) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
     sugEl.innerHTML = data.map(it =>
       `<div class="sug-item" data-codigo="${it.codigo}" data-descricao="${it.descricao.replace(/"/g, '&quot;')}">${it.descricao} <small>${it.codigo}</small></div>`
-    ).join("");
+    ).join("") + (data.length === 100 ? '<div style="padding:8px 12px;font-size:11.5px;color:#94a3b8;text-align:center">Mostrando os 100 primeiros — digite mais letras pra refinar</div>' : "");
     sugEl.style.display = "block";
   }, 300);
 
