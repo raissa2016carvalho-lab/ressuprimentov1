@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Ressuprimento — Painel</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
@@ -73,6 +75,12 @@
   .st-recebido{color:#16a34a}
   .st-pendente{color:#d97706}
   .st-outro{color:#64748b}
+
+  .base-card{max-width:680px}
+  .carimbo{font-size:11.5px;font-weight:600;color:#64748b;background:#f1f5f9;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .carimbo.feito{color:#0d9488;background:#0d94881a}
+  .upload-area{display:block;border:1px dashed #cbd5e1;border-radius:9px;padding:11px;cursor:pointer;background:#f8fafc;margin-top:14px}
+  .upload-area span{font-size:13px;color:#475569}
 </style>
 </head>
 <body>
@@ -101,6 +109,9 @@
     </button>
     <button class="aba" id="aba-btn-acompanhamento" onclick="irPara('acompanhamento')">
       Acompanhamento
+    </button>
+    <button class="aba" id="aba-btn-bases" onclick="irPara('bases')">
+      Bases
     </button>
     <div class="rodape">
       <div class="email" id="user-email"></div>
@@ -132,6 +143,51 @@
         <button id="btn-atualizar-acomp">↻ Atualizar</button>
       </div>
       <div class="corpo-aba"><div id="lista-acomp"></div></div>
+    </div>
+
+    <div id="aba-bases" style="display:none">
+      <div class="topo-aba">
+        <div style="font-weight:700;font-size:14px">Bases de dados</div>
+      </div>
+      <div class="corpo-aba">
+        <p style="color:#64748b;font-size:13px;max-width:680px;margin-top:0;margin-bottom:16px">Cada base fica salva no banco até você subir de novo. Atualize só quando precisar — não precisa repetir todo dia.</p>
+
+        <div class="card base-card">
+          <div style="padding:16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+              <div>
+                <div style="font-weight:700;font-size:14px">Cadastro de Itens — SB1</div>
+                <div style="font-size:12.5px;color:#64748b;margin-top:2px">Atualiza código, descrição, grupo e unidade dos materiais.</div>
+              </div>
+              <div class="carimbo" id="carimbo-itens">carregando...</div>
+            </div>
+            <label class="upload-area" id="label-itens">
+              <span id="nome-arquivo-itens">Escolher arquivo (.csv)</span>
+              <input type="file" accept=".csv" style="display:none" id="arquivo-itens" onchange="arquivoEscolhido('itens')"/>
+            </label>
+            <button class="btn-salvar" style="margin-top:12px" id="btn-itens" onclick="processarBase('itens')" disabled>Atualizar</button>
+            <div id="log-itens" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <div class="card base-card">
+          <div style="padding:16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+              <div>
+                <div style="font-weight:700;font-size:14px">Centro de Custo</div>
+                <div style="font-size:12.5px;color:#64748b;margin-top:2px">Atualiza nome, estado, macro e serviço das bases (não altera a contagem de pessoas).</div>
+              </div>
+              <div class="carimbo" id="carimbo-centros_custo">carregando...</div>
+            </div>
+            <label class="upload-area" id="label-centros_custo">
+              <span id="nome-arquivo-centros_custo">Escolher arquivo (.xlsx)</span>
+              <input type="file" accept=".xlsx,.xls" style="display:none" id="arquivo-centros_custo" onchange="arquivoEscolhido('centros_custo')"/>
+            </label>
+            <button class="btn-salvar" style="margin-top:12px" id="btn-centros_custo" onclick="processarBase('centros_custo')" disabled>Atualizar</button>
+            <div id="log-centros_custo" style="margin-top:10px"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 </div>
@@ -183,9 +239,12 @@
   function irPara(aba) {
     $("aba-solicitacoes").style.display = aba === "solicitacoes" ? "block" : "none";
     $("aba-acompanhamento").style.display = aba === "acompanhamento" ? "block" : "none";
+    $("aba-bases").style.display = aba === "bases" ? "block" : "none";
     $("aba-btn-solicitacoes").classList.toggle("ativo", aba === "solicitacoes");
     $("aba-btn-acompanhamento").classList.toggle("ativo", aba === "acompanhamento");
+    $("aba-btn-bases").classList.toggle("ativo", aba === "bases");
     if (aba === "acompanhamento") carregarAcompanhamento();
+    if (aba === "bases") carregarCarimbos();
   }
   window.irPara = irPara;
 
@@ -399,6 +458,142 @@
     }).join("");
   }
   $("btn-atualizar-acomp").addEventListener("click", carregarAcompanhamento);
+
+  // ---------- ABA BASES (upload de SB1 e Centro de Custo, independentes) ----------
+  function normChave(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+  function pegar(linha, ...chaves) {
+    const mapa = {};
+    for (const k in linha) mapa[normChave(k)] = linha[k];
+    for (const k of chaves) {
+      const v = mapa[normChave(k)];
+      if (v !== undefined && v !== "") return v;
+    }
+    return undefined;
+  }
+  function titulo(s) { return String(s || "").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()); }
+
+  function parseCsv(file) {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => resolve(r.data), error: reject });
+    });
+  }
+
+  async function upsertEmPartes(tabela, linhas, conflito, logFn) {
+    const tamanho = 500;
+    let feito = 0;
+    for (let i = 0; i < linhas.length; i += tamanho) {
+      const parte = linhas.slice(i, i + tamanho);
+      const { error } = await db.from(tabela).upsert(parte, conflito ? { onConflict: conflito } : undefined);
+      if (error) throw new Error(tabela + ": " + error.message);
+      feito += parte.length;
+      if (logFn) logFn(`  ${tabela}: ${feito}/${linhas.length}`);
+    }
+  }
+
+  async function registrarCarimbo(base, registros) {
+    await db.from("bases_status").upsert({ base, atualizado_em: new Date().toISOString(), registros: registros || 0 });
+  }
+
+  async function atualizarSB1(file, logFn) {
+    logFn("Lendo SB1...");
+    const linhas = await parseCsv(file);
+    const itens = [];
+    for (const r of linhas) {
+      const codigo = String(pegar(r, "B1_COD") || "").trim();
+      if (!codigo) continue;
+      itens.push({
+        codigo,
+        descricao: String(pegar(r, "B1_DESC") || "").replace(/\s+/g, " ").trim(),
+        grupo: String(pegar(r, "B1_DESCGP", "B1_GRUPO") || "").replace(/\s+/g, " ").trim() || "OUTROS",
+        unidade: String(pegar(r, "B1_UM") || "UN").trim(),
+      });
+    }
+    logFn(`Gravando ${itens.length} itens...`);
+    await upsertEmPartes("itens", itens, "codigo", logFn);
+    await registrarCarimbo("itens", itens.length);
+    return itens.length;
+  }
+
+  async function atualizarCC(file, logFn) {
+    logFn("Lendo Centro de Custo (.xlsx)...");
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "array" });
+    const linhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+    const linhasCC = [];
+    for (const r of linhas) {
+      const cc = String(pegar(r, "Cod CC", "cc") || "").trim();
+      if (!cc) continue;
+      linhasCC.push({
+        cc,
+        nome: titulo(pegar(r, "Descrição", "descricao")),
+        estado: titulo(pegar(r, "Estado")),
+        macro: String(pegar(r, "Macro") || ""),
+        servico: String(pegar(r, "Serviço", "servico") || ""),
+      });
+    }
+    logFn(`Gravando ${linhasCC.length} centros de custo...`);
+    await upsertEmPartes("centros_custo", linhasCC, "cc", logFn);
+    await registrarCarimbo("centros_custo", linhasCC.length);
+    return linhasCC.length;
+  }
+
+  const ACOES_BASE = { itens: atualizarSB1, centros_custo: atualizarCC };
+  const arquivosSelecionados = {};
+
+  function arquivoEscolhido(key) {
+    const input = $("arquivo-" + key);
+    const file = input.files[0];
+    if (!file) return;
+    arquivosSelecionados[key] = file;
+    $("nome-arquivo-" + key).textContent = file.name;
+    $("btn-" + key).disabled = false;
+  }
+  window.arquivoEscolhido = arquivoEscolhido;
+
+  async function processarBase(key) {
+    const file = arquivosSelecionados[key];
+    if (!file) return;
+    const btn = $("btn-" + key);
+    const logEl = $("log-" + key);
+    btn.disabled = true; btn.textContent = "Processando...";
+    const linhasLog = [];
+    function logFn(msg) {
+      linhasLog.push(msg);
+      logEl.innerHTML = linhasLog.map(l => `<div style="font-size:12px;color:#475569;font-family:ui-monospace,monospace">${l}</div>`).join("");
+    }
+    try {
+      await ACOES_BASE[key](file, logFn);
+      logFn("✓ Concluído!");
+      await carregarCarimbos();
+    } catch (e) {
+      logFn("✗ Erro: " + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = "Atualizar";
+    }
+  }
+  window.processarBase = processarBase;
+
+  function fmtCarimbo(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function carregarCarimbos() {
+    const { data } = await db.from("bases_status").select("*");
+    const mapa = {};
+    (data || []).forEach(s => mapa[s.base] = s);
+    for (const key of ["itens", "centros_custo"]) {
+      const el = $("carimbo-" + key);
+      const s = mapa[key];
+      if (s) {
+        el.textContent = "✓ " + fmtCarimbo(s.atualizado_em) + (s.registros ? ` · ${s.registros} reg.` : "");
+        el.classList.add("feito");
+      } else {
+        el.textContent = "nunca atualizado";
+        el.classList.remove("feito");
+      }
+    }
+  }
 
   verificarSessao();
 </script>
