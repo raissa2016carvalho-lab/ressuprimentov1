@@ -81,6 +81,15 @@
   .carimbo.feito{color:#0d9488;background:#0d94881a}
   .upload-area{display:block;border:1px dashed #cbd5e1;border-radius:9px;padding:11px;cursor:pointer;background:#f8fafc;margin-top:14px}
   .upload-area span{font-size:13px;color:#475569}
+
+  .chip-equipe{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-size:10px;font-weight:700;margin-right:3px;background:#f1f5f9;color:#94a3b8}
+  .chip-equipe.ok{background:#dcfce7;color:#166534}
+  .input-sc-mob{width:120px!important;margin-bottom:0!important;padding:6px 8px!important;font-size:12.5px!important;font-family:ui-monospace,monospace}
+  .btn-novo{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer}
+  .btn-voltar{background:none;border:none;color:#0d9488;font-weight:600;font-size:13px;cursor:pointer;padding:0;margin-bottom:14px}
+  table.tbl-mob{font-size:12.5px}
+  table.tbl-mob th{font-size:11px}
+  table.tbl-mob td{padding:7px 8px}
 </style>
 </head>
 <body>
@@ -112,6 +121,9 @@
     </button>
     <button class="aba" id="aba-btn-bases" onclick="irPara('bases')">
       Bases
+    </button>
+    <button class="aba" id="aba-btn-mobilizacao" onclick="irPara('mobilizacao')">
+      Mobilização
     </button>
     <div class="rodape">
       <div class="email" id="user-email"></div>
@@ -189,6 +201,37 @@
         </div>
       </div>
     </div>
+
+    <div id="aba-mobilizacao" style="display:none">
+      <div class="topo-aba">
+        <div style="font-weight:700;font-size:14px">Mobilizações</div>
+        <button class="btn-novo" id="btn-nova-mob" onclick="mostrarFormMob()">+ Nova mobilização</button>
+      </div>
+      <div class="corpo-aba">
+        <div id="mob-lista-view">
+          <div id="lista-mob"></div>
+        </div>
+        <div id="mob-form-view" style="display:none">
+          <button class="btn-voltar" onclick="mostrarListaMob()">← Voltar</button>
+          <div class="card" style="max-width:680px">
+            <div style="padding:18px">
+              <label>Nome da mobilização</label>
+              <input id="mob-nome" placeholder="Ex.: Mobilização ENEL Norte"/>
+              <label>Número de equipes</label>
+              <input id="mob-num-equipes" type="number" min="1" placeholder="Ex.: 6"/>
+              <label>Planilha de itens (.csv ou .xlsx) — colunas: código, descrição, função, total mob</label>
+              <label class="upload-area" id="label-mob-arquivo">
+                <span id="nome-mob-arquivo">Escolher arquivo</span>
+                <input type="file" accept=".csv,.xlsx,.xls" style="display:none" id="mob-arquivo" onchange="lerArquivoMob()"/>
+              </label>
+              <div id="mob-composicao-area"></div>
+              <div id="mob-msg" style="margin-top:12px"></div>
+              <button class="btn-salvar" style="margin-top:14px;width:100%" id="btn-salvar-mob" onclick="salvarMobilizacao()" disabled>Salvar mobilização</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -240,11 +283,14 @@
     $("aba-solicitacoes").style.display = aba === "solicitacoes" ? "block" : "none";
     $("aba-acompanhamento").style.display = aba === "acompanhamento" ? "block" : "none";
     $("aba-bases").style.display = aba === "bases" ? "block" : "none";
+    $("aba-mobilizacao").style.display = aba === "mobilizacao" ? "block" : "none";
     $("aba-btn-solicitacoes").classList.toggle("ativo", aba === "solicitacoes");
     $("aba-btn-acompanhamento").classList.toggle("ativo", aba === "acompanhamento");
     $("aba-btn-bases").classList.toggle("ativo", aba === "bases");
+    $("aba-btn-mobilizacao").classList.toggle("ativo", aba === "mobilizacao");
     if (aba === "acompanhamento") carregarAcompanhamento();
     if (aba === "bases") carregarCarimbos();
+    if (aba === "mobilizacao") { mostrarListaMob(); carregarMobilizacoes(); }
   }
   window.irPara = irPara;
 
@@ -622,6 +668,239 @@
       }
     }
   }
+
+  // ---------- ABA MOBILIZAÇÃO ----------
+  function mostrarFormMob() {
+    $("mob-lista-view").style.display = "none";
+    $("mob-form-view").style.display = "block";
+    $("mob-nome").value = ""; $("mob-num-equipes").value = ""; $("mob-msg").innerHTML = "";
+    $("nome-mob-arquivo").textContent = "Escolher arquivo";
+    $("mob-composicao-area").innerHTML = "";
+    $("btn-salvar-mob").disabled = true;
+    linhasMobParaSalvar = null;
+  }
+  window.mostrarFormMob = mostrarFormMob;
+
+  function mostrarListaMob() {
+    $("mob-form-view").style.display = "none";
+    $("mob-lista-view").style.display = "block";
+  }
+  window.mostrarListaMob = mostrarListaMob;
+
+  function parseArquivoGenerico(file) {
+    return new Promise((resolve, reject) => {
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (ext === "csv") {
+        Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => resolve(r.data), error: reject });
+      } else {
+        file.arrayBuffer().then(buf => {
+          const wb = XLSX.read(buf, { type: "array" });
+          resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" }));
+        }).catch(reject);
+      }
+    });
+  }
+
+  let linhasMobParaSalvar = null;
+
+  async function lerArquivoMob() {
+    const file = $("mob-arquivo").files[0];
+    if (!file) return;
+    $("nome-mob-arquivo").textContent = file.name;
+    $("mob-msg").innerHTML = '<div class="msg" style="background:#f1f5f9;color:#475569">Lendo planilha...</div>';
+
+    const linhasBrutas = await parseArquivoGenerico(file);
+    const linhas = [];
+    for (const r of linhasBrutas) {
+      const codigo = String(pegar(r, "código", "codigo") || "").trim();
+      const funcao = String(pegar(r, "função", "funcao") || "").trim();
+      const totalMob = Number(pegar(r, "total mob", "total mobilização", "totalmob")) || 0;
+      const descricaoPlanilha = String(pegar(r, "descrição item", "descricao item", "descricao") || "").trim();
+      if (!funcao && !codigo && !descricaoPlanilha) continue; // linha vazia
+      linhas.push({ codigo, funcao, total_mob: totalMob, descricao_planilha: descricaoPlanilha });
+    }
+
+    if (linhas.length === 0) {
+      $("mob-msg").innerHTML = '<div class="msg erro">Não encontrei linhas válidas nessa planilha. Confira as colunas (código, descrição, função, total mob).</div>';
+      return;
+    }
+
+    // busca descrição oficial na SB1 (tabela itens) pelos códigos encontrados
+    const codigosUnicos = [...new Set(linhas.map(l => l.codigo).filter(Boolean))];
+    let mapaDescricoes = {};
+    for (let i = 0; i < codigosUnicos.length; i += 200) {
+      const parte = codigosUnicos.slice(i, i + 200);
+      const { data } = await db.from("itens").select("codigo,descricao").in("codigo", parte);
+      (data || []).forEach(it => mapaDescricoes[it.codigo] = it.descricao);
+    }
+    linhas.forEach(l => { l.descricao = mapaDescricoes[l.codigo] || l.descricao_planilha || "(sem descrição)"; });
+
+    linhasMobParaSalvar = linhas;
+
+    // detecta funções distintas e pede composição da equipe
+    const funcoes = [...new Set(linhas.map(l => l.funcao).filter(Boolean))];
+    $("mob-composicao-area").innerHTML = `
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">
+        <label style="margin-bottom:8px">Composição de 1 equipe (pessoas por função)</label>
+        ${funcoes.map(f => `
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div style="flex:1;font-size:13px;color:#334155">${f}</div>
+            <input class="comp-funcao" data-funcao="${f.replace(/"/g, '&quot;')}" type="number" min="0" placeholder="0" style="width:80px;margin-bottom:0"/>
+          </div>
+        `).join("")}
+      </div>
+    `;
+    $("mob-msg").innerHTML = `<div class="msg ok">✓ ${linhas.length} linha(s) lida(s), ${funcoes.length} função(ões) encontrada(s).</div>`;
+    $("btn-salvar-mob").disabled = false;
+  }
+  window.lerArquivoMob = lerArquivoMob;
+
+  async function salvarMobilizacao() {
+    const nome = $("mob-nome").value.trim();
+    const numEquipes = Number($("mob-num-equipes").value) || 0;
+    if (!nome) { $("mob-msg").innerHTML = '<div class="msg erro">Dê um nome para a mobilização.</div>'; return; }
+    if (numEquipes <= 0) { $("mob-msg").innerHTML = '<div class="msg erro">Informe o número de equipes.</div>'; return; }
+    if (!linhasMobParaSalvar || linhasMobParaSalvar.length === 0) { $("mob-msg").innerHTML = '<div class="msg erro">Suba a planilha de itens primeiro.</div>'; return; }
+
+    const composicao = [...document.querySelectorAll(".comp-funcao")].map(el => ({
+      funcao: el.dataset.funcao, pessoas_por_equipe: Number(el.value) || 0
+    }));
+
+    $("btn-salvar-mob").disabled = true; $("btn-salvar-mob").textContent = "Salvando...";
+
+    const { data: mob, error: e1 } = await db.from("mobilizacoes")
+      .insert({ nome, num_equipes: numEquipes }).select().single();
+    if (e1) {
+      $("mob-msg").innerHTML = '<div class="msg erro">Erro ao criar mobilização: ' + e1.message + '</div>';
+      $("btn-salvar-mob").disabled = false; $("btn-salvar-mob").textContent = "Salvar mobilização";
+      return;
+    }
+
+    if (composicao.length > 0) {
+      await db.from("mobilizacao_composicao").insert(composicao.map(c => ({ ...c, mobilizacao_id: mob.id })));
+    }
+
+    const itensParaInserir = linhasMobParaSalvar.map(l => ({
+      mobilizacao_id: mob.id, codigo: l.codigo || null, descricao: l.descricao, funcao: l.funcao, total_mob: l.total_mob
+    }));
+    for (let i = 0; i < itensParaInserir.length; i += 500) {
+      const parte = itensParaInserir.slice(i, i + 500);
+      const { error } = await db.from("mobilizacao_itens").insert(parte);
+      if (error) {
+        $("mob-msg").innerHTML = '<div class="msg erro">Erro ao salvar itens: ' + error.message + '</div>';
+        $("btn-salvar-mob").disabled = false; $("btn-salvar-mob").textContent = "Salvar mobilização";
+        return;
+      }
+    }
+
+    $("btn-salvar-mob").textContent = "Salvar mobilização";
+    mostrarListaMob();
+    carregarMobilizacoes();
+  }
+  window.salvarMobilizacao = salvarMobilizacao;
+
+  async function carregarMobilizacoes() {
+    $("lista-mob").innerHTML = '<div class="vazio">Carregando...</div>';
+    const { data: mobs, error } = await db.from("mobilizacoes").select("*").order("criado_em", { ascending: false });
+    if (error) { $("lista-mob").innerHTML = '<div class="vazio">Erro: ' + error.message + '</div>'; return; }
+    if (!mobs || mobs.length === 0) {
+      $("lista-mob").innerHTML = '<div class="vazio">Nenhuma mobilização criada ainda. Clique em "+ Nova mobilização".</div>';
+      return;
+    }
+    $("lista-mob").innerHTML = mobs.map(m => `
+      <div class="card">
+        <div class="card-topo" onclick="toggleMob(${m.id})">
+          <div>
+            <div class="card-titulo">${m.nome}</div>
+            <div class="card-sub">${m.num_equipes} equipe(s) · criada em ${fmtData(m.criado_em)}</div>
+          </div>
+          <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
+        </div>
+        <div class="card-corpo" id="corpo-mob-${m.id}" data-carregado="0"></div>
+      </div>
+    `).join("");
+  }
+
+  async function toggleMob(id) {
+    const el = document.getElementById("corpo-mob-" + id);
+    el.classList.toggle("aberto");
+    if (el.classList.contains("aberto") && el.dataset.carregado === "0") {
+      el.dataset.carregado = "1";
+      await renderDetalheMob(id, el);
+    }
+  }
+  window.toggleMob = toggleMob;
+
+  async function renderDetalheMob(mobId, container) {
+    container.innerHTML = '<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>';
+    const [{ data: mob }, { data: itens }] = await Promise.all([
+      db.from("mobilizacoes").select("*").eq("id", mobId).single(),
+      db.from("mobilizacao_itens").select("*").eq("mobilizacao_id", mobId).order("funcao").order("descricao"),
+    ]);
+
+    const numEquipes = mob.num_equipes;
+    const numerosSc = [...new Set((itens || []).map(i => (i.sc_numero || "").trim()).filter(Boolean))];
+
+    let pcMap = {}, avisoProtheus = "";
+    if (numerosSc.length > 0) {
+      const condicoesOr = numerosSc.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
+      const { data: pcs, error: e2 } = await dbProtheus
+        .from("pedidos_compra")
+        .select("c7_numsc,c7_produto,c7_quant,status_desc")
+        .or(condicoesOr);
+      if (e2) {
+        avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${e2.message}</div>`;
+      } else {
+        (pcs || []).forEach(p => {
+          const k = String(p.c7_numsc || "").trim() + "|" + String(p.c7_produto || "").trim();
+          const st = (p.status_desc || "").toLowerCase();
+          const recebido = st.includes("receb") ? (Number(p.c7_quant) || 0) : 0;
+          pcMap[k] = (pcMap[k] || 0) + recebido;
+        });
+      }
+    }
+
+    container.innerHTML = avisoProtheus + `
+      <table class="tbl-mob">
+        <tr><th>Item</th><th>Função</th><th style="text-align:right">Total mob.</th><th>Nº da SC</th><th>Equipes atendidas</th></tr>
+        ${(itens || []).map(it => {
+          const perEquipe = numEquipes > 0 ? (it.total_mob / numEquipes) : 0;
+          const scTrim = (it.sc_numero || "").trim();
+          const recebido = scTrim ? (pcMap[scTrim + "|" + (it.codigo || "").trim()] || 0) : 0;
+          const equipesAtendidas = perEquipe > 0 ? Math.min(numEquipes, Math.floor(recebido / perEquipe)) : 0;
+          const chips = Array.from({ length: numEquipes }, (_, i) =>
+            `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}">${i + 1}</span>`
+          ).join("");
+          return `<tr>
+            <td>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}</td>
+            <td style="color:#64748b">${it.funcao || ""}</td>
+            <td style="text-align:right;font-family:ui-monospace,monospace">${it.total_mob}</td>
+            <td><input class="input-sc-mob" data-item-id="${it.id}" value="${it.sc_numero || ''}" placeholder="—"/></td>
+            <td>${chips}</td>
+          </tr>`;
+        }).join("")}
+      </table>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:10px">
+        <button class="btn-salvar" onclick="salvarScsMob(${mobId})">Salvar SCs</button>
+        <div id="msg-scs-${mobId}"></div>
+      </div>
+    `;
+  }
+
+  async function salvarScsMob(mobId) {
+    const inputs = document.querySelectorAll(`#corpo-mob-${mobId} .input-sc-mob`);
+    const msgEl = document.getElementById("msg-scs-" + mobId);
+    msgEl.innerHTML = '<span style="font-size:12.5px;color:#64748b">Salvando...</span>';
+    for (const inp of inputs) {
+      await db.from("mobilizacao_itens").update({ sc_numero: inp.value.trim() || null }).eq("id", inp.dataset.itemId);
+    }
+    msgEl.innerHTML = '<span style="font-size:12.5px;color:#0d9488;font-weight:600">✓ Salvo!</span>';
+    const container = document.getElementById("corpo-mob-" + mobId);
+    container.dataset.carregado = "0";
+    await renderDetalheMob(mobId, container);
+    container.classList.add("aberto");
+  }
+  window.salvarScsMob = salvarScsMob;
 
   verificarSessao();
 </script>
