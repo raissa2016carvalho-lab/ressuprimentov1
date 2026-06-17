@@ -26,6 +26,12 @@
   .quant-just{display:flex;gap:10px}
   .quant-just > div:first-child{flex:1}
   .quant-just > div:last-child{flex:3}
+  .item-descricao-wrap{position:relative}
+  .item-sugestoes{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;z-index:5;box-shadow:0 8px 20px rgba(15,23,42,.1);display:none}
+  .sug-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9}
+  .sug-item:hover{background:#f8fafc}
+  .sug-item:last-child{border-bottom:none}
+  .sug-item small{color:#94a3b8;font-size:11px;font-family:ui-monospace,monospace;margin-left:6px}
 </style>
 </head>
 <body>
@@ -68,6 +74,45 @@
 
   let contItens = 0;
 
+  function debounce(fn, ms) {
+    let t;
+    return function (...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+  }
+
+  const buscarSugestoes = debounce(async (inputEl) => {
+    const wrap = inputEl.closest(".item-descricao-wrap");
+    const sugEl = wrap.querySelector(".item-sugestoes");
+    const termo = inputEl.value.trim();
+    if (termo.length < 2) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
+    const { data, error } = await db.from("itens_publico").select("codigo,descricao,unidade").ilike("descricao", `%${termo}%`).limit(8);
+    if (error || !data || data.length === 0) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
+    sugEl.innerHTML = data.map(it =>
+      `<div class="sug-item" data-codigo="${it.codigo}" data-descricao="${it.descricao.replace(/"/g, '&quot;')}">${it.descricao} <small>${it.codigo}</small></div>`
+    ).join("");
+    sugEl.style.display = "block";
+  }, 300);
+
+  document.addEventListener("input", (e) => {
+    if (!e.target.classList.contains("item-descricao")) return;
+    e.target.dataset.codigo = ""; // digitou de novo, não é mais um item escolhido da lista
+    buscarSugestoes(e.target);
+  });
+
+  document.addEventListener("click", (e) => {
+    const sug = e.target.closest(".sug-item");
+    if (sug) {
+      const wrap = sug.closest(".item-descricao-wrap");
+      const input = wrap.querySelector(".item-descricao");
+      input.value = sug.dataset.descricao;
+      input.dataset.codigo = sug.dataset.codigo;
+      wrap.querySelector(".item-sugestoes").style.display = "none";
+      return;
+    }
+    if (!e.target.closest(".item-descricao-wrap")) {
+      document.querySelectorAll(".item-sugestoes").forEach(el => el.style.display = "none");
+    }
+  });
+
   function adicionarItem() {
     contItens++;
     const id = "item-" + contItens;
@@ -79,10 +124,13 @@
         <label style="flex:1">Item</label>
         <button class="item-remover" onclick="document.getElementById('${id}').remove()">✕</button>
       </div>
-      <input class="item-descricao" placeholder="Nome do material" style="margin-bottom:10px"/>
+      <div class="item-descricao-wrap">
+        <input class="item-descricao" placeholder="Nome do material (digite para buscar)" style="margin-bottom:10px"/>
+        <div class="item-sugestoes"></div>
+      </div>
       <div class="quant-just">
         <div><label>Quantidade</label><input class="item-qtd" type="number" min="0" placeholder="0"/></div>
-        <div><label>Justificativa</label><input class="item-just" placeholder="Por que precisa?"/></div>
+        <div><label>Justificativa (opcional)</label><input class="item-just" placeholder="Por que precisa?"/></div>
       </div>
     `;
     $("itens-lista").appendChild(div);
@@ -117,11 +165,13 @@
     const itensEls = document.querySelectorAll(".item");
     const itens = [];
     for (const el of itensEls) {
-      const descricao = el.querySelector(".item-descricao").value.trim();
+      const descricaoEl = el.querySelector(".item-descricao");
+      const descricao = descricaoEl.value.trim();
+      const codigo = descricaoEl.dataset.codigo || "MANUAL";
       const qtd = el.querySelector(".item-qtd").value;
       const just = el.querySelector(".item-just").value.trim();
       if (descricao || qtd || just) {
-        itens.push({ codigo: "MANUAL", descricao, quantidade: Number(qtd) || 0, justificativa: just });
+        itens.push({ codigo, descricao, quantidade: Number(qtd) || 0, justificativa: just });
       }
     }
 
@@ -129,8 +179,8 @@
     if (!cc) { mostrarMsg("Selecione sua base.", "erro"); return; }
     if (itens.length === 0) { mostrarMsg("Adicione pelo menos um item.", "erro"); return; }
     for (const it of itens) {
-      if (!it.descricao || !it.quantidade || !it.justificativa) {
-        mostrarMsg("Preencha descrição, quantidade e justificativa de todos os itens.", "erro");
+      if (!it.descricao || !it.quantidade) {
+        mostrarMsg("Preencha a descrição e a quantidade de todos os itens.", "erro");
         return;
       }
     }
