@@ -5,156 +5,153 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Solicitação de Ressuprimento</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
-  @keyframes spin{to{transform:rotate(360deg)}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
+  .wrap{max-width:520px;margin:0 auto;padding:24px 16px 60px}
+  h1{font-size:18px;margin:0 0 4px}
+  .sub{color:#64748b;font-size:13px;margin:0 0 18px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:14px}
+  label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
+  input,select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
+  .item{border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}
+  .item-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .item-remover{border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1}
+  .btn-add{background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:9px;padding:10px;width:100%;font-size:13px;color:#475569;cursor:pointer;font-weight:600}
+  .btn-enviar{width:100%;padding:14px;border-radius:10px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:15px;cursor:pointer;margin-top:6px}
+  .btn-enviar:disabled{background:#e2e8f0;cursor:not-allowed}
+  .msg{font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:14px}
+  .erro{background:#fee2e2;color:#991b1b}
+  .ok{background:#d1fae5;color:#065f46;text-align:center;padding:24px}
+  .quant-just{display:flex;gap:10px}
+  .quant-just > div:first-child{flex:1}
+  .quant-just > div:last-child{flex:3}
 </style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel" data-presets="react">
-const { useState, useMemo, useEffect } = React;
-const SUPABASE_URL = "https://xeowqirpcclsgpampgto.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_PQLwX4R5Ju4sz5PFhJZtAw_ROwdXT6A";
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const C={ink:"#0f172a",line:"#e2e8f0",teal:"#0d9488",muted:"#64748b",red:"#e11d48"};
+<div class="wrap">
+  <h1>Solicitação de Ressuprimento</h1>
+  <p class="sub">Preencha seus dados, escolha sua base e adicione os itens.</p>
 
-function App(){
-  const [ccs,setCcs]=useState([]);
-  const [carregandoCcs,setCarregandoCcs]=useState(true);
-  const [nome,setNome]=useState(""); const [matricula,setMatricula]=useState("");
-  const [cc,setCc]=useState("");
-  const [itensCC,setItensCC]=useState([]); const [carregandoItens,setCarregandoItens]=useState(false);
-  const [carrinho,setCarrinho]=useState([]);   // {codigo,descricao,unidade,quantidade,justificativa}
-  const [busca,setBusca]=useState("");
-  const [enviando,setEnviando]=useState(false); const [enviado,setEnviado]=useState(false);
-  const [erro,setErro]=useState("");
+  <div id="form-area">
+    <div class="card">
+      <label>Nome completo</label>
+      <input id="nome" placeholder="Seu nome"/>
+      <label>Matrícula</label>
+      <input id="matricula" placeholder="Ex.: 12345"/>
+      <label>Centro de custo / base</label>
+      <select id="cc"><option value="">Carregando bases...</option></select>
+    </div>
 
-  useEffect(()=>{(async()=>{
-    const {data,error}=await db.from("ccs_publico").select("*");
-    if(!error) setCcs(data||[]);
-    setCarregandoCcs(false);
-  })();},[]);
+    <div class="card">
+      <label style="margin-bottom:10px">Itens da solicitação</label>
+      <div id="itens-lista"></div>
+      <button class="btn-add" id="btn-add-item">+ Adicionar item</button>
+    </div>
 
-  useEffect(()=>{ if(!cc){setItensCC([]);return;}
-    setCarregandoItens(true); setCarrinho([]); setBusca("");
-    (async()=>{
-      let from=0,all=[];
-      while(true){const {data,error}=await db.from("itens_por_cc").select("*").eq("cc",cc).range(from,from+999);
-        if(error)break; all=all.concat(data||[]); if(!data||data.length<1000)break; from+=1000;}
-      all.sort((a,b)=>(a.descricao||"").localeCompare(b.descricao||""));
-      setItensCC(all); setCarregandoItens(false);
-    })();
-  },[cc]);
+    <div id="msg-area"></div>
+    <button class="btn-enviar" id="btn-enviar">Enviar solicitação</button>
+  </div>
 
-  const noCarrinho=useMemo(()=>new Set(carrinho.map(c=>c.codigo)),[carrinho]);
-  const filtrados=useMemo(()=>{
-    const q=busca.toLowerCase().trim();
-    return itensCC.filter(i=>!noCarrinho.has(i.codigo)&&(!q||(i.descricao||"").toLowerCase().includes(q)||(i.codigo||"").toLowerCase().includes(q))).slice(0,40);
-  },[itensCC,busca,noCarrinho]);
+  <div id="sucesso" style="display:none" class="card ok">
+    <div style="font-size:32px;margin-bottom:8px">✓</div>
+    <div style="font-weight:700;font-size:16px;margin-bottom:6px">Solicitação enviada!</div>
+    <div style="color:#047857;font-size:13px">Recebemos seu pedido. A equipe vai avaliar em breve.</div>
+  </div>
+</div>
 
-  function addItem(it){setCarrinho(c=>[...c,{codigo:it.codigo,descricao:it.descricao,unidade:it.unidade,quantidade:"",justificativa:""}]);setBusca("");}
-  function addManual(){const desc=busca.trim();if(!desc)return;setCarrinho(c=>[...c,{codigo:"MANUAL",descricao:desc,unidade:"",quantidade:"",justificativa:""}]);setBusca("");}
-  function upd(cod,campo,val){setCarrinho(c=>c.map(x=>x.codigo===cod?{...x,[campo]:val}:x));}
-  function rem(cod){setCarrinho(c=>c.filter(x=>x.codigo!==cod));}
+<script>
+  const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const $ = (id) => document.getElementById(id);
 
-  const valido = nome.trim() && matricula.trim() && cc && carrinho.length>0 &&
-    carrinho.every(x=>Number(x.quantidade)>0 && x.justificativa.trim());
+  let contItens = 0;
 
-  async function enviar(){
-    setEnviando(true); setErro("");
-    const itens=carrinho.map(x=>({codigo:x.codigo,descricao:x.descricao,quantidade:Number(x.quantidade),justificativa:x.justificativa.trim()}));
-    const {error}=await db.rpc("criar_solicitacao",{p_cc:cc,p_nome:nome.trim(),p_matricula:matricula.trim(),p_itens:itens});
-    setEnviando(false);
-    if(error){setErro("Não foi possível enviar. Tente novamente. ("+error.message+")");return;}
-    setEnviado(true);
+  function adicionarItem() {
+    contItens++;
+    const id = "item-" + contItens;
+    const div = document.createElement("div");
+    div.className = "item";
+    div.id = id;
+    div.innerHTML = `
+      <div class="item-topo">
+        <label style="flex:1">Item</label>
+        <button class="item-remover" onclick="document.getElementById('${id}').remove()">✕</button>
+      </div>
+      <input class="item-descricao" placeholder="Nome do material" style="margin-bottom:10px"/>
+      <div class="quant-just">
+        <div><label>Quantidade</label><input class="item-qtd" type="number" min="0" placeholder="0"/></div>
+        <div><label>Justificativa</label><input class="item-just" placeholder="Por que precisa?"/></div>
+      </div>
+    `;
+    $("itens-lista").appendChild(div);
+  }
+  $("btn-add-item").addEventListener("click", adicionarItem);
+  adicionarItem(); // já começa com 1 item
+
+  // carrega as bases (centros de custo) na lista
+  async function carregarBases() {
+    const { data, error } = await db.from("ccs_publico").select("*");
+    const select = $("cc");
+    if (error) {
+      select.innerHTML = `<option value="">Erro ao carregar bases</option>`;
+      mostrarMsg("Não foi possível carregar as bases: " + error.message, "erro");
+      return;
+    }
+    select.innerHTML = `<option value="">Selecione sua base...</option>` +
+      data.map(c => `<option value="${c.cc}">${c.nome} — ${c.cc}</option>`).join("");
+  }
+  carregarBases();
+
+  function mostrarMsg(texto, tipo) {
+    $("msg-area").innerHTML = `<div class="msg ${tipo}">${texto}</div>`;
   }
 
-  if(enviado) return (
-    <div style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:20}}>
-      <div style={{maxWidth:440,background:"#fff",border:`1px solid ${C.line}`,borderRadius:16,padding:32,textAlign:"center"}}>
-        <div style={{width:56,height:56,borderRadius:"50%",background:C.teal+"1a",display:"grid",placeItems:"center",margin:"0 auto 16px"}}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={C.teal} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-        </div>
-        <h2 style={{margin:"0 0 8px"}}>Solicitação enviada!</h2>
-        <p style={{color:C.muted,fontSize:14,lineHeight:1.5,marginBottom:20}}>Recebemos seu pedido de ressuprimento. A equipe vai avaliar e dar andamento. Obrigado, {nome.split(" ")[0]}.</p>
-        <button onClick={()=>{setEnviado(false);setNome("");setMatricula("");setCc("");setCarrinho([]);}} style={{background:C.teal,color:"#fff",border:"none",borderRadius:9,padding:"11px 20px",fontWeight:700,fontSize:14,cursor:"pointer"}}>Nova solicitação</button>
-      </div>
-    </div>
-  );
+  $("btn-enviar").addEventListener("click", async () => {
+    $("msg-area").innerHTML = "";
+    const nome = $("nome").value.trim();
+    const matricula = $("matricula").value.trim();
+    const cc = $("cc").value;
 
-  return (
-    <div style={{maxWidth:720,margin:"0 auto",padding:"24px 16px 60px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-        <div style={{width:34,height:34,borderRadius:8,background:C.teal,display:"grid",placeItems:"center"}}>
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
-        </div>
-        <div><h1 style={{margin:0,fontSize:19}}>Solicitação de Ressuprimento</h1><div style={{fontSize:12.5,color:C.muted}}>Preencha seus dados, escolha sua base e adicione os itens.</div></div>
-      </div>
+    const itensEls = document.querySelectorAll(".item");
+    const itens = [];
+    for (const el of itensEls) {
+      const descricao = el.querySelector(".item-descricao").value.trim();
+      const qtd = el.querySelector(".item-qtd").value;
+      const just = el.querySelector(".item-just").value.trim();
+      if (descricao || qtd || just) {
+        itens.push({ codigo: "MANUAL", descricao, quantidade: Number(qtd) || 0, justificativa: just });
+      }
+    }
 
-      <Card titulo="Seus dados">
-        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-          <Campo label="Nome completo" flex={2}><input value={nome} onChange={e=>setNome(e.target.value)} placeholder="Seu nome" style={inp}/></Campo>
-          <Campo label="Matrícula" flex={1}><input value={matricula} onChange={e=>setMatricula(e.target.value)} placeholder="Ex.: 12345" style={inp}/></Campo>
-        </div>
-        <Campo label="Centro de custo / base">
-          {carregandoCcs ? <div style={{color:C.muted,fontSize:13,padding:"8px 0"}}>Carregando bases…</div> :
-          <select value={cc} onChange={e=>setCc(e.target.value)} style={{...inp,cursor:"pointer"}}>
-            <option value="">Selecione sua base…</option>
-            {ccs.map(c=><option key={c.cc} value={c.cc}>{c.nome} — {c.cc}</option>)}
-          </select>}
-        </Campo>
-      </Card>
+    if (!nome || !matricula) { mostrarMsg("Preencha nome e matrícula.", "erro"); return; }
+    if (!cc) { mostrarMsg("Selecione sua base.", "erro"); return; }
+    if (itens.length === 0) { mostrarMsg("Adicione pelo menos um item.", "erro"); return; }
+    for (const it of itens) {
+      if (!it.descricao || !it.quantidade || !it.justificativa) {
+        mostrarMsg("Preencha descrição, quantidade e justificativa de todos os itens.", "erro");
+        return;
+      }
+    }
 
-      {cc && <Card titulo="Adicionar itens">
-        {carregandoItens ? <div style={{color:C.muted,fontSize:13}}>Carregando itens da base…</div> : <>
-          <div style={{position:"relative"}}>
-            <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar item por nome ou código…" style={inp}/>
-            {busca && filtrados.length>0 && <div style={{position:"absolute",zIndex:5,left:0,right:0,background:"#fff",border:`1px solid ${C.line}`,borderRadius:10,marginTop:4,maxHeight:260,overflow:"auto",boxShadow:"0 8px 24px rgba(15,23,42,.1)"}}>
-              {filtrados.map(it=><div key={it.codigo} onClick={()=>addItem(it)} style={{padding:"10px 12px",cursor:"pointer",borderBottom:`1px solid ${C.line}`}}>
-                <div style={{fontWeight:500,fontSize:13.5}}>{it.descricao}</div><div style={{fontSize:11,color:C.muted,fontFamily:"ui-monospace,monospace"}}>{it.codigo} · {it.unidade}</div>
-              </div>)}
-            </div>}
-          </div>
-          {busca && filtrados.length===0 && <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><span style={{fontSize:12.5,color:C.muted}}>Não está na lista?</span><button onClick={addManual} style={{background:C.teal,color:"#fff",border:"none",borderRadius:8,padding:"7px 12px",fontSize:12.5,fontWeight:600,cursor:"pointer"}}>+ Adicionar “{busca.trim()}” manualmente</button></div>}
-        </>}
-      </Card>}
+    $("btn-enviar").disabled = true;
+    $("btn-enviar").textContent = "Enviando...";
 
-      {carrinho.length>0 && <Card titulo={`Itens da solicitação (${carrinho.length})`}>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {carrinho.map(x=>(
-            <div key={x.codigo} style={{border:`1px solid ${C.line}`,borderRadius:10,padding:12}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-                <div><div style={{fontWeight:600,fontSize:13.5}}>{x.descricao}</div><div style={{fontSize:11,color:C.muted,fontFamily:"ui-monospace,monospace"}}>{x.codigo}</div></div>
-                <button onClick={()=>rem(x.codigo)} style={{border:"none",background:"none",cursor:"pointer",color:C.muted}}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                </button>
-              </div>
-              <div style={{display:"flex",gap:12,marginTop:10,flexWrap:"wrap"}}>
-                <Campo label={`Quantidade (${x.unidade||"un"})`} flex={1}><input type="number" min="0" value={x.quantidade} onChange={e=>upd(x.codigo,"quantidade",e.target.value)} placeholder="0" style={inp}/></Campo>
-                <Campo label="Justificativa" flex={3}><input value={x.justificativa} onChange={e=>upd(x.codigo,"justificativa",e.target.value)} placeholder="Por que precisa deste item?" style={inp}/></Campo>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>}
+    const { error } = await db.rpc("criar_solicitacao", {
+      p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens
+    });
 
-      {erro && <div style={{color:C.red,fontSize:13,margin:"4px 4px 12px"}}>{erro}</div>}
-      <button onClick={enviar} disabled={!valido||enviando} style={{width:"100%",background:(valido&&!enviando)?C.teal:C.line,color:"#fff",border:"none",borderRadius:10,padding:"14px",fontWeight:700,fontSize:15,cursor:(valido&&!enviando)?"pointer":"not-allowed",marginTop:8}}>
-        {enviando?"Enviando…":"Enviar solicitação"}
-      </button>
-      {!valido && carrinho.length>0 && <div style={{textAlign:"center",fontSize:12,color:C.muted,marginTop:8}}>Preencha nome, matrícula, base e a quantidade + justificativa de cada item.</div>}
-    </div>
-  );
-}
-const inp={width:"100%",padding:"10px 12px",borderRadius:9,border:`1px solid ${C.line}`,fontSize:14,outline:"none"};
-function Card({titulo,children}){return <div style={{background:"#fff",border:`1px solid ${C.line}`,borderRadius:14,padding:18,marginTop:14}}><div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:12}}>{titulo}</div>{children}</div>;}
-function Campo({label,children,flex}){return <label style={{display:"block",flex:flex?`${flex} 1 120px`:"none",marginTop:label&&"2px"}}><span style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",margin:"8px 0 5px"}}>{label}</span>{children}</label>;}
+    if (error) {
+      mostrarMsg("Erro ao enviar: " + error.message, "erro");
+      $("btn-enviar").disabled = false;
+      $("btn-enviar").textContent = "Enviar solicitação";
+      return;
+    }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+    $("form-area").style.display = "none";
+    $("sucesso").style.display = "block";
+  });
 </script>
 </body>
 </html>
