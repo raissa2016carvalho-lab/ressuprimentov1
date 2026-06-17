@@ -405,53 +405,68 @@
     const ccMapLocal = {};
     (ccs || []).forEach(c => ccMapLocal[c.cc] = c);
 
-    // busca na pedidos_compra (banco painel-protheus) pelos números de SC associados
-    const numerosSc = [...new Set(associadas.map(s => s.sc_numero.trim()))];
+    // busca na pedidos_compra (banco painel-protheus) pelos números de SC associados.
+    // usa "ilike + %" em vez de igualdade exata, porque o numsc no Protheus pode vir com espaços extras.
+    const numerosSc = [...new Set(associadas.map(s => s.sc_numero.trim()))].filter(Boolean);
+    const condicoesOr = numerosSc.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
+
     const { data: pcs, error: e2 } = await dbProtheus
       .from("pedidos_compra")
-      .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri")
-      .in("c7_numsc", numerosSc);
+      .select("c7_numsc,c7_cc,c7_produto,c7_num,c7_quant,status_desc,c7_descri")
+      .or(condicoesOr);
 
     if (e2) {
       $("lista-acomp").innerHTML = '<div class="vazio">Erro ao buscar pedidos no painel-protheus: ' + e2.message + '</div>';
       return;
     }
 
+    // chave de cruzamento: SC + código do item (ambos sem espaços nas pontas)
     const pcMap = {};
     (pcs || []).forEach(p => {
-      const k = String(p.c7_numsc || "").trim();
+      const k = String(p.c7_numsc || "").trim() + "|" + String(p.c7_produto || "").trim();
       (pcMap[k] = pcMap[k] || []).push(p);
     });
 
     $("lista-acomp").innerHTML = associadas.map(s => {
       const base = ccMapLocal[s.cc];
       const itensSol = porSol[s.id] || [];
-      const pedidosDaSc = pcMap[s.sc_numero.trim()] || [];
+      const scTrim = s.sc_numero.trim();
+      const totalEncontrados = itensSol.reduce((acc, it) => acc + ((pcMap[scTrim + "|" + String(it.codigo || "").trim()] || []).length), 0);
       return `
         <div class="card">
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace">SC ${s.sc_numero}
                 <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span></div>
-              <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns) solicitados · ${pedidosDaSc.length} pedido(s) encontrado(s)</div>
+              <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns) solicitados · ${totalEncontrados} pedido(s) encontrado(s)</div>
             </div>
             <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
           </div>
           <div class="card-corpo" id="corpo-ac-${s.id}">
-            ${pedidosDaSc.length === 0 ? '<div style="color:#64748b;font-size:13px">Nenhum pedido de compra encontrado ainda para essa SC no painel-protheus.</div>' : `
             <table>
-              <tr><th>Item</th><th>Pedido (PC)</th><th style="text-align:right">Qtd</th><th>Status</th></tr>
-              ${pedidosDaSc.map(p => {
-                const st = (p.status_desc || "").toLowerCase();
-                const cls = st.includes("receb") ? "st-recebido" : (st.includes("pend") || st.includes("aprov")) ? "st-pendente" : "st-outro";
-                return `<tr>
-                  <td>${p.c7_descri || p.c7_produto || ""}</td>
-                  <td style="font-family:ui-monospace,monospace">${p.c7_num || ""}</td>
-                  <td class="qtd">${p.c7_quant || 0}</td>
-                  <td class="status-pc ${cls}">${p.status_desc || "—"}</td>
-                </tr>`;
+              <tr><th>Item solicitado</th><th>CC do pedido</th><th>Pedido (PC)</th><th style="text-align:right">Qtd</th><th>Status</th></tr>
+              ${itensSol.map(it => {
+                const k = scTrim + "|" + String(it.codigo || "").trim();
+                const ps = pcMap[k] || [];
+                if (ps.length === 0) {
+                  return `<tr>
+                    <td>${it.descricao || it.codigo}</td>
+                    <td colspan="4" style="color:#94a3b8;font-style:italic">sem pedido ainda</td>
+                  </tr>`;
+                }
+                return ps.map((p, idx) => {
+                  const st = (p.status_desc || "").toLowerCase();
+                  const cls = st.includes("receb") ? "st-recebido" : (st.includes("pend") || st.includes("aprov")) ? "st-pendente" : "st-outro";
+                  return `<tr>
+                    <td>${idx === 0 ? (it.descricao || it.codigo) : ""}</td>
+                    <td style="font-family:ui-monospace,monospace">${p.c7_cc || "—"}</td>
+                    <td style="font-family:ui-monospace,monospace">${p.c7_num || ""}</td>
+                    <td class="qtd">${p.c7_quant || 0}</td>
+                    <td class="status-pc ${cls}">${p.status_desc || "—"}</td>
+                  </tr>`;
+                }).join("");
               }).join("")}
-            </table>`}
+            </table>
           </div>
         </div>
       `;
