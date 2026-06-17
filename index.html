@@ -3,98 +3,280 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Teste — Passo 1</title>
+<title>Ressuprimento — Painel</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;display:grid;place-items:center;min-height:100vh;padding:20px}
-  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;width:100%;max-width:380px}
-  h1{font-size:17px;margin:0 0 4px}
-  p{color:#64748b;font-size:13px;margin:0 0 20px;line-height:1.5}
-  label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:12px 0 5px}
-  input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none}
-  button{width:100%;margin-top:16px;padding:11px;border-radius:8px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
-  button:disabled{background:#e2e8f0;cursor:not-allowed}
-  .msg{margin-top:14px;font-size:13px;padding:10px 12px;border-radius:8px;line-height:1.5}
-  .ok{background:#d1fae5;color:#065f46}
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
+  .center{display:grid;place-items:center;min-height:100vh;padding:20px}
+  .login-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;width:100%;max-width:360px}
+  .login-card h1{font-size:16px;margin:0 0 4px}
+  .login-card p{color:#64748b;font-size:12.5px;margin:0 0 18px}
+  label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
+  input,select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
+  button{font-family:inherit;cursor:pointer}
+  .btn{padding:11px;border-radius:9px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:14px;width:100%}
+  .btn:disabled{background:#e2e8f0}
+  .msg{font-size:13px;padding:9px 11px;border-radius:8px;margin-bottom:12px}
   .erro{background:#fee2e2;color:#991b1b}
-  .linha{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
-  table{width:100%;margin-top:10px;border-collapse:collapse}
+  .ok{background:#d1fae5;color:#065f46}
+
+  header{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;justify-content:space-between;align-items:center}
+  header .logo{font-weight:800;font-size:15px}
+  header .logo span{color:#64748b;font-weight:500;font-size:12px;display:block}
+  .btn-sair{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:600}
+
+  main{padding:20px 24px;max-width:920px;margin:0 auto}
+  .filtros{display:flex;gap:10px;margin-bottom:18px;align-items:center}
+  .filtros select{margin-bottom:0;width:auto;min-width:160px}
+  .filtros button{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;color:#475569}
+
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .card-topo{padding:16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .card-titulo{font-weight:700;font-size:14px}
+  .card-sub{font-size:12px;color:#64748b;margin-top:3px}
+  .pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+  .p-pendente{background:#cffafe;color:#155e75}
+  .p-em_analise{background:#fef3c7;color:#92400e}
+  .p-aprovada{background:#dcfce7;color:#166534}
+  .p-recusada{background:#f1f5f9;color:#475569}
+  .p-parcial{background:#ede9fe;color:#5b21b6}
+
+  .card-corpo{border-top:1px solid #e2e8f0;background:#f8fafc;padding:16px;display:none}
+  .card-corpo.aberto{display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
+  th{text-align:left;color:#64748b;font-weight:600;font-size:11.5px;padding:8px 10px;border-bottom:1px solid #e2e8f0}
+  td{padding:9px 10px;border-bottom:1px solid #f1f5f9}
+  .qtd{text-align:right;font-family:ui-monospace,monospace;font-weight:700}
+  .btn-dec{border:none;border-radius:6px;padding:5px 9px;font-size:11.5px;font-weight:700;margin-right:5px;background:#e2e8f0;color:#64748b}
+  .btn-dec.aprovado{background:#16a34a;color:#fff}
+  .btn-dec.recusado{background:#e11d48;color:#fff}
+
+  .rodape{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0}
+  .rodape > div{flex:1;min-width:160px}
+  .rodape input{margin-bottom:0}
+  .btn-salvar{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
+
+  .vazio{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:36px;text-align:center;color:#64748b;font-size:13.5px}
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>Passo 1 — Teste de conexão</h1>
-  <p>Sem React, sem Babel. Só testa login e leitura do banco.</p>
 
-  <div id="login-area">
+<div id="tela-login" class="center">
+  <div class="login-card">
+    <h1>Ressuprimento</h1>
+    <p>Painel de gestão — faça login</p>
     <label>E-mail</label>
-    <input id="email" type="email" placeholder="seu@email.com"/>
+    <input id="email" type="email"/>
     <label>Senha</label>
-    <input id="senha" type="password" placeholder="senha"/>
-    <button id="btn-entrar">Entrar</button>
+    <input id="senha" type="password"/>
+    <div id="login-msg"></div>
+    <button class="btn" id="btn-login">Entrar</button>
   </div>
+</div>
 
-  <div id="resultado"></div>
+<div id="tela-painel" style="display:none">
+  <header>
+    <div class="logo">Ressuprimento<span id="user-email"></span></div>
+    <button class="btn-sair" id="btn-sair">Sair</button>
+  </header>
+  <main>
+    <div class="filtros">
+      <select id="filtro-status">
+        <option value="pendente">Pendentes</option>
+        <option value="em_analise">Em análise</option>
+        <option value="aprovada">Aprovadas</option>
+        <option value="recusada">Recusadas</option>
+        <option value="parcial">Parciais</option>
+        <option value="todas">Todas</option>
+      </select>
+      <button id="btn-atualizar">↻ Atualizar</button>
+    </div>
+    <div id="lista"></div>
+  </main>
 </div>
 
 <script>
-  // ===== credenciais do projeto painel-protheus =====
   const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
   const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
   const $ = (id) => document.getElementById(id);
 
-  function mostrarMsg(texto, tipo) {
-    const div = document.createElement("div");
-    div.className = "msg " + tipo;
-    div.textContent = texto;
-    $("resultado").appendChild(div);
+  let solicitacoes = [];
+  let ccMap = {};
+
+  // ---------- LOGIN ----------
+  async function verificarSessao() {
+    const { data } = await db.auth.getSession();
+    if (data.session) {
+      mostrarPainel(data.session.user.email);
+    } else {
+      $("tela-login").style.display = "flex";
+    }
   }
 
-  $("btn-entrar").addEventListener("click", async () => {
-    $("resultado").innerHTML = "";
+  $("btn-login").addEventListener("click", async () => {
+    $("login-msg").innerHTML = "";
     const email = $("email").value.trim();
     const senha = $("senha").value;
-    if (!email || !senha) { mostrarMsg("Preencha e-mail e senha.", "erro"); return; }
+    if (!email || !senha) { $("login-msg").innerHTML = '<div class="msg erro">Preencha e-mail e senha.</div>'; return; }
+    $("btn-login").disabled = true; $("btn-login").textContent = "Entrando...";
+    const { error } = await db.auth.signInWithPassword({ email, password: senha });
+    $("btn-login").disabled = false; $("btn-login").textContent = "Entrar";
+    if (error) { $("login-msg").innerHTML = '<div class="msg erro">' + error.message + '</div>'; return; }
+    mostrarPainel(email);
+  });
+  $("senha").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-login").click(); });
 
-    $("btn-entrar").disabled = true;
-    $("btn-entrar").textContent = "Entrando...";
-
-    // 1) tenta logar
-    const { data: loginData, error: loginErro } = await db.auth.signInWithPassword({ email, password: senha });
-
-    if (loginErro) {
-      mostrarMsg("Login falhou: " + loginErro.message, "erro");
-      $("btn-entrar").disabled = false;
-      $("btn-entrar").textContent = "Entrar";
-      return;
-    }
-
-    mostrarMsg("✓ Login funcionou! Usuário: " + loginData.user.email, "ok");
-
-    // 2) tenta ler a tabela centros_custo (testa RLS + leitura)
-    const { data: ccs, error: leituraErro } = await db.from("centros_custo").select("*").limit(10);
-
-    if (leituraErro) {
-      mostrarMsg("✗ Leitura falhou: " + leituraErro.message, "erro");
-    } else {
-      mostrarMsg("✓ Leitura funcionou! " + ccs.length + " centro(s) de custo encontrado(s).", "ok");
-      if (ccs.length > 0) {
-        const tabela = document.createElement("table");
-        tabela.innerHTML = "<tr><th style='text-align:left;font-size:12px;color:#64748b'>CC</th><th style='text-align:left;font-size:12px;color:#64748b'>Nome</th><th style='text-align:right;font-size:12px;color:#64748b'>Pessoas</th></tr>" +
-          ccs.map(c => `<tr><td style='font-size:13px;padding:4px 0'>${c.cc}</td><td style='font-size:13px'>${c.nome||""}</td><td style='font-size:13px;text-align:right'>${c.pessoas||0}</td></tr>`).join("");
-        $("resultado").appendChild(tabela);
-      }
-    }
-
-    $("btn-entrar").disabled = false;
-    $("btn-entrar").textContent = "Entrar";
+  $("btn-sair").addEventListener("click", async () => {
+    await db.auth.signOut();
+    location.reload();
   });
 
-  // Enter no campo de senha também envia
-  $("senha").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-entrar").click(); });
+  function mostrarPainel(email) {
+    $("tela-login").style.display = "none";
+    $("tela-painel").style.display = "block";
+    $("user-email").textContent = email;
+    carregarTudo();
+  }
+
+  // ---------- CARREGAR DADOS ----------
+  async function carregarTudo() {
+    $("lista").innerHTML = '<div class="vazio">Carregando...</div>';
+    const [{ data: ccs, error: e1 }, { data: sols, error: e2 }, { data: itens, error: e3 }] = await Promise.all([
+      db.from("centros_custo").select("*"),
+      db.from("solicitacoes").select("*").order("criado_em", { ascending: false }),
+      db.from("solicitacao_itens").select("*"),
+    ]);
+    if (e1 || e2 || e3) {
+      $("lista").innerHTML = '<div class="vazio">Erro ao carregar: ' + ((e1 || e2 || e3).message) + '</div>';
+      return;
+    }
+    ccMap = {};
+    (ccs || []).forEach(c => ccMap[c.cc] = c);
+    const porSol = {};
+    (itens || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
+    solicitacoes = (sols || []).map(s => ({ ...s, itens: porSol[s.id] || [] }));
+    renderLista();
+  }
+
+  $("btn-atualizar").addEventListener("click", carregarTudo);
+  $("filtro-status").addEventListener("change", renderLista);
+
+  // ---------- RENDER ----------
+  function fmtData(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+  const LABEL_STATUS = { pendente: "Pendente", em_analise: "Em análise", aprovada: "Aprovada", recusada: "Recusada", parcial: "Parcial" };
+
+  function renderLista() {
+    const filtro = $("filtro-status").value;
+    const filtradas = solicitacoes.filter(s => filtro === "todas" || s.status === filtro);
+    if (filtradas.length === 0) {
+      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação para esse filtro.</div>';
+      return;
+    }
+    $("lista").innerHTML = filtradas.map(s => renderCard(s)).join("");
+  }
+
+  function renderCard(s) {
+    const base = ccMap[s.cc];
+    const nomeBase = base ? base.nome : s.cc;
+    return `
+      <div class="card">
+        <div class="card-topo" onclick="toggleCard(${s.id})">
+          <div>
+            <div class="card-titulo">${nomeBase} <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
+              <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span></div>
+            <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns)${s.sc_numero ? " · SC " + s.sc_numero : ""}</div>
+          </div>
+          <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Avaliar ▾</div>
+        </div>
+        <div class="card-corpo" id="corpo-${s.id}">
+          <table>
+            <tr><th>Item</th><th style="text-align:right">Qtd</th><th>Justificativa</th><th style="text-align:center">Decisão</th></tr>
+            ${s.itens.map(it => `
+              <tr>
+                <td>${it.descricao || it.codigo}</td>
+                <td class="qtd">${it.quantidade}</td>
+                <td style="color:#334155">${it.justificativa || ""}</td>
+                <td style="text-align:center;white-space:nowrap">
+                  <button class="btn-dec ${it.situacao === 'aprovado' ? 'aprovado' : ''}" id="ap-${it.id}" onclick="decidir(${s.id}, ${it.id}, 'aprovado')">Aprovar</button>
+                  <button class="btn-dec ${it.situacao === 'recusado' ? 'recusado' : ''}" id="re-${it.id}" onclick="decidir(${s.id}, ${it.id}, 'recusado')">Recusar</button>
+                </td>
+              </tr>
+            `).join("")}
+          </table>
+          <div class="rodape">
+            <div>
+              <label>Nº da SC (após abrir no Protheus)</label>
+              <input id="sc-${s.id}" value="${s.sc_numero || ''}" placeholder="Ex.: 045873"/>
+            </div>
+            <div style="flex:2">
+              <label>Observação (opcional)</label>
+              <input id="obs-${s.id}" value="${s.observacao || ''}" placeholder="Anotação"/>
+            </div>
+            <button class="btn-salvar" onclick="salvar(${s.id})">Salvar</button>
+          </div>
+          <div id="salvo-msg-${s.id}"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  // estado local de decisões (id_item -> 'aprovado'|'recusado'|'pendente')
+  const decisoes = {};
+  function decidir(solId, itemId, valor) {
+    decisoes[itemId] = decisoes[itemId] === valor ? "pendente" : valor;
+    document.getElementById("ap-" + itemId).className = "btn-dec" + (decisoes[itemId] === "aprovado" ? " aprovado" : "");
+    document.getElementById("re-" + itemId).className = "btn-dec" + (decisoes[itemId] === "recusado" ? " recusado" : "");
+  }
+  window.decidir = decidir;
+
+  function toggleCard(id) {
+    const el = document.getElementById("corpo-" + id);
+    el.classList.toggle("aberto");
+  }
+  window.toggleCard = toggleCard;
+
+  async function salvar(solId) {
+    const sol = solicitacoes.find(s => s.id === solId);
+    if (!sol) return;
+    const scNumero = $("sc-" + solId).value.trim();
+    const obs = $("obs-" + solId).value.trim();
+
+    // grava decisão de cada item (usa o valor já salvo se não foi tocado agora)
+    const situacoesFinais = [];
+    for (const it of sol.itens) {
+      const valor = decisoes[it.id] !== undefined ? decisoes[it.id] : (it.situacao || "pendente");
+      situacoesFinais.push(valor);
+      await db.from("solicitacao_itens").update({ situacao: valor }).eq("id", it.id);
+    }
+
+    const ap = situacoesFinais.filter(v => v === "aprovado").length;
+    const re = situacoesFinais.filter(v => v === "recusado").length;
+    let status = "em_analise";
+    if (ap > 0 && re === 0 && ap === situacoesFinais.length) status = "aprovada";
+    else if (re === situacoesFinais.length) status = "recusada";
+    else if (ap > 0 && re > 0) status = "parcial";
+    else if (ap === 0 && re === 0) status = "pendente";
+
+    const { error } = await db.from("solicitacoes").update({
+      status, sc_numero: scNumero || null, observacao: obs || null, atualizado_em: new Date().toISOString()
+    }).eq("id", solId);
+
+    const msgEl = document.getElementById("salvo-msg-" + solId);
+    if (error) {
+      msgEl.innerHTML = '<div class="msg erro">Erro ao salvar: ' + error.message + '</div>';
+    } else {
+      msgEl.innerHTML = '<div class="msg ok">✓ Salvo!</div>';
+      setTimeout(carregarTudo, 800);
+    }
+  }
+  window.salvar = salvar;
+
+  verificarSessao();
 </script>
 </body>
 </html>
