@@ -412,54 +412,63 @@
 
     const { data: pcs, error: e2 } = await dbProtheus
       .from("pedidos_compra")
-      .select("c7_numsc,c7_cc,c7_produto,c7_num,c7_quant,status_desc,c7_descri")
+      .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri")
       .or(condicoesOr);
 
-    if (e2) {
-      $("lista-acomp").innerHTML = '<div class="vazio">Erro ao buscar pedidos no painel-protheus: ' + e2.message + '</div>';
-      return;
-    }
+    // se a busca no painel-protheus falhar, NÃO apaga a lista — mostra as SCs associadas
+    // mesmo assim, só sem o status (avisando que não foi possível verificar agora).
+    const avisoProtheus = e2 ? `<div class="msg erro" style="max-width:920px;margin-bottom:12px">Não foi possível verificar o status agora: ${e2.message}</div>` : "";
 
-    // chave de cruzamento: SC + código do item (ambos sem espaços nas pontas)
+    // chave de cruzamento precisa: SC + código do item (ambos sem espaços nas pontas)
     const pcMap = {};
+    // chave de cruzamento simples: só SC — usada quando o item não tem código real (ainda foi digitado manual)
+    const pcMapPorSc = {};
     (pcs || []).forEach(p => {
-      const k = String(p.c7_numsc || "").trim() + "|" + String(p.c7_produto || "").trim();
+      const sc = String(p.c7_numsc || "").trim();
+      const k = sc + "|" + String(p.c7_produto || "").trim();
       (pcMap[k] = pcMap[k] || []).push(p);
+      (pcMapPorSc[sc] = pcMapPorSc[sc] || []).push(p);
     });
 
-    $("lista-acomp").innerHTML = associadas.map(s => {
+    const listaHtml = associadas.map(s => {
       const base = ccMapLocal[s.cc];
       const itensSol = porSol[s.id] || [];
       const scTrim = s.sc_numero.trim();
-      const totalEncontrados = itensSol.reduce((acc, it) => acc + ((pcMap[scTrim + "|" + String(it.codigo || "").trim()] || []).length), 0);
+      const totalEncontrados = itensSol.reduce((acc, it) => {
+        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
+        const ps = temCodigoReal ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : (pcMapPorSc[scTrim] || []);
+        return acc + ps.length;
+      }, 0);
       return `
         <div class="card">
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace">SC ${s.sc_numero}
                 <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span></div>
-              <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns) solicitados · ${totalEncontrados} pedido(s) encontrado(s)</div>
+              <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns) solicitados · ${e2 ? "status indisponível agora" : totalEncontrados + " pedido(s) encontrado(s)"}</div>
             </div>
             <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
           </div>
           <div class="card-corpo" id="corpo-ac-${s.id}">
             <table>
-              <tr><th>Item solicitado</th><th>CC do pedido</th><th>Pedido (PC)</th><th style="text-align:right">Qtd</th><th>Status</th></tr>
+              <tr><th>Item solicitado</th><th>Pedido (PC)</th><th style="text-align:right">Qtd</th><th>Status</th></tr>
               ${itensSol.map(it => {
-                const k = scTrim + "|" + String(it.codigo || "").trim();
-                const ps = pcMap[k] || [];
-                if (ps.length === 0) {
-                  return `<tr>
-                    <td>${it.descricao || it.codigo}</td>
-                    <td colspan="4" style="color:#94a3b8;font-style:italic">sem pedido ainda</td>
-                  </tr>`;
+                if (e2) {
+                  return `<tr><td>${it.descricao || it.codigo}</td><td colspan="3" style="color:#94a3b8;font-style:italic">não foi possível verificar agora</td></tr>`;
                 }
+                const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
+                const ps = temCodigoReal
+                  ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || [])
+                  : (pcMapPorSc[scTrim] || []);
+                if (ps.length === 0) {
+                  return `<tr><td>${it.descricao || it.codigo}</td><td colspan="3" style="color:#94a3b8;font-style:italic">sem pedido ainda</td></tr>`;
+                }
+                const avisoItem = !temCodigoReal ? ' <span style="color:#94a3b8;font-style:italic;font-size:11px">(todos os itens da SC — item sem código cadastrado)</span>' : "";
                 return ps.map((p, idx) => {
                   const st = (p.status_desc || "").toLowerCase();
                   const cls = st.includes("receb") ? "st-recebido" : (st.includes("pend") || st.includes("aprov")) ? "st-pendente" : "st-outro";
                   return `<tr>
-                    <td>${idx === 0 ? (it.descricao || it.codigo) : ""}</td>
-                    <td style="font-family:ui-monospace,monospace">${p.c7_cc || "—"}</td>
+                    <td>${idx === 0 ? (it.descricao || it.codigo) + avisoItem : ""}</td>
                     <td style="font-family:ui-monospace,monospace">${p.c7_num || ""}</td>
                     <td class="qtd">${p.c7_quant || 0}</td>
                     <td class="status-pc ${cls}">${p.status_desc || "—"}</td>
@@ -471,6 +480,8 @@
         </div>
       `;
     }).join("");
+
+    $("lista-acomp").innerHTML = avisoProtheus + listaHtml;
   }
   $("btn-atualizar-acomp").addEventListener("click", carregarAcompanhamento);
 
