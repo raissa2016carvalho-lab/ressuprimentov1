@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Acompanhar Solicitação</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
+  .wrap{max-width:480px;margin:0 auto;padding:24px 16px 60px}
+  h1{font-size:18px;margin:0 0 4px}
+  .sub{color:#64748b;font-size:13px;margin:0 0 18px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:14px}
+  label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
+  input{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
+  button{font-family:inherit;cursor:pointer}
+  .btn{width:100%;padding:13px;border-radius:10px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:14.5px}
+  .btn:disabled{background:#e2e8f0}
+  .msg{font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:14px}
+  .erro{background:#fee2e2;color:#991b1b}
+  .pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap;display:inline-block}
+  .p-pendente{background:#cffafe;color:#155e75}
+  .p-em_analise{background:#fef3c7;color:#92400e}
+  .p-aprovada{background:#dcfce7;color:#166534}
+  .p-recusada{background:#f1f5f9;color:#475569}
+  .p-parcial{background:#ede9fe;color:#5b21b6}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th{text-align:left;color:#64748b;font-weight:600;font-size:11.5px;padding:7px 4px;border-bottom:1px solid #e2e8f0}
+  td{padding:8px 4px;border-bottom:1px solid #f1f5f9}
+  .sit{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+  .sit-aprovado{background:#dcfce7;color:#166534}
+  .sit-recusado{background:#fee2e2;color:#991b1b}
+  .sit-pendente{background:#f1f5f9;color:#64748b}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Acompanhar Solicitação</h1>
+  <p class="sub">Digite o código que você recebeu e sua matrícula.</p>
+
+  <div class="card">
+    <label>Código da solicitação</label>
+    <input id="codigo" type="number" placeholder="Ex.: 123"/>
+    <label>Matrícula</label>
+    <input id="matricula" placeholder="Ex.: 12345"/>
+    <div id="msg-area"></div>
+    <button class="btn" id="btn-consultar">Consultar</button>
+  </div>
+
+  <div id="resultado"></div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const $ = (id) => document.getElementById(id);
+
+  const LABEL_STATUS = { pendente: "Pendente", em_analise: "Em análise", aprovada: "Aprovada", recusada: "Recusada", parcial: "Parcial" };
+  const LABEL_SIT = { aprovado: "Aprovado", recusado: "Recusado", pendente: "Em avaliação" };
+
+  function fmtData(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function consultar() {
+    $("msg-area").innerHTML = "";
+    $("resultado").innerHTML = "";
+    const codigo = $("codigo").value.trim();
+    const matricula = $("matricula").value.trim();
+    if (!codigo || !matricula) {
+      $("msg-area").innerHTML = '<div class="msg erro">Preencha o código e a matrícula.</div>';
+      return;
+    }
+    $("btn-consultar").disabled = true; $("btn-consultar").textContent = "Consultando...";
+    const { data, error } = await db.rpc("consultar_solicitacao", { p_id: Number(codigo), p_matricula: matricula });
+    $("btn-consultar").disabled = false; $("btn-consultar").textContent = "Consultar";
+
+    if (error) { $("msg-area").innerHTML = '<div class="msg erro">Erro: ' + error.message + '</div>'; return; }
+    if (!data) {
+      $("msg-area").innerHTML = '<div class="msg erro">Não encontramos nenhuma solicitação com esse código e matrícula. Confira os dados.</div>';
+      return;
+    }
+
+    const itens = data.itens || [];
+    $("resultado").innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-weight:700;font-size:15px;font-family:ui-monospace,monospace">#${data.id}</div>
+          <span class="pill p-${data.status}">${LABEL_STATUS[data.status] || data.status}</span>
+        </div>
+        <div style="font-size:12.5px;color:#64748b;margin-bottom:4px">${data.cc_nome || data.cc} · enviada em ${fmtData(data.criado_em)}</div>
+        ${data.sc_numero ? `<div style="font-size:12.5px;color:#475569;margin-bottom:10px">SC associada: <b style="font-family:ui-monospace,monospace">${data.sc_numero}</b></div>` : ""}
+        <table>
+          <tr><th>Item</th><th style="text-align:right">Qtd</th><th>Situação</th></tr>
+          ${itens.map(it => `<tr>
+            <td>${it.descricao}</td>
+            <td style="text-align:right;font-family:ui-monospace,monospace">${it.quantidade}</td>
+            <td><span class="sit sit-${it.situacao}">${LABEL_SIT[it.situacao] || it.situacao}</span></td>
+          </tr>`).join("")}
+        </table>
+      </div>
+    `;
+  }
+  $("btn-consultar").addEventListener("click", consultar);
+  $("matricula").addEventListener("keydown", (e) => { if (e.key === "Enter") consultar(); });
+
+  // preenche automaticamente se vier de um link (depois de enviar o formulário)
+  const params = new URLSearchParams(location.search);
+  if (params.get("id")) $("codigo").value = params.get("id");
+  if (params.get("matricula")) $("matricula").value = params.get("matricula");
+  if (params.get("id") && params.get("matricula")) consultar();
+</script>
+</body>
+</html>
