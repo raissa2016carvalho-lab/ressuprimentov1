@@ -3,391 +3,98 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Ressuprimento — Painel</title>
+<title>Teste — Passo 1</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  *{box-sizing:border-box}html,body{margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,sans-serif;background:#e2e8f0;color:#0f172a}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  select,input,button,textarea{font-family:inherit}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;display:grid;place-items:center;min-height:100vh;padding:20px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;width:100%;max-width:380px}
+  h1{font-size:17px;margin:0 0 4px}
+  p{color:#64748b;font-size:13px;margin:0 0 20px;line-height:1.5}
+  label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:12px 0 5px}
+  input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none}
+  button{width:100%;margin-top:16px;padding:11px;border-radius:8px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+  button:disabled{background:#e2e8f0;cursor:not-allowed}
+  .msg{margin-top:14px;font-size:13px;padding:10px 12px;border-radius:8px;line-height:1.5}
+  .ok{background:#d1fae5;color:#065f46}
+  .erro{background:#fee2e2;color:#991b1b}
+  .linha{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
+  table{width:100%;margin-top:10px;border-collapse:collapse}
 </style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel" data-presets="react">
-const { useState, useMemo, useEffect, useCallback } = React;
-const SUPABASE_URL = "https://xeowqirpcclsgpampgto.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_PQLwX4R5Ju4sz5PFhJZtAw_ROwdXT6A";
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-async function fetchAll(table,sel,filt){const size=1000;let from=0,all=[];while(true){let q=db.from(table).select(sel||"*").range(from,from+size-1);if(filt)q=filt(q);const {data,error}=await q;if(error)throw error;all=all.concat(data||[]);if(!data||data.length<size)break;from+=size;}return all;}
+<div class="card">
+  <h1>Passo 1 — Teste de conexão</h1>
+  <p>Sem React, sem Babel. Só testa login e leitura do banco.</p>
 
-const C={ink:"#0f172a",paper:"#f1f5f9",line:"#e2e8f0",teal:"#0d9488",amber:"#ea580c",muted:"#64748b",red:"#e11d48",green:"#16a34a",violet:"#7c3aed",A:"#e11d48",B:"#d97706",Cc:"#0891b2"};
-const ABC={A:{cor:C.A},B:{cor:C.B},C:{cor:C.Cc}};
-const STATUS={pendente:{l:"Pendente",c:"#0891b2"},em_analise:{l:"Em análise",c:"#d97706"},aprovada:{l:"Aprovada",c:"#16a34a"},recusada:{l:"Recusada",c:"#64748b"},parcial:{l:"Parcial",c:"#7c3aed"}};
-const fmt=(n)=>{const v=Number(n)||0;return v%1===0?String(v):v.toFixed(1);};
+  <div id="login-area">
+    <label>E-mail</label>
+    <input id="email" type="email" placeholder="seu@email.com"/>
+    <label>Senha</label>
+    <input id="senha" type="password" placeholder="senha"/>
+    <button id="btn-entrar">Entrar</button>
+  </div>
 
-function I({d,size=18,color="currentColor",sw=2,extra}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={extra}>{d}</svg>;}
-const Ic={
-  box:p=><I {...p} d={<><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></>}/>,
-  inbox:p=><I {...p} d={<><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>}/>,
-  track:p=><I {...p} d={<><path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/></>}/>,
-  db:p=><I {...p} d={<><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></>}/>,
-  down:p=><I {...p} d={<path d="M6 9l6 6 6-6"/>}/>,right:p=><I {...p} d={<path d="M9 6l6 6-6 6"/>}/>,
-  users:p=><I {...p} d={<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></>}/>,
-  filter:p=><I {...p} d={<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>}/>,
-  x:p=><I {...p} d={<path d="M18 6L6 18M6 6l12 12"/>}/>,
-  check:p=><I {...p} d={<path d="M20 6L9 17l-5-5"/>}/>,
-  up:p=><I {...p} d={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></>}/>,
-  out:p=><I {...p} d={<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>}/>,
-  login:p=><I {...p} d={<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>}/>,
-  loader:p=><I {...p} extra={{animation:"spin 1s linear infinite",...(p.extra||{})}} d={<path d="M21 12a9 9 0 1 1-6.219-8.56"/>}/>,
-  alert:p=><I {...p} d={<><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></>}/>,
-  pkg:p=><I {...p} d={<><path d="M16.5 9.4L7.5 4.21M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></>}/>,
-  refresh:p=><I {...p} d={<path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>}/>,
-};
-function CurvaBadge({c}){if(!c)return null;const a=ABC[c]||ABC.C;return <span style={{background:a.cor,color:"#fff",fontWeight:700,fontSize:10,width:18,height:18,borderRadius:4,display:"inline-flex",alignItems:"center",justifyContent:"center",fontFamily:"ui-monospace,monospace"}}>{c}</span>;}
-function StatusPill({s}){const x=STATUS[s]||{l:s,c:C.muted};return <span style={{color:x.c,background:x.c+"1a",fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:999,whiteSpace:"nowrap"}}>{x.l}</span>;}
+  <div id="resultado"></div>
+</div>
 
-/* ============ PROCESSAMENTO DE BASES (no navegador, em 2º plano) ============ */
-const _norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-function _pick(row,...keys){const m={};for(const k in row)m[_norm(k)]=row[k];for(const k of keys){const v=m[_norm(k)];if(v!==undefined&&v!=='')return v;}return undefined;}
-const _title=s=>String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
-const _ymd=s=>{s=String(s||'').trim();return /^\d{8}$/.test(s)?s:null;};
-function _hoje12(){const d=new Date();d.setUTCMonth(d.getUTCMonth()-12);const p=n=>String(n).padStart(2,'0');return ''+d.getUTCFullYear()+p(d.getUTCMonth()+1)+p(d.getUTCDate());}
-const _ch=(a,n)=>Array.from({length:Math.ceil(a.length/n)},(_,i)=>a.slice(i*n,i*n+n));
-const _csv=file=>new Promise((res,rej)=>Papa.parse(file,{header:true,skipEmptyLines:true,complete:r=>res(r.data),error:rej}));
-// streaming em Web Worker (não trava a tela) + chunk (rápido). Não guarda linhas.
-function _reduzir(file,reducer,onLog,label){return new Promise((res,rej)=>{let n=0,marca=0;
-  Papa.parse(file,{header:true,skipEmptyLines:true,transformHeader:_norm,worker:true,
-    chunk:(r)=>{const rows=r.data;for(let i=0;i<rows.length;i++)reducer(rows[i]);n+=rows.length;if(onLog&&n-marca>=100000){marca=n;onLog(`  ${label}: ${n.toLocaleString('pt-BR')}`);}},
-    complete:()=>{if(onLog)onLog(`  ${label}: ${n.toLocaleString('pt-BR')} linhas`);res(n);},error:rej});});}
+<script>
+  // ===== credenciais do projeto painel-protheus =====
+  const SUPABASE_URL = "https://xeowqirpcclsgpampgto.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_PQLwX4R5Ju4sz5PFhJZtAw_ROwdXT6A";
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function upsert(t,rows,conf,onLog){let d=0;for(const part of _ch(rows,500)){const{error}=await db.from(t).upsert(part,conf?{onConflict:conf}:undefined);if(error)throw new Error(t+': '+error.message);d+=part.length;if(onLog)onLog(`  ${t}: ${d}/${rows.length}`);}}
+  const $ = (id) => document.getElementById(id);
 
-/* --- Consumo + curva ABC (SCP + SB1) --- */
-async function atualizarConsumo(files,onLog){
-  onLog('Lendo cadastro de itens (SB1)…');
-  const sb1=await _csv(files.sb1);const itM={};
-  for(const r of sb1){const cod=String(_pick(r,'B1_COD')||'').trim();if(!cod)continue;
-    itM[cod]={descricao:String(_pick(r,'B1_DESC')||'').replace(/\s+/g,' ').trim(),grupo:String(_pick(r,'B1_DESCGP','B1_GRUPO')||'').replace(/\s+/g,' ').trim()||'OUTROS',unidade:String(_pick(r,'B1_UM')||'UN').trim(),custo:parseFloat(_pick(r,'B1_UPRC'))||0};}
-  const cutoff=_hoje12();const cons={};
-  onLog('Lendo SCP e somando consumo dos últimos 12 meses…');
-  await _reduzir(files.scp,d=>{const dt=_ymd(d.cpemissao);if(!dt||dt<cutoff)return;const cc=String(d.cpcc||'').trim(),prod=String(d.cpproduto||'').trim();if(!cc||!prod)return;cons[cc+'|'+prod]=(cons[cc+'|'+prod]||0)+(parseFloat(d.cpquant)||0);},onLog,'SCP');
-  onLog('Calculando curva ABC por CC…');
-  const byCc={};for(const k in cons){const i=k.indexOf('|');const c=k.slice(0,i),p=k.slice(i+1);const cm=cons[k]/12;if(cm<=0)continue;(byCc[c]=byCc[c]||[]).push({prod:p,cm,custo:(itM[p]?.custo||0)});}
-  const consumo=[];const usados=new Set();
-  for(const c in byCc){let a=byCc[c];const tv=a.reduce((s,x)=>s+x.cm*x.custo,0);
-    if(tv>0){a.sort((x,y)=>y.cm*y.custo-x.cm*x.custo);let cu=0;for(const x of a){cu+=x.cm*x.custo;const r=cu/tv;x.curva=r<=.8?'A':r<=.95?'B':'C';}}
-    else{a.sort((x,y)=>y.cm-x.cm);const tq=a.reduce((s,x)=>s+x.cm,0);let cu=0;for(const x of a){cu+=x.cm;const r=tq>0?cu/tq:1;x.curva=r<=.8?'A':r<=.95?'B':'C';}}
-    for(const x of a){consumo.push({cc:c,codigo:x.prod,consumo_medio:Math.round(x.cm*100)/100,curva:x.curva});usados.add(x.prod);}}
-  const itens=[...usados].map(c=>({codigo:c,descricao:itM[c]?.descricao||c,grupo:itM[c]?.grupo||'OUTROS',unidade:itM[c]?.unidade||'UN'}));
-  onLog(`Gravando ${itens.length} itens e ${consumo.length} consumos…`);
-  await upsert('itens',itens,'codigo',onLog);
-  await upsert('consumo',consumo,'cc,codigo',onLog);
-  return consumo.length;
-}
-
-/* --- Pessoas por base (SRA) --- */
-async function atualizarPessoas(files,onLog){
-  onLog('Lendo SRA e contando pessoas ativas…');
-  const sra=await _csv(files.sra);const ativos={};
-  for(const r of sra){const sit=String(_pick(r,'SIT_FOLHA')||'').trim();if(!['NORMAL','FÉRIAS','AFASTADO'].includes(sit))continue;
-    const c=String(_pick(r,'CCUSTO')||'').trim();const m=String(_pick(r,'MATRICULA')||'').trim();if(!c)continue;(ativos[c]=ativos[c]||new Set()).add(m);}
-  const rows=Object.entries(ativos).map(([cc,set])=>({cc,pessoas:set.size}));
-  onLog(`Atualizando pessoas em ${rows.length} centros de custo…`);
-  await upsert('centros_custo',rows,'cc',onLog);
-  return rows.length;
-}
-
-/* --- Centros de custo (xlsx) — não mexe em pessoas --- */
-async function atualizarCC(files,onLog){
-  onLog('Lendo Centro de Custo (.xlsx)…');
-  const wb=XLSX.read(await files.cc.arrayBuffer(),{type:'array'});
-  const ccRows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
-  const rows=[];
-  for(const r of ccRows){const code=String(_pick(r,'Cod CC','cc')||'').trim();if(!code)continue;
-    rows.push({cc:code,nome:_title(_pick(r,'Descrição','descricao')),estado:_title(_pick(r,'Estado')),macro:String(_pick(r,'Macro')||''),servico:String(_pick(r,'Serviço','servico')||'')});}
-  onLog(`Atualizando ${rows.length} centros de custo…`);
-  await upsert('centros_custo',rows,'cc',onLog);
-  return rows.length;
-}
-
-/* --- Estoque (SB2) --- */
-async function atualizarEstoque(files,onLog){
-  onLog('Lendo SB2 (estoque)…');const seen={};
-  await _reduzir(files.sb2,d=>{const cod=String(_pick(d,'b2cod','codigo')||'').trim();if(!cod)return;const local=String(_pick(d,'b2local','local')||'01').trim();seen[cod+'|'+local]={codigo:cod,local,saldo:parseFloat(_pick(d,'b2qatu','b2saldo','saldo'))||0};},onLog,'SB2');
-  const rows=Object.values(seen);
-  onLog(`Gravando ${rows.length} saldos…`);
-  await db.from('estoque').delete().neq('id',-1);
-  await upsert('estoque',rows,'codigo,local',onLog);
-}
-
-/* ===================== APP (login) ===================== */
-function App(){
-  const [session,setSession]=useState(undefined);
-  const [email,setEmail]=useState("");const [senha,setSenha]=useState("");const [erro,setErro]=useState("");const [ent,setEnt]=useState(false);
-  useEffect(()=>{db.auth.getSession().then(({data})=>setSession(data.session));const {data:sub}=db.auth.onAuthStateChange((_e,s)=>setSession(s));return ()=>sub.subscription.unsubscribe();},[]);
-  async function entrar(e){e.preventDefault();setErro("");setEnt(true);const {error}=await db.auth.signInWithPassword({email,password:senha});setEnt(false);if(error)setErro("E-mail ou senha inválidos.");}
-  if(session===undefined)return <div style={{display:"grid",placeItems:"center",minHeight:"100vh",color:C.muted}}>Carregando…</div>;
-  if(!session)return <div style={{display:"grid",placeItems:"center",minHeight:"100vh",padding:20}}>
-    <form onSubmit={entrar} style={{width:"100%",maxWidth:360,background:"#fff",border:`1px solid ${C.line}`,borderRadius:16,padding:28,boxShadow:"0 10px 40px rgba(15,23,42,.08)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}><div style={{width:36,height:36,borderRadius:9,background:C.teal,display:"grid",placeItems:"center"}}><Ic.box size={20} color="#fff"/></div><div><div style={{fontWeight:800,fontSize:16,lineHeight:1}}>Ressuprimento</div><div style={{fontSize:11,color:C.muted,marginTop:3}}>Painel de gestão</div></div></div>
-      <label style={{fontSize:12,fontWeight:600,color:C.muted}}>E-mail</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} required style={{width:"100%",padding:"10px 12px",margin:"6px 0 14px",borderRadius:9,border:`1px solid ${C.line}`,fontSize:14,outline:"none"}}/>
-      <label style={{fontSize:12,fontWeight:600,color:C.muted}}>Senha</label><input type="password" value={senha} onChange={e=>setSenha(e.target.value)} required style={{width:"100%",padding:"10px 12px",margin:"6px 0 16px",borderRadius:9,border:`1px solid ${C.line}`,fontSize:14,outline:"none"}}/>
-      {erro&&<div style={{display:"flex",alignItems:"center",gap:6,color:C.red,fontSize:13,marginBottom:12}}><Ic.alert size={15} color={C.red}/> {erro}</div>}
-      <button type="submit" disabled={ent} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:9,border:"none",background:C.teal,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}><Ic.login size={17} color="#fff"/> {ent?"Entrando…":"Entrar"}</button>
-    </form>
-  </div>;
-  return <Painel onLogout={()=>db.auth.signOut()} userEmail={session.user.email}/>;
-}
-
-/* ===================== PAINEL ===================== */
-function Painel({onLogout,userEmail}){
-  const [tab,setTab]=useState("solicitacoes");
-  const [carregando,setCarregando]=useState(true);const [erro,setErro]=useState("");
-  const [sols,setSols]=useState([]);const [ccs,setCcs]=useState([]);const [consumo,setConsumo]=useState([]);const [estoque,setEstoque]=useState([]);const [pcs,setPcs]=useState([]);const [basesStatus,setBasesStatus]=useState({});
-  const [fStatus,setFStatus]=useState("pendente");const [fEstado,setFEstado]=useState("");const [fMacro,setFMacro]=useState("");const [fCC,setFCC]=useState("");
-
-  const carregar=useCallback(async()=>{
-    setCarregando(true);setErro("");
-    try{
-      const [solDb,itDb,ccDb,consDb,estDb,pcDb,statusDb]=await Promise.all([
-        fetchAll("solicitacoes"),fetchAll("solicitacao_itens"),fetchAll("centros_custo"),
-        fetchAll("consumo"),fetchAll("estoque"),[],fetchAll("bases_status")]);
-      const porSol={};itDb.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i);});
-      setSols(solDb.map(s=>({...s,itens:porSol[s.id]||[]})).sort((a,b)=>new Date(b.criado_em)-new Date(a.criado_em)));
-      setCcs(ccDb);setConsumo(consDb);setEstoque(estDb);setBasesStatus(Object.fromEntries((statusDb||[]).map(x=>[x.base,x])));
-      const assoc=[...new Set(solDb.map(x=>(x.sc_numero||"").trim()).filter(Boolean))];
-      if(assoc.length){const pc=await fetchAll("pedidos_compra","c7_numsc,c7_produto,c7_num,c7_quant,c7_quje,status_desc",q=>q.in("c7_numsc",assoc));setPcs(pc);}else{setPcs([]);}
-    }catch(e){setErro("Erro ao carregar. Rodou o schema.sql novo? "+(e.message||""));}
-    finally{setCarregando(false);}
-  },[]);
-  useEffect(()=>{carregar();},[carregar]);
-
-  const ccMap=useMemo(()=>Object.fromEntries(ccs.map(c=>[c.cc,c])),[ccs]);
-  const consumoMap=useMemo(()=>{const m={};consumo.forEach(c=>m[c.cc+'|'+c.codigo]=c);return m;},[consumo]);
-  const estoqueMap=useMemo(()=>{const m={};estoque.forEach(e=>m[e.codigo]=(m[e.codigo]||0)+(Number(e.saldo)||0));return m;},[estoque]);
-  const pcMap=useMemo(()=>{const m={};pcs.forEach(p=>{const k=String(p.c7_numsc||'').trim()+'|'+String(p.c7_produto||'').trim();(m[k]=m[k]||[]).push(p);});return m;},[pcs]);
-
-  const pendentes=sols.filter(s=>s.status==='pendente').length;
-  const estados=useMemo(()=>[...new Set(ccs.map(c=>c.estado).filter(Boolean))].sort(),[ccs]);
-  const macros=useMemo(()=>[...new Set(ccs.map(c=>c.macro).filter(Boolean))].sort(),[ccs]);
-  const ccOpts=useMemo(()=>ccs.filter(c=>(!fEstado||c.estado===fEstado)&&(!fMacro||c.macro===fMacro)).map(c=>`${c.cc} — ${c.nome}`),[ccs,fEstado,fMacro]);
-  const fCCcode=fCC?fCC.split(" — ")[0]:"";
-
-  const solsFiltradas=useMemo(()=>sols.filter(s=>{
-    if(fStatus!=='todas'&&s.status!==fStatus)return false;
-    const cc=ccMap[s.cc];
-    if(fEstado&&cc?.estado!==fEstado)return false;
-    if(fMacro&&cc?.macro!==fMacro)return false;
-    if(fCCcode&&s.cc!==fCCcode)return false;
-    return true;
-  }),[sols,fStatus,fEstado,fMacro,fCCcode,ccMap]);
-  const associadas=useMemo(()=>sols.filter(s=>s.sc_numero&&s.sc_numero.trim()),[sols]);
-
-  if(carregando)return <div style={{display:"grid",placeItems:"center",minHeight:"100vh",color:C.muted,gap:12}}><Ic.loader size={28} color={C.muted}/><div>Carregando…</div></div>;
-  if(erro)return <div style={{display:"grid",placeItems:"center",minHeight:"100vh",padding:24}}><div style={{maxWidth:440,background:"#fff",border:`1px solid ${C.line}`,borderRadius:12,padding:24,textAlign:"center"}}><Ic.alert size={28} color={C.red}/><div style={{fontWeight:700,margin:"10px 0 6px"}}>Erro</div><div style={{fontSize:13.5,color:C.muted,marginBottom:16}}>{erro}</div><button onClick={carregar} style={{background:C.teal,color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontWeight:600,cursor:"pointer"}}>Tentar de novo</button></div></div>;
-
-  return <div style={{display:"flex",minHeight:"100vh",background:C.paper}}>
-    <nav style={{width:230,background:C.ink,color:"#cbd5e1",padding:"20px 14px",display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
-      <div style={{display:"flex",alignItems:"center",gap:9,padding:"0 8px 18px"}}><div style={{width:30,height:30,borderRadius:7,background:C.teal,display:"flex",alignItems:"center",justifyContent:"center"}}><Ic.box size={17} color="#fff"/></div><div><div style={{color:"#fff",fontWeight:700,fontSize:14,lineHeight:1}}>Ressuprimento</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>Painel de gestão</div></div></div>
-      {[{id:"solicitacoes",label:"Solicitações",icon:Ic.inbox,badge:pendentes},{id:"acompanhamento",label:"Acompanhamento",icon:Ic.track},{id:"bases",label:"Bases",icon:Ic.db}].map(t=>{const Icon=t.icon,a=tab===t.id;
-        return <button key={t.id} onClick={()=>setTab(t.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,border:"none",cursor:"pointer",textAlign:"left",background:a?C.teal:"transparent",color:a?"#fff":"#94a3b8",fontWeight:a?600:500,fontSize:13.5}}>
-          <Icon size={17} color={a?"#fff":"#94a3b8"}/><span style={{flex:1}}>{t.label}</span>{t.badge?<span style={{background:"#ef4444",color:"#fff",fontSize:11,fontWeight:700,borderRadius:999,minWidth:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 6px"}}>{t.badge}</span>:null}
-        </button>;})}
-      <div style={{marginTop:"auto",paddingTop:16,borderTop:"1px solid #1e293b"}}>
-        <button onClick={carregar} title="Atualizar" style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"9px 12px",borderRadius:8,border:"1px solid #334155",background:"#1e293b",color:"#cbd5e1",fontWeight:500,fontSize:13,cursor:"pointer",marginBottom:8}}><Ic.refresh size={15} color="#cbd5e1"/> Atualizar</button>
-        <div style={{fontSize:11,color:"#64748b",padding:"0 8px 6px",wordBreak:"break-all"}}>{userEmail}</div>
-        <button onClick={onLogout} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"9px 12px",borderRadius:8,border:"1px solid #334155",background:"#1e293b",color:"#cbd5e1",fontWeight:500,fontSize:13,cursor:"pointer"}}><Ic.out size={15} color="#cbd5e1"/> Sair</button>
-      </div>
-    </nav>
-
-    <main style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
-      {tab==="solicitacoes"&&<>
-        <div style={{background:"#fff",borderBottom:`1px solid ${C.line}`,padding:"16px 24px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:12}}><Ic.filter size={14} color={C.muted}/> Filtros</div>
-          <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
-            <Sel label="Status" value={fStatus} onChange={setFStatus} options={[["pendente","Pendentes"],["em_analise","Em análise"],["aprovada","Aprovadas"],["recusada","Recusadas"],["parcial","Parciais"],["todas","Todas"]]} todos={false}/>
-            <Sel label="Estado" value={fEstado} onChange={v=>{setFEstado(v);setFCC("");}} options={estados.map(e=>[e,e])}/>
-            <Sel label="Macro" value={fMacro} onChange={v=>{setFMacro(v);setFCC("");}} options={macros.map(e=>[e,e])}/>
-            <Sel label="Centro de Custo" value={fCC} onChange={setFCC} options={ccOpts.map(e=>[e,e])}/>
-          </div>
-        </div>
-        <div style={{flex:1,overflowY:"auto",padding:24}}>
-          {solsFiltradas.length===0?<Vazio txt="Nenhuma solicitação para esse filtro."/>:
-            <div style={{display:"flex",flexDirection:"column",gap:12,maxWidth:920}}>{solsFiltradas.map(s=><SolCard key={s.id} sol={s} ccMap={ccMap} consumoMap={consumoMap} estoqueMap={estoqueMap} onSalvo={carregar}/>)}</div>}
-        </div>
-      </>}
-
-      {tab==="acompanhamento"&&<div style={{flex:1,overflowY:"auto",padding:24}}>
-        <h2 style={{fontSize:16,marginTop:0}}>SCs associadas — status dos pedidos</h2>
-        {associadas.length===0?<Vazio txt="Nenhuma solicitação com SC associada ainda. Associe o nº da SC numa solicitação aprovada (aba Solicitações)."/>:
-          <div style={{display:"flex",flexDirection:"column",gap:12,maxWidth:920}}>{associadas.map(s=><AcompCard key={s.id} sol={s} ccMap={ccMap} pcMap={pcMap}/>)}</div>}
-      </div>}
-
-      {tab==="bases"&&<div style={{flex:1,overflowY:"auto",padding:24}}><Bases status={basesStatus} onConcluir={carregar}/></div>}
-    </main>
-  </div>;
-}
-
-function Sel({label,value,onChange,options,todos=true}){return <div style={{display:"flex",flexDirection:"column",gap:4,minWidth:0,flex:"1 1 150px"}}>
-  <span style={{fontSize:11,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:.4}}>{label}</span>
-  <select value={value} onChange={e=>onChange(e.target.value)} style={{appearance:"none",background:"#fff",border:`1px solid ${C.line}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontWeight:500,cursor:"pointer",outline:"none"}}>
-    {todos&&<option value="">Todos</option>}{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}
-  </select></div>;}
-function Vazio({txt}){return <div style={{background:"#fff",border:`1px dashed ${C.line}`,borderRadius:12,padding:40,textAlign:"center",color:C.muted,fontSize:13.5,maxWidth:920}}>{txt}</div>;}
-
-/* ===================== SOLICITAÇÃO (avaliar) ===================== */
-function SolCard({sol,ccMap,consumoMap,estoqueMap,onSalvo}){
-  const [aberto,setAberto]=useState(false);
-  const [sit,setSit]=useState(()=>Object.fromEntries(sol.itens.map(i=>[i.id,i.situacao||'pendente'])));
-  const [scNum,setScNum]=useState(sol.sc_numero||"");
-  const [obs,setObs]=useState(sol.observacao||"");
-  const [salvando,setSalvando]=useState(false);
-  const base=ccMap[sol.cc];
-  const data=new Date(sol.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
-
-  async function salvar(){
-    setSalvando(true);
-    try{
-      await Promise.all(sol.itens.map(i=>db.from('solicitacao_itens').update({situacao:sit[i.id]}).eq('id',i.id)));
-      const vals=Object.values(sit);const ap=vals.filter(v=>v==='aprovado').length,re=vals.filter(v=>v==='recusado').length;
-      let status='em_analise';
-      if(ap>0&&re===0&&ap===vals.length)status='aprovada';
-      else if(re===vals.length)status='recusada';
-      else if(ap>0&&(re>0||ap<vals.length))status='parcial';
-      else if(ap===0&&re===0)status='pendente';
-      await db.from('solicitacoes').update({status,sc_numero:scNum.trim()||null,observacao:obs.trim()||null,atualizado_em:new Date().toISOString()}).eq('id',sol.id);
-      onSalvo();
-    }catch(e){alert("Erro ao salvar: "+(e.message||e));}
-    finally{setSalvando(false);}
+  function mostrarMsg(texto, tipo) {
+    const div = document.createElement("div");
+    div.className = "msg " + tipo;
+    div.textContent = texto;
+    $("resultado").appendChild(div);
   }
-  const setItem=(id,v)=>setSit(s=>({...s,[id]:s[id]===v?'pendente':v}));
 
-  return <div style={{background:"#fff",borderRadius:12,border:`1px solid ${C.line}`,borderLeft:`4px solid ${(STATUS[sol.status]||{}).c||C.muted}`,overflow:"hidden"}}>
-    <button onClick={()=>setAberto(v=>!v)} style={{width:"100%",border:"none",background:"none",cursor:"pointer",padding:16,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
-      <div style={{minWidth:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontWeight:700,fontSize:14}}>{base?base.nome:sol.cc}</span><span style={{fontSize:12,color:C.muted,fontFamily:"ui-monospace,monospace"}}>· {sol.cc}</span><StatusPill s={sol.status}/></div>
-        <div style={{fontSize:12,color:C.muted,marginTop:3}}>{sol.solicitante_nome} · mat. {sol.solicitante_matricula} · {data} · {sol.itens.length} {sol.itens.length===1?"item":"itens"}{sol.sc_numero?` · SC ${sol.sc_numero}`:""}</div>
-      </div>
-      <span style={{color:C.teal,fontWeight:600,fontSize:12.5,display:"flex",alignItems:"center",gap:3,whiteSpace:"nowrap"}}>{aberto?"Fechar":"Avaliar"} {aberto?<Ic.down size={15} color={C.teal}/>:<Ic.right size={15} color={C.teal}/>}</span>
-    </button>
-    {aberto&&<div style={{borderTop:`1px solid ${C.line}`,background:"#f8fafc",padding:16}}>
-      <div style={{overflowX:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5,minWidth:680}}>
-        <thead><tr style={{color:C.muted,textAlign:"left"}}>
-          <th style={{padding:"8px 10px",fontWeight:600}}>Item</th><th style={{padding:"8px 6px",fontWeight:600,textAlign:"right"}}>Qtd ped.</th>
-          <th style={{padding:"8px 6px",fontWeight:600,textAlign:"right"}}>Consumo/mês</th><th style={{padding:"8px 6px",fontWeight:600,textAlign:"right"}}>Estoque</th>
-          <th style={{padding:"8px 10px",fontWeight:600}}>Justificativa</th><th style={{padding:"8px 10px",fontWeight:600,textAlign:"center"}}>Decisão</th>
-        </tr></thead>
-        <tbody>{sol.itens.map(it=>{const cm=consumoMap[sol.cc+'|'+it.codigo];const est=estoqueMap[it.codigo];
-          return <tr key={it.id} style={{borderTop:`1px solid ${C.line}`,background:"#fff"}}>
-            <td style={{padding:"9px 10px"}}><div style={{display:"flex",alignItems:"center",gap:7}}>{cm&&<CurvaBadge c={cm.curva}/>}<div><div style={{fontFamily:"ui-monospace,monospace",fontSize:11,color:C.muted}}>{it.codigo}</div><div style={{fontWeight:500}}>{it.descricao}</div></div></div></td>
-            <td style={{padding:"9px 6px",textAlign:"right",fontFamily:"ui-monospace,monospace",fontWeight:700}}>{fmt(it.quantidade)}</td>
-            <td style={{padding:"9px 6px",textAlign:"right",fontFamily:"ui-monospace,monospace",color:cm?C.ink:C.muted}}>{cm?fmt(cm.consumo_medio):"—"}</td>
-            <td style={{padding:"9px 6px",textAlign:"right",fontFamily:"ui-monospace,monospace",color:est===0?C.red:C.ink}}>{est===undefined?"—":fmt(est)}</td>
-            <td style={{padding:"9px 10px",color:"#334155",maxWidth:240}}>{it.justificativa}</td>
-            <td style={{padding:"9px 10px",textAlign:"center",whiteSpace:"nowrap"}}>
-              <button onClick={()=>setItem(it.id,'aprovado')} style={{border:"none",borderRadius:6,padding:"5px 9px",marginRight:5,cursor:"pointer",fontSize:11.5,fontWeight:700,background:sit[it.id]==='aprovado'?C.green:"#e2e8f0",color:sit[it.id]==='aprovado'?"#fff":C.muted}}>Aprovar</button>
-              <button onClick={()=>setItem(it.id,'recusado')} style={{border:"none",borderRadius:6,padding:"5px 9px",cursor:"pointer",fontSize:11.5,fontWeight:700,background:sit[it.id]==='recusado'?C.red:"#e2e8f0",color:sit[it.id]==='recusado'?"#fff":C.muted}}>Recusar</button>
-            </td>
-          </tr>;})}</tbody>
-      </table>
-      </div>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",marginTop:14,borderTop:`1px solid ${C.line}`,paddingTop:14}}>
-        <div style={{flex:"1 1 160px"}}><div style={{fontSize:11,fontWeight:600,color:C.muted,marginBottom:5}}>Nº da SC (após abrir no Protheus)</div>
-          <input value={scNum} onChange={e=>setScNum(e.target.value)} placeholder="Ex.: 045873" style={{width:"100%",padding:"9px 11px",borderRadius:8,border:`1px solid ${C.line}`,fontSize:13,outline:"none"}}/></div>
-        <div style={{flex:"3 1 240px"}}><div style={{fontSize:11,fontWeight:600,color:C.muted,marginBottom:5}}>Observação (opcional)</div>
-          <input value={obs} onChange={e=>setObs(e.target.value)} placeholder="Anotação sobre a decisão" style={{width:"100%",padding:"9px 11px",borderRadius:8,border:`1px solid ${C.line}`,fontSize:13,outline:"none"}}/></div>
-        <button onClick={salvar} disabled={salvando} style={{background:C.teal,color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",fontWeight:700,fontSize:13.5,cursor:"pointer",display:"flex",alignItems:"center",gap:7,height:38}}>{salvando?<Ic.loader size={16} color="#fff"/>:<Ic.check size={16} color="#fff"/>} Salvar</button>
-      </div>
-    </div>}
-  </div>;
-}
+  $("btn-entrar").addEventListener("click", async () => {
+    $("resultado").innerHTML = "";
+    const email = $("email").value.trim();
+    const senha = $("senha").value;
+    if (!email || !senha) { mostrarMsg("Preencha e-mail e senha.", "erro"); return; }
 
-/* ===================== ACOMPANHAMENTO ===================== */
-function AcompCard({sol,ccMap,pcMap}){
-  const [aberto,setAberto]=useState(false);const base=ccMap[sol.cc];
-  return <div style={{background:"#fff",borderRadius:12,border:`1px solid ${C.line}`,overflow:"hidden"}}>
-    <button onClick={()=>setAberto(v=>!v)} style={{width:"100%",border:"none",background:"none",cursor:"pointer",padding:16,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:"ui-monospace,monospace",fontWeight:700,fontSize:14}}>SC {sol.sc_numero}</span><StatusPill s={sol.status}/></div>
-        <div style={{fontSize:12,color:C.muted,marginTop:3}}>{base?base.nome:sol.cc} · {sol.cc} · {sol.itens.length} itens</div></div>
-      {aberto?<Ic.down size={16} color={C.muted}/>:<Ic.right size={16} color={C.muted}/>}
-    </button>
-    {aberto&&<div style={{borderTop:`1px solid ${C.line}`,background:"#f8fafc"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
-        <thead><tr style={{color:C.muted,textAlign:"left"}}><th style={{padding:"8px 14px",fontWeight:600}}>Item</th><th style={{padding:"8px 6px",fontWeight:600}}>Pedido (PC)</th><th style={{padding:"8px 6px",fontWeight:600,textAlign:"right"}}>Qtd</th><th style={{padding:"8px 6px",fontWeight:600,textAlign:"right"}}>Receb.</th><th style={{padding:"8px 14px",fontWeight:600}}>Status</th></tr></thead>
-        <tbody>{sol.itens.map(it=>{const ps=pcMap[sol.sc_numero+'|'+it.codigo]||[];
-          if(ps.length===0)return <tr key={it.id} style={{borderTop:`1px solid ${C.line}`}}><td style={{padding:"9px 14px"}}><div style={{fontWeight:500}}>{it.descricao}</div><div style={{fontFamily:"ui-monospace,monospace",fontSize:11,color:C.muted}}>{it.codigo}</div></td><td colSpan={4} style={{padding:"9px 6px",color:C.muted,fontStyle:"italic"}}>sem pedido ainda</td></tr>;
-          return ps.map((p,k)=><tr key={it.id+'_'+k} style={{borderTop:`1px solid ${C.line}`}}>
-            <td style={{padding:"9px 14px"}}>{k===0&&<><div style={{fontWeight:500}}>{it.descricao}</div><div style={{fontFamily:"ui-monospace,monospace",fontSize:11,color:C.muted}}>{it.codigo}</div></>}</td>
-            <td style={{padding:"9px 6px",fontFamily:"ui-monospace,monospace"}}>{p.c7_num}</td>
-            <td style={{padding:"9px 6px",textAlign:"right",fontFamily:"ui-monospace,monospace"}}>{fmt(p.c7_quant)}</td>
-            <td style={{padding:"9px 6px",textAlign:"right",fontFamily:"ui-monospace,monospace"}}>{fmt(p.c7_quje)}</td>
-            <td style={{padding:"9px 14px"}}><span style={{fontSize:11.5,fontWeight:600,color:/receb/i.test(p.status_desc)?C.green:/pend|aprov/i.test(p.status_desc)?C.amber:C.muted}}>{p.status_desc||"—"}</span></td>
-          </tr>);})}</tbody>
-      </table>
-    </div>}
-  </div>;
-}
+    $("btn-entrar").disabled = true;
+    $("btn-entrar").textContent = "Entrando...";
 
-/* ===================== BASES (cada uma atualiza sozinha) ===================== */
-function carimbo(ts){if(!ts)return "nunca atualizado";const d=new Date(ts);return "atualizado em "+d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}
+    // 1) tenta logar
+    const { data: loginData, error: loginErro } = await db.auth.signInWithPassword({ email, password: senha });
 
-function BaseUpdater({titulo,desc,campos,acao,baseKey,status,onConcluir}){
-  const [files,setFiles]=useState({});const [log,setLog]=useState([]);const [rod,setRod]=useState(false);
-  const add=m=>setLog(l=>[...l,m]);
-  const pronto=campos.filter(c=>!c.opcional).every(c=>files[c.k])&&!rod;
-  const st=status&&status[baseKey];
-  async function run(){setRod(true);setLog([]);
-    try{
-      const n=await acao(files,add);
-      if(baseKey){await db.from('bases_status').upsert({base:baseKey,atualizado_em:new Date().toISOString(),registros:n||0});}
-      add('✓ Concluído!');setTimeout(()=>{setRod(false);onConcluir();},800);
-    }catch(e){add('✗ Erro: '+(e.message||e));setRod(false);}}
-  return <div style={{background:"#fff",border:`1px solid ${C.line}`,borderRadius:14,padding:18,marginBottom:14}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
-      <div><div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{titulo}</div><div style={{fontSize:12.5,color:C.muted,marginBottom:14}}>{desc}</div></div>
-      <div style={{fontSize:11.5,color:st?C.teal:C.muted,fontWeight:600,whiteSpace:"nowrap",background:st?C.teal+"14":"#f1f5f9",padding:"4px 10px",borderRadius:999}}>{st?`✓ ${carimbo(st.atualizado_em)}${st.registros?` · ${st.registros} reg.`:""}`:"nunca atualizado"}</div>
-    </div>
-    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>
-      {campos.map(c=><label key={c.k} style={{flex:"1 1 200px",border:`1px solid ${files[c.k]?C.teal:C.line}`,background:files[c.k]?C.teal+"0d":"#fff",borderRadius:10,padding:11,cursor:rod?"default":"pointer"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13}}>{c.label}{c.opcional?" (opcional)":""}</div><div style={{fontSize:11,color:C.muted}}>{c.sub}</div></div>{files[c.k]?<Ic.check size={16} color={C.teal}/>:<Ic.up size={16} color={C.muted}/>}</div>
-        {files[c.k]&&<div style={{fontSize:11,color:C.teal,marginTop:6,fontWeight:600,wordBreak:"break-all"}}>{files[c.k].name}</div>}
-        <input type="file" accept={c.a} disabled={rod} style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)setFiles(p=>({...p,[c.k]:f}));}}/>
-      </label>)}
-    </div>
-    <button onClick={run} disabled={!pronto} style={{background:pronto?C.teal:C.line,color:"#fff",border:"none",borderRadius:8,padding:"10px 18px",fontWeight:700,fontSize:13.5,cursor:pronto?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:8}}>{rod?<Ic.loader size={16} color="#fff"/>:<Ic.db size={16} color="#fff"/>} {rod?"Processando…":"Atualizar"}</button>
-    {log.length>0&&<Log linhas={log}/>}
-  </div>;
-}
+    if (loginErro) {
+      mostrarMsg("Login falhou: " + loginErro.message, "erro");
+      $("btn-entrar").disabled = false;
+      $("btn-entrar").textContent = "Entrar";
+      return;
+    }
 
-function Bases({status,onConcluir}){
-  return <div style={{maxWidth:820}}>
-    <h2 style={{fontSize:16,marginTop:0,marginBottom:4}}>Bases de dados</h2>
-    <p style={{color:C.muted,fontSize:13,marginTop:0,marginBottom:16}}>Cada base é independente e fica salva no banco até você subir de novo. O processamento roda em segundo plano (pode usar as outras abas). Os pedidos de compra (SC7) já chegam automaticamente — não precisa subir.</p>
+    mostrarMsg("✓ Login funcionou! Usuário: " + loginData.user.email, "ok");
 
-    <BaseUpdater titulo="Consumo médio e curva ABC" desc="Recalcula o consumo dos últimos 12 meses e a curva ABC por CC. Precisa da SCP e do SB1."
-      campos={[{k:"scp",label:"SCP — Solicitações",sub:"CSV",a:".csv"},{k:"sb1",label:"SB1 — Itens",sub:"CSV",a:".csv"}]}
-      baseKey="consumo" status={status} acao={atualizarConsumo} onConcluir={onConcluir}/>
+    // 2) tenta ler a tabela centros_custo (testa RLS + leitura)
+    const { data: ccs, error: leituraErro } = await db.from("centros_custo").select("*").limit(10);
 
-    <BaseUpdater titulo="Centros de custo" desc="Atualiza nome/estado/macro das bases (sem mexer na contagem de pessoas)."
-      campos={[{k:"cc",label:"Centro de Custo",sub:"Excel (.xlsx)",a:".xlsx,.xls"}]}
-      baseKey="centros_custo" status={status} acao={atualizarCC} onConcluir={onConcluir}/>
+    if (leituraErro) {
+      mostrarMsg("✗ Leitura falhou: " + leituraErro.message, "erro");
+    } else {
+      mostrarMsg("✓ Leitura funcionou! " + ccs.length + " centro(s) de custo encontrado(s).", "ok");
+      if (ccs.length > 0) {
+        const tabela = document.createElement("table");
+        tabela.innerHTML = "<tr><th style='text-align:left;font-size:12px;color:#64748b'>CC</th><th style='text-align:left;font-size:12px;color:#64748b'>Nome</th><th style='text-align:right;font-size:12px;color:#64748b'>Pessoas</th></tr>" +
+          ccs.map(c => `<tr><td style='font-size:13px;padding:4px 0'>${c.cc}</td><td style='font-size:13px'>${c.nome||""}</td><td style='font-size:13px;text-align:right'>${c.pessoas||0}</td></tr>`).join("");
+        $("resultado").appendChild(tabela);
+      }
+    }
 
-    <BaseUpdater titulo="Pessoas por base (SRA)" desc="Conta os funcionários ativos por centro de custo. Pode deixar pra depois."
-      campos={[{k:"sra",label:"SRA — Funcionários",sub:"CSV",a:".csv"}]}
-      baseKey="pessoas" status={status} acao={atualizarPessoas} onConcluir={onConcluir}/>
-  </div>;
-}
-function Log({linhas}){return <div style={{marginTop:14,background:C.ink,color:"#cbd5e1",borderRadius:10,padding:14,fontFamily:"ui-monospace,monospace",fontSize:12.5,lineHeight:1.7,maxHeight:280,overflow:"auto",whiteSpace:"pre-wrap"}}>{linhas.map((l,i)=><div key={i} style={{color:l.startsWith("✓")?"#34d399":l.startsWith("✗")?"#fb7185":"#cbd5e1"}}>{l}</div>)}</div>;}
+    $("btn-entrar").disabled = false;
+    $("btn-entrar").textContent = "Entrar";
+  });
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  // Enter no campo de senha também envia
+  $("senha").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-entrar").click(); });
 </script>
 </body>
 </html>
