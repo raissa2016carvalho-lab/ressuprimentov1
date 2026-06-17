@@ -17,7 +17,8 @@
   .item{border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}
   .item-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .item-remover{border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1}
-  .btn-add{background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:9px;padding:10px;width:100%;font-size:13px;color:#475569;cursor:pointer;font-weight:600}
+  .btn-add{background:#0d9488;border:none;border-radius:50%;width:38px;height:38px;font-size:20px;color:#fff;cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;margin-left:auto;box-shadow:0 2px 6px rgba(13,148,136,.3)}
+  .add-row{display:flex;justify-content:flex-end;margin-top:4px}
   .btn-enviar{width:100%;padding:14px;border-radius:10px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:15px;cursor:pointer;margin-top:6px}
   .btn-enviar:disabled{background:#e2e8f0;cursor:not-allowed}
   .msg{font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:14px}
@@ -52,7 +53,7 @@
     <div class="card">
       <label style="margin-bottom:10px">Itens da solicitação</label>
       <div id="itens-lista"></div>
-      <button class="btn-add" id="btn-add-item">+ Adicionar item</button>
+      <div class="add-row"><button class="btn-add" id="btn-add-item" title="Adicionar item">+</button></div>
     </div>
 
     <div id="msg-area"></div>
@@ -62,7 +63,13 @@
   <div id="sucesso" style="display:none" class="card ok">
     <div style="font-size:32px;margin-bottom:8px">✓</div>
     <div style="font-weight:700;font-size:16px;margin-bottom:6px">Solicitação enviada!</div>
-    <div style="color:#047857;font-size:13px">Recebemos seu pedido. A equipe vai avaliar em breve.</div>
+    <div style="color:#047857;font-size:13px;margin-bottom:14px">Recebemos seu pedido. A equipe vai avaliar em breve.</div>
+    <div style="background:#fff;border:1px solid #a7f3d0;border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:4px">SEU CÓDIGO DE ACOMPANHAMENTO</div>
+      <div id="codigo-gerado" style="font-size:24px;font-weight:800;color:#0f172a;font-family:ui-monospace,monospace"></div>
+      <div style="font-size:11.5px;color:#64748b;margin-top:6px">Guarde esse número junto com sua matrícula para consultar o andamento depois.</div>
+    </div>
+    <a id="link-acompanhar" href="acompanhar.html" style="display:block;text-align:center;background:#0f172a;color:#fff;text-decoration:none;border-radius:9px;padding:11px;font-weight:700;font-size:13.5px">Acompanhar esta solicitação</a>
   </div>
 </div>
 
@@ -188,7 +195,7 @@
     $("btn-enviar").disabled = true;
     $("btn-enviar").textContent = "Enviando...";
 
-    const { error } = await db.rpc("criar_solicitacao", {
+    const { data, error } = await db.rpc("criar_solicitacao", {
       p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens
     });
 
@@ -199,6 +206,8 @@
       return;
     }
 
+    $("codigo-gerado").textContent = "#" + data;
+    $("link-acompanhar").href = "acompanhar.html?id=" + data + "&matricula=" + encodeURIComponent(matricula);
     $("form-area").style.display = "none";
     $("sucesso").style.display = "block";
   });
