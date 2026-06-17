@@ -497,18 +497,19 @@
   async function atualizarSB1(file, logFn) {
     logFn("Lendo SB1...");
     const linhas = await parseCsv(file);
-    const itens = [];
+    const mapaItens = {};
     for (const r of linhas) {
       const codigo = String(pegar(r, "B1_COD") || "").trim();
       if (!codigo) continue;
-      itens.push({
+      mapaItens[codigo] = {
         codigo,
         descricao: String(pegar(r, "B1_DESC") || "").replace(/\s+/g, " ").trim(),
         grupo: String(pegar(r, "B1_DESCGP", "B1_GRUPO") || "").replace(/\s+/g, " ").trim() || "OUTROS",
         unidade: String(pegar(r, "B1_UM") || "UN").trim(),
-      });
+      };
     }
-    logFn(`Gravando ${itens.length} itens...`);
+    const itens = Object.values(mapaItens);
+    logFn(`${linhas.length} linhas lidas, ${itens.length} itens únicos. Gravando...`);
     await upsertEmPartes("itens", itens, "codigo", logFn);
     await registrarCarimbo("itens", itens.length);
     return itens.length;
@@ -519,18 +520,19 @@
     const buffer = await file.arrayBuffer();
     const wb = XLSX.read(buffer, { type: "array" });
     const linhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-    const linhasCC = [];
+    const mapaCC = {};
     for (const r of linhas) {
       const cc = String(pegar(r, "Cod CC", "cc") || "").trim();
       if (!cc) continue;
-      linhasCC.push({
+      mapaCC[cc] = {
         cc,
         nome: titulo(pegar(r, "Descrição", "descricao")),
         estado: titulo(pegar(r, "Estado")),
         macro: String(pegar(r, "Macro") || ""),
         servico: String(pegar(r, "Serviço", "servico") || ""),
-      });
+      };
     }
+    const linhasCC = Object.values(mapaCC);
     logFn(`Gravando ${linhasCC.length} centros de custo...`);
     await upsertEmPartes("centros_custo", linhasCC, "cc", logFn);
     await registrarCarimbo("centros_custo", linhasCC.length);
