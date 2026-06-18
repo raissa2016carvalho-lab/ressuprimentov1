@@ -1004,16 +1004,24 @@
     // Só aplica se houver pelo menos 1 linha no banco para as SCs buscadas
     // (evita falso-positivo quando a SC ainda não tem nenhum PC gerado).
     const temDadosNoBanco = pcsEncontrados.length > 0;
+    // Status que indicam recebimento (total ou em andamento)
+    const statusRecebido = s => {
+      const st = (s || "").toLowerCase();
+      return st.includes("receb") || st.includes("pré-nota") || st.includes("pre-nota");
+    };
     function itemEstaRecebido(codigo) {
       if (!codigo || !codigo.trim()) return false;
       if (!temDadosNoBanco) return false;
       const codTrim = codigo.trim();
-      const encontrado = pcsEncontrados.some(p =>
+      const linhasDoItem = pcsEncontrados.filter(p =>
         String(p.c7_produto || "").trim() === codTrim &&
         numerosScNormalizados.has(normalizarSc(p.c7_numsc))
       );
-      // se encontrado = ainda pendente; se não encontrado = recebido (foi removido)
-      return !encontrado;
+      // Ausente do banco = recebido (Python remove quando recebe totalmente)
+      if (linhasDoItem.length === 0) return true;
+      // Presente mas com status de recebimento/pré-nota = também recebido
+      if (linhasDoItem.every(p => statusRecebido(p.status_desc))) return true;
+      return false;
     }
 
     const listaScsHtml = (scsLista || []).length === 0
