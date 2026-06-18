@@ -937,11 +937,14 @@
 
   async function renderDetalheMob(mobId, container) {
     container.innerHTML = '<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>';
-    const [{ data: mob }, { data: itens }, { data: scsLista }] = await Promise.all([
+    const [{ data: mob }, { data: itens }, { data: scsLista }, { data: estoqueData }] = await Promise.all([
       db.from("mobilizacoes").select("*").eq("id", mobId).single(),
       db.from("mobilizacao_itens").select("*").eq("mobilizacao_id", mobId).order("descricao"),
       db.from("mobilizacao_scs").select("*").eq("mobilizacao_id", mobId).order("criado_em"),
+      db.from("mobilizacao_estoque").select("*").eq("mobilizacao_id", mobId),
     ]);
+    const mapaEstoque = {};
+    (estoqueData || []).forEach(e => { if (e.codigo) mapaEstoque[e.codigo.trim()] = Number(e.qtd_estoque) || 0; });
 
     const numEquipes = mob.num_equipes;
 
@@ -1197,23 +1200,88 @@
       <div style="margin-bottom:10px">${renderPaineisCat()}</div>
       <div style="margin-bottom:20px">${pizzaCats()}</div>
 
+      <div id="estoque-panel-${mobId}" style="display:none;border:1px solid #6366f1;border-radius:10px;background:#fafafe;padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:11.5px;font-weight:600;color:#6366f1;margin-bottom:4px">📦 Atendido via estoque</div>
+        <div id="estoque-panel-desc-${mobId}" style="font-size:12.5px;color:#334155;margin-bottom:10px"></div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="font-size:12px;color:#64748b;margin:0">Quantidade atendida via estoque:</label>
+          <input id="estoque-input-${mobId}" type="number" min="0" placeholder="0"
+            style="width:90px;margin:0;padding:6px 10px;font-size:13px;border:1px solid #a5b4fc;border-radius:6px"/>
+          <button onclick="salvarEstoqueMob(${mobId})" class="btn-salvar" style="padding:6px 14px;font-size:12.5px;margin:0">Salvar</button>
+          <button onclick="fecharEstoquePanel(${mobId})" style="border:none;background:none;font-size:12px;color:#94a3b8;cursor:pointer;padding:6px">Cancelar</button>
+        </div>
+      </div>
+
       <table class="tbl-mob">
-        <tr><th>Item</th><th style="text-align:right">Total mob.</th><th>Equipes atendidas</th></tr>
-        ${itensConsolidados.map(it => {
-          const recebido = itemEstaRecebido(it.codigo);
-          const equipesAtendidas = recebido ? numEquipes : 0;
+        <tr><th>Item</th><th style="text-align:right">Total mob.</th><th style="text-align:right">Estoque</th><th>Equipes atendidas</th></tr>
+        ${itensConsolidados.map((it, idx) => {
+          const codTrim = (it.codigo || "").trim();
+          const qtdEstoque = codTrim ? (mapaEstoque[codTrim] || 0) : 0;
+          const recebidoPC = itemEstaRecebido(it.codigo);
+          const perEquipe = numEquipes > 0 ? (it.total_mob / numEquipes) : 0;
+          const equipesPC = recebidoPC ? numEquipes : 0;
+          const equipesEst = (!recebidoPC && perEquipe > 0) ? Math.min(numEquipes, Math.floor(qtdEstoque / perEquipe)) : 0;
+          const equipesAtendidas = Math.min(numEquipes, equipesPC + equipesEst);
           const chips = Array.from({ length: numEquipes }, (_, i) =>
             `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}">${i + 1}</span>`
           ).join("");
-          return `<tr>
-            <td>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}</td>
+          const estoqueTag = qtdEstoque > 0
+            ? `<span style="font-size:10.5px;background:#ede9fe;color:#6366f1;border-radius:4px;padding:1px 6px;margin-left:4px">📦 ${qtdEstoque}</span>` : "";
+          const clicavel = codTrim ? `onclick="abrirEstoquePanel(${mobId},'${codTrim.replace(/'/g,"\'")}','${it.descricao.replace(/'/g,"\'")}')" style="cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"` : "";
+          return `<tr ${clicavel} title="${codTrim ? 'Clique para registrar atendimento via estoque' : ''}">
+            <td>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}${estoqueTag}</td>
             <td style="text-align:right;font-family:ui-monospace,monospace">${it.total_mob}</td>
+            <td style="text-align:right;font-family:ui-monospace,monospace;color:${qtdEstoque>0?'#6366f1':'#cbd5e1'}">${qtdEstoque > 0 ? qtdEstoque : "—"}</td>
             <td>${chips}</td>
           </tr>`;
         }).join("")}
       </table>
     `;
   }
+
+  window._estoqueEditando = {};
+
+  function abrirEstoquePanel(mobId, codigo, descricao) {
+    const panel = document.getElementById("estoque-panel-" + mobId);
+    const descEl = document.getElementById("estoque-panel-desc-" + mobId);
+    const input  = document.getElementById("estoque-input-" + mobId);
+    if (!panel) return;
+    window._estoqueEditando[mobId] = codigo;
+    descEl.textContent = descricao + " — " + codigo;
+    // preenche com valor atual do mapa (se existir no DOM como data attr)
+    const row = [...document.querySelectorAll("#corpo-mob-" + mobId + " tr")].find(tr =>
+      tr.getAttribute("onclick") && tr.getAttribute("onclick").includes("'" + codigo + "'")
+    );
+    // busca valor do estoqueTag no texto da linha ou usa 0
+    const tag = row ? row.querySelector("span[style*='ede9fe']") : null;
+    input.value = tag ? parseInt(tag.textContent.replace("📦","").trim()) || 0 : 0;
+    panel.style.display = "block";
+    input.focus();
+  }
+  window.abrirEstoquePanel = abrirEstoquePanel;
+
+  function fecharEstoquePanel(mobId) {
+    const panel = document.getElementById("estoque-panel-" + mobId);
+    if (panel) panel.style.display = "none";
+    delete window._estoqueEditando[mobId];
+  }
+  window.fecharEstoquePanel = fecharEstoquePanel;
+
+  async function salvarEstoqueMob(mobId) {
+    const codigo = window._estoqueEditando[mobId];
+    if (!codigo) return;
+    const input = document.getElementById("estoque-input-" + mobId);
+    const qtd = Number(input.value) || 0;
+    const { error } = await db.from("mobilizacao_estoque")
+      .upsert({ mobilizacao_id: mobId, codigo, qtd_estoque: qtd }, { onConflict: "mobilizacao_id,codigo" });
+    if (error) { alert("Erro ao salvar: " + error.message); return; }
+    fecharEstoquePanel(mobId);
+    const container = document.getElementById("corpo-mob-" + mobId);
+    container.dataset.carregado = "0";
+    await renderDetalheMob(mobId, container);
+    container.classList.add("aberto");
+  }
+  window.salvarEstoqueMob = salvarEstoqueMob;
 
   async function adicionarScMob(mobId) {
     const input = document.getElementById("novo-sc-mob-" + mobId);
