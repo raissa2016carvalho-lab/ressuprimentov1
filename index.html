@@ -926,11 +926,26 @@
     container.innerHTML = '<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>';
     const [{ data: mob }, { data: itens }] = await Promise.all([
       db.from("mobilizacoes").select("*").eq("id", mobId).single(),
-      db.from("mobilizacao_itens").select("*").eq("mobilizacao_id", mobId).order("funcao").order("descricao"),
+      db.from("mobilizacao_itens").select("*").eq("mobilizacao_id", mobId).order("descricao"),
     ]);
 
     const numEquipes = mob.num_equipes;
-    const numerosSc = [...new Set((itens || []).map(i => (i.sc_numero || "").trim()).filter(Boolean))];
+
+    // consolida por código (somando o total das funções que pedem o mesmo item).
+    // sem código real, agrupa pela descrição como alternativa.
+    const grupos = {};
+    (itens || []).forEach(it => {
+      const chave = (it.codigo && it.codigo.trim()) ? "cod:" + it.codigo.trim() : "desc:" + (it.descricao || "").trim();
+      if (!grupos[chave]) {
+        grupos[chave] = { descricao: it.descricao, codigo: it.codigo, total_mob: 0, ids: [], sc_numero: "" };
+      }
+      grupos[chave].total_mob += Number(it.total_mob) || 0;
+      grupos[chave].ids.push(it.id);
+      if (!grupos[chave].sc_numero && it.sc_numero) grupos[chave].sc_numero = it.sc_numero;
+    });
+    const itensConsolidados = Object.values(grupos);
+
+    const numerosSc = [...new Set(itensConsolidados.map(i => (i.sc_numero || "").trim()).filter(Boolean))];
 
     let pcMap = {}, avisoProtheus = "";
     if (numerosSc.length > 0) {
@@ -953,20 +968,20 @@
 
     container.innerHTML = avisoProtheus + `
       <table class="tbl-mob">
-        <tr><th>Item</th><th>Função</th><th style="text-align:right">Total mob.</th><th>Nº da SC</th><th>Equipes atendidas</th></tr>
-        ${(itens || []).map(it => {
+        <tr><th>Item</th><th style="text-align:right">Total mob.</th><th>Nº da SC</th><th>Equipes atendidas</th></tr>
+        ${itensConsolidados.map(it => {
           const perEquipe = numEquipes > 0 ? (it.total_mob / numEquipes) : 0;
           const scTrim = (it.sc_numero || "").trim();
-          const recebido = scTrim ? (pcMap[scTrim + "|" + (it.codigo || "").trim()] || 0) : 0;
+          const temCodigoReal = it.codigo && it.codigo.trim();
+          const recebido = (scTrim && temCodigoReal) ? (pcMap[scTrim + "|" + it.codigo.trim()] || 0) : 0;
           const equipesAtendidas = perEquipe > 0 ? Math.min(numEquipes, Math.floor(recebido / perEquipe)) : 0;
           const chips = Array.from({ length: numEquipes }, (_, i) =>
             `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}">${i + 1}</span>`
           ).join("");
           return `<tr>
             <td>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}</td>
-            <td style="color:#64748b">${it.funcao || ""}</td>
             <td style="text-align:right;font-family:ui-monospace,monospace">${it.total_mob}</td>
-            <td><input class="input-sc-mob" data-item-id="${it.id}" value="${it.sc_numero || ''}" placeholder="—"/></td>
+            <td><input class="input-sc-mob" data-ids="${it.ids.join(',')}" value="${it.sc_numero || ''}" placeholder="—"/></td>
             <td>${chips}</td>
           </tr>`;
         }).join("")}
@@ -983,7 +998,9 @@
     const msgEl = document.getElementById("msg-scs-" + mobId);
     msgEl.innerHTML = '<span style="font-size:12.5px;color:#64748b">Salvando...</span>';
     for (const inp of inputs) {
-      await db.from("mobilizacao_itens").update({ sc_numero: inp.value.trim() || null }).eq("id", inp.dataset.itemId);
+      const novoSc = inp.value.trim() || null;
+      const ids = inp.dataset.ids.split(",").map(Number);
+      await db.from("mobilizacao_itens").update({ sc_numero: novoSc }).in("id", ids);
     }
     msgEl.innerHTML = '<span style="font-size:12.5px;color:#0d9488;font-weight:600">✓ Salvo!</span>';
     const container = document.getElementById("corpo-mob-" + mobId);
