@@ -986,15 +986,7 @@
         avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${e2.message}</div>`;
       } else {
         pcsEncontrados = pcs || [];
-        const statusDistintos = [...new Set(pcsEncontrados.map(p => p.status_desc))];
-        const temReceb = pcsEncontrados.filter(p => (p.status_desc||"").toLowerCase().includes("receb"));
-        const alavanca = pcsEncontrados.filter(p => String(p.c7_produto||"").trim() === "300000022");
-        avisoProtheus = `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:11.5px;font-family:ui-monospace,monospace;margin-bottom:12px;line-height:1.8">
-          <b>DEBUG:</b> ${pcsEncontrados.length} linhas retornadas<br>
-          Status distintos: ${JSON.stringify(statusDistintos)}<br>
-          Linhas com "receb" no status: ${temReceb.length}<br>
-          ALAVANCA (300000022) no resultado: ${alavanca.length} linha(s) — ${JSON.stringify(alavanca.map(p=>({sc:p.c7_numsc,st:p.status_desc,qt:p.c7_quant})))}
-        </div>`;
+
       }
     }
 
