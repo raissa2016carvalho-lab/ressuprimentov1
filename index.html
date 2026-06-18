@@ -499,7 +499,8 @@
     const { data: pcs, error: e2 } = await dbProtheus
       .from("pedidos_compra")
       .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri")
-      .or(condicoesOr);
+      .or(condicoesOr)
+      .limit(5000);
 
     // se a busca no painel-protheus falhar, NÃO apaga a lista — mostra as SCs associadas
     // mesmo assim, só sem o status (avisando que não foi possível verificar agora).
@@ -979,7 +980,8 @@
       const { data: pcs, error: e2 } = await dbProtheus
         .from("pedidos_compra")
         .select("c7_numsc,c7_produto,c7_quant,status_desc")
-        .or(condicoesOr);
+        .or(condicoesOr)
+        .limit(5000);
       if (e2) {
         avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${e2.message}</div>`;
       } else {
