@@ -92,10 +92,10 @@
   table.tbl-mob td:first-child{word-break:break-word}
   table.tbl-mob td:nth-child(2){width:80px;text-align:right}
   table.tbl-mob td:nth-child(3){width:70px;text-align:right}
-  table.tbl-mob td:nth-child(4){width:auto;min-width:120px;white-space:nowrap}
+  table.tbl-mob td:nth-child(4){width:auto}
   table.tbl-mob th:nth-child(2){width:80px;text-align:right}
   table.tbl-mob th:nth-child(3){width:70px;text-align:right}
-  table.tbl-mob th:nth-child(4){min-width:120px}
+  .chips-wrap{display:flex;flex-wrap:wrap;gap:2px}
 </style>
 </head>
 <body>
@@ -1229,8 +1229,12 @@
           const equipesPC = recebidoPC ? numEquipes : 0;
           const equipesEst = (!recebidoPC && perEquipe > 0) ? Math.min(numEquipes, Math.floor(qtdEstoque / perEquipe)) : 0;
           const equipesAtendidas = Math.min(numEquipes, equipesPC + equipesEst);
+          // tamanho adaptativo: chips maiores pra poucas equipes, menores pra muitas
+          const chipSize = numEquipes <= 8 ? 26 : numEquipes <= 15 ? 22 : numEquipes <= 25 ? 18 : 14;
+          const chipFont = numEquipes <= 8 ? 11 : numEquipes <= 15 ? 10 : numEquipes <= 25 ? 9 : 8;
+          const chipStyle = `width:${chipSize}px;height:${chipSize}px;font-size:${chipFont}px;border-radius:${chipSize<=18?3:4}px`;
           const chips = Array.from({ length: numEquipes }, (_, i) =>
-            `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}">${i + 1}</span>`
+            `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}" style="${chipStyle}">${i + 1}</span>`
           ).join("");
           const estoqueTag = qtdEstoque > 0
             ? `<span style="font-size:10.5px;background:#ede9fe;color:#6366f1;border-radius:4px;padding:1px 6px;margin-left:4px">📦 ${qtdEstoque}</span>` : "";
@@ -1239,7 +1243,7 @@
             <td>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}${estoqueTag}</td>
             <td style="text-align:right;font-family:ui-monospace,monospace">${it.total_mob}</td>
             <td style="text-align:right;font-family:ui-monospace,monospace;color:${qtdEstoque>0?'#6366f1':'#cbd5e1'}">${qtdEstoque > 0 ? qtdEstoque : "—"}</td>
-            <td style="white-space:nowrap">${chips}</td>
+            <td><div class="chips-wrap">${chips}</div></td>
           </tr>`;
         }).join("")}
       </table>
