@@ -1016,6 +1016,136 @@
       return false;
     }
 
+    // ── Categorizar itens ──────────────────────────────────────────────────────
+    const cats = { recebido: [], pendente: [], aprovacao: [], semPedido: [] };
+    itensConsolidados.forEach(it => {
+      const codTrim = (it.codigo || "").trim();
+      if (!codTrim || !temDadosNoBanco) {
+        cats.semPedido.push({ ...it, linhas: [] }); return;
+      }
+      const linhas = pcsEncontrados.filter(p =>
+        String(p.c7_produto || "").trim() === codTrim &&
+        numerosScNormalizados.has(normalizarSc(p.c7_numsc))
+      );
+      if (linhas.length === 0) {
+        cats.recebido.push({ ...it, linhas: [] });
+      } else if (linhas.every(p => statusRecebido(p.status_desc))) {
+        cats.recebido.push({ ...it, linhas });
+      } else if (linhas.some(p => (p.status_desc||"").toLowerCase().includes("aprov"))) {
+        cats.aprovacao.push({ ...it, linhas });
+      } else {
+        cats.pendente.push({ ...it, linhas });
+      }
+    });
+
+    const total = itensConsolidados.length || 1;
+    const pctReceb  = Math.round(cats.recebido.length  / total * 100);
+    const pctPend   = Math.round(cats.pendente.length   / total * 100);
+    const pctAprov  = Math.round(cats.aprovacao.length  / total * 100);
+    const pctSem    = Math.round(cats.semPedido.length  / total * 100);
+
+    // ── Excel por categoria ──────────────────────────────────────────────────
+    function baixarExcelCatMob(catKey) {
+      const map = { recebido: cats.recebido, pendente: cats.pendente,
+                    aprovacao: cats.aprovacao, semPedido: cats.semPedido };
+      const itens = map[catKey] || [];
+      const linhas = itens.flatMap(it => {
+        if (it.linhas && it.linhas.length > 0)
+          return it.linhas.map(l => ({
+            "Código": it.codigo || "(manual)", "Descrição": it.descricao,
+            "Total mob.": it.total_mob, "SC": l.c7_numsc, "Status": l.status_desc, "Qtde PC": l.c7_quant
+          }));
+        return [{ "Código": it.codigo || "(manual)", "Descrição": it.descricao,
+                  "Total mob.": it.total_mob, "SC": "-", "Status": catKey === "recebido" ? "Recebido" : "Sem pedido", "Qtde PC": "" }];
+      });
+      if (!linhas.length) { alert("Nenhum item nesta categoria."); return; }
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, catKey);
+      XLSX.writeFile(wb, `mobilizacao_${catKey}.xlsx`);
+    }
+    window.baixarExcelCatMob = baixarExcelCatMob;
+
+    function toggleCatMob(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = el.style.display === "none" ? "block" : "none";
+    }
+    window.toggleCatMob = toggleCatMob;
+
+    // ── Render de um card de categoria ──────────────────────────────────────
+    function renderCardCat(catKey, label, cor, icone, itens) {
+      const uid = "cat-" + mobId + "-" + catKey;
+      const linhasHtml = itens.map(it => {
+        const scsDoItem = (it.linhas && it.linhas.length)
+          ? it.linhas.map(l => `<span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;border-radius:4px;padding:1px 6px;margin-right:4px">SC ${l.c7_numsc}</span><span style="font-size:11px;color:#64748b">${l.status_desc}</span>`).join("  ")
+          : `<span style="font-size:11px;color:#94a3b8">${catKey === "recebido" ? "Recebido / removido do banco" : "Sem PC gerado"}</span>`;
+        return `<tr style="border-bottom:1px solid #f1f5f9">
+          <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>` : ""}</td>
+          <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace">${it.total_mob}</td>
+          <td style="padding:6px 10px;font-size:12px">${scsDoItem}</td>
+        </tr>`;
+      }).join("");
+      return `
+        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:10px">
+          <div onclick="toggleCatMob('${uid}')" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;background:#fff;user-select:none">
+            <span style="font-size:22px;width:36px;height:36px;border-radius:8px;background:${cor}20;display:flex;align-items:center;justify-content:center">${icone}</span>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:#1e293b">${label}</div>
+              <div style="font-size:12px;color:#64748b">${itens.length} iten(s)</div>
+            </div>
+            <span style="font-size:22px;font-weight:700;color:${cor}">${itens.length}</span>
+            <span style="font-size:13px;color:#94a3b8">▾</span>
+          </div>
+          <div id="${uid}" style="display:none;border-top:1px solid #f1f5f9">
+            <div style="padding:8px 12px;background:#f8fafc;display:flex;justify-content:flex-end">
+              <button onclick="baixarExcelCatMob('${catKey}')" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px">⬇ Excel</button>
+            </div>
+            <table style="width:100%;border-collapse:collapse">
+              <tr style="background:#f8fafc">
+                <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">Item</th>
+                <th style="padding:6px 10px;font-size:11px;text-align:right;color:#64748b;font-weight:600">Qtde</th>
+                <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">SC / Status</th>
+              </tr>
+              ${linhasHtml || '<tr><td colspan="3" style="padding:12px;text-align:center;color:#94a3b8;font-size:12px">Nenhum item</td></tr>'}
+            </table>
+          </div>
+        </div>`;
+    }
+
+    // ── Gráfico de pizza (conic-gradient) ────────────────────────────────────
+    function pizzaCats() {
+      const r = cats.recebido.length, pe = cats.pendente.length,
+            a = cats.aprovacao.length, s = cats.semPedido.length, t = total;
+      const graus = (n) => Math.round(n / t * 360);
+      const g1 = graus(r), g2 = graus(pe), g3 = graus(a), g4 = graus(s);
+      const grad = `conic-gradient(#22c55e 0deg ${g1}deg, #f59e0b ${g1}deg ${g1+g3}deg, #ef4444 ${g1+g3}deg ${g1+g3+pe}deg, #94a3b8 ${g1+g3+pe}deg 360deg)`;
+      const legend = [
+        { cor: "#22c55e", label: "Recebidos", n: r },
+        { cor: "#f59e0b", label: "Em aprovação", n: a },
+        { cor: "#ef4444", label: "Pendentes", n: pe },
+        { cor: "#94a3b8", label: "Sem pedido", n: s },
+      ].map(l => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569">
+        <span style="width:10px;height:10px;border-radius:50%;background:${l.cor};flex-shrink:0"></span>
+        ${l.label}: <strong>${l.n}</strong> (${Math.round(l.n/t*100)}%)
+      </div>`).join("");
+      return `
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#fff;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+          <div style="flex-shrink:0">
+            <div style="width:96px;height:96px;border-radius:50%;background:${grad}"></div>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:10px">Atendimento da mobilização</div>
+            <div style="display:flex;flex-direction:column;gap:6px">${legend}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="font-size:32px;font-weight:700;color:#22c55e">${pctReceb}%</div>
+            <div style="font-size:11px;color:#64748b">recebidos</div>
+          </div>
+        </div>`;
+    }
+
+    // ── SC chips ─────────────────────────────────────────────────────────────
     const listaScsHtml = (scsLista || []).length === 0
       ? '<span style="font-size:12.5px;color:#94a3b8">Nenhuma SC adicionada ainda.</span>'
       : (scsLista || []).map(s => `
@@ -1034,6 +1164,15 @@
           <button class="btn-salvar" style="padding:7px 14px;font-size:12.5px" onclick="adicionarScMob(${mobId})">+ Adicionar SC</button>
         </div>
       </div>
+
+      <div style="margin-bottom:20px">
+        ${renderCardCat("recebido",  "Pedidos recebidos",    "#22c55e", "✅", cats.recebido)}
+        ${renderCardCat("aprovacao", "Em aprovação",         "#f59e0b", "⏳", cats.aprovacao)}
+        ${renderCardCat("pendente",  "Pedidos pendentes",    "#ef4444", "🔴", cats.pendente)}
+        ${renderCardCat("semPedido", "Sem pedido",           "#94a3b8", "⚪", cats.semPedido)}
+        ${pizzaCats()}
+      </div>
+
       <table class="tbl-mob">
         <tr><th>Item</th><th style="text-align:right">Total mob.</th><th>Equipes atendidas</th></tr>
         ${itensConsolidados.map(it => {
