@@ -480,8 +480,21 @@
 
     // busca na pedidos_compra (banco painel-protheus) pelos números de SC associados.
     // usa "ilike + %" em vez de igualdade exata, porque o numsc no Protheus pode vir com espaços extras.
+    // normaliza removendo zeros à esquerda quando for só número — o mesmo SC pode aparecer
+    // como "50" em alguns relatórios do Protheus e "000050" em outros.
+    function normalizarSc(sc) {
+      const s = String(sc || "").trim();
+      return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
+    }
+    function variantesSc(sc) {
+      const v = new Set([sc]);
+      if (/^\d+$/.test(sc)) v.add(normalizarSc(sc));
+      return [...v];
+    }
+
     const numerosSc = [...new Set(associadas.map(s => s.sc_numero.trim()))].filter(Boolean);
-    const condicoesOr = numerosSc.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
+    const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
+    const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
 
     const { data: pcs, error: e2 } = await dbProtheus
       .from("pedidos_compra")
@@ -492,12 +505,12 @@
     // mesmo assim, só sem o status (avisando que não foi possível verificar agora).
     const avisoProtheus = e2 ? `<div class="msg erro" style="max-width:920px;margin-bottom:12px">Não foi possível verificar o status agora: ${e2.message}</div>` : "";
 
-    // chave de cruzamento precisa: SC + código do item (ambos sem espaços nas pontas)
+    // chave de cruzamento precisa: SC normalizada + código do item (ambos sem espaços nas pontas)
     const pcMap = {};
-    // chave de cruzamento simples: só SC — usada quando o item não tem código real (ainda foi digitado manual)
+    // chave de cruzamento simples: só SC normalizada — usada quando o item não tem código real (digitado manual)
     const pcMapPorSc = {};
     (pcs || []).forEach(p => {
-      const sc = String(p.c7_numsc || "").trim();
+      const sc = normalizarSc(p.c7_numsc);
       const k = sc + "|" + String(p.c7_produto || "").trim();
       (pcMap[k] = pcMap[k] || []).push(p);
       (pcMapPorSc[sc] = pcMapPorSc[sc] || []).push(p);
@@ -556,7 +569,7 @@
     const listaHtml = associadas.map(s => {
       const base = ccMapLocal[s.cc];
       const itensSol = porSol[s.id] || [];
-      const scTrim = s.sc_numero.trim();
+      const scTrim = normalizarSc(s.sc_numero.trim());
       const totalEncontrados = itensSol.reduce((acc, it) => {
         const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
         const ps = temCodigoReal ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : (pcMapPorSc[scTrim] || []);
@@ -946,9 +959,23 @@
 
     const numerosSc = (scsLista || []).map(s => s.sc_numero.trim()).filter(Boolean);
 
-    let pcMap = {}, avisoProtheus = "";
+    // normaliza removendo zeros à esquerda quando for só número — no Protheus, o mesmo
+    // SC pode aparecer como "50" em alguns relatórios e "000050" em outros.
+    function normalizarSc(sc) {
+      const s = String(sc || "").trim();
+      return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
+    }
+    function variantesSc(sc) {
+      const v = new Set([sc]);
+      if (/^\d+$/.test(sc)) v.add(normalizarSc(sc));
+      return [...v];
+    }
+
+    const numerosScNormalizados = new Set(numerosSc.map(normalizarSc));
+    let pcsEncontrados = [], avisoProtheus = "";
     if (numerosSc.length > 0) {
-      const condicoesOr = numerosSc.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
+      const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
+      const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
       const { data: pcs, error: e2 } = await dbProtheus
         .from("pedidos_compra")
         .select("c7_numsc,c7_produto,c7_quant,status_desc")
@@ -956,19 +983,21 @@
       if (e2) {
         avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${e2.message}</div>`;
       } else {
-        (pcs || []).forEach(p => {
-          const k = String(p.c7_numsc || "").trim() + "|" + String(p.c7_produto || "").trim();
-          const st = (p.status_desc || "").toLowerCase();
-          const recebido = st.includes("receb") ? (Number(p.c7_quant) || 0) : 0;
-          pcMap[k] = (pcMap[k] || 0) + recebido;
-        });
+        pcsEncontrados = pcs || [];
       }
     }
 
-    // soma o recebido do item somando entre TODAS as SCs já adicionadas à mobilização
+    // soma o recebido do item, comparando a SC (tolerante a zero à esquerda) + código exato,
+    // somando entre TODAS as SCs já adicionadas à mobilização
     function recebidoDoItem(codigo) {
       if (!codigo || !codigo.trim()) return 0;
-      return numerosSc.reduce((acc, sc) => acc + (pcMap[sc + "|" + codigo.trim()] || 0), 0);
+      const codTrim = codigo.trim();
+      return pcsEncontrados.reduce((acc, p) => {
+        if (String(p.c7_produto || "").trim() !== codTrim) return acc;
+        if (!numerosScNormalizados.has(normalizarSc(p.c7_numsc))) return acc;
+        const st = (p.status_desc || "").toLowerCase();
+        return acc + (st.includes("receb") ? (Number(p.c7_quant) || 0) : 0);
+      }, 0);
     }
 
     const listaScsHtml = (scsLista || []).length === 0
