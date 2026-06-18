@@ -210,12 +210,13 @@
               <input id="mob-nome" placeholder="Ex.: Mobilização ENEL Norte"/>
               <label>Número de equipes</label>
               <input id="mob-num-equipes" type="number" min="1" placeholder="Ex.: 6"/>
-              <label>Planilha de itens (.csv ou .xlsx) — colunas: código, descrição, função, total mob</label>
+              <label>Planilha de itens (.csv ou .xlsx) — colunas: <strong>código, descrição, quantidade</strong></label>
+              <div style="font-size:12px;color:#94a3b8;margin:-6px 0 8px">A quantidade total será dividida pelo número de equipes automaticamente.</div>
               <label class="upload-area" id="label-mob-arquivo">
                 <span id="nome-mob-arquivo">Escolher arquivo</span>
                 <input type="file" accept=".csv,.xlsx,.xls" style="display:none" id="mob-arquivo" onchange="lerArquivoMob()"/>
               </label>
-              <div id="mob-composicao-area"></div>
+              <div id="mob-preview-area"></div>
               <div id="mob-msg" style="margin-top:12px"></div>
               <button class="btn-salvar" style="margin-top:14px;width:100%" id="btn-salvar-mob" onclick="salvarMobilizacao()" disabled>Salvar mobilização</button>
             </div>
@@ -779,7 +780,7 @@
     $("mob-form-view").style.display = "block";
     $("mob-nome").value = ""; $("mob-num-equipes").value = ""; $("mob-msg").innerHTML = "";
     $("nome-mob-arquivo").textContent = "Escolher arquivo";
-    $("mob-composicao-area").innerHTML = "";
+    $("mob-preview-area").innerHTML = "";
     $("btn-salvar-mob").disabled = true;
     linhasMobParaSalvar = null;
   }
@@ -812,24 +813,25 @@
     if (!file) return;
     $("nome-mob-arquivo").textContent = file.name;
     $("mob-msg").innerHTML = '<div class="msg" style="background:#f1f5f9;color:#475569">Lendo planilha...</div>';
+    $("mob-preview-area").innerHTML = "";
+    $("btn-salvar-mob").disabled = true;
 
     const linhasBrutas = await parseArquivoGenerico(file);
     const linhas = [];
     for (const r of linhasBrutas) {
-      const codigo = String(pegar(r, "código", "codigo") || "").trim();
-      const funcao = String(pegar(r, "função", "funcao") || "").trim();
-      const totalMob = Number(pegar(r, "total mob", "total mobilização", "totalmob")) || 0;
-      const descricaoPlanilha = String(pegar(r, "descrição item", "descricao item", "descricao") || "").trim();
-      if (!funcao && !codigo && !descricaoPlanilha) continue; // linha vazia
-      linhas.push({ codigo, funcao, total_mob: totalMob, descricao_planilha: descricaoPlanilha });
+      const codigo = String(pegar(r, "código", "codigo", "cod", "Código", "Codigo") || "").trim();
+      const descricaoPlanilha = String(pegar(r, "descrição", "descricao", "descricao item", "descrição item", "item", "Descrição", "Descricao") || "").trim();
+      const totalMob = Number(pegar(r, "quantidade", "qtde", "qtd", "total", "total mob", "quantidade total", "Quantidade", "Qtde")) || 0;
+      if (!codigo && !descricaoPlanilha) continue;
+      linhas.push({ codigo, total_mob: totalMob, descricao_planilha: descricaoPlanilha });
     }
 
     if (linhas.length === 0) {
-      $("mob-msg").innerHTML = '<div class="msg erro">Não encontrei linhas válidas nessa planilha. Confira as colunas (código, descrição, função, total mob).</div>';
+      $("mob-msg").innerHTML = '<div class="msg erro">Não encontrei linhas válidas. Confira as colunas: código, descrição, quantidade.</div>';
       return;
     }
 
-    // busca descrição oficial na SB1 (tabela itens) pelos códigos encontrados
+    // busca descrição oficial na SB1 pelos códigos
     const codigosUnicos = [...new Set(linhas.map(l => l.codigo).filter(Boolean))];
     let mapaDescricoes = {};
     for (let i = 0; i < codigosUnicos.length; i += 200) {
@@ -841,20 +843,26 @@
 
     linhasMobParaSalvar = linhas;
 
-    // detecta funções distintas e pede composição da equipe
-    const funcoes = [...new Set(linhas.map(l => l.funcao).filter(Boolean))];
-    $("mob-composicao-area").innerHTML = `
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">
-        <label style="margin-bottom:8px">Composição de 1 equipe (pessoas por função)</label>
-        ${funcoes.map(f => `
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <div style="flex:1;font-size:13px;color:#334155">${f}</div>
-            <input class="comp-funcao" data-funcao="${f.replace(/"/g, '&quot;')}" type="number" min="0" placeholder="0" style="width:80px;margin-bottom:0"/>
-          </div>
-        `).join("")}
-      </div>
-    `;
-    $("mob-msg").innerHTML = `<div class="msg ok">✓ ${linhas.length} linha(s) lida(s), ${funcoes.length} função(ões) encontrada(s).</div>`;
+    // Preview compacto dos primeiros 8 itens
+    const preview = linhas.slice(0, 8).map(l =>
+      `<tr><td style="padding:4px 8px;font-size:12px;font-family:ui-monospace,monospace;color:#64748b">${l.codigo||"—"}</td>
+       <td style="padding:4px 8px;font-size:12px">${l.descricao}</td>
+       <td style="padding:4px 8px;font-size:12px;text-align:right;font-family:ui-monospace,monospace">${l.total_mob}</td></tr>`
+    ).join("");
+    const mais = linhas.length > 8 ? `<tr><td colspan="3" style="padding:6px 8px;font-size:11.5px;color:#94a3b8;text-align:center">… e mais ${linhas.length - 8} iten(s)</td></tr>` : "";
+    $("mob-preview-area").innerHTML = `
+      <div style="margin-top:12px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="background:#f8fafc">
+            <th style="padding:5px 8px;font-size:11px;color:#64748b;font-weight:600;text-align:left">Código</th>
+            <th style="padding:5px 8px;font-size:11px;color:#64748b;font-weight:600;text-align:left">Descrição</th>
+            <th style="padding:5px 8px;font-size:11px;color:#64748b;font-weight:600;text-align:right">Total</th>
+          </tr>
+          ${preview}${mais}
+        </table>
+      </div>`;
+
+    $("mob-msg").innerHTML = `<div class="msg ok">✓ ${linhas.length} iten(s) lido(s). Informe o número de equipes e salve.</div>`;
     $("btn-salvar-mob").disabled = false;
   }
   window.lerArquivoMob = lerArquivoMob;
@@ -866,10 +874,6 @@
     if (numEquipes <= 0) { $("mob-msg").innerHTML = '<div class="msg erro">Informe o número de equipes.</div>'; return; }
     if (!linhasMobParaSalvar || linhasMobParaSalvar.length === 0) { $("mob-msg").innerHTML = '<div class="msg erro">Suba a planilha de itens primeiro.</div>'; return; }
 
-    const composicao = [...document.querySelectorAll(".comp-funcao")].map(el => ({
-      funcao: el.dataset.funcao, pessoas_por_equipe: Number(el.value) || 0
-    }));
-
     $("btn-salvar-mob").disabled = true; $("btn-salvar-mob").textContent = "Salvando...";
 
     const { data: mob, error: e1 } = await db.from("mobilizacoes")
@@ -880,12 +884,8 @@
       return;
     }
 
-    if (composicao.length > 0) {
-      await db.from("mobilizacao_composicao").insert(composicao.map(c => ({ ...c, mobilizacao_id: mob.id })));
-    }
-
     const itensParaInserir = linhasMobParaSalvar.map(l => ({
-      mobilizacao_id: mob.id, codigo: l.codigo || null, descricao: l.descricao, funcao: l.funcao, total_mob: l.total_mob
+      mobilizacao_id: mob.id, codigo: l.codigo || null, descricao: l.descricao, funcao: null, total_mob: l.total_mob
     }));
     for (let i = 0; i < itensParaInserir.length; i += 500) {
       const parte = itensParaInserir.slice(i, i + 500);
