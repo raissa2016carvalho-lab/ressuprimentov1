@@ -82,13 +82,20 @@
   .upload-area{display:block;border:1px dashed #cbd5e1;border-radius:9px;padding:11px;cursor:pointer;background:#f8fafc;margin-top:14px}
   .upload-area span{font-size:13px;color:#475569}
 
-  .chip-equipe{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-size:10px;font-weight:700;margin-right:3px;background:#f1f5f9;color:#94a3b8}
+  .chip-equipe{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:10px;font-weight:700;margin-right:2px;margin-bottom:2px;background:#f1f5f9;color:#94a3b8;flex-shrink:0}
   .chip-equipe.ok{background:#dcfce7;color:#166534}
   .btn-novo{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer}
   .btn-voltar{background:none;border:none;color:#0d9488;font-weight:600;font-size:13px;cursor:pointer;padding:0;margin-bottom:14px}
-  table.tbl-mob{font-size:12.5px}
+  table.tbl-mob{font-size:12.5px;table-layout:fixed;width:100%}
   table.tbl-mob th{font-size:11px}
-  table.tbl-mob td{padding:7px 8px}
+  table.tbl-mob td{padding:6px 8px;vertical-align:middle}
+  table.tbl-mob td:first-child{word-break:break-word}
+  table.tbl-mob td:nth-child(2){width:80px;text-align:right}
+  table.tbl-mob td:nth-child(3){width:70px;text-align:right}
+  table.tbl-mob td:nth-child(4){width:auto;min-width:120px;white-space:nowrap}
+  table.tbl-mob th:nth-child(2){width:80px;text-align:right}
+  table.tbl-mob th:nth-child(3){width:70px;text-align:right}
+  table.tbl-mob th:nth-child(4){min-width:120px}
 </style>
 </head>
 <body>
@@ -1232,7 +1239,7 @@
             <td>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}${estoqueTag}</td>
             <td style="text-align:right;font-family:ui-monospace,monospace">${it.total_mob}</td>
             <td style="text-align:right;font-family:ui-monospace,monospace;color:${qtdEstoque>0?'#6366f1':'#cbd5e1'}">${qtdEstoque > 0 ? qtdEstoque : "—"}</td>
-            <td>${chips}</td>
+            <td style="white-space:nowrap">${chips}</td>
           </tr>`;
         }).join("")}
       </table>
