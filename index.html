@@ -319,11 +319,12 @@
   const LABEL_STATUS = { pendente: "Pendente", em_analise: "Em análise", aprovada: "Aprovada", recusada: "Recusada", parcial: "Parcial" };
 
   function renderLista() {
-    if (solicitacoes.length === 0) {
-      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação ainda.</div>';
+    const semSc = solicitacoes.filter(s => !s.sc_numero || !s.sc_numero.trim());
+    if (semSc.length === 0) {
+      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação em aberto — tudo que tem SC associada está na aba Acompanhamento.</div>';
       return;
     }
-    $("lista").innerHTML = solicitacoes.map(s => renderCard(s)).join("");
+    $("lista").innerHTML = semSc.map(s => renderCard(s)).join("");
   }
 
   function renderCard(s) {
