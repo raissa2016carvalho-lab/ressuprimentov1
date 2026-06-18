@@ -986,6 +986,14 @@
         avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${e2.message}</div>`;
       } else {
         pcsEncontrados = pcs || [];
+        const amostra = pcsEncontrados.slice(0, 5).map(p =>
+          `c7_numsc="${p.c7_numsc}" | c7_produto="${p.c7_produto}" | status="${p.status_desc}" | qtde=${p.c7_quant}`
+        ).join("<br>");
+        avisoProtheus = `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:11.5px;font-family:ui-monospace,monospace;margin-bottom:12px;line-height:1.8">
+          <b>DEBUG:</b> ${pcsEncontrados.length} linhas retornadas<br>
+          SCs normalizadas buscadas: ${JSON.stringify([...numerosScNormalizados])}<br>
+          Primeiros 5 registros:<br>${amostra || "(nenhum)"}
+        </div>`;
       }
     }
 
