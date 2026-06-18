@@ -376,6 +376,7 @@
               <input id="obs-${s.id}" value="${s.observacao || ''}" placeholder="Anotação"/>
             </div>
             <button class="btn-salvar" onclick="salvar(${s.id})">Salvar</button>
+            <button class="btn-salvar" style="background:#0f172a" onclick="baixarExcelProtheus(${s.id})">⬇ Excel p/ Protheus</button>
           </div>
           <div id="salvo-msg-${s.id}"></div>
         </div>
@@ -429,6 +430,40 @@
   }
   window.salvar = salvar;
 
+  function baixarExcelProtheus(solId) {
+    const sol = solicitacoes.find(s => s.id === solId);
+    if (!sol) return;
+    const aprovados = sol.itens.filter(it => it.situacao === "aprovado");
+    if (aprovados.length === 0) {
+      alert("Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.");
+      return;
+    }
+    const comCodigo = aprovados.filter(it => it.codigo && it.codigo !== "MANUAL");
+    const semCodigo = aprovados.length - comCodigo.length;
+    if (comCodigo.length === 0) {
+      alert("Os itens aprovados não têm código real (foram digitados manualmente, sem escolher da lista). Não é possível gerar o Excel sem o código do Protheus.");
+      return;
+    }
+    const obs = `Ressuprimento #${sol.id} - ${sol.solicitante_nome} (mat. ${sol.solicitante_matricula})`;
+    const linhas = comCodigo.map((it, i) => ({
+      C1_XTIPOSC: "004",
+      C1_ITEM: String(i + 1).padStart(2, "0"),
+      C1_PRODUTO: it.codigo,
+      C1_QUANT: it.quantidade,
+      C1_CC: sol.cc,
+      C1_OBS: obs,
+      C1_ESTOQUE: "S",
+    }));
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "SC");
+    XLSX.writeFile(wb, `SC_solicitacao_${sol.id}.xlsx`);
+    if (semCodigo > 0) {
+      alert(`${semCodigo} item(ns) aprovado(s) sem código real não foi(ram) incluído(s) no Excel. Adicione manualmente no Protheus.`);
+    }
+  }
+  window.baixarExcelProtheus = baixarExcelProtheus;
+
   // ---------- ABA ACOMPANHAMENTO ----------
   async function carregarAcompanhamento() {
     $("lista-acomp").innerHTML = '<div class="vazio">Carregando...</div>';
@@ -476,6 +511,26 @@
       (pcMapPorSc[sc] = pcMapPorSc[sc] || []).push(p);
     });
 
+    const PG_LABEL = { sem_pedido: "Sem pedido", pendente: "Pedido pendente", parcial: "Pedido parcial", recebido: "Pedido recebido" };
+    const PG_CLASSE = { sem_pedido: "p-recusada", pendente: "p-pendente", parcial: "p-parcial", recebido: "p-aprovada" };
+
+    function classificarPedidoGeral(itensSol, scTrim) {
+      let comPedido = 0, completos = 0;
+      itensSol.forEach(it => {
+        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
+        const ps = temCodigoReal ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : (pcMapPorSc[scTrim] || []);
+        if (ps.length > 0) {
+          comPedido++;
+          const todosRecebidos = ps.every(p => (p.status_desc || "").toLowerCase().includes("receb"));
+          if (todosRecebidos) completos++;
+        }
+      });
+      if (comPedido === 0) return "sem_pedido";
+      if (completos === itensSol.length) return "recebido";
+      if (completos > 0) return "parcial";
+      return "pendente";
+    }
+
     const listaHtml = associadas.map(s => {
       const base = ccMapLocal[s.cc];
       const itensSol = porSol[s.id] || [];
@@ -485,12 +540,14 @@
         const ps = temCodigoReal ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : (pcMapPorSc[scTrim] || []);
         return acc + ps.length;
       }, 0);
+      const pedidoGeral = e2 ? null : classificarPedidoGeral(itensSol, scTrim);
       return `
         <div class="card">
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace">SC ${s.sc_numero}
-                <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span></div>
+                <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span>
+                ${pedidoGeral ? `<span class="pill ${PG_CLASSE[pedidoGeral]}">${PG_LABEL[pedidoGeral]}</span>` : ""}</div>
               <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns) solicitados · ${e2 ? "status indisponível agora" : totalEncontrados + " pedido(s) encontrado(s)"}</div>
             </div>
             <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
