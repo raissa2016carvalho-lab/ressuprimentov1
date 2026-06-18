@@ -135,14 +135,6 @@
     <div id="aba-solicitacoes">
       <div class="topo-aba">
         <div class="filtros">
-          <select id="filtro-status">
-            <option value="pendente">Pendentes</option>
-            <option value="em_analise">Em análise</option>
-            <option value="aprovada">Aprovadas</option>
-            <option value="recusada">Recusadas</option>
-            <option value="parcial">Parciais</option>
-            <option value="todas">Todas</option>
-          </select>
           <button id="btn-atualizar">↻ Atualizar</button>
         </div>
       </div>
@@ -320,8 +312,6 @@
     renderLista();
   }
   $("btn-atualizar").addEventListener("click", carregarSolicitacoes);
-  $("filtro-status").addEventListener("change", renderLista);
-
   function fmtData(iso) {
     const d = new Date(iso);
     return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -329,13 +319,11 @@
   const LABEL_STATUS = { pendente: "Pendente", em_analise: "Em análise", aprovada: "Aprovada", recusada: "Recusada", parcial: "Parcial" };
 
   function renderLista() {
-    const filtro = $("filtro-status").value;
-    const filtradas = solicitacoes.filter(s => filtro === "todas" || s.status === filtro);
-    if (filtradas.length === 0) {
-      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação para esse filtro.</div>';
+    if (solicitacoes.length === 0) {
+      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação ainda.</div>';
       return;
     }
-    $("lista").innerHTML = filtradas.map(s => renderCard(s)).join("");
+    $("lista").innerHTML = solicitacoes.map(s => renderCard(s)).join("");
   }
 
   function renderCard(s) {
