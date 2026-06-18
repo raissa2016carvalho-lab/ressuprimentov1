@@ -155,7 +155,7 @@
       return;
     }
     select.innerHTML = `<option value="">Selecione sua base...</option>` +
-      data.map(c => `<option value="${c.cc}">${c.nome} — ${c.cc}</option>`).join("");
+      data.map(c => `<option value="${c.cc}">${c.nome}</option>`).join("");
   }
   carregarBases();
 
