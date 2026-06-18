@@ -1066,51 +1066,74 @@
     }
     window.baixarExcelCatMob = baixarExcelCatMob;
 
-    function toggleCatMob(id) {
-      const el = document.getElementById(id);
+    function toggleCatMob(mobId, catKey) {
+      const uid = "cat-" + mobId + "-" + catKey;
+      const el = document.getElementById(uid);
       if (!el) return;
-      el.style.display = el.style.display === "none" ? "block" : "none";
+      const aberto = el.style.display !== "none";
+      // fecha todos os painéis dessa mob
+      ["recebido","aprovacao","pendente","semPedido"].forEach(k => {
+        const outro = document.getElementById("cat-" + mobId + "-" + k);
+        if (outro) outro.style.display = "none";
+      });
+      if (!aberto) el.style.display = "block";
     }
     window.toggleCatMob = toggleCatMob;
 
     // ── Render de um card de categoria ──────────────────────────────────────
+    // Gera só o card compacto; painel de detalhe fica em div separada fora do grid
     function renderCardCat(catKey, label, cor, icone, itens) {
       const uid = "cat-" + mobId + "-" + catKey;
-      const linhasHtml = itens.map(it => {
-        const scsDoItem = (it.linhas && it.linhas.length)
-          ? it.linhas.map(l => `<span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;border-radius:4px;padding:1px 6px;margin-right:4px">SC ${l.c7_numsc}</span><span style="font-size:11px;color:#64748b">${l.status_desc}</span>`).join("  ")
-          : `<span style="font-size:11px;color:#94a3b8">${catKey === "recebido" ? "Recebido / removido do banco" : "Sem PC gerado"}</span>`;
-        return `<tr style="border-bottom:1px solid #f1f5f9">
-          <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>` : ""}</td>
-          <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace">${it.total_mob}</td>
-          <td style="padding:6px 10px;font-size:12px">${scsDoItem}</td>
-        </tr>`;
-      }).join("");
+      const pct = Math.round(itens.length / total * 100);
       return `
-        <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:10px">
-          <div onclick="toggleCatMob('${uid}')" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;background:#fff;user-select:none">
-            <span style="font-size:22px;width:36px;height:36px;border-radius:8px;background:${cor}20;display:flex;align-items:center;justify-content:center">${icone}</span>
-            <div style="flex:1">
-              <div style="font-size:13px;font-weight:600;color:#1e293b">${label}</div>
-              <div style="font-size:12px;color:#64748b">${itens.length} iten(s)</div>
-            </div>
-            <span style="font-size:22px;font-weight:700;color:${cor}">${itens.length}</span>
-            <span style="font-size:13px;color:#94a3b8">▾</span>
-          </div>
-          <div id="${uid}" style="display:none;border-top:1px solid #f1f5f9">
-            <div style="padding:8px 12px;background:#f8fafc;display:flex;justify-content:flex-end">
-              <button onclick="baixarExcelCatMob('${catKey}')" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px">⬇ Excel</button>
-            </div>
-            <table style="width:100%;border-collapse:collapse">
-              <tr style="background:#f8fafc">
-                <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">Item</th>
-                <th style="padding:6px 10px;font-size:11px;text-align:right;color:#64748b;font-weight:600">Qtde</th>
-                <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">SC / Status</th>
-              </tr>
-              ${linhasHtml || '<tr><td colspan="3" style="padding:12px;text-align:center;color:#94a3b8;font-size:12px">Nenhum item</td></tr>'}
-            </table>
-          </div>
+        <div onclick="toggleCatMob('${mobId}','${catKey}')" style="border:2px solid ${cor}30;border-radius:12px;padding:18px 12px 14px;cursor:pointer;background:#fff;user-select:none;text-align:center;position:relative"
+             onmouseover="this.style.boxShadow='0 4px 18px ${cor}28';this.style.borderColor='${cor}80'"
+             onmouseout="this.style.boxShadow='none';this.style.borderColor='${cor}30'">
+          <div style="font-size:28px;margin-bottom:8px">${icone}</div>
+          <div style="font-size:32px;font-weight:800;color:${cor};line-height:1">${itens.length}</div>
+          <div style="font-size:12px;font-weight:600;color:#475569;margin-top:6px">${label}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">${pct}% do total</div>
         </div>`;
+    }
+
+    // Gera os painéis de detalhe (ocultos inicialmente)
+    function renderPaineisCat() {
+      return ["recebido","aprovacao","pendente","semPedido"].map(catKey => {
+        const mapCats = { recebido: cats.recebido, aprovacao: cats.aprovacao,
+                          pendente: cats.pendente, semPedido: cats.semPedido };
+        const mapLabels = { recebido:"Recebidos", aprovacao:"Em aprovação",
+                            pendente:"Pendentes", semPedido:"Sem pedido" };
+        const mapCores  = { recebido:"#22c55e", aprovacao:"#f59e0b",
+                            pendente:"#ef4444", semPedido:"#94a3b8" };
+        const itens = mapCats[catKey];
+        const cor   = mapCores[catKey];
+        const label = mapLabels[catKey];
+        const uid   = "cat-" + mobId + "-" + catKey;
+        const linhasHtml = itens.map(it => {
+          const scsDoItem = (it.linhas && it.linhas.length)
+            ? it.linhas.map(l => `<span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;border-radius:4px;padding:1px 5px;margin-right:4px">SC ${l.c7_numsc}</span><span style="font-size:11px;color:#64748b">${l.status_desc}</span>`).join(" ")
+            : `<span style="font-size:11px;color:#94a3b8">${catKey==="recebido"?"Recebido":"Sem PC gerado"}</span>`;
+          return `<tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>`:""}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap">${it.total_mob}</td>
+            <td style="padding:6px 10px;font-size:12px">${scsDoItem}</td>
+          </tr>`;
+        }).join("");
+        return `<div id="${uid}" style="display:none;border:1px solid ${cor}40;border-radius:10px;overflow:hidden;margin-bottom:8px">
+          <div style="padding:9px 14px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">
+            <span style="font-size:13px;font-weight:600;color:#1e293b">${label} — ${itens.length} iten(s)</span>
+            <button onclick="event.stopPropagation();baixarExcelCatMob('${catKey}')" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">⬇ Excel</button>
+          </div>
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="background:#f8fafc">
+              <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">Item</th>
+              <th style="padding:6px 10px;font-size:11px;text-align:right;color:#64748b;font-weight:600">Qtde</th>
+              <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">SC / Status</th>
+            </tr>
+            ${linhasHtml||'<tr><td colspan="3" style="padding:12px;text-align:center;color:#94a3b8;font-size:12px">Nenhum item</td></tr>'}
+          </table>
+        </div>`;
+      }).join("");
     }
 
     // ── Gráfico de pizza (conic-gradient) ────────────────────────────────────
@@ -1165,13 +1188,14 @@
         </div>
       </div>
 
-      <div style="margin-bottom:20px">
-        ${renderCardCat("recebido",  "Pedidos recebidos",    "#22c55e", "✅", cats.recebido)}
-        ${renderCardCat("aprovacao", "Em aprovação",         "#f59e0b", "⏳", cats.aprovacao)}
-        ${renderCardCat("pendente",  "Pedidos pendentes",    "#ef4444", "🔴", cats.pendente)}
-        ${renderCardCat("semPedido", "Sem pedido",           "#94a3b8", "⚪", cats.semPedido)}
-        ${pizzaCats()}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
+        ${renderCardCat("recebido",  "Recebidos",    "#22c55e", "✅", cats.recebido)}
+        ${renderCardCat("aprovacao", "Em aprovação", "#f59e0b", "⏳", cats.aprovacao)}
+        ${renderCardCat("pendente",  "Pendentes",    "#ef4444", "🔴", cats.pendente)}
+        ${renderCardCat("semPedido", "Sem pedido",   "#94a3b8", "⚪", cats.semPedido)}
       </div>
+      <div style="margin-bottom:10px">${renderPaineisCat()}</div>
+      <div style="margin-bottom:20px">${pizzaCats()}</div>
 
       <table class="tbl-mob">
         <tr><th>Item</th><th style="text-align:right">Total mob.</th><th>Equipes atendidas</th></tr>
