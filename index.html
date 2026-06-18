@@ -179,13 +179,13 @@
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
               <div>
                 <div style="font-weight:700;font-size:14px">Centro de Custo</div>
-                <div style="font-size:12.5px;color:#64748b;margin-top:2px">Atualiza nome, estado, macro e serviço das bases (não altera a contagem de pessoas).</div>
+                <div style="font-size:12.5px;color:#64748b;margin-top:2px">Exportação do Protheus (CTT). Mantém só os centros desbloqueados.</div>
               </div>
               <div class="carimbo" id="carimbo-centros_custo">carregando...</div>
             </div>
             <label class="upload-area" id="label-centros_custo">
-              <span id="nome-arquivo-centros_custo">Escolher arquivo (.xlsx)</span>
-              <input type="file" accept=".xlsx,.xls" style="display:none" id="arquivo-centros_custo" onchange="arquivoEscolhido('centros_custo')"/>
+              <span id="nome-arquivo-centros_custo">Escolher arquivo (.csv)</span>
+              <input type="file" accept=".csv" style="display:none" id="arquivo-centros_custo" onchange="arquivoEscolhido('centros_custo')"/>
             </label>
             <button class="btn-salvar" style="margin-top:12px" id="btn-centros_custo" onclick="processarBase('centros_custo')" disabled>Atualizar</button>
             <div id="log-centros_custo" style="margin-top:10px"></div>
@@ -523,6 +523,36 @@
       return "pendente";
     }
 
+    function calcularProporcaoRecebida(itensSol, scTrim) {
+      let totalSolicitado = 0, totalRecebido = 0;
+      itensSol.forEach(it => {
+        const qtdSolicitada = Number(it.quantidade) || 0;
+        totalSolicitado += qtdSolicitada;
+        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
+        const ps = temCodigoReal ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : (pcMapPorSc[scTrim] || []);
+        const recebidoItem = ps.reduce((acc, p) => {
+          const st = (p.status_desc || "").toLowerCase();
+          return acc + (st.includes("receb") ? (Number(p.c7_quant) || 0) : 0);
+        }, 0);
+        totalRecebido += Math.min(recebidoItem, qtdSolicitada);
+      });
+      return { totalSolicitado, totalRecebido };
+    }
+
+    function pizzaHtml(totalSolicitado, totalRecebido) {
+      if (totalSolicitado <= 0) return "";
+      const pct = Math.round((totalRecebido / totalSolicitado) * 100);
+      return `
+        <div style="display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">
+          <div style="width:60px;height:60px;border-radius:50%;flex-shrink:0;background:conic-gradient(#16a34a 0% ${pct}%, #e2e8f0 ${pct}% 100%)"></div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#0f172a">${pct}% recebido</div>
+            <div style="font-size:11.5px;color:#64748b">${totalRecebido} de ${totalSolicitado} unidade(s) solicitada(s)</div>
+          </div>
+        </div>
+      `;
+    }
+
     const listaHtml = associadas.map(s => {
       const base = ccMapLocal[s.cc];
       const itensSol = porSol[s.id] || [];
@@ -571,6 +601,7 @@
                 }).join("");
               }).join("")}
             </table>
+            ${e2 ? "" : pizzaHtml(...Object.values(calcularProporcaoRecebida(itensSol, scTrim)))}
           </div>
         </div>
       `;
@@ -637,24 +668,34 @@
   }
 
   async function atualizarCC(file, logFn) {
-    logFn("Lendo Centro de Custo (.xlsx)...");
-    const buffer = await file.arrayBuffer();
-    const wb = XLSX.read(buffer, { type: "array" });
-    const linhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-    const mapaCC = {};
-    for (const r of linhas) {
-      const cc = String(pegar(r, "Cod CC", "cc") || "").trim();
-      if (!cc) continue;
-      mapaCC[cc] = {
-        cc,
-        nome: titulo(pegar(r, "Descrição", "descricao")),
-        estado: titulo(pegar(r, "Estado")),
-        macro: String(pegar(r, "Macro") || ""),
-        servico: String(pegar(r, "Serviço", "servico") || ""),
-      };
+    logFn("Lendo Centro de Custo (.csv do Protheus — CTT)...");
+    const texto = await file.text();
+    const resultado = Papa.parse(texto, { header: false, skipEmptyLines: true });
+    const linhasBrutas = resultado.data.slice(1); // pula o cabeçalho
+
+    function extrairLinha(r) {
+      // a maioria das linhas vem normal (5 campos). Quando o "Codigo" de gerência
+      // está preenchido, o exportador do Protheus engloba a linha toda em aspas
+      // de um jeito que vira 1 campo só — aqui recupera dividindo esse texto por vírgula.
+      if (r.length >= 5) return { cc: r[0], nome: r[1], status: r[2] };
+      const partes = String(r[0]).split(",");
+      return { cc: partes[0], nome: partes[1], status: partes[2] };
     }
+
+    const mapaCC = {};
+    let totalDesbloqueados = 0, totalLinhas = 0;
+    for (const r of linhasBrutas) {
+      const { cc, nome, status } = extrairLinha(r);
+      const ccLimpo = String(cc || "").trim();
+      if (!ccLimpo) continue;
+      totalLinhas++;
+      if ((status || "").trim() !== "Desbloqueado") continue; // mantém só os desbloqueados
+      totalDesbloqueados++;
+      mapaCC[ccLimpo] = { cc: ccLimpo, nome: String(nome || "").trim() };
+    }
+
     const linhasCC = Object.values(mapaCC);
-    logFn(`Gravando ${linhasCC.length} centros de custo...`);
+    logFn(`${totalLinhas} linha(s) lida(s), ${totalDesbloqueados} desbloqueada(s). Gravando...`);
     await upsertEmPartes("centros_custo", linhasCC, "cc", logFn);
     await registrarCarimbo("centros_custo", linhasCC.length);
     return linhasCC.length;
