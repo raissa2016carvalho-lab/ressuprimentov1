@@ -986,28 +986,34 @@
         avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${e2.message}</div>`;
       } else {
         pcsEncontrados = pcs || [];
-        const amostra = pcsEncontrados.slice(0, 5).map(p =>
-          `c7_numsc="${p.c7_numsc}" | c7_produto="${p.c7_produto}" | status="${p.status_desc}" | qtde=${p.c7_quant}`
-        ).join("<br>");
+        const statusDistintos = [...new Set(pcsEncontrados.map(p => p.status_desc))];
+        const temReceb = pcsEncontrados.filter(p => (p.status_desc||"").toLowerCase().includes("receb"));
+        const alavanca = pcsEncontrados.filter(p => String(p.c7_produto||"").trim() === "300000022");
         avisoProtheus = `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:11.5px;font-family:ui-monospace,monospace;margin-bottom:12px;line-height:1.8">
           <b>DEBUG:</b> ${pcsEncontrados.length} linhas retornadas<br>
-          SCs normalizadas buscadas: ${JSON.stringify([...numerosScNormalizados])}<br>
-          Primeiros 5 registros:<br>${amostra || "(nenhum)"}
+          Status distintos: ${JSON.stringify(statusDistintos)}<br>
+          Linhas com "receb" no status: ${temReceb.length}<br>
+          ALAVANCA (300000022) no resultado: ${alavanca.length} linha(s) — ${JSON.stringify(alavanca.map(p=>({sc:p.c7_numsc,st:p.status_desc,qt:p.c7_quant})))}
         </div>`;
       }
     }
 
-    // soma o recebido do item, comparando a SC (tolerante a zero à esquerda) + código exato,
-    // somando entre TODAS as SCs já adicionadas à mobilização
-    function recebidoDoItem(codigo) {
-      if (!codigo || !codigo.trim()) return 0;
+    // Lógica inversa: o sync Python REMOVE do banco quando o item é recebido.
+    // Portanto: item AUSENTE do banco (para aquela SC) = recebido.
+    //           item PRESENTE no banco = ainda pendente.
+    // Só aplica se houver pelo menos 1 linha no banco para as SCs buscadas
+    // (evita falso-positivo quando a SC ainda não tem nenhum PC gerado).
+    const temDadosNoBanco = pcsEncontrados.length > 0;
+    function itemEstaRecebido(codigo) {
+      if (!codigo || !codigo.trim()) return false;
+      if (!temDadosNoBanco) return false;
       const codTrim = codigo.trim();
-      return pcsEncontrados.reduce((acc, p) => {
-        if (String(p.c7_produto || "").trim() !== codTrim) return acc;
-        if (!numerosScNormalizados.has(normalizarSc(p.c7_numsc))) return acc;
-        const st = (p.status_desc || "").toLowerCase();
-        return acc + (st.includes("receb") ? (Number(p.c7_quant) || 0) : 0);
-      }, 0);
+      const encontrado = pcsEncontrados.some(p =>
+        String(p.c7_produto || "").trim() === codTrim &&
+        numerosScNormalizados.has(normalizarSc(p.c7_numsc))
+      );
+      // se encontrado = ainda pendente; se não encontrado = recebido (foi removido)
+      return !encontrado;
     }
 
     const listaScsHtml = (scsLista || []).length === 0
@@ -1031,9 +1037,8 @@
       <table class="tbl-mob">
         <tr><th>Item</th><th style="text-align:right">Total mob.</th><th>Equipes atendidas</th></tr>
         ${itensConsolidados.map(it => {
-          const perEquipe = numEquipes > 0 ? (it.total_mob / numEquipes) : 0;
-          const recebido = recebidoDoItem(it.codigo);
-          const equipesAtendidas = perEquipe > 0 ? Math.min(numEquipes, Math.floor(recebido / perEquipe)) : 0;
+          const recebido = itemEstaRecebido(it.codigo);
+          const equipesAtendidas = recebido ? numEquipes : 0;
           const chips = Array.from({ length: numEquipes }, (_, i) =>
             `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}">${i + 1}</span>`
           ).join("");
