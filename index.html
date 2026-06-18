@@ -298,8 +298,8 @@
     $("lista").innerHTML = '<div class="vazio">Carregando...</div>';
     const [{ data: ccs, error: e1 }, { data: sols, error: e2 }, { data: itens, error: e3 }] = await Promise.all([
       db.from("centros_custo").select("*"),
-      db.from("solicitacoes").select("*").order("criado_em", { ascending: false }),
-      db.from("solicitacao_itens").select("*"),
+      db.from("solicitacoes").select("*").order("criado_em", { ascending: false }).limit(5000),
+      db.from("solicitacao_itens").select("*").limit(10000),
     ]);
     if (e1 || e2 || e3) {
       $("lista").innerHTML = '<div class="vazio">Erro ao carregar: ' + ((e1 || e2 || e3).message) + '</div>';
@@ -1001,22 +1001,23 @@
     }
 
     const temDadosNoBanco = pcsEncontrados.length > 0;
-    // Status que indicam recebimento (total ou em andamento)
+    // Status que indicam recebimento
     const statusRecebido = s => {
       const st = (s || "").toLowerCase();
       return st.includes("receb") || st.includes("pré-nota") || st.includes("pre-nota");
     };
-    // Chip verde APENAS se tiver PC com status recebido/pré-nota no banco.
-    // Sem PC no banco = cinza (sem pedido). Estoque é tratado à parte no cálculo de chips.
+    // O sync Python DELETA os PCs recebidos do banco — logo item ausente = recebido.
+    // Chips verdes: ausente do banco (recebido pelo Protheus) OU status de recebimento.
     function itemEstaRecebido(codigo) {
       if (!codigo || !codigo.trim()) return false;
+      if (!temDadosNoBanco) return false;
       const codTrim = codigo.trim();
       const linhasDoItem = pcsEncontrados.filter(p =>
         String(p.c7_produto || "").trim() === codTrim &&
         numerosScNormalizados.has(normalizarSc(p.c7_numsc))
       );
-      // só marca como recebido se tiver linha com status de recebimento
-      return linhasDoItem.length > 0 && linhasDoItem.every(p => statusRecebido(p.status_desc));
+      if (linhasDoItem.length === 0) return true;   // ausente = recebido (removido pelo sync)
+      return linhasDoItem.every(p => statusRecebido(p.status_desc));
     }
 
     // ── Categorizar itens ──────────────────────────────────────────────────────
@@ -1036,7 +1037,7 @@
         cats.estoque.push({ ...it, linhas, qtdEst }); return;
       }
 
-      // sem código ou sem SC associada → sem pedido
+      // sem código ou sem SCs cadastradas na mobilização → sem pedido real
       if (!codTrim || !temDadosNoBanco) {
         cats.semPedido.push({ ...it, linhas: [] }); return;
       }
@@ -1047,10 +1048,8 @@
       );
 
       if (linhas.length === 0) {
-        // ausente do banco = nunca teve PC gerado (ou recebido via PC — indistinguível)
-        // CARD → "Sem pedido" (não há registro de compra no banco)
-        // CHIPS → a lógica inversa cuida (itemEstaRecebido) e pinta verde se ausente
-        cats.semPedido.push({ ...it, linhas: [], semPcNoBanco: true });
+        // ausente do banco com SCs cadastradas = provavelmente recebido (sync removeu)
+        cats.recebido.push({ ...it, linhas: [] });
       } else if (linhas.every(p => statusRecebido(p.status_desc))) {
         cats.recebido.push({ ...it, linhas });
       } else if (linhas.some(p => (p.status_desc||"").toLowerCase().includes("aprov"))) {
