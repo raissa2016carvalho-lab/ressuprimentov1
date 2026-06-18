@@ -1000,45 +1000,57 @@
       }
     }
 
-    // Lógica inversa: o sync Python REMOVE do banco quando o item é recebido.
-    // Portanto: item AUSENTE do banco (para aquela SC) = recebido.
-    //           item PRESENTE no banco = ainda pendente.
-    // Só aplica se houver pelo menos 1 linha no banco para as SCs buscadas
-    // (evita falso-positivo quando a SC ainda não tem nenhum PC gerado).
     const temDadosNoBanco = pcsEncontrados.length > 0;
     // Status que indicam recebimento (total ou em andamento)
     const statusRecebido = s => {
       const st = (s || "").toLowerCase();
       return st.includes("receb") || st.includes("pré-nota") || st.includes("pre-nota");
     };
+    // Chip verde APENAS se tiver PC com status recebido/pré-nota no banco.
+    // Sem PC no banco = cinza (sem pedido). Estoque é tratado à parte no cálculo de chips.
     function itemEstaRecebido(codigo) {
       if (!codigo || !codigo.trim()) return false;
-      if (!temDadosNoBanco) return false;
       const codTrim = codigo.trim();
       const linhasDoItem = pcsEncontrados.filter(p =>
         String(p.c7_produto || "").trim() === codTrim &&
         numerosScNormalizados.has(normalizarSc(p.c7_numsc))
       );
-      // Ausente do banco = recebido (Python remove quando recebe totalmente)
-      if (linhasDoItem.length === 0) return true;
-      // Presente mas com status de recebimento/pré-nota = também recebido
-      if (linhasDoItem.every(p => statusRecebido(p.status_desc))) return true;
-      return false;
+      // só marca como recebido se tiver linha com status de recebimento
+      return linhasDoItem.length > 0 && linhasDoItem.every(p => statusRecebido(p.status_desc));
     }
 
     // ── Categorizar itens ──────────────────────────────────────────────────────
-    const cats = { recebido: [], pendente: [], aprovacao: [], semPedido: [] };
+    // 5 categorias: recebido (via PC), estoque (via estoque manual),
+    // aprovacao, pendente, semPedido (sem SC ou sem evidência alguma)
+    const cats = { recebido: [], estoque: [], pendente: [], aprovacao: [], semPedido: [] };
     itensConsolidados.forEach(it => {
       const codTrim = (it.codigo || "").trim();
+      const qtdEst  = codTrim ? (mapaEstoque[codTrim] || 0) : 0;
+
+      // item com estoque definido pelo usuário → categoria estoque
+      if (qtdEst > 0) {
+        const linhas = codTrim ? pcsEncontrados.filter(p =>
+          String(p.c7_produto || "").trim() === codTrim &&
+          numerosScNormalizados.has(normalizarSc(p.c7_numsc))
+        ) : [];
+        cats.estoque.push({ ...it, linhas, qtdEst }); return;
+      }
+
+      // sem código ou sem SC associada → sem pedido
       if (!codTrim || !temDadosNoBanco) {
         cats.semPedido.push({ ...it, linhas: [] }); return;
       }
+
       const linhas = pcsEncontrados.filter(p =>
         String(p.c7_produto || "").trim() === codTrim &&
         numerosScNormalizados.has(normalizarSc(p.c7_numsc))
       );
+
       if (linhas.length === 0) {
-        cats.recebido.push({ ...it, linhas: [] });
+        // ausente do banco = nunca teve PC gerado (ou recebido via PC — indistinguível)
+        // CARD → "Sem pedido" (não há registro de compra no banco)
+        // CHIPS → a lógica inversa cuida (itemEstaRecebido) e pinta verde se ausente
+        cats.semPedido.push({ ...it, linhas: [], semPcNoBanco: true });
       } else if (linhas.every(p => statusRecebido(p.status_desc))) {
         cats.recebido.push({ ...it, linhas });
       } else if (linhas.some(p => (p.status_desc||"").toLowerCase().includes("aprov"))) {
@@ -1082,7 +1094,7 @@
       if (!el) return;
       const aberto = el.style.display !== "none";
       // fecha todos os painéis dessa mob
-      ["recebido","aprovacao","pendente","semPedido"].forEach(k => {
+      ["recebido","estoque","aprovacao","pendente","semPedido"].forEach(k => {
         const outro = document.getElementById("cat-" + mobId + "-" + k);
         if (outro) outro.style.display = "none";
       });
@@ -1108,13 +1120,16 @@
 
     // Gera os painéis de detalhe (ocultos inicialmente)
     function renderPaineisCat() {
-      return ["recebido","aprovacao","pendente","semPedido"].map(catKey => {
-        const mapCats = { recebido: cats.recebido, aprovacao: cats.aprovacao,
-                          pendente: cats.pendente, semPedido: cats.semPedido };
-        const mapLabels = { recebido:"Recebidos", aprovacao:"Em aprovação",
-                            pendente:"Pendentes", semPedido:"Sem pedido" };
-        const mapCores  = { recebido:"#22c55e", aprovacao:"#f59e0b",
-                            pendente:"#ef4444", semPedido:"#94a3b8" };
+      return ["recebido","estoque","aprovacao","pendente","semPedido"].map(catKey => {
+        const mapCats = { recebido: cats.recebido, estoque: cats.estoque,
+                          aprovacao: cats.aprovacao, pendente: cats.pendente,
+                          semPedido: cats.semPedido };
+        const mapLabels = { recebido:"Recebidos (PC)", estoque:"Via estoque",
+                            aprovacao:"Em aprovação", pendente:"Pendentes",
+                            semPedido:"Sem pedido" };
+        const mapCores  = { recebido:"#22c55e", estoque:"#6366f1",
+                            aprovacao:"#f59e0b", pendente:"#ef4444",
+                            semPedido:"#94a3b8" };
         const itens = mapCats[catKey];
         const cor   = mapCores[catKey];
         const label = mapLabels[catKey];
@@ -1122,7 +1137,7 @@
         const linhasHtml = itens.map(it => {
           const scsDoItem = (it.linhas && it.linhas.length)
             ? it.linhas.map(l => `<span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;border-radius:4px;padding:1px 5px;margin-right:4px">SC ${l.c7_numsc}</span><span style="font-size:11px;color:#64748b">${l.status_desc}</span>`).join(" ")
-            : `<span style="font-size:11px;color:#94a3b8">${catKey==="recebido"?"Recebido":"Sem PC gerado"}</span>`;
+            : `<span style="font-size:11px;color:#94a3b8">${it.semPcNoBanco ? "Sem PC no banco (recebido ou não pedido)" : "Sem PC gerado"}</span>`;
           return `<tr style="border-bottom:1px solid #f1f5f9">
             <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>`:""}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap">${it.total_mob}</td>
@@ -1148,13 +1163,14 @@
 
     // ── Gráfico de pizza (conic-gradient) ────────────────────────────────────
     function pizzaCats() {
-      const r = cats.recebido.length, pe = cats.pendente.length,
+      const r = cats.recebido.length, e = cats.estoque.length, pe = cats.pendente.length,
             a = cats.aprovacao.length, s = cats.semPedido.length, t = total;
       const graus = (n) => Math.round(n / t * 360);
-      const g1 = graus(r), g2 = graus(pe), g3 = graus(a), g4 = graus(s);
-      const grad = `conic-gradient(#22c55e 0deg ${g1}deg, #f59e0b ${g1}deg ${g1+g3}deg, #ef4444 ${g1+g3}deg ${g1+g3+pe}deg, #94a3b8 ${g1+g3+pe}deg 360deg)`;
+      const g1 = graus(r), g2 = graus(e), g3 = graus(a), g4 = graus(pe);
+      const grad = `conic-gradient(#22c55e 0deg ${g1}deg, #6366f1 ${g1}deg ${g1+g2}deg, #f59e0b ${g1+g2}deg ${g1+g2+g3}deg, #ef4444 ${g1+g2+g3}deg ${g1+g2+g3+g4}deg, #94a3b8 ${g1+g2+g3+g4}deg 360deg)`;
       const legend = [
-        { cor: "#22c55e", label: "Recebidos", n: r },
+        { cor: "#22c55e", label: "Recebidos (PC)", n: r },
+        { cor: "#6366f1", label: "Via estoque", n: e },
         { cor: "#f59e0b", label: "Em aprovação", n: a },
         { cor: "#ef4444", label: "Pendentes", n: pe },
         { cor: "#94a3b8", label: "Sem pedido", n: s },
@@ -1172,8 +1188,8 @@
             <div style="display:flex;flex-direction:column;gap:6px">${legend}</div>
           </div>
           <div style="margin-left:auto;text-align:right">
-            <div style="font-size:32px;font-weight:700;color:#22c55e">${pctReceb}%</div>
-            <div style="font-size:11px;color:#64748b">recebidos</div>
+            <div style="font-size:32px;font-weight:700;color:#22c55e">${Math.round((cats.recebido.length+cats.estoque.length)/total*100)}%</div>
+            <div style="font-size:11px;color:#64748b">atendidos</div>
           </div>
         </div>`;
     }
@@ -1198,8 +1214,9 @@
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px">
         ${renderCardCat("recebido",  "Recebidos",    "#22c55e", "✅", cats.recebido)}
+        ${renderCardCat("estoque",   "Via estoque",  "#6366f1", "📦", cats.estoque)}
         ${renderCardCat("aprovacao", "Em aprovação", "#f59e0b", "⏳", cats.aprovacao)}
         ${renderCardCat("pendente",  "Pendentes",    "#ef4444", "🔴", cats.pendente)}
         ${renderCardCat("semPedido", "Sem pedido",   "#94a3b8", "⚪", cats.semPedido)}
