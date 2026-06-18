@@ -348,17 +348,17 @@
             <div class="card-titulo">${nomeBase} <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
               <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span></div>
             <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns)${s.sc_numero ? " · SC " + s.sc_numero : ""}</div>
+            ${s.justificativa ? `<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>` : ""}
           </div>
           <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Avaliar ▾</div>
         </div>
         <div class="card-corpo" id="corpo-${s.id}">
           <table>
-            <tr><th>Item</th><th style="text-align:right">Qtd</th><th>Justificativa</th><th style="text-align:center">Decisão</th></tr>
+            <tr><th>Item</th><th style="text-align:right">Qtd</th><th style="text-align:center">Decisão</th></tr>
             ${s.itens.map(it => `
               <tr>
                 <td>${it.descricao || it.codigo}</td>
                 <td class="qtd">${it.quantidade}</td>
-                <td style="color:#334155">${it.justificativa || ""}</td>
                 <td style="text-align:center;white-space:nowrap">
                   <button class="btn-dec ${it.situacao === 'aprovado' ? 'aprovado' : ''}" id="ap-${it.id}" onclick="decidir(${s.id}, ${it.id}, 'aprovado')">Aprovar</button>
                   <button class="btn-dec ${it.situacao === 'recusado' ? 'recusado' : ''}" id="re-${it.id}" onclick="decidir(${s.id}, ${it.id}, 'recusado')">Recusar</button>
@@ -444,7 +444,11 @@
       alert("Os itens aprovados não têm código real (foram digitados manualmente, sem escolher da lista). Não é possível gerar o Excel sem o código do Protheus.");
       return;
     }
-    const obs = `Ressuprimento #${sol.id} - ${sol.solicitante_nome} (mat. ${sol.solicitante_matricula})`;
+    const obs = sol.observacao || "";
+    if (!obs) {
+      const continuar = confirm("O campo \"Observação\" dessa solicitação está vazio. O Excel será gerado com C1_OBS em branco. Quer continuar mesmo assim?");
+      if (!continuar) return;
+    }
     const linhas = comCodigo.map((it, i) => ({
       C1_XTIPOSC: "004",
       C1_ITEM: String(i + 1).padStart(2, "0"),
