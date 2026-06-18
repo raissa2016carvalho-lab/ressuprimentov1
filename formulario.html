@@ -14,9 +14,9 @@
   .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:14px}
   label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
   input,select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
-  .item{border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}
-  .item-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-  .item-remover{border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1}
+  .item{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid #f1f5f9}
+  .item:last-child{border-bottom:none}
+  .item-remover{border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0;padding-top:9px}
   .btn-add{background:#0d9488;border:none;border-radius:50%;width:38px;height:38px;font-size:20px;color:#fff;cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;margin-left:auto;box-shadow:0 2px 6px rgba(13,148,136,.3)}
   .add-row{display:flex;justify-content:flex-end;margin-top:4px}
   .btn-enviar{width:100%;padding:14px;border-radius:10px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:15px;cursor:pointer;margin-top:6px}
@@ -24,7 +24,9 @@
   .msg{font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:14px}
   .erro{background:#fee2e2;color:#991b1b}
   .ok{background:#d1fae5;color:#065f46;text-align:center;padding:24px}
-  .item-descricao-wrap{position:relative}
+  .item-descricao-wrap{position:relative;flex:1}
+  .item-descricao-wrap input{margin-bottom:0}
+  .item-qtd{width:64px!important;margin-bottom:0!important;flex-shrink:0}
   .item-sugestoes{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;z-index:5;box-shadow:0 8px 20px rgba(15,23,42,.1);display:none}
   .sug-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9}
   .sug-item:hover{background:#f8fafc}
@@ -126,16 +128,12 @@
     div.className = "item";
     div.id = id;
     div.innerHTML = `
-      <div class="item-topo">
-        <label style="flex:1">Item</label>
-        <button class="item-remover" onclick="document.getElementById('${id}').remove()">✕</button>
-      </div>
       <div class="item-descricao-wrap">
-        <input class="item-descricao" placeholder="Nome do material (digite para buscar)" style="margin-bottom:10px"/>
+        <input class="item-descricao" placeholder="Nome do material (digite para buscar)"/>
         <div class="item-sugestoes"></div>
       </div>
-      <label>Quantidade</label>
-      <input class="item-qtd" type="number" min="0" placeholder="0" style="margin-bottom:0"/>
+      <input class="item-qtd" type="number" min="0" placeholder="Qtd"/>
+      <button class="item-remover" onclick="document.getElementById('${id}').remove()">✕</button>
     `;
     $("itens-lista").appendChild(div);
   }
