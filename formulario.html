@@ -24,9 +24,6 @@
   .msg{font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:14px}
   .erro{background:#fee2e2;color:#991b1b}
   .ok{background:#d1fae5;color:#065f46;text-align:center;padding:24px}
-  .quant-just{display:flex;gap:10px}
-  .quant-just > div:first-child{flex:1}
-  .quant-just > div:last-child{flex:3}
   .item-descricao-wrap{position:relative}
   .item-sugestoes{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;z-index:5;box-shadow:0 8px 20px rgba(15,23,42,.1);display:none}
   .sug-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9}
@@ -48,6 +45,8 @@
       <input id="matricula" placeholder="Ex.: 12345"/>
       <label>Centro de custo / base</label>
       <select id="cc"><option value="">Carregando bases...</option></select>
+      <label>Justificativa (opcional)</label>
+      <input id="justificativa-geral" placeholder="Por que precisa desses itens?"/>
     </div>
 
     <div class="card">
@@ -135,17 +134,15 @@
         <input class="item-descricao" placeholder="Nome do material (digite para buscar)" style="margin-bottom:10px"/>
         <div class="item-sugestoes"></div>
       </div>
-      <div class="quant-just">
-        <div><label>Quantidade</label><input class="item-qtd" type="number" min="0" placeholder="0"/></div>
-        <div><label>Justificativa (opcional)</label><input class="item-just" placeholder="Por que precisa?"/></div>
-      </div>
+      <label>Quantidade</label>
+      <input class="item-qtd" type="number" min="0" placeholder="0" style="margin-bottom:0"/>
     `;
     $("itens-lista").appendChild(div);
   }
   $("btn-add-item").addEventListener("click", adicionarItem);
   adicionarItem(); // já começa com 1 item
 
-  // carrega as bases (centros de custo) na lista
+  // carrega as bases (centros de custo) na lista — se o nome se repetir, mantém só 1
   async function carregarBases() {
     const { data, error } = await db.from("ccs_publico").select("*");
     const select = $("cc");
@@ -154,8 +151,14 @@
       mostrarMsg("Não foi possível carregar as bases: " + error.message, "erro");
       return;
     }
+    const nomesVistos = new Set();
+    const semDuplicata = (data || []).filter(c => {
+      if (nomesVistos.has(c.nome)) return false;
+      nomesVistos.add(c.nome);
+      return true;
+    });
     select.innerHTML = `<option value="">Selecione sua base...</option>` +
-      data.map(c => `<option value="${c.cc}">${c.nome}</option>`).join("");
+      semDuplicata.map(c => `<option value="${c.cc}">${c.nome}</option>`).join("");
   }
   carregarBases();
 
@@ -168,6 +171,7 @@
     const nome = $("nome").value.trim();
     const matricula = $("matricula").value.trim();
     const cc = $("cc").value;
+    const justificativaGeral = $("justificativa-geral").value.trim();
 
     const itensEls = document.querySelectorAll(".item");
     const itens = [];
@@ -176,9 +180,8 @@
       const descricao = descricaoEl.value.trim();
       const codigo = descricaoEl.dataset.codigo || "MANUAL";
       const qtd = el.querySelector(".item-qtd").value;
-      const just = el.querySelector(".item-just").value.trim();
-      if (descricao || qtd || just) {
-        itens.push({ codigo, descricao, quantidade: Number(qtd) || 0, justificativa: just });
+      if (descricao || qtd) {
+        itens.push({ codigo, descricao, quantidade: Number(qtd) || 0 });
       }
     }
 
@@ -196,7 +199,7 @@
     $("btn-enviar").textContent = "Enviando...";
 
     const { data, error } = await db.rpc("criar_solicitacao", {
-      p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens
+      p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens, p_justificativa: justificativaGeral || null
     });
 
     if (error) {
