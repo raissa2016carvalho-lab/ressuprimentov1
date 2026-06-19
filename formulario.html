@@ -14,24 +14,24 @@
   .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:14px}
   label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
   input,select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
-  .item{border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}
-  .item-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-  .item-remover{border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1}
-  .btn-add{background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:9px;padding:10px;width:100%;font-size:13px;color:#475569;cursor:pointer;font-weight:600}
+  .item{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid #f1f5f9}
+  .item:last-child{border-bottom:none}
+  .item-remover{border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0;padding-top:9px}
+  .btn-add{background:#0d9488;border:none;border-radius:50%;width:38px;height:38px;font-size:20px;color:#fff;cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;margin-left:auto;box-shadow:0 2px 6px rgba(13,148,136,.3)}
+  .add-row{display:flex;justify-content:flex-end;margin-top:4px}
   .btn-enviar{width:100%;padding:14px;border-radius:10px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:15px;cursor:pointer;margin-top:6px}
   .btn-enviar:disabled{background:#e2e8f0;cursor:not-allowed}
   .msg{font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:14px}
   .erro{background:#fee2e2;color:#991b1b}
   .ok{background:#d1fae5;color:#065f46;text-align:center;padding:24px}
-  .quant-just{display:flex;gap:10px}
-  .quant-just > div:first-child{flex:1}
-  .quant-just > div:last-child{flex:3}
-  .busca-wrap{position:relative}
-  .sugestoes{display:none;position:absolute;z-index:10;left:0;right:0;top:calc(100% - 8px);background:#fff;border:1px solid #e2e8f0;border-radius:9px;max-height:220px;overflow:auto;box-shadow:0 8px 24px rgba(15,23,42,.1)}
-  .sugestoes.aberto{display:block}
-  .sugestao-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:13px}
-  .sugestao-item:hover{background:#f8fafc}
-  .sugestao-cod{font-size:11px;color:#94a3b8;font-family:ui-monospace,monospace}
+  .item-descricao-wrap{position:relative;flex:1}
+  .item-descricao-wrap input{margin-bottom:0}
+  .item-qtd{width:64px!important;margin-bottom:0!important;flex-shrink:0}
+  .item-sugestoes{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;z-index:5;box-shadow:0 8px 20px rgba(15,23,42,.1);display:none}
+  .sug-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9}
+  .sug-item:hover{background:#f8fafc}
+  .sug-item:last-child{border-bottom:none}
+  .sug-item small{color:#94a3b8;font-size:11px;font-family:ui-monospace,monospace;margin-left:6px}
 </style>
 </head>
 <body>
@@ -47,12 +47,14 @@
       <input id="matricula" placeholder="Ex.: 12345"/>
       <label>Centro de custo / base</label>
       <select id="cc"><option value="">Carregando bases...</option></select>
+      <label>Justificativa (opcional)</label>
+      <input id="justificativa-geral" placeholder="Por que precisa desses itens?"/>
     </div>
 
     <div class="card">
       <label style="margin-bottom:10px">Itens da solicitação</label>
       <div id="itens-lista"></div>
-      <button class="btn-add" id="btn-add-item">+ Adicionar item</button>
+      <div class="add-row"><button class="btn-add" id="btn-add-item" title="Adicionar item">+</button></div>
     </div>
 
     <div id="msg-area"></div>
@@ -62,7 +64,13 @@
   <div id="sucesso" style="display:none" class="card ok">
     <div style="font-size:32px;margin-bottom:8px">✓</div>
     <div style="font-weight:700;font-size:16px;margin-bottom:6px">Solicitação enviada!</div>
-    <div style="color:#047857;font-size:13px">Recebemos seu pedido. A equipe vai avaliar em breve.</div>
+    <div style="color:#047857;font-size:13px;margin-bottom:14px">Recebemos seu pedido. A equipe vai avaliar em breve.</div>
+    <div style="background:#fff;border:1px solid #a7f3d0;border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:4px">SEU CÓDIGO DE ACOMPANHAMENTO</div>
+      <div id="codigo-gerado" style="font-size:24px;font-weight:800;color:#0f172a;font-family:ui-monospace,monospace"></div>
+      <div style="font-size:11.5px;color:#64748b;margin-top:6px">Guarde esse número junto com sua matrícula para consultar o andamento depois.</div>
+    </div>
+    <a id="link-acompanhar" href="acompanhar.html" style="display:block;text-align:center;background:#0f172a;color:#fff;text-decoration:none;border-radius:9px;padding:11px;font-weight:700;font-size:13.5px">Acompanhar esta solicitação</a>
   </div>
 </div>
 
@@ -73,7 +81,49 @@
   const $ = (id) => document.getElementById(id);
 
   let contItens = 0;
-  let debounceBusca = null;
+
+  function debounce(fn, ms) {
+    let t;
+    return function (...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+  }
+
+  const buscarSugestoes = debounce(async (inputEl) => {
+    const wrap = inputEl.closest(".item-descricao-wrap");
+    const sugEl = wrap.querySelector(".item-sugestoes");
+    const termo = inputEl.value.trim();
+    if (termo.length < 2) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
+    const pareceCode = /^\d+$/.test(termo);
+        let query = db.from("itens_publico").select("codigo,descricao,unidade").limit(12);
+        if (pareceCode) { query = query.ilike("codigo", termo + "%"); }
+        else { query = query.ilike("descricao", "%" + termo + "%"); }
+        const { data, error } = await query;
+    if (error || !data || data.length === 0) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
+    sugEl.innerHTML = data.map(it =>
+      `<div class="sug-item" data-codigo="${it.codigo}" data-descricao="${it.descricao.replace(/"/g, '&quot;')}">${it.descricao} <small>${it.codigo}</small></div>`
+    ).join("") + (data.length === 100 ? '<div style="padding:8px 12px;font-size:11.5px;color:#94a3b8;text-align:center">Mostrando os 100 primeiros — digite mais letras pra refinar</div>' : "");
+    sugEl.style.display = "block";
+  }, 300);
+
+  document.addEventListener("input", (e) => {
+    if (!e.target.classList.contains("item-descricao")) return;
+    e.target.dataset.codigo = ""; // digitou de novo, não é mais um item escolhido da lista
+    buscarSugestoes(e.target);
+  });
+
+  document.addEventListener("click", (e) => {
+    const sug = e.target.closest(".sug-item");
+    if (sug) {
+      const wrap = sug.closest(".item-descricao-wrap");
+      const input = wrap.querySelector(".item-descricao");
+      input.value = sug.dataset.descricao;
+      input.dataset.codigo = sug.dataset.codigo;
+      wrap.querySelector(".item-sugestoes").style.display = "none";
+      return;
+    }
+    if (!e.target.closest(".item-descricao-wrap")) {
+      document.querySelectorAll(".item-sugestoes").forEach(el => el.style.display = "none");
+    }
+  });
 
   function adicionarItem() {
     contItens++;
@@ -82,67 +132,19 @@
     div.className = "item";
     div.id = id;
     div.innerHTML = `
-      <div class="item-topo">
-        <label style="flex:1">Item</label>
-        <button class="item-remover" onclick="document.getElementById('${id}').remove()">✕</button>
+      <div class="item-descricao-wrap">
+        <input class="item-descricao" placeholder="Nome do material (digite para buscar)"/>
+        <div class="item-sugestoes"></div>
       </div>
-      <div class="busca-wrap">
-        <input class="item-descricao" placeholder="Digite o nome ou código do material..." autocomplete="off" style="margin-bottom:10px"/>
-        <div class="sugestoes" id="sugestoes-${id}"></div>
-      </div>
-      <input type="hidden" class="item-codigo" value="MANUAL"/>
-      <div class="quant-just">
-        <div><label>Quantidade</label><input class="item-qtd" type="number" min="0" placeholder="0"/></div>
-        <div><label>Justificativa (opcional)</label><input class="item-just" placeholder="Por que precisa? (opcional)"/></div>
-      </div>
+      <input class="item-qtd" type="number" min="0" placeholder="Qtd"/>
+      <button class="item-remover" onclick="document.getElementById('${id}').remove()">✕</button>
     `;
     $("itens-lista").appendChild(div);
-
-    const inputDescricao = div.querySelector(".item-descricao");
-    const inputCodigo = div.querySelector(".item-codigo");
-    const caixaSugestoes = div.querySelector(".sugestoes");
-
-    inputDescricao.addEventListener("input", () => {
-      inputCodigo.value = "MANUAL"; // se digitar livre sem escolher sugestão, fica manual
-      const termo = inputDescricao.value.trim();
-      clearTimeout(debounceBusca);
-      if (termo.length < 2) { caixaSugestoes.classList.remove("aberto"); caixaSugestoes.innerHTML = ""; return; }
-      debounceBusca = setTimeout(async () => {
-        // busca por descrição OU por código (se parecer código numérico)
-        const pareceCode = /^\d+$/.test(termo);
-        let query = db.from("itens_publico").select("*").limit(12);
-        if (pareceCode) {
-          query = query.ilike("codigo", termo + "%");
-        } else {
-          query = query.ilike("descricao", "%" + termo + "%");
-        }
-        const { data, error } = await query;
-        if (error || !data || data.length === 0) { caixaSugestoes.classList.remove("aberto"); caixaSugestoes.innerHTML = ""; return; }
-        caixaSugestoes.innerHTML = data.map(it =>
-          `<div class="sugestao-item" data-codigo="${it.codigo}" data-descricao="${(it.descricao || "").replace(/"/g, '&quot;')}">
-            ${it.descricao}<div class="sugestao-cod">${it.codigo} · ${it.unidade || ""}</div>
-          </div>`
-        ).join("");
-        caixaSugestoes.classList.add("aberto");
-        caixaSugestoes.querySelectorAll(".sugestao-item").forEach(elSug => {
-          elSug.addEventListener("click", () => {
-            inputDescricao.value = elSug.getAttribute("data-descricao");
-            inputCodigo.value = elSug.getAttribute("data-codigo");
-            caixaSugestoes.classList.remove("aberto");
-            caixaSugestoes.innerHTML = "";
-          });
-        });
-      }, 300);
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!div.contains(e.target)) { caixaSugestoes.classList.remove("aberto"); }
-    });
   }
   $("btn-add-item").addEventListener("click", adicionarItem);
   adicionarItem(); // já começa com 1 item
 
-  // carrega as bases (centros de custo) na lista
+  // carrega as bases (centros de custo) na lista — se o nome se repetir, mantém só 1
   async function carregarBases() {
     const { data, error } = await db.from("ccs_publico").select("*");
     const select = $("cc");
@@ -151,8 +153,14 @@
       mostrarMsg("Não foi possível carregar as bases: " + error.message, "erro");
       return;
     }
+    const nomesVistos = new Set();
+    const semDuplicata = (data || []).filter(c => {
+      if (nomesVistos.has(c.nome)) return false;
+      nomesVistos.add(c.nome);
+      return true;
+    });
     select.innerHTML = `<option value="">Selecione sua base...</option>` +
-      data.map(c => `<option value="${c.cc}">${c.nome} — ${c.cc}</option>`).join("");
+      semDuplicata.map(c => `<option value="${c.cc}">${c.nome}</option>`).join("");
   }
   carregarBases();
 
@@ -165,15 +173,17 @@
     const nome = $("nome").value.trim();
     const matricula = $("matricula").value.trim();
     const cc = $("cc").value;
+    const justificativaGeral = $("justificativa-geral").value.trim();
 
     const itensEls = document.querySelectorAll(".item");
     const itens = [];
     for (const el of itensEls) {
-      const descricao = el.querySelector(".item-descricao").value.trim();
+      const descricaoEl = el.querySelector(".item-descricao");
+      const descricao = descricaoEl.value.trim();
+      const codigo = descricaoEl.dataset.codigo || "MANUAL";
       const qtd = el.querySelector(".item-qtd").value;
-      const just = el.querySelector(".item-just").value.trim();
-      if (descricao || qtd || just) {
-        itens.push({ codigo: "MANUAL", descricao, quantidade: Number(qtd) || 0, justificativa: just });
+      if (descricao || qtd) {
+        itens.push({ codigo, descricao, quantidade: Number(qtd) || 0 });
       }
     }
 
@@ -181,8 +191,8 @@
     if (!cc) { mostrarMsg("Selecione sua base.", "erro"); return; }
     if (itens.length === 0) { mostrarMsg("Adicione pelo menos um item.", "erro"); return; }
     for (const it of itens) {
-      if (!it.descricao || !it.quantidade || !it.justificativa) {
-        mostrarMsg("Preencha descrição, quantidade e justificativa de todos os itens.", "erro");
+      if (!it.descricao || !it.quantidade) {
+        mostrarMsg("Preencha a descrição e a quantidade de todos os itens.", "erro");
         return;
       }
     }
@@ -190,8 +200,8 @@
     $("btn-enviar").disabled = true;
     $("btn-enviar").textContent = "Enviando...";
 
-    const { error } = await db.rpc("criar_solicitacao", {
-      p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens
+    const { data, error } = await db.rpc("criar_solicitacao", {
+      p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens, p_justificativa: justificativaGeral || null
     });
 
     if (error) {
@@ -201,6 +211,8 @@
       return;
     }
 
+    $("codigo-gerado").textContent = "#" + data;
+    $("link-acompanhar").href = "acompanhar.html?id=" + data + "&matricula=" + encodeURIComponent(matricula);
     $("form-area").style.display = "none";
     $("sucesso").style.display = "block";
   });
