@@ -367,17 +367,20 @@
   const LABEL_STATUS = { pendente: "Pendente", em_analise: "Em análise", aprovada: "Aprovada", recusada: "Recusada", parcial: "Parcial", aguardando_master: "Aguardando master" };
 
   function renderLista() {
-    // mostra: pendentes sem SC + aguardando_master (revisão do master)
+    // mostra tudo que precisa de ação do master:
+    // pendente (com ou sem SC) + aguardando_master
     const visiveis = solicitacoes.filter(s =>
-      (s.status === "aguardando_master") ||
-      ((!s.sc_numero || !s.sc_numero.trim()) && s.status !== "aprovada" && s.status !== "recusada")
+      s.status === "pendente" || s.status === "aguardando_master" || s.status === "em_analise"
     );
     if (visiveis.length === 0) {
-      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação aguardando ação — tudo aprovado ou com SC na aba Acompanhamento.</div>';
+      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação pendente. Tudo aprovado ou recusado.</div>';
       return;
     }
-    // ordena: aguardando_master primeiro
-    visiveis.sort((a, b) => (b.status === "aguardando_master") - (a.status === "aguardando_master"));
+    // ordena: aguardando_master primeiro, depois mais recentes
+    visiveis.sort((a, b) =>
+      (b.status === "aguardando_master") - (a.status === "aguardando_master") ||
+      new Date(b.criado_em) - new Date(a.criado_em)
+    );
     $("lista").innerHTML = visiveis.map(s => renderCard(s)).join("");
   }
 
