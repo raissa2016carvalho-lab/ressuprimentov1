@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Painel do Gerente — Ressuprimento</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
+  .center{display:grid;place-items:center;min-height:100vh;padding:20px}
+  .login-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;width:100%;max-width:360px}
+  label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
+  input{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
+  button{font-family:inherit;cursor:pointer}
+  .btn{padding:11px;border-radius:9px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:14px;width:100%}
+  .btn:disabled{background:#e2e8f0;cursor:not-allowed}
+  .msg{font-size:13px;padding:9px 11px;border-radius:8px;margin-bottom:12px}
+  .erro{background:#fee2e2;color:#991b1b}
+  .ok{background:#d1fae5;color:#065f46}
+  #app{min-height:100vh;display:flex;flex-direction:column}
+  .header{background:#0f172a;color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .header-title{font-size:16px;font-weight:700}
+  .header-sub{font-size:12px;color:#64748b;margin-top:2px}
+  .btn-sair{border:1px solid #334155;background:#1e293b;color:#cbd5e1;border-radius:7px;padding:7px 14px;font-size:12.5px}
+  .corpo{flex:1;padding:24px;max-width:960px;margin:0 auto;width:100%}
+  .topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .card-topo{padding:16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .card-titulo{font-weight:700;font-size:14px}
+  .card-sub{font-size:12px;color:#64748b;margin-top:3px}
+  .card-corpo{border-top:1px solid #e2e8f0;background:#f8fafc;padding:16px;display:none}
+  .card-corpo.aberto{display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
+  th{text-align:left;color:#64748b;font-weight:600;font-size:11.5px;padding:8px 10px;border-bottom:1px solid #e2e8f0}
+  td{padding:9px 10px;border-bottom:1px solid #f1f5f9}
+  .btn-dec{border:none;border-radius:6px;padding:5px 9px;font-size:11.5px;font-weight:700;margin-right:5px;background:#e2e8f0;color:#64748b}
+  .btn-dec.aprovado{background:#16a34a;color:#fff}
+  .btn-dec.recusado{background:#e11d48;color:#fff}
+  .btn-salvar{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
+  .rodape-card{margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .vazio{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:36px;text-align:center;color:#64748b;font-size:13.5px}
+  .btn-atualizar{border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px}
+</style>
+</head>
+<body>
+
+<div id="tela-login" class="center">
+  <div class="login-card">
+    <div style="width:36px;height:36px;border-radius:9px;background:#0d9488;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;margin-bottom:14px">R</div>
+    <h1 style="font-size:18px;margin:0 0 4px">Painel do Gerente</h1>
+    <p style="color:#64748b;font-size:13px;margin:0 0 18px">Avaliação de solicitações de ressuprimento</p>
+    <label>E-mail</label>
+    <input id="email" type="email" placeholder="seu@email.com"/>
+    <label>Senha</label>
+    <input id="senha" type="password"/>
+    <div id="login-msg"></div>
+    <button class="btn" id="btn-login">Entrar</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div>
+      <div class="header-title">Painel do Gerente — Ressuprimento</div>
+      <div class="header-sub" id="user-info"></div>
+    </div>
+    <button class="btn-sair" id="btn-sair">Sair</button>
+  </div>
+  <div class="corpo">
+    <div class="topo">
+      <div style="font-size:13px;color:#64748b" id="subtitulo">Carregando...</div>
+      <button class="btn-atualizar" onclick="carregarSolicitacoes()">↻ Atualizar</button>
+    </div>
+    <div id="lista"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
+
+let userEmail = "";
+let meusCC = [];
+let solicitacoes = [];
+let ccMap = {};
+const decisoes = {};
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────
+async function verificarSessao() {
+  const { data } = await db.auth.getSession();
+  if (data.session) await mostrarApp(data.session.user.email);
+  else $("tela-login").style.display = "grid";
+}
+
+$("btn-login").addEventListener("click", async () => {
+  $("login-msg").innerHTML = "";
+  const email = $("email").value.trim();
+  const senha = $("senha").value;
+  if (!email || !senha) {
+    $("login-msg").innerHTML = '<div class="msg erro">Preencha e-mail e senha.</div>'; return;
+  }
+  $("btn-login").disabled = true; $("btn-login").textContent = "Entrando...";
+  const { error } = await db.auth.signInWithPassword({ email, password: senha });
+  $("btn-login").disabled = false; $("btn-login").textContent = "Entrar";
+  if (error) {
+    $("login-msg").innerHTML = '<div class="msg erro">' + error.message + '</div>'; return;
+  }
+  await mostrarApp(email);
+});
+$("senha").addEventListener("keydown", e => { if (e.key === "Enter") $("btn-login").click(); });
+$("btn-sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
+
+async function mostrarApp(email) {
+  userEmail = email.toLowerCase().trim();
+
+  // busca CCs associados a este gerente
+  const { data: gc, error: gcErr } = await db.from("gerentes_cc").select("cc").eq("email", userEmail);
+  if (gcErr) {
+    $("tela-login").innerHTML = '<div class="vazio">Erro ao carregar: ' + gcErr.message + '</div>';
+    return;
+  }
+  meusCC = (gc || []).map(g => g.cc);
+
+  // carrega nomes dos CCs
+  const { data: ccs } = await db.from("centros_custo").select("*");
+  (ccs || []).forEach(c => ccMap[c.cc] = c);
+
+  $("user-info").textContent = userEmail + (meusCC.length ? " · " + meusCC.length + " CC(s)" : " · sem CCs associados");
+  $("tela-login").style.display = "none";
+  $("app").style.display = "flex";
+
+  if (meusCC.length === 0) {
+    $("subtitulo").textContent = "Nenhum centro de custo associado";
+    $("lista").innerHTML = '<div class="vazio">Você não tem centros de custo associados. Peça ao administrador cadastrá-los na aba Gerentes.</div>';
+    return;
+  }
+
+  await carregarSolicitacoes();
+}
+
+async function carregarSolicitacoes() {
+  if (meusCC.length === 0) return;
+  $("lista").innerHTML = '<div class="vazio">Carregando...</div>';
+
+  const { data: sols } = await db.from("solicitacoes").select("*")
+    .in("cc", meusCC)
+    .eq("status", "pendente")
+    .order("criado_em", { ascending: false });
+
+  const ids = (sols || []).map(s => s.id);
+  let itensMap = {};
+  if (ids.length > 0) {
+    const { data: itens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", ids);
+    (itens || []).forEach(i => { (itensMap[i.solicitacao_id] = itensMap[i.solicitacao_id] || []).push(i); });
+  }
+
+  solicitacoes = (sols || []).map(s => ({ ...s, itens: itensMap[s.id] || [] }));
+
+  $("subtitulo").textContent = solicitacoes.length > 0
+    ? solicitacoes.length + " solicitação(ões) aguardando sua avaliação"
+    : "Nenhuma solicitação pendente";
+
+  if (solicitacoes.length === 0) {
+    $("lista").innerHTML = '<div class="vazio">✓ Nenhuma solicitação pendente nos seus centros de custo.</div>';
+    return;
+  }
+  $("lista").innerHTML = solicitacoes.map(renderCard).join("");
+}
+window.carregarSolicitacoes = carregarSolicitacoes;
+
+function fmtData(iso) {
+  return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" });
+}
+
+function renderCard(s) {
+  const base = ccMap[s.cc];
+  const nomeBase = base ? base.nome : s.cc;
+  return `
+    <div class="card">
+      <div class="card-topo" onclick="toggleCard(${s.id})">
+        <div>
+          <div class="card-titulo">
+            ${nomeBase}
+            <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
+          </div>
+          <div class="card-sub">
+            ${s.solicitante_nome} · mat. ${s.solicitante_matricula}
+            · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns)
+          </div>
+          ${s.justificativa ? `<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>` : ""}
+        </div>
+        <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Avaliar ▾</div>
+      </div>
+      <div class="card-corpo" id="corpo-${s.id}">
+        <table>
+          <tr><th>Item</th><th style="text-align:right">Qtd</th><th style="text-align:center">Decisão</th></tr>
+          ${s.itens.map(it => `
+            <tr>
+              <td>${it.descricao || it.codigo || "—"}</td>
+              <td style="text-align:right;font-family:ui-monospace,monospace;font-weight:700">${it.quantidade}</td>
+              <td style="text-align:center;white-space:nowrap">
+                <button class="btn-dec ${it.situacao === 'aprovado' ? 'aprovado' : ''}"
+                  id="ap-${it.id}" onclick="decidir(${s.id},${it.id},'aprovado')">Aprovar</button>
+                <button class="btn-dec ${it.situacao === 'recusado' ? 'recusado' : ''}"
+                  id="re-${it.id}" onclick="decidir(${s.id},${it.id},'recusado')">Recusar</button>
+              </td>
+            </tr>
+          `).join("")}
+        </table>
+        <div class="rodape-card">
+          <button class="btn-salvar" onclick="salvar(${s.id})">
+            Encaminhar para aprovação final ▶
+          </button>
+          <div id="msg-${s.id}" style="font-size:12.5px"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function decidir(solId, itemId, valor) {
+  decisoes[itemId] = decisoes[itemId] === valor ? "pendente" : valor;
+  $("ap-" + itemId).className = "btn-dec" + (decisoes[itemId] === "aprovado" ? " aprovado" : "");
+  $("re-" + itemId).className = "btn-dec" + (decisoes[itemId] === "recusado" ? " recusado" : "");
+}
+window.decidir = decidir;
+
+function toggleCard(id) {
+  $("corpo-" + id).classList.toggle("aberto");
+}
+window.toggleCard = toggleCard;
+
+async function salvar(solId) {
+  const sol = solicitacoes.find(s => s.id === solId);
+  if (!sol) return;
+  const msgEl = $("msg-" + solId);
+  msgEl.innerHTML = '<span style="color:#64748b">Salvando...</span>';
+
+  // salva decisão de cada item
+  for (const it of sol.itens) {
+    const valor = decisoes[it.id] !== undefined ? decisoes[it.id] : (it.situacao || "pendente");
+    await db.from("solicitacao_itens").update({ situacao: valor }).eq("id", it.id);
+  }
+
+  // status → aguardando_master (vai para revisão do administrador)
+  const { error } = await db.from("solicitacoes").update({
+    status: "aguardando_master",
+    atualizado_em: new Date().toISOString()
+  }).eq("id", solId);
+
+  if (error) {
+    msgEl.innerHTML = '<span style="color:#991b1b">Erro: ' + error.message + '</span>';
+  } else {
+    msgEl.innerHTML = '<span style="color:#065f46">✓ Encaminhado! O master irá revisar e aprovar.</span>';
+    setTimeout(carregarSolicitacoes, 1800);
+  }
+}
+window.salvar = salvar;
+
+verificarSessao();
+</script>
+</body>
+</html>
