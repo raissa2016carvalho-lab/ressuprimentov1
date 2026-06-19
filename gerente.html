@@ -86,7 +86,6 @@ let userEmail = "";
 let meusCC = [];
 let solicitacoes = [];
 let ccMap = {};
-let precoMap = {};
 const decisoes = {};
 const qtdEditadas = {};
 
@@ -157,12 +156,7 @@ async function carregarSolicitacoes() {
   if (ids.length > 0) {
     const { data: itens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", ids);
     (itens || []).forEach(i => { (itensMap[i.solicitacao_id] = itensMap[i.solicitacao_id] || []).push(i); });
-    // carrega últimos preços (B1_UPRC) da tabela itens
-    const codigos = [...new Set((itens||[]).map(i => i.codigo).filter(Boolean))];
-    if (codigos.length > 0) {
-      const { data: itensPrc } = await db.from("itens").select("codigo,preco").in("codigo", codigos);
-      (itensPrc || []).forEach(i => { precoMap[i.codigo] = Number(i.preco) || 0; });
-    }
+
   }
 
   solicitacoes = (sols || []).map(s => ({ ...s, itens: itensMap[s.id] || [] }));
@@ -206,16 +200,11 @@ function renderCard(s) {
         <table>
           <tr>
             <th>Item</th>
-            <th style="text-align:right;width:80px">Qtd</th>
-            <th style="text-align:right;width:100px">Últ. preço</th>
-            <th style="text-align:right;width:110px">Total estim.</th>
+            <th style="text-align:right;width:90px">Qtd</th>
             <th style="text-align:center;width:160px">Decisão</th>
           </tr>
           ${s.itens.map(it => {
-            const preco = precoMap[it.codigo] || 0;
             const qtdAtual = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : it.quantidade;
-            const total = preco * qtdAtual;
-            const fmtR = v => v > 0 ? "R$ " + v.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2}) : "—";
             return `
             <tr>
               <td>
@@ -224,11 +213,9 @@ function renderCard(s) {
               </td>
               <td style="text-align:right">
                 <input type="number" min="0" value="${qtdAtual}"
-                  style="width:68px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
-                  oninput="qtdEditadas[${it.id}]=Number(this.value)||0;atualizarTotal(${it.id},${preco})"/>
+                  style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
+                  oninput="qtdEditadas[${it.id}]=Number(this.value)||0"/>
               </td>
-              <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12.5px;color:#475569">${fmtR(preco)}</td>
-              <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12.5px;font-weight:600;color:#0f172a" id="total-${it.id}">${fmtR(total)}</td>
               <td style="text-align:center;white-space:nowrap">
                 <button class="btn-dec ${it.situacao === 'aprovado' ? 'aprovado' : ''}"
                   id="ap-${it.id}" onclick="decidir(${s.id},${it.id},'aprovado')">Aprovar</button>
@@ -248,16 +235,6 @@ function renderCard(s) {
     </div>
   `;
 }
-
-function atualizarTotal(itemId, preco) {
-  const qtd = qtdEditadas[itemId] || 0;
-  const el = document.getElementById("total-" + itemId);
-  if (el) {
-    const total = preco * qtd;
-    el.textContent = total > 0 ? "R$ " + total.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2}) : "—";
-  }
-}
-window.atualizarTotal = atualizarTotal;
 
 function decidir(solId, itemId, valor) {
   decisoes[itemId] = decisoes[itemId] === valor ? "pendente" : valor;
