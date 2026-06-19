@@ -72,6 +72,7 @@
 
   .vazio{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:36px;text-align:center;color:#64748b;font-size:13.5px;max-width:920px}
   .status-pc{font-size:11.5px;font-weight:600}
+  .p-aguardando_master{background:#fef3c7;color:#b45309}
   .st-recebido{color:#16a34a}
   .st-pendente{color:#d97706}
   .st-outro{color:#64748b}
@@ -83,7 +84,7 @@
   .upload-area span{font-size:13px;color:#475569}
 
   .chip-equipe{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:10px;font-weight:700;margin-right:2px;margin-bottom:2px;background:#f1f5f9;color:#94a3b8;flex-shrink:0}
-  .chip-equipe.ok{background:#dcfce7;color:#166534}
+  .chip-equipe.ok{background:#16a34a;color:#fff}
   .btn-novo{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer}
   .btn-voltar{background:none;border:none;color:#0d9488;font-weight:600;font-size:13px;cursor:pointer;padding:0;margin-bottom:14px}
   table.tbl-mob{font-size:12.5px;table-layout:fixed;width:100%}
@@ -131,6 +132,9 @@
     <button class="aba" id="aba-btn-mobilizacao" onclick="irPara('mobilizacao')">
       Mobilização
     </button>
+    <button class="aba" id="aba-btn-gerentes" onclick="irPara('gerentes')">
+      Gerentes
+    </button>
     <div class="rodape">
       <div class="email" id="user-email"></div>
       <button class="btn-sair" id="btn-sair">Sair</button>
@@ -143,6 +147,7 @@
         <div class="filtros">
           <button id="btn-atualizar">↻ Atualizar</button>
         </div>
+        <button onclick="aprovarTodas()" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">⚡ Aprovar todas aguardando</button>
       </div>
       <div class="corpo-aba"><div id="lista"></div></div>
     </div>
@@ -231,6 +236,19 @@
         </div>
       </div>
     </div>
+
+    <div id="aba-gerentes" style="display:none">
+      <div class="topo-aba">
+        <div style="font-weight:700;font-size:14px">Cadastro de Gerentes</div>
+      </div>
+      <div class="corpo-aba">
+        <p style="color:#64748b;font-size:13px;max-width:700px;margin-top:0;margin-bottom:16px">
+          Associe e-mails de gerentes a centros de custo. Um gerente pode ter vários CCs.
+          O gerente precisa ter login criado no Supabase (<b>Authentication → Users → Add user</b>).
+        </p>
+        <div id="lista-gerentes"><div class="vazio">Carregando...</div></div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -283,66 +301,101 @@
     $("aba-acompanhamento").style.display = aba === "acompanhamento" ? "block" : "none";
     $("aba-bases").style.display = aba === "bases" ? "block" : "none";
     $("aba-mobilizacao").style.display = aba === "mobilizacao" ? "block" : "none";
+    $("aba-gerentes").style.display = aba === "gerentes" ? "block" : "none";
     $("aba-btn-solicitacoes").classList.toggle("ativo", aba === "solicitacoes");
     $("aba-btn-acompanhamento").classList.toggle("ativo", aba === "acompanhamento");
     $("aba-btn-bases").classList.toggle("ativo", aba === "bases");
     $("aba-btn-mobilizacao").classList.toggle("ativo", aba === "mobilizacao");
+    $("aba-btn-gerentes").classList.toggle("ativo", aba === "gerentes");
     if (aba === "acompanhamento") carregarAcompanhamento();
     if (aba === "bases") carregarCarimbos();
     if (aba === "mobilizacao") { mostrarListaMob(); carregarMobilizacoes(); }
+    if (aba === "gerentes") carregarGerentes();
   }
   window.irPara = irPara;
 
   // ---------- ABA SOLICITAÇÕES ----------
+  let gerentesMapCC = {}; // cc -> [email]
+
   async function carregarSolicitacoes() {
     $("lista").innerHTML = '<div class="vazio">Carregando...</div>';
-    const [{ data: ccs, error: e1 }, { data: sols, error: e2 }, { data: itens, error: e3 }] = await Promise.all([
+    const [{ data: ccs }, { data: sols, error: e2 }, { data: itens, error: e3 }, { data: gc }] = await Promise.all([
       db.from("centros_custo").select("*"),
       db.from("solicitacoes").select("*").order("criado_em", { ascending: false }).limit(5000),
       db.from("solicitacao_itens").select("*").limit(10000),
+      db.from("gerentes_cc").select("cc,email"),
     ]);
-    if (e1 || e2 || e3) {
-      $("lista").innerHTML = '<div class="vazio">Erro ao carregar: ' + ((e1 || e2 || e3).message) + '</div>';
+    if (e2 || e3) {
+      $("lista").innerHTML = '<div class="vazio">Erro ao carregar: ' + ((e2 || e3).message) + '</div>';
       return;
     }
     ccMap = {};
     (ccs || []).forEach(c => ccMap[c.cc] = c);
+    gerentesMapCC = {};
+    (gc || []).forEach(g => { (gerentesMapCC[g.cc] = gerentesMapCC[g.cc] || []).push(g.email); });
     const porSol = {};
     (itens || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
     solicitacoes = (sols || []).map(s => ({ ...s, itens: porSol[s.id] || [] }));
 
-    const pendentes = solicitacoes.filter(s => s.status === "pendente").length;
+    const atendem = solicitacoes.filter(s => s.status === "pendente" || s.status === "aguardando_master").length;
     const badge = $("badge-pendentes");
-    if (pendentes > 0) { badge.style.display = "inline-flex"; badge.textContent = pendentes; }
+    if (atendem > 0) { badge.style.display = "inline-flex"; badge.textContent = atendem; }
     else badge.style.display = "none";
 
     renderLista();
   }
   $("btn-atualizar").addEventListener("click", carregarSolicitacoes);
+
+  async function aprovarTodas() {
+    const aguardando = solicitacoes.filter(s => s.status === "aguardando_master");
+    if (aguardando.length === 0) { alert("Nenhuma solicitação aguardando revisão do master."); return; }
+    if (!confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)) return;
+    for (const s of aguardando) {
+      for (const it of s.itens) {
+        await db.from("solicitacao_itens").update({ situacao: "aprovado" }).eq("id", it.id);
+      }
+      await db.from("solicitacoes").update({ status: "aprovada", atualizado_em: new Date().toISOString() }).eq("id", s.id);
+    }
+    await carregarSolicitacoes();
+    alert("✓ " + aguardando.length + " solicitação(ões) aprovada(s)!");
+  }
+  window.aprovarTodas = aprovarTodas;
   function fmtData(iso) {
     const d = new Date(iso);
     return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
   }
-  const LABEL_STATUS = { pendente: "Pendente", em_analise: "Em análise", aprovada: "Aprovada", recusada: "Recusada", parcial: "Parcial" };
+  const LABEL_STATUS = { pendente: "Pendente", em_analise: "Em análise", aprovada: "Aprovada", recusada: "Recusada", parcial: "Parcial", aguardando_master: "Aguardando master" };
 
   function renderLista() {
-    const semSc = solicitacoes.filter(s => !s.sc_numero || !s.sc_numero.trim());
-    if (semSc.length === 0) {
-      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação em aberto — tudo que tem SC associada está na aba Acompanhamento.</div>';
+    // mostra: pendentes sem SC + aguardando_master (revisão do master)
+    const visiveis = solicitacoes.filter(s =>
+      (s.status === "aguardando_master") ||
+      ((!s.sc_numero || !s.sc_numero.trim()) && s.status !== "aprovada" && s.status !== "recusada")
+    );
+    if (visiveis.length === 0) {
+      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação aguardando ação — tudo aprovado ou com SC na aba Acompanhamento.</div>';
       return;
     }
-    $("lista").innerHTML = semSc.map(s => renderCard(s)).join("");
+    // ordena: aguardando_master primeiro
+    visiveis.sort((a, b) => (b.status === "aguardando_master") - (a.status === "aguardando_master"));
+    $("lista").innerHTML = visiveis.map(s => renderCard(s)).join("");
   }
 
   function renderCard(s) {
     const base = ccMap[s.cc];
     const nomeBase = base ? base.nome : s.cc;
+    const temGerente = (gerentesMapCC[s.cc] || []).length > 0;
+    const badgeGerente = s.status === "aguardando_master"
+      ? `<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`
+      : (s.status === "pendente" && temGerente
+        ? `<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`
+        : "");
     return `
-      <div class="card">
+      <div class="card" style="${s.status === 'aguardando_master' ? 'border-left:4px solid #f59e0b' : ''}">
         <div class="card-topo" onclick="toggleCard(${s.id})">
           <div>
             <div class="card-titulo">${nomeBase} <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
-              <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span></div>
+              <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span>${badgeGerente}</div>
             <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns)${s.sc_numero ? " · SC " + s.sc_numero : ""}</div>
             ${s.justificativa ? `<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>` : ""}
           </div>
@@ -985,7 +1038,7 @@
       const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
       const { data: pcs, error: e2 } = await dbProtheus
         .from("pedidos_compra")
-        .select("c7_numsc,c7_produto,c7_quant,status_desc")
+        .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc")
         .or(condicoesOr)
         .limit(5000);
       if (e2) {
@@ -1141,7 +1194,7 @@
         const linhasHtml = itens.map(it => {
           const scsDoItem = (it.linhas && it.linhas.length)
             ? it.linhas.map(l => `<span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;border-radius:4px;padding:1px 5px;margin-right:4px">SC ${l.c7_numsc}</span><span style="font-size:11px;color:#64748b">${l.status_desc}</span>`).join(" ")
-            : `<span style="font-size:11px;color:#94a3b8">${it.semPcNoBanco ? "Sem PC no banco (recebido ou não pedido)" : "Sem PC gerado"}</span>`;
+            : `<span style="font-size:11px;color:#94a3b8">Sem PC gerado</span>`;
           return `<tr style="border-bottom:1px solid #f1f5f9">
             <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>`:""}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap">${it.total_mob}</td>
@@ -1228,21 +1281,15 @@
       <div style="margin-bottom:10px">${renderPaineisCat()}</div>
       <div style="margin-bottom:20px">${pizzaCats()}</div>
 
-      <div id="estoque-panel-${mobId}" style="display:none;border:1px solid #6366f1;border-radius:10px;background:#fafafe;padding:14px 16px;margin-bottom:12px">
-        <div style="font-size:11.5px;font-weight:600;color:#6366f1;margin-bottom:4px">📦 Atendido via estoque</div>
-        <div id="estoque-panel-desc-${mobId}" style="font-size:12.5px;color:#334155;margin-bottom:10px"></div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <label style="font-size:12px;color:#64748b;margin:0">Quantidade atendida via estoque:</label>
-          <input id="estoque-input-${mobId}" type="number" min="0" placeholder="0"
-            style="width:90px;margin:0;padding:6px 10px;font-size:13px;border:1px solid #a5b4fc;border-radius:6px"/>
-          <button onclick="salvarEstoqueMob(${mobId})" class="btn-salvar" style="padding:6px 14px;font-size:12.5px;margin:0">Salvar</button>
-          <button onclick="fecharEstoquePanel(${mobId})" style="border:none;background:none;font-size:12px;color:#94a3b8;cursor:pointer;padding:6px">Cancelar</button>
-        </div>
-      </div>
-
       <table class="tbl-mob">
-        <tr><th>Item</th><th style="text-align:right">Total mob.</th><th style="text-align:right">Estoque</th><th>Equipes atendidas</th></tr>
-        ${itensConsolidados.map((it, idx) => {
+        <tr>
+          <th>Item</th>
+          <th style="text-align:right;width:75px">Total mob.</th>
+          <th style="text-align:right;width:85px">Estoque</th>
+          <th style="width:175px">Pedidos</th>
+          <th>Equipes atendidas</th>
+        </tr>
+        ${itensConsolidados.flatMap((it, idx) => {
           const codTrim = (it.codigo || "").trim();
           const qtdEstoque = codTrim ? (mapaEstoque[codTrim] || 0) : 0;
           const qtdRecebidaPC = codTrim ? qtdRecebidaDoItem(codTrim) : 0;
@@ -1250,70 +1297,83 @@
           const equipesPC  = perEquipe > 0 ? Math.min(numEquipes, Math.floor(qtdRecebidaPC / perEquipe)) : 0;
           const equipesEst = perEquipe > 0 ? Math.min(numEquipes - equipesPC, Math.floor(qtdEstoque / perEquipe)) : 0;
           const equipesAtendidas = Math.min(numEquipes, equipesPC + equipesEst);
-          // tamanho adaptativo: chips maiores pra poucas equipes, menores pra muitas
           const chipSize = numEquipes <= 8 ? 26 : numEquipes <= 15 ? 22 : numEquipes <= 25 ? 18 : 14;
           const chipFont = numEquipes <= 8 ? 11 : numEquipes <= 15 ? 10 : numEquipes <= 25 ? 9 : 8;
           const chipStyle = `width:${chipSize}px;height:${chipSize}px;font-size:${chipFont}px;border-radius:${chipSize<=18?3:4}px`;
           const chips = Array.from({ length: numEquipes }, (_, i) =>
             `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}" style="${chipStyle}">${i + 1}</span>`
           ).join("");
-          const estoqueTag = qtdEstoque > 0
-            ? `<span style="font-size:10.5px;background:#ede9fe;color:#6366f1;border-radius:4px;padding:1px 6px;margin-left:4px">📦 ${qtdEstoque}</span>` : "";
-          const clicavel = codTrim ? `onclick="abrirEstoquePanel(${mobId},'${codTrim.replace(/'/g,"\'")}','${it.descricao.replace(/'/g,"\'")}')" style="cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"` : "";
-          return `<tr ${clicavel} title="${codTrim ? 'Clique para registrar atendimento via estoque' : ''}">
-            <td>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}${estoqueTag}</td>
-            <td style="text-align:right;font-family:ui-monospace,monospace">${it.total_mob}</td>
-            <td style="text-align:right;font-family:ui-monospace,monospace;color:${qtdEstoque>0?'#6366f1':'#cbd5e1'}">${qtdEstoque > 0 ? qtdEstoque : "—"}</td>
-            <td><div class="chips-wrap">${chips}</div></td>
+          // pedidos vinculados ao item nas SCs desta mobilização
+          const linhasPC = codTrim ? pcsEncontrados.filter(p =>
+            String(p.c7_produto || "").trim() === codTrim &&
+            numerosScNormalizados.has(normalizarSc(p.c7_numsc))
+          ) : [];
+          const detId = "ped-" + mobId + "-" + idx;
+          const pedResume = linhasPC.length === 0
+            ? '<span style="color:#cbd5e1;font-size:11px">—</span>'
+            : linhasPC.slice(0,2).map(p => {
+                const st = (p.status_desc||"").toLowerCase();
+                const cor = st.includes("receb") ? "#16a34a" : "#d97706";
+                return `<span style="font-size:10px;background:${cor}18;color:${cor};border-radius:3px;padding:1px 4px;margin-right:2px">${p.c7_num||"PC"} · ${p.status_desc}</span>`;
+              }).join("") + (linhasPC.length > 2 ? `<span style="font-size:10px;color:#94a3b8">+${linhasPC.length-2} mais</span>` : "");
+          const toggle = linhasPC.length > 0
+            ? `onclick="var e=document.getElementById('${detId}');e.style.display=e.style.display==='none'?'table-row':'none';"`
+            : "";
+          const mainRow = `<tr style="cursor:${linhasPC.length>0?'pointer':'default'}"
+              onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+            <td ${toggle}>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}</td>
+            <td style="text-align:right;font-family:ui-monospace,monospace" ${toggle}>${it.total_mob}</td>
+            <td onclick="event.stopPropagation()">
+              ${codTrim
+                ? `<input type="number" min="0" value="${qtdEstoque||""}" placeholder="0"
+                    style="width:64px;text-align:right;padding:3px 6px;font-size:12px;border:1px solid #e2e8f0;border-radius:5px;font-family:ui-monospace,monospace"
+                    onblur="salvarEstoqueInline(${mobId},'${codTrim}',this)"
+                    onkeydown="if(event.key==='Enter')this.blur()"/>`
+                : '<span style="color:#cbd5e1">—</span>'}
+            </td>
+            <td ${toggle}>${pedResume}</td>
+            <td ${toggle}><div class="chips-wrap">${chips}</div></td>
           </tr>`;
+          const detailRow = linhasPC.length > 0 ? `<tr id="${detId}" style="display:none;background:#f8fafc">
+            <td colspan="5" style="padding:6px 14px 10px">
+              <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+                <tr style="background:#f1f5f9">
+                  <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">Nº PC</th>
+                  <th style="padding:4px 8px;text-align:right;font-weight:600;color:#64748b">Qtde</th>
+                  <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">Status</th>
+                  <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">SC</th>
+                </tr>
+                ${linhasPC.map(p => {
+                  const st = (p.status_desc||"").toLowerCase();
+                  const cor = st.includes("receb") ? "#16a34a" : st.includes("pend") ? "#d97706" : "#64748b";
+                  return `<tr style="border-bottom:1px solid #e2e8f0">
+                    <td style="padding:4px 8px;font-family:ui-monospace,monospace">${p.c7_num||"—"}</td>
+                    <td style="padding:4px 8px;text-align:right;font-family:ui-monospace,monospace">${p.c7_quant||0}</td>
+                    <td style="padding:4px 8px;font-weight:600;color:${cor}">${p.status_desc||"—"}</td>
+                    <td style="padding:4px 8px;font-family:ui-monospace,monospace">${p.c7_numsc||"—"}</td>
+                  </tr>`;
+                }).join("")}
+              </table>
+            </td>
+          </tr>` : "";
+          return [mainRow, detailRow];
         }).join("")}
-      </table>
-    `;
+      </table>    `;
   }
 
-  window._estoqueEditando = {};
-
-  function abrirEstoquePanel(mobId, codigo, descricao) {
-    const panel = document.getElementById("estoque-panel-" + mobId);
-    const descEl = document.getElementById("estoque-panel-desc-" + mobId);
-    const input  = document.getElementById("estoque-input-" + mobId);
-    if (!panel) return;
-    window._estoqueEditando[mobId] = codigo;
-    descEl.textContent = descricao + " — " + codigo;
-    // preenche com valor atual do mapa (se existir no DOM como data attr)
-    const row = [...document.querySelectorAll("#corpo-mob-" + mobId + " tr")].find(tr =>
-      tr.getAttribute("onclick") && tr.getAttribute("onclick").includes("'" + codigo + "'")
-    );
-    // busca valor do estoqueTag no texto da linha ou usa 0
-    const tag = row ? row.querySelector("span[style*='ede9fe']") : null;
-    input.value = tag ? parseInt(tag.textContent.replace("📦","").trim()) || 0 : 0;
-    panel.style.display = "block";
-    input.focus();
-  }
-  window.abrirEstoquePanel = abrirEstoquePanel;
-
-  function fecharEstoquePanel(mobId) {
-    const panel = document.getElementById("estoque-panel-" + mobId);
-    if (panel) panel.style.display = "none";
-    delete window._estoqueEditando[mobId];
-  }
-  window.fecharEstoquePanel = fecharEstoquePanel;
-
-  async function salvarEstoqueMob(mobId) {
-    const codigo = window._estoqueEditando[mobId];
-    if (!codigo) return;
-    const input = document.getElementById("estoque-input-" + mobId);
-    const qtd = Number(input.value) || 0;
+  async function salvarEstoqueInline(mobId, codigo, inputEl) {
+    const qtd = Number(inputEl.value) || 0;
     const { error } = await db.from("mobilizacao_estoque")
       .upsert({ mobilizacao_id: mobId, codigo, qtd_estoque: qtd }, { onConflict: "mobilizacao_id,codigo" });
-    if (error) { alert("Erro ao salvar: " + error.message); return; }
-    fecharEstoquePanel(mobId);
-    const container = document.getElementById("corpo-mob-" + mobId);
-    container.dataset.carregado = "0";
-    await renderDetalheMob(mobId, container);
-    container.classList.add("aberto");
+    if (error) {
+      inputEl.style.borderColor = "#ef4444";
+      alert("Erro ao salvar estoque: " + error.message);
+    } else {
+      inputEl.style.borderColor = "#16a34a";
+      setTimeout(() => { inputEl.style.borderColor = "#e2e8f0"; }, 1500);
+    }
   }
-  window.salvarEstoqueMob = salvarEstoqueMob;
+  window.salvarEstoqueInline = salvarEstoqueInline;
 
   async function adicionarScMob(mobId) {
     const input = document.getElementById("novo-sc-mob-" + mobId);
@@ -1335,6 +1395,60 @@
     container.classList.add("aberto");
   }
   window.removerScMob = removerScMob;
+
+  // ---------- ABA GERENTES ----------
+  async function carregarGerentes() {
+    const el = $("lista-gerentes");
+    el.innerHTML = '<div class="vazio">Carregando...</div>';
+    const [{ data: ccs }, { data: gc }] = await Promise.all([
+      db.from("centros_custo").select("*").order("nome"),
+      db.from("gerentes_cc").select("*"),
+    ]);
+    const porCC = {};
+    (gc || []).forEach(g => { (porCC[g.cc] = porCC[g.cc] || []).push(g); });
+    el.innerHTML = (ccs || []).map(cc => {
+      const lista = (porCC[cc.cc] || []).map(g =>
+        `<span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:999px;padding:4px 6px 4px 12px;font-size:12.5px;margin:0 6px 4px 0">
+          ${g.email}
+          <button onclick="removerGerente(${g.id})" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:14px;line-height:1;padding:2px">✕</button>
+        </span>`
+      ).join("");
+      return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:8px;max-width:700px">
+        <div style="font-weight:600;font-size:13px;color:#0f172a">${cc.nome} <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px">${cc.cc}</span></div>
+        <div style="margin-top:8px;min-height:28px">${lista || '<span style="font-size:12px;color:#cbd5e1">Sem gerente associado</span>'}</div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="ng-${cc.cc}" type="email" placeholder="email@empresa.com"
+            style="flex:1;margin:0;padding:7px 10px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;outline:none"/>
+          <button onclick="adicionarGerente('${cc.cc}')" class="btn-salvar" style="padding:7px 14px;font-size:12.5px">+ Adicionar</button>
+        </div>
+        <div id="mg-${cc.cc}" style="margin-top:4px"></div>
+      </div>`;
+    }).join("") || '<div class="vazio">Nenhum centro de custo cadastrado ainda. Suba o CTT na aba Bases.</div>';
+  }
+  window.carregarGerentes = carregarGerentes;
+
+  async function adicionarGerente(cc) {
+    const input = document.getElementById("ng-" + cc);
+    const email = (input.value || "").trim().toLowerCase();
+    const msgEl = document.getElementById("mg-" + cc);
+    if (!email) return;
+    const { error } = await db.from("gerentes_cc").insert({ email, cc });
+    if (error) {
+      msgEl.innerHTML = `<span style="font-size:12px;color:#991b1b">Erro: ${error.message}</span>`;
+    } else {
+      input.value = "";
+      msgEl.innerHTML = `<span style="font-size:12px;color:#065f46">✓ Adicionado!</span>`;
+      setTimeout(() => { msgEl.innerHTML = ""; carregarGerentes(); }, 800);
+    }
+  }
+  window.adicionarGerente = adicionarGerente;
+
+  async function removerGerente(id) {
+    if (!confirm("Remover este gerente?")) return;
+    await db.from("gerentes_cc").delete().eq("id", id);
+    carregarGerentes();
+  }
+  window.removerGerente = removerGerente;
 
   verificarSessao();
 </script>
