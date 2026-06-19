@@ -420,15 +420,20 @@
           </table>
           <div class="rodape-card">
             <div>
-              <label>Nº da SC (após abrir no Protheus)</label>
-              <input id="sc-${s.id}" value="${s.sc_numero || ''}" placeholder="Ex.: 045873"/>
+              <label>Nº da SC <span style="color:#ef4444">*</span> (obrigatório para salvar)</label>
+              <input id="sc-${s.id}" value="${s.sc_numero || ''}" placeholder="Ex.: 045873"
+                oninput="atualizarBotoesSol(${s.id})"/>
             </div>
             <div style="flex:2">
-              <label>Observação (opcional)</label>
-              <input id="obs-${s.id}" value="${s.observacao || ''}" placeholder="Anotação"/>
+              <label>Observação <span style="color:#ef4444">*</span> (obrigatória para gerar Excel)</label>
+              <input id="obs-${s.id}" value="${s.observacao || ''}" placeholder="Descreva o motivo da compra"
+                oninput="atualizarBotoesSol(${s.id})"/>
             </div>
-            <button class="btn-salvar" onclick="salvar(${s.id})">Salvar</button>
-            <button class="btn-salvar" style="background:#0f172a" onclick="baixarExcelProtheus(${s.id})">⬇ Excel p/ Protheus</button>
+            <button class="btn-salvar" id="btn-salvar-sol-${s.id}" onclick="salvar(${s.id})"
+              ${s.sc_numero ? '' : 'disabled style="opacity:0.4;cursor:not-allowed"'}>Salvar</button>
+            <button class="btn-salvar" id="btn-excel-sol-${s.id}" style="background:#0f172a${s.observacao ? '' : ';opacity:0.4;cursor:not-allowed'}"
+              onclick="baixarExcelProtheus(${s.id})"
+              ${s.observacao ? '' : 'disabled'}>⬇ Excel p/ Protheus</button>
           </div>
           <div id="salvo-msg-${s.id}"></div>
         </div>
@@ -558,7 +563,7 @@
 
     const { data: pcs, error: e2 } = await dbProtheus
       .from("pedidos_compra")
-      .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri")
+      .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri,c7_emissao,dt_entrega")
       .or(condicoesOr)
       .limit(5000);
 
@@ -627,6 +632,59 @@
       `;
     }
 
+    function fmtProtheus(d) {
+      // Protheus dates come as YYYYMMDD or YYYY-MM-DD
+      if (!d || d === "" || d === "NaT") return null;
+      const s = String(d).replace(/-/g,"").trim();
+      if (s.length < 8) return null;
+      return s.slice(6,8) + "/" + s.slice(4,6) + "/" + s.slice(0,4);
+    }
+
+    function timelineHtml(s, itensSol, scTrim) {
+      // coleta datas dos PCs
+      const pcsDA = (pcMapPorSc[scTrim] || []);
+      const todasPC = itensSol.flatMap(it => {
+        const temCod = it.codigo && it.codigo !== "MANUAL";
+        return temCod ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : pcsDA;
+      });
+
+      // data do PC mais antigo (c7_emissao)
+      const emissoes = todasPC.map(p => String(p.c7_emissao||"").replace(/-/g,"").trim()).filter(d => d.length>=8).sort();
+      const dtPedido = emissoes.length ? fmtProtheus(emissoes[0]) : null;
+
+      // data de entrega dos recebidos
+      const recebidos = todasPC.filter(p => (p.status_desc||"").toLowerCase().includes("receb"));
+      const entregas = recebidos.map(p => String(p.dt_entrega||"").replace(/-/g,"").trim()).filter(d => d.length>=8).sort();
+      const dtRecebido = entregas.length ? fmtProtheus(entregas[entregas.length-1]) : null;
+
+      const dtSolicitacao = fmtData(s.criado_em);
+      const dtSc = s.atualizado_em ? fmtData(s.atualizado_em) : null;
+
+      const etapa = (icone, label, data, cor) => `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:100px">
+          <div style="width:34px;height:34px;border-radius:50%;background:${data ? cor : '#f1f5f9'};display:flex;align-items:center;justify-content:center;font-size:16px">${icone}</div>
+          <div style="font-size:10.5px;font-weight:600;color:${data ? '#0f172a' : '#cbd5e1'};text-align:center">${label}</div>
+          <div style="font-size:10.5px;color:${data ? '#475569' : '#cbd5e1'};text-align:center">${data || "—"}</div>
+        </div>`;
+
+      const linha = (data) => `
+        <div style="flex:1;height:2px;background:${data ? '#0d9488' : '#e2e8f0'};margin-top:-22px;align-self:center"></div>`;
+
+      return `
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">
+          <div style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:10px">Linha do tempo</div>
+          <div style="display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding-bottom:4px">
+            ${etapa("📝", "Solicitação enviada", dtSolicitacao, "#dbeafe")}
+            ${linha(dtSc)}
+            ${etapa("🔗", "SC associada", dtSc, "#d1fae5")}
+            ${linha(dtPedido)}
+            ${etapa("📦", "Pedido gerado", dtPedido, "#fef3c7")}
+            ${linha(dtRecebido)}
+            ${etapa("✅", "Recebido", dtRecebido, "#dcfce7")}
+          </div>
+        </div>`;
+    }
+
     const listaHtml = associadas.map(s => {
       const base = ccMapLocal[s.cc];
       const itensSol = porSol[s.id] || [];
@@ -676,6 +734,7 @@
               }).join("")}
             </table>
             ${e2 ? "" : pizzaHtml(...Object.values(calcularProporcaoRecebida(itensSol, scTrim)))}
+            ${e2 ? "" : timelineHtml(s, itensSol, scTrim)}
           </div>
         </div>
       `;
@@ -732,6 +791,7 @@
         descricao: String(pegar(r, "B1_DESC") || "").replace(/\s+/g, " ").trim(),
         grupo: String(pegar(r, "B1_DESCGP", "B1_GRUPO") || "").replace(/\s+/g, " ").trim() || "OUTROS",
         unidade: String(pegar(r, "B1_UM") || "UN").trim(),
+        preco: parseFloat(String(pegar(r, "B1_UPRC", "B1_CUSTD") || "0").replace(",", ".")) || 0,
       };
     }
     const itens = Object.values(mapaItens);
@@ -1403,6 +1463,16 @@
     container.classList.add("aberto");
   }
   window.removerScMob = removerScMob;
+
+  function atualizarBotoesSol(solId) {
+    const sc  = (document.getElementById("sc-"  + solId)?.value || "").trim();
+    const obs = (document.getElementById("obs-" + solId)?.value || "").trim();
+    const btnS = document.getElementById("btn-salvar-sol-" + solId);
+    const btnE = document.getElementById("btn-excel-sol-"  + solId);
+    if (btnS) { btnS.disabled = !sc;  btnS.style.opacity = sc  ? "1" : "0.4"; btnS.style.cursor = sc  ? "pointer" : "not-allowed"; }
+    if (btnE) { btnE.disabled = !obs; btnE.style.opacity = obs ? "1" : "0.4"; btnE.style.cursor = obs ? "pointer" : "not-allowed"; }
+  }
+  window.atualizarBotoesSol = atualizarBotoesSol;
 
   // ---------- ABA GERENTES ----------
   async function carregarGerentes() {
