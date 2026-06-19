@@ -1369,8 +1369,13 @@
       inputEl.style.borderColor = "#ef4444";
       alert("Erro ao salvar estoque: " + error.message);
     } else {
-      inputEl.style.borderColor = "#16a34a";
-      setTimeout(() => { inputEl.style.borderColor = "#e2e8f0"; }, 1500);
+      // re-renderiza pra atualizar chips com a nova quantidade
+      const container = document.getElementById("corpo-mob-" + mobId);
+      if (container) {
+        container.dataset.carregado = "0";
+        await renderDetalheMob(mobId, container);
+        container.classList.add("aberto");
+      }
     }
   }
   window.salvarEstoqueInline = salvarEstoqueInline;
