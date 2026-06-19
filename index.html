@@ -434,21 +434,17 @@
       alert("Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.");
       return;
     }
-    const comCodigo = aprovados.filter(it => it.codigo && it.codigo !== "MANUAL");
-    const semCodigo = aprovados.length - comCodigo.length;
-    if (comCodigo.length === 0) {
-      alert("Os itens aprovados não têm código real (foram digitados manualmente, sem escolher da lista). Não é possível gerar o Excel sem o código do Protheus.");
-      return;
-    }
     const obs = sol.observacao || "";
     if (!obs) {
       const continuar = confirm("O campo \"Observação\" dessa solicitação está vazio. O Excel será gerado com C1_OBS em branco. Quer continuar mesmo assim?");
       if (!continuar) return;
     }
-    const linhas = comCodigo.map((it, i) => ({
+    const semCodigo = aprovados.filter(it => !it.codigo || it.codigo === "MANUAL").length;
+    const linhas = aprovados.map((it, i) => ({
       C1_XTIPOSC: "004",
       C1_ITEM: String(i + 1).padStart(2, "0"),
-      C1_PRODUTO: it.codigo,
+      C1_PRODUTO: (it.codigo && it.codigo !== "MANUAL") ? it.codigo : "",
+      C1_DESCRI: it.descricao || "",
       C1_QUANT: it.quantidade,
       C1_CC: sol.cc,
       C1_OBS: obs,
@@ -459,7 +455,7 @@
     XLSX.utils.book_append_sheet(wb, ws, "SC");
     XLSX.writeFile(wb, `SC_solicitacao_${sol.id}.xlsx`);
     if (semCodigo > 0) {
-      alert(`${semCodigo} item(ns) aprovado(s) sem código real não foi(ram) incluído(s) no Excel. Adicione manualmente no Protheus.`);
+      alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`);
     }
   }
   window.baixarExcelProtheus = baixarExcelProtheus;
