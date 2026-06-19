@@ -153,14 +153,16 @@
       mostrarMsg("Não foi possível carregar as bases: " + error.message, "erro");
       return;
     }
+    // só mostra CCs que vieram do CTT (têm nome preenchido)
     const nomesVistos = new Set();
     const semDuplicata = (data || []).filter(c => {
-      if (nomesVistos.has(c.nome)) return false;
-      nomesVistos.add(c.nome);
+      if (!c.nome || !c.nome.trim()) return false; // sem nome = não veio do CTT
+      if (nomesVistos.has(c.nome.trim())) return false;
+      nomesVistos.add(c.nome.trim());
       return true;
     });
     select.innerHTML = `<option value="">Selecione sua base...</option>` +
-      semDuplicata.map(c => `<option value="${c.cc}">${c.nome}</option>`).join("");
+      semDuplicata.map(c => `<option value="${c.cc}">${c.nome} — ${c.cc}</option>`).join("");
   }
   carregarBases();
 
