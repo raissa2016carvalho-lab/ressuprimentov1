@@ -997,23 +997,32 @@
     }
 
     const temDadosNoBanco = pcsEncontrados.length > 0;
-    // Status que indicam recebimento
+
     const statusRecebido = s => {
       const st = (s || "").toLowerCase();
       return st.includes("receb") || st.includes("pré-nota") || st.includes("pre-nota");
     };
-    // O sync Python DELETA os PCs recebidos do banco — logo item ausente = recebido.
-    // Chips verdes: ausente do banco (recebido pelo Protheus) OU status de recebimento.
-    function itemEstaRecebido(codigo) {
-      if (!codigo || !codigo.trim()) return false;
-      if (!temDadosNoBanco) return false;
+    const statusPendente = s => {
+      const st = (s || "").toLowerCase();
+      return st.includes("pendente") || st.includes("aprova") || st.includes("em receb");
+    };
+
+    // Retorna quantidade total recebida do item nas SCs associadas
+    function qtdRecebidaDoItem(codigo) {
+      if (!codigo || !codigo.trim()) return 0;
       const codTrim = codigo.trim();
-      const linhasDoItem = pcsEncontrados.filter(p =>
-        String(p.c7_produto || "").trim() === codTrim &&
-        numerosScNormalizados.has(normalizarSc(p.c7_numsc))
-      );
-      if (linhasDoItem.length === 0) return true;   // ausente = recebido (removido pelo sync)
-      return linhasDoItem.every(p => statusRecebido(p.status_desc));
+      return pcsEncontrados
+        .filter(p =>
+          String(p.c7_produto || "").trim() === codTrim &&
+          numerosScNormalizados.has(normalizarSc(p.c7_numsc)) &&
+          statusRecebido(p.status_desc)
+        )
+        .reduce((acc, p) => acc + (Number(p.c7_quant) || 0), 0);
+    }
+
+    // Compatibilidade: boolean pra categorização
+    function itemEstaRecebido(codigo) {
+      return qtdRecebidaDoItem(codigo) > 0;
     }
 
     // ── Categorizar itens ──────────────────────────────────────────────────────
@@ -1044,8 +1053,8 @@
       );
 
       if (linhas.length === 0) {
-        // ausente do banco com SCs cadastradas = provavelmente recebido (sync removeu)
-        cats.recebido.push({ ...it, linhas: [] });
+        // genuinamente sem PC no banco
+        cats.semPedido.push({ ...it, linhas: [] });
       } else if (linhas.every(p => statusRecebido(p.status_desc))) {
         cats.recebido.push({ ...it, linhas });
       } else if (linhas.some(p => (p.status_desc||"").toLowerCase().includes("aprov"))) {
@@ -1236,10 +1245,10 @@
         ${itensConsolidados.map((it, idx) => {
           const codTrim = (it.codigo || "").trim();
           const qtdEstoque = codTrim ? (mapaEstoque[codTrim] || 0) : 0;
-          const recebidoPC = itemEstaRecebido(it.codigo);
+          const qtdRecebidaPC = codTrim ? qtdRecebidaDoItem(codTrim) : 0;
           const perEquipe = numEquipes > 0 ? (it.total_mob / numEquipes) : 0;
-          const equipesPC = recebidoPC ? numEquipes : 0;
-          const equipesEst = (!recebidoPC && perEquipe > 0) ? Math.min(numEquipes, Math.floor(qtdEstoque / perEquipe)) : 0;
+          const equipesPC  = perEquipe > 0 ? Math.min(numEquipes, Math.floor(qtdRecebidaPC / perEquipe)) : 0;
+          const equipesEst = perEquipe > 0 ? Math.min(numEquipes - equipesPC, Math.floor(qtdEstoque / perEquipe)) : 0;
           const equipesAtendidas = Math.min(numEquipes, equipesPC + equipesEst);
           // tamanho adaptativo: chips maiores pra poucas equipes, menores pra muitas
           const chipSize = numEquipes <= 8 ? 26 : numEquipes <= 15 ? 22 : numEquipes <= 25 ? 18 : 14;
