@@ -495,10 +495,11 @@
       alert("Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.");
       return;
     }
-    const obs = sol.observacao || "";
+    // lê direto do campo (usuário pode ter digitado sem salvar ainda)
+    const obs = (document.getElementById("obs-" + solId)?.value || sol.observacao || "").trim();
     if (!obs) {
-      const continuar = confirm("O campo \"Observação\" dessa solicitação está vazio. O Excel será gerado com C1_OBS em branco. Quer continuar mesmo assim?");
-      if (!continuar) return;
+      alert("Preencha a Observação antes de gerar o Excel.");
+      return;
     }
     const semCodigo = aprovados.filter(it => !it.codigo || it.codigo === "MANUAL").length;
     const linhas = aprovados.map((it, i) => ({
