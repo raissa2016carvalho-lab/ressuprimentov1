@@ -238,6 +238,19 @@
               <div class="carimbo" id="carimbo-consumo">carregando...</div>
             </div>
           </div>
+        <!-- IMPORTAR CSV -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;max-width:680px;margin-top:16px">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px">📥 Importar Ressuprimentos — CSV</div>
+          <div style="font-size:12.5px;color:#64748b;margin-bottom:12px">Importa solicitações já existentes em massa. O CSV deve ter as colunas: <code>n_sc, produto, descricao, qtde, obs, solicitante, status_sc, emissao_sc, Descrição</code></div>
+          <label class="upload-area" id="label-import-csv" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px;border:2px dashed #e2e8f0;border-radius:8px;margin-bottom:10px">
+            <span>📎</span>
+            <span id="nome-import-csv" style="font-size:13px;color:#64748b">Escolher arquivo (.csv)</span>
+            <input type="file" accept=".csv" style="display:none" id="arquivo-import-csv" onchange="document.getElementById('nome-import-csv').textContent=this.files[0]?.name||'Escolher arquivo';document.getElementById('btn-import-csv').disabled=!this.files[0]"/>
+          </label>
+          <button class="btn-salvar" id="btn-import-csv" onclick="importarRessuprimentosCSV()" disabled style="padding:8px 18px;font-size:13px">Importar</button>
+          <div id="log-import-csv" style="margin-top:10px;font-size:12.5px"></div>
+        </div>
+
         </div>
 
         <!-- SUB: GERENTES -->
@@ -775,6 +788,7 @@
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace">SC ${s.sc_numero}
+                <button onclick="event.stopPropagation();editarSC(${s.id},'${s.sc_numero}')" title="Corrigir nº da SC" style="border:none;background:none;color:#0d9488;cursor:pointer;font-size:12px;padding:0 4px;vertical-align:middle">✏️</button>
                 <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span>
                 ${pedidoGeral ? `<span class="pill ${PG_CLASSE[pedidoGeral]}">${PG_LABEL[pedidoGeral]}</span>` : ""}</div>
               <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns) solicitados · ${e2 ? "status indisponível agora" : totalEncontrados + " pedido(s) encontrado(s)"}</div>
@@ -1649,6 +1663,98 @@
     if (btnE) { btnE.disabled = !obs; btnE.style.opacity = obs ? "1" : "0.4"; btnE.style.cursor = obs ? "pointer" : "not-allowed"; }
   }
   window.atualizarBotoesSol = atualizarBotoesSol;
+
+  async function importarRessuprimentosCSV() {
+    const fileInput = document.getElementById("arquivo-import-csv");
+    const logEl    = document.getElementById("log-import-csv");
+    const file = fileInput.files[0];
+    if (!file) return;
+    logEl.innerHTML = '<span style="color:#64748b">Lendo arquivo...</span>';
+
+    const text = await file.text();
+    const linhas = text.trim().split("\n");
+    const headers = linhas[0].replace(/\r/,"").split(",");
+    const idx = h => headers.findIndex(c => c.trim().toLowerCase().replace(/[^a-z_]/g,"") === h.toLowerCase());
+    const iSC   = idx("n_sc");
+    const iProd = idx("produto");
+    const iDesc = idx("descricao");
+    const iQtd  = idx("qtde");
+    const iObs  = idx("obs");
+    const iSol  = idx("solicitante");
+    const iStat = idx("status_sc");
+    const iEmis = idx("emissao_sc");
+    const iCC   = headers.findIndex(h => h.trim().toLowerCase().includes("descri"));
+
+    // carrega CCs para lookup por nome
+    const { data: ccs } = await db.from("centros_custo").select("cc,nome").gt("cc","99999");
+    const nomeParaCC = {};
+    (ccs||[]).forEach(c => { nomeParaCC[c.nome.trim().toUpperCase()] = c.cc; });
+
+    // agrupa linhas por SC
+    const grupos = {};
+    for (let i = 1; i < linhas.length; i++) {
+      const cols = linhas[i].replace(/\r/,"").split(",");
+      if (cols.length < 6) continue;
+      const sc = (cols[iSC]||"").trim();
+      if (!sc) continue;
+      if (!grupos[sc]) grupos[sc] = [];
+      grupos[sc].push(cols);
+    }
+
+    const scList = Object.keys(grupos);
+    logEl.innerHTML = `<span style="color:#64748b">${scList.length} SC(s) encontradas. Importando...</span>`;
+
+    let ok = 0, erros = 0;
+    for (const sc of scList) {
+      const rows = grupos[sc];
+      const first = rows[0];
+      const nomeCC  = (first[iCC]||"").trim().toUpperCase();
+      const ccCode  = nomeParaCC[nomeCC] || Object.keys(nomeParaCC).find(n => n.includes(nomeCC) || nomeCC.includes(n)) && nomeParaCC[Object.keys(nomeParaCC).find(n => n.includes(nomeCC) || nomeCC.includes(n))];
+      if (!ccCode) { logEl.innerHTML += `<br><span style="color:#dc2626">SC ${sc}: CC "${nomeCC}" não encontrado</span>`; erros++; continue; }
+
+      const statusRaw = (first[iStat]||"").trim().toLowerCase();
+      const status = statusRaw.includes("atend") ? "aprovada" : statusRaw.includes("andamento") ? "aprovada" : "pendente";
+      const emissao = (first[iEmis]||"").trim() || new Date().toISOString();
+      const obs  = (first[iObs]||"").trim();
+      const sol  = (first[iSol]||"").trim();
+
+      // cria solicitacao
+      const { data: sol_data, error: e1 } = await db.from("solicitacoes").insert({
+        cc: ccCode, sc_numero: sc, status, observacao: obs,
+        solicitante_nome: sol, solicitante_matricula: "000",
+        criado_em: emissao, atualizado_em: new Date().toISOString(),
+        justificativa: obs
+      }).select().single();
+
+      if (e1 || !sol_data) { logEl.innerHTML += `<br><span style="color:#dc2626">SC ${sc}: erro ao criar solicitação</span>`; erros++; continue; }
+
+      // cria itens
+      const itens = rows.map(r => ({
+        solicitacao_id: sol_data.id,
+        codigo: (r[iProd]||"").trim(),
+        descricao: (r[iDesc]||"").trim(),
+        quantidade: parseFloat((r[iQtd]||"1").trim()) || 1,
+        situacao: status === "aprovada" ? "aprovado" : "pendente"
+      }));
+      await db.from("solicitacao_itens").insert(itens);
+      ok++;
+      logEl.innerHTML = `<span style="color:#64748b">Importando... ${ok}/${scList.length}</span>`;
+    }
+
+    logEl.innerHTML = `<span style="color:#065f46">✓ ${ok} SC(s) importadas com sucesso!</span>${erros > 0 ? ` <span style="color:#dc2626">${erros} com erro.</span>` : ""}`;
+    fileInput.value = ""; document.getElementById("nome-import-csv").textContent = "Escolher arquivo (.csv)";
+    document.getElementById("btn-import-csv").disabled = true;
+  }
+  window.importarRessuprimentosCSV = importarRessuprimentosCSV;
+
+  async function editarSC(solId, scAtual) {
+    const nova = prompt("Nº da SC:", scAtual);
+    if (nova === null) return;
+    const { error } = await db.from("solicitacoes").update({ sc_numero: nova.trim(), atualizado_em: new Date().toISOString() }).eq("id", solId);
+    if (error) alert("Erro: " + error.message);
+    else await carregarAcompanhamento();
+  }
+  window.editarSC = editarSC;
 
   // ---------- ABA GERENTES ----------
   let todosCC = []; // cache pra filtro
