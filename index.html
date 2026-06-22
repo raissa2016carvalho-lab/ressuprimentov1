@@ -923,28 +923,28 @@
     const linhasBrutas = resultado.data.slice(1); // pula o cabeçalho
 
     function extrairLinha(r) {
-      // a maioria das linhas vem normal (5 campos). Quando o "Codigo" de gerência
-      // está preenchido, o exportador do Protheus engloba a linha toda em aspas
-      // de um jeito que vira 1 campo só — aqui recupera dividindo esse texto por vírgula.
       if (r.length >= 5) return { cc: r[0], nome: r[1], status: r[2] };
       const partes = String(r[0]).split(",");
       return { cc: partes[0], nome: partes[1], status: partes[2] };
     }
 
     const mapaCC = {};
-    let totalDesbloqueados = 0, totalLinhas = 0;
+    let totalDesbloq = 0, totalBloq = 0, totalLinhas = 0;
     for (const r of linhasBrutas) {
       const { cc, nome, status } = extrairLinha(r);
       const ccLimpo = String(cc || "").trim();
-      if (!ccLimpo) continue;
+      const nomeLimpo = String(nome || "").trim();
+      const statusLimpo = String(status || "").trim();
+      if (!ccLimpo || !nomeLimpo) continue;
       totalLinhas++;
-      if ((status || "").trim() !== "Desbloqueado") continue; // mantém só os desbloqueados
-      totalDesbloqueados++;
-      mapaCC[ccLimpo] = { cc: ccLimpo, nome: String(nome || "").trim() };
+      // salva TODOS (bloqueados e desbloqueados) — o formulário valida na hora
+      if (statusLimpo === "Desbloqueado") totalDesbloq++;
+      else totalBloq++;
+      mapaCC[ccLimpo] = { cc: ccLimpo, nome: nomeLimpo, status: statusLimpo || "Desbloqueado" };
     }
 
     const linhasCC = Object.values(mapaCC);
-    logFn(`${totalLinhas} linha(s) lida(s), ${totalDesbloqueados} desbloqueada(s). Gravando...`);
+    logFn(`${totalLinhas} linha(s): ${totalDesbloq} desbloqueadas, ${totalBloq} bloqueadas. Gravando todos...`);
     await upsertEmPartes("centros_custo", linhasCC, "cc", logFn);
     await registrarCarimbo("centros_custo", linhasCC.length);
     return linhasCC.length;
