@@ -1829,6 +1829,7 @@
     }
 
     logEl.innerHTML = `<span style="color:#065f46">✓ ${ok} SC(s) importadas com sucesso!</span>${erros > 0 ? ` <span style="color:#dc2626">${erros} com erro.</span>` : ""}`;
+    if (erros > 0) alert(logEl.innerText);
     fileInput.value = ""; document.getElementById("nome-import-csv").textContent = "Escolher arquivo (.csv)";
     document.getElementById("btn-import-csv").disabled = true;
   }
