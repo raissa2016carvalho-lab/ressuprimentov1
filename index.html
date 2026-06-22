@@ -626,7 +626,12 @@
   function baixarExcelProtheus(solId) {
     const sol = solicitacoes.find(s => s.id === solId);
     if (!sol) return;
-    const aprovados = sol.itens.filter(it => it.situacao === "aprovado");
+    // considera decisões feitas na tela (mesmo sem salvar) + situação do banco
+    const aprovados = sol.itens.filter(it => {
+      const dec = decisoes[it.id];
+      return dec === "aprovado" || (dec === undefined && it.situacao === "aprovado");
+    });
+
     if (aprovados.length === 0) {
       alert("Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.");
       return;
