@@ -2071,14 +2071,14 @@
 
       // Tabela consumo
       const linhasConsumo = Object.entries(consumoCC).map(([cod, qtd]) => {
-        const qPessoa = totalPessoas > 0 ? (qtd / totalPessoas).toFixed(2) : "—";
+        const qtdInt = qtd < 1 ? 0 : Math.round(qtd);
+        if (qtdInt === 0) return "";
         return `<tr>
           <td style="padding:5px 8px">${descMap[cod] || cod} <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${cod}</span></td>
-          <td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:600">${qtd}</td>
-          <td style="padding:5px 8px;text-align:right;color:#64748b">${qPessoa}</td>
+          <td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:600">${qtdInt}</td>
           <td style="padding:5px 8px;color:#64748b;font-size:11px">${umMap[cod]||""}</td>
         </tr>`;
-      }).join("") || `<tr><td colspan="4" style="padding:8px;color:#94a3b8;text-align:center">Sem consumo registrado nos últimos 3 meses</td></tr>`;
+      }).filter(Boolean).join("") || `<tr><td colspan="3" style="padding:8px;color:#94a3b8;text-align:center">Sem consumo registrado nos últimos 3 meses</td></tr>`;
 
       // Tabela SCs/PCs
       const linhaSCs = solCC.map(({sol, it}) => {
@@ -2157,8 +2157,7 @@
               <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
                 <tr style="background:#f1f5f9">
                   <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Item</th>
-                  <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd total</th>
-                  <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd/pessoa</th>
+                  <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd consumida (3m)</th>
                   <th style="padding:6px 8px;font-size:11px;color:#64748b">Un</th>
                 </tr>
                 ${linhasConsumo}
