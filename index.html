@@ -1750,7 +1750,11 @@
     const iCC   = headers.findIndex(h => h.trim().toLowerCase().includes("descri"));
 
     // carrega CCs para lookup por nome (todos, filtra client-side por >5 chars)
-    const { data: ccs } = await db.from("centros_custo").select("cc,nome,status");
+    const { data: ccs, error: eCCs } = await db.from("centros_custo").select("cc,nome,status");
+    if (eCCs || !ccs || ccs.length === 0) {
+      logEl.innerHTML = `<span style="color:#dc2626">❌ Erro ao carregar centros de custo do banco: ${eCCs?.message || "lista vazia — verifique sua conexão com a internet"}.</span>`;
+      return;
+    }
     const nomeParaCC = {};      // nome original → cc
     const nomeNormParaCC = {};  // nome sem espaços/acentos → cc
     const norm = s => s.toUpperCase().replace(/\s+/g,"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
