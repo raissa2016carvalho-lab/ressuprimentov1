@@ -214,6 +214,40 @@
             <div style="padding:16px">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
                 <div>
+                  <div style="font-weight:700;font-size:14px">Pessoas por CC — SRA</div>
+                  <div style="font-size:12.5px;color:#64748b;margin-top:2px">Exportação SRA do Protheus. Conta ativos por cargo por CC.</div>
+                </div>
+                <div class="carimbo" id="carimbo-sra">carregando...</div>
+              </div>
+              <label class="upload-area" id="label-sra">
+                <span id="nome-arquivo-sra">Escolher arquivo (.csv)</span>
+                <input type="file" accept=".csv" style="display:none" id="arquivo-sra" onchange="arquivoEscolhido('sra')"/>
+              </label>
+              <button class="btn-salvar" style="margin-top:12px" id="btn-sra" onclick="processarBase('sra')" disabled>Atualizar</button>
+              <div id="log-sra" style="margin-top:10px"></div>
+            </div>
+          </div>
+          <div class="card base-card">
+            <div style="padding:16px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+                <div>
+                  <div style="font-weight:700;font-size:14px">Consumo últimos 3 meses — SCP</div>
+                  <div style="font-size:12.5px;color:#64748b;margin-top:2px">Exportação SCP do Protheus. Calcula consumo por item por CC.</div>
+                </div>
+                <div class="carimbo" id="carimbo-consumo">carregando...</div>
+              </div>
+              <label class="upload-area" id="label-consumo">
+                <span id="nome-arquivo-consumo">Escolher arquivo (.csv)</span>
+                <input type="file" accept=".csv" style="display:none" id="arquivo-consumo" onchange="arquivoEscolhido('consumo')"/>
+              </label>
+              <button class="btn-salvar" style="margin-top:12px" id="btn-consumo" onclick="processarBase('consumo')" disabled>Atualizar</button>
+              <div id="log-consumo" style="margin-top:10px"></div>
+            </div>
+          </div>
+          <div class="card base-card">
+            <div style="padding:16px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+                <div>
                   <div style="font-weight:700;font-size:14px">Cadastro de Itens — SB1</div>
                   <div style="font-size:12.5px;color:#64748b;margin-top:2px">Atualiza código, descrição, grupo e unidade dos materiais.</div>
                 </div>
@@ -291,6 +325,8 @@
   const $ = (id) => document.getElementById(id);
   let solicitacoes = [];
   let ccMap = {};
+  let consumoMap = {}; // "cc|codigo" -> consumo 3 meses
+  let pessoasMap = {}; // "cc" -> [{cargo, quantidade}]
 
   // ---------- LOGIN ----------
   async function verificarSessao() {
@@ -369,6 +405,25 @@
     (itens || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
     solicitacoes = (sols || []).map(s => ({ ...s, itens: porSol[s.id] || [] }));
 
+    // carrega consumo 3m e pessoas por cargo para os CCs visíveis
+    const ccsSols = [...new Set(solicitacoes.map(s => s.cc).filter(Boolean))];
+    if (ccsSols.length > 0) {
+      const [{ data: consumoData }, { data: pessoasData }] = await Promise.all([
+        db.from("consumo").select("cc,codigo,consumo_medio").in("cc", ccsSols),
+        db.from("cc_pessoas").select("cc,cargo,quantidade").in("cc", ccsSols),
+      ]);
+      consumoMap = {};
+      (consumoData || []).forEach(r => { consumoMap[r.cc + "|" + r.codigo] = Number(r.consumo_medio) || 0; });
+      pessoasMap = {};
+      (pessoasData || []).forEach(r => {
+        (pessoasMap[r.cc] = pessoasMap[r.cc] || []).push({ cargo: r.cargo, qtd: r.quantidade });
+      });
+      // ordena cada CC do maior pro menor
+      Object.keys(pessoasMap).forEach(cc => {
+        pessoasMap[cc].sort((a, b) => b.qtd - a.qtd);
+      });
+    }
+
     const atendem = solicitacoes.filter(s => s.status === "pendente" || s.status === "aguardando_master").length;
     const badge = $("badge-pendentes");
     if (atendem > 0) { badge.style.display = "inline-flex"; badge.textContent = atendem; }
@@ -425,16 +480,32 @@
       : (s.status === "pendente" && temGerente
         ? `<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`
         : "");
+    // badge de pessoas expansível
+    const pessoasCC = pessoasMap[s.cc] || [];
+    const totalPessoas = pessoasCC.reduce((acc, p) => acc + p.qtd, 0);
+    const badgePessoasId = "pessoas-detalhe-" + s.id;
+    const badgePessoas = totalPessoas > 0 ? `
+      <span onclick="event.stopPropagation();var el=document.getElementById('${badgePessoasId}');el.style.display=el.style.display==='none'?'block':'none';"
+        style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;cursor:pointer;margin-left:8px">
+        👥 ${totalPessoas} ▾
+      </span>
+      <div id="${badgePessoasId}" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-top:6px;max-width:320px">
+        ${pessoasCC.map(p => `
+          <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #f1f5f9">
+            <span style="color:#334155">${p.cargo}</span>
+            <span style="font-weight:700;color:#0f172a;font-family:ui-monospace,monospace;margin-left:16px">${p.qtd}</span>
+          </div>`).join("")}
+      </div>` : "";
     return `
       <div class="card" style="${s.status === 'aguardando_master' ? 'border-left:4px solid #f59e0b' : ''}">
         <div class="card-topo" onclick="toggleCard(${s.id})">
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="card-titulo">${nomeBase} <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
-              <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span>${badgeGerente}</div>
+              <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span>${badgeGerente}${badgePessoas}</div>
             <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns)${s.sc_numero ? " · SC " + s.sc_numero : ""}</div>
             ${s.justificativa ? `<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>` : ""}
           </div>
-          <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Avaliar ▾</div>
+          <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>
         </div>
         <div class="card-corpo" id="corpo-${s.id}">
           <table>
@@ -868,7 +939,89 @@
     return linhasCC.length;
   }
 
-  const ACOES_BASE = { itens: atualizarSB1, centros_custo: atualizarCC };
+  async function atualizarSRA(file, logFn) {
+    logFn("Lendo SRA...");
+    const linhas = await parseCsv(file);
+    logFn(`${linhas.length} linhas lidas. Contando ativos por CC e cargo...`);
+
+    // agrupa por CC -> cargo -> count (só SIT_FOLHA = NORMAL)
+    const agg = {}; // cc -> { cargo -> count }
+    const totais = {}; // cc -> total
+    for (const r of linhas) {
+      const cc    = String(pegar(r, "CCUSTO") || "").trim();
+      const sit   = String(pegar(r, "SIT_FOLHA") || "").trim().toUpperCase();
+      const cargo = String(pegar(r, "DESC_CARGO") || pegar(r, "CARGO") || "").replace(/\s+/g, " ").trim() || "Sem cargo";
+      if (!cc || sit !== "NORMAL") continue;
+      if (!agg[cc]) agg[cc] = {};
+      agg[cc][cargo] = (agg[cc][cargo] || 0) + 1;
+      totais[cc] = (totais[cc] || 0) + 1;
+    }
+
+    // upsert cc_pessoas
+    const registrosPessoas = [];
+    for (const [cc, cargos] of Object.entries(agg)) {
+      for (const [cargo, qtd] of Object.entries(cargos)) {
+        registrosPessoas.push({ cc, cargo, quantidade: qtd });
+      }
+    }
+    if (registrosPessoas.length > 0) {
+      logFn(`${registrosPessoas.length} linhas CC/cargo. Gravando...`);
+      await upsertEmPartes("cc_pessoas", registrosPessoas, "cc,cargo", logFn);
+    }
+
+    // atualiza total de pessoas em centros_custo
+    for (const [cc, total] of Object.entries(totais)) {
+      await db.from("centros_custo").update({ pessoas: total }).eq("cc", cc);
+    }
+
+    await registrarCarimbo("sra", registrosPessoas.length);
+    logFn(`✓ ${Object.keys(agg).length} CC(s) atualizados.`);
+    return registrosPessoas.length;
+  }
+
+  async function atualizarSCP(file, logFn) {
+    logFn("Lendo SCP...");
+    const linhas = await parseCsv(file);
+    logFn(`${linhas.length} linhas lidas. Calculando últimos 3 meses...`);
+
+    // data máxima do arquivo para calcular os 3 meses
+    const datas = linhas.map(r => String(pegar(r, "CP_EMISSAO") || "").trim()).filter(d => /^\d{8}$/.test(d)).sort();
+    const maxData = datas[datas.length - 1] || "";
+    if (!maxData) { logFn("Erro: nenhuma data encontrada."); return 0; }
+
+    const ano = parseInt(maxData.slice(0,4));
+    const mes = parseInt(maxData.slice(4,6));
+    const dtLimite = new Date(ano, mes - 4, 1); // 3 meses antes
+    const limitStr = dtLimite.getFullYear().toString() +
+      String(dtLimite.getMonth() + 1).padStart(2, "0") + "01";
+    logFn(`Período: ${limitStr.slice(6,8)}/${limitStr.slice(4,6)}/${limitStr.slice(0,4)} → ${maxData.slice(6,8)}/${maxData.slice(4,6)}/${maxData.slice(0,4)}`);
+
+    // soma CP_QUANT por (CP_CC, CP_PRODUTO) no período
+    const agg = {};
+    for (const r of linhas) {
+      const emissao = String(pegar(r, "CP_EMISSAO") || "").trim();
+      if (emissao < limitStr) continue;
+      const cc      = String(pegar(r, "CP_CC") || "").trim();
+      const produto = String(pegar(r, "CP_PRODUTO") || "").trim();
+      const quant   = parseFloat(String(pegar(r, "CP_QUANT") || "0").replace(",", ".")) || 0;
+      if (!cc || !produto) continue;
+      const k = cc + "|" + produto;
+      agg[k] = (agg[k] || 0) + quant;
+    }
+
+    const registros = Object.entries(agg).map(([k, total]) => {
+      const [cc, codigo] = k.split("|");
+      return { cc, codigo, consumo_medio: Math.round(total * 100) / 100 };
+    });
+
+    logFn(`${registros.length} pares CC/item. Gravando...`);
+    await upsertEmPartes("consumo", registros, "cc,codigo", logFn);
+    await registrarCarimbo("consumo", registros.length);
+    logFn(`✓ Concluído!`);
+    return registros.length;
+  }
+
+  const ACOES_BASE = { itens: atualizarSB1, centros_custo: atualizarCC, sra: atualizarSRA, consumo: atualizarSCP };
   const arquivosSelecionados = {};
 
   function arquivoEscolhido(key) {
@@ -913,7 +1066,7 @@
     const { data } = await db.from("bases_status").select("*");
     const mapa = {};
     (data || []).forEach(s => mapa[s.base] = s);
-    for (const key of ["itens", "centros_custo"]) {
+    for (const key of ["itens", "centros_custo", "sra", "consumo"]) {
       const el = $("carimbo-" + key);
       const s = mapa[key];
       if (s) {
