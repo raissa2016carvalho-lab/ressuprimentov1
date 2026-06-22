@@ -222,7 +222,7 @@
       </div>
       <div class="corpo-aba">
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
-          <input id="filtro-fard-cc" placeholder="🔍 Filtrar por centro de custo..." oninput="filtrarFardamento()"
+          <input id="filtro-fard-cc" placeholder="🔍 Filtrar por item de fardamento..." oninput="filtrarFardamento()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;flex:1;min-width:200px"/>
           <div style="display:flex;gap:4px">
             <button onclick="setFiltroFard('todos')" id="ffard-todos"
@@ -231,6 +231,8 @@
               style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Com pedido</button>
             <button onclick="setFiltroFard('sem_pedido')" id="ffard-sem_pedido"
               style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Sem pedido</button>
+            <button onclick="setFiltroFard('recebido')" id="ffard-recebido"
+              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Recebido</button>
           </div>
         </div>
         <div id="lista-fardamento"><div class="vazio">Clique em Atualizar para carregar.</div></div>
@@ -1940,14 +1942,13 @@
 
 
   // ══════════════════════════════════════════════════════════
-  // ABA FARDAMENTO
+  // ABA FARDAMENTO — visão por item
   // ══════════════════════════════════════════════════════════
-  let _cardsFardamento = []; // cache para filtro
   let _filtroFard = "todos";
 
   function setFiltroFard(f) {
     _filtroFard = f;
-    ["todos","com_pedido","sem_pedido"].forEach(k => {
+    ["todos","com_pedido","sem_pedido","recebido"].forEach(k => {
       const btn = document.getElementById("ffard-" + k);
       if (!btn) return;
       const ativo = k === f;
@@ -1961,17 +1962,18 @@
 
   function filtrarFardamento() {
     const termo = ($("filtro-fard-cc")?.value || "").toLowerCase().trim();
-    const cards = document.querySelectorAll("#lista-fardamento .card-fard[data-cc]");
+    const cards = document.querySelectorAll("#lista-fardamento .card-fard-item[data-desc]");
     let vis = 0;
     cards.forEach(card => {
-      const ccNome = card.dataset.cc || "";
-      const temPedido = card.dataset.tem_pedido === "1";
-      const okCC   = !termo || ccNome.includes(termo);
-      const okFilt = _filtroFard === "todos"
-        || (_filtroFard === "com_pedido" && temPedido)
-        || (_filtroFard === "sem_pedido" && !temPedido);
-      card.style.display = okCC && okFilt ? "" : "none";
-      if (okCC && okFilt) vis++;
+      const desc = card.dataset.desc || "";
+      const pg   = card.dataset.pg || "";
+      const okTermo = !termo || desc.includes(termo);
+      const okFilt  = _filtroFard === "todos"
+        || (_filtroFard === "com_pedido"  && pg !== "sem_pedido")
+        || (_filtroFard === "sem_pedido"  && pg === "sem_pedido")
+        || (_filtroFard === "recebido"    && pg === "recebido");
+      card.style.display = okTermo && okFilt ? "" : "none";
+      if (okTermo && okFilt) vis++;
     });
     const vz = $("fard-vazio");
     if (vz) vz.style.display = vis === 0 ? "block" : "none";
@@ -1980,44 +1982,43 @@
 
   async function carregarFardamento() {
     const el = $("lista-fardamento");
-    el.innerHTML = '<div class="vazio">Carregando dados...</div>';
+    el.innerHTML = '<div class="vazio">Carregando...</div>';
 
-    // 1. Itens do grupo 2040
+    // 1. Itens grupo 2040
     const { data: itensFard } = await db.from("itens").select("codigo,descricao,unidade").eq("grupo", "FARDAMENTOS & UNIFORMES");
-    const codigos2040 = (itensFard || []).map(i => i.codigo);
-    const descMap = {}; // codigo -> descricao
-    const umMap   = {}; // codigo -> unidade
-    (itensFard || []).forEach(i => { descMap[i.codigo] = i.descricao; umMap[i.codigo] = i.unidade; });
-
-    if (codigos2040.length === 0) {
-      el.innerHTML = '<div class="vazio">Nenhum item do grupo 2040 encontrado. Verifique a SB1.</div>'; return;
+    if (!itensFard || itensFard.length === 0) {
+      el.innerHTML = '<div class="vazio">Nenhum item do grupo FARDAMENTOS & UNIFORMES encontrado.</div>'; return;
     }
+    const codigos2040 = itensFard.map(i => i.codigo);
+    const itemInfo = {}; // codigo -> {descricao, unidade}
+    itensFard.forEach(i => { itemInfo[i.codigo] = i; });
 
-    // 2. Consumo 3m por CC para esses itens
+    // 2. Consumo SCP: quantas SCs/CCs consumiram cada item
     const { data: consumoFard } = await db.from("consumo").select("cc,codigo,consumo_medio").in("codigo", codigos2040);
+    const consumoPorItem = {}; // codigo -> {totalQtd, numCCs}
+    (consumoFard || []).forEach(r => {
+      if (!consumoPorItem[r.codigo]) consumoPorItem[r.codigo] = { totalQtd: 0, ccs: [] };
+      consumoPorItem[r.codigo].totalQtd += Number(r.consumo_medio) || 0;
+      consumoPorItem[r.codigo].ccs.push({ cc: r.cc, qtd: Number(r.consumo_medio) || 0 });
+    });
 
-    // 3. Pessoas por CC
-    const { data: pessoasData } = await db.from("cc_pessoas").select("cc,cargo,quantidade");
-    const pessoasMapFard = {};
-    (pessoasData || []).forEach(p => { (pessoasMapFard[p.cc] = pessoasMapFard[p.cc] || []).push(p); });
-
-    // 4. CCs desbloqueados com dados
-    const { data: ccs } = await db.from("centros_custo").select("cc,nome,pessoas").eq("status","Desbloqueado");
-    const ccNomeMap = {};
-    (ccs || []).forEach(c => { ccNomeMap[c.cc] = c; });
-
-    // 5. Solicitação itens do grupo 2040
+    // 3. Solicitação itens grupo 2040
     const { data: solItens } = await db.from("solicitacao_itens").select("*").in("codigo", codigos2040);
     const solIds = [...new Set((solItens || []).map(i => i.solicitacao_id))];
     let solsMap = {};
     if (solIds.length > 0) {
-      const { data: sols } = await db.from("solicitacoes").select("id,cc,sc_numero,criado_em,observacao,status").in("id", solIds).in("status",["aprovada","parcial"]);
+      const { data: sols } = await db.from("solicitacoes").select("id,cc,sc_numero,criado_em,observacao,status").in("id", solIds);
       (sols || []).forEach(s => { solsMap[s.id] = s; });
     }
 
-    // 6. Busca PCs no Protheus pelas SCs
+    // 4. CCs para nomes
+    const { data: ccs } = await db.from("centros_custo").select("cc,nome");
+    const ccNome = {};
+    (ccs || []).forEach(c => { ccNome[c.cc] = c.nome; });
+
+    // 5. PCs do Protheus pelas SCs
     const numerosSC = [...new Set(Object.values(solsMap).map(s => s.sc_numero).filter(Boolean))];
-    let pcsPorSC = {}; // sc -> [pcs]
+    let pcsPorSC = {};
     if (numerosSC.length > 0) {
       const variantes = [...new Set(numerosSC.flatMap(sc => {
         const s = String(sc).trim();
@@ -2033,165 +2034,120 @@
       });
     }
 
-    // Agrupa consumo por CC
-    const consumoPorCC = {}; // cc -> {codigo -> qtd}
-    (consumoFard || []).forEach(r => {
-      if (!consumoPorCC[r.cc]) consumoPorCC[r.cc] = {};
-      consumoPorCC[r.cc][r.codigo] = Number(r.consumo_medio) || 0;
-    });
-
-    // Agrupa solicitação itens por CC
-    const solItensPorCC = {}; // cc -> [{sol, item}]
+    // Agrupa por item: SCs que têm esse item
+    const scsPorItem = {}; // codigo -> [{sol, it}]
     (solItens || []).forEach(it => {
       const sol = solsMap[it.solicitacao_id];
       if (!sol) return;
-      (solItensPorCC[sol.cc] = solItensPorCC[sol.cc] || []).push({ sol, it });
+      (scsPorItem[it.codigo] = scsPorItem[it.codigo] || []).push({ sol, it });
     });
 
-    // Junta todos os CCs que têm consumo OU solicitação de fardamento
-    const todosCCs = [...new Set([
-      ...Object.keys(consumoPorCC),
-      ...Object.keys(solItensPorCC)
-    ])].filter(cc => cc && cc.length > 5 && ccNomeMap[cc]);
+    // Renderiza por item
+    const todosItens = [...new Set([...codigos2040.filter(c => scsPorItem[c] || consumoPorItem[c])])];
+    todosItens.sort((a,b) => (itemInfo[a]?.descricao||a).localeCompare(itemInfo[b]?.descricao||b));
 
-    todosCCs.sort((a, b) => (ccNomeMap[a]?.nome||a).localeCompare(ccNomeMap[b]?.nome||b));
-
-    if (todosCCs.length === 0) {
-      el.innerHTML = '<div class="vazio">Nenhum CC com dados de fardamento encontrado. Verifique se a SCP e SB1 estão sincronizadas.</div>'; return;
+    if (todosItens.length === 0) {
+      el.innerHTML = '<div class="vazio">Nenhum dado de fardamento encontrado. Verifique se SCP e SCs estão carregadas.</div>'; return;
     }
 
-    // Renderiza cards
-    el.innerHTML = todosCCs.map(cc => {
-      const info = ccNomeMap[cc] || { nome: cc, pessoas: 0 };
-      const totalPessoas = Number(info.pessoas) || (pessoasMapFard[cc]||[]).reduce((a,p)=>a+p.quantidade,0);
-      const cargos = (pessoasMapFard[cc] || []).sort((a,b) => b.quantidade - a.quantidade);
-      const consumoCC = consumoPorCC[cc] || {};
-      const solCC     = solItensPorCC[cc] || [];
-      const temPedido = solCC.length > 0;
+    el.innerHTML = todosItens.map(cod => {
+      const info = itemInfo[cod] || { descricao: cod, unidade: "" };
+      const scsDoItem = scsPorItem[cod] || [];
+      const consumoItem = consumoPorItem[cod] || { totalQtd: 0, ccs: [] };
 
-      // Tabela consumo
-      const linhasConsumo = Object.entries(consumoCC).map(([cod, qtd]) => {
-        const qtdInt = qtd < 1 ? 0 : Math.round(qtd);
-        if (qtdInt === 0) return "";
-        return `<tr>
-          <td style="padding:5px 8px">${descMap[cod] || cod} <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${cod}</span></td>
-          <td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:600">${qtdInt}</td>
-          <td style="padding:5px 8px;color:#64748b;font-size:11px">${umMap[cod]||""}</td>
-        </tr>`;
-      }).filter(Boolean).join("") || `<tr><td colspan="3" style="padding:8px;color:#94a3b8;text-align:center">Sem consumo registrado nos últimos 3 meses</td></tr>`;
+      // conta SCs únicas
+      const scUnicas = [...new Map(scsDoItem.map(({ sol }) => [sol.sc_numero, sol])).values()];
 
-      // Tabela SCs/PCs
-      const linhaSCs = solCC.map(({sol, it}) => {
-        const scN = (sol.sc_numero||"").trim();
+      // conta PCs e status
+      let totalPCs = 0, recebidos = 0, pendentes = 0, semPC = 0;
+      scUnicas.forEach(sol => {
+        const scN = String(sol.sc_numero||"").trim().replace(/^0+/,"")||"0";
+        const pcsDoItem = (pcsPorSC[scN]||[]).filter(p => String(p.c7_produto||"").trim() === cod);
+        if (pcsDoItem.length === 0) { semPC++; return; }
+        pcsDoItem.forEach(p => {
+          totalPCs++;
+          const st = (p.status_desc||"").toLowerCase();
+          if (st.includes("receb")) recebidos++;
+          else pendentes++;
+        });
+      });
+
+      // pg key
+      const pgKey = recebidos > 0 && pendentes === 0 && semPC === 0 ? "recebido"
+        : scUnicas.length === 0 ? "sem_pedido"
+        : semPC === scUnicas.length ? "sem_pedido" : "com_pedido";
+
+      // consumo total e nº de CCs
+      const qtdConsumo = consumoItem.totalQtd < 1 ? 0 : Math.round(consumoItem.totalQtd);
+      const numCCs = consumoItem.ccs.length;
+
+      // pills de status
+      const pillStatus = recebidos > 0 ? `<span style="background:#dcfce7;color:#16a34a;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">${recebidos} recebido(s)</span>` : "";
+      const pillPend   = pendentes > 0 ? `<span style="background:#fef3c7;color:#b45309;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">${pendentes} pendente(s)</span>` : "";
+      const pillSemPC  = semPC > 0    ? `<span style="background:#fee2e2;color:#991b1b;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">${semPC} sem PC</span>` : "";
+
+      // Tabela de SCs e PCs
+      const linhasSCs = scUnicas.map(sol => {
+        const scN = String(sol.sc_numero||"").trim();
         const scNorm = scN.replace(/^0+/,"")||"0";
-        const pcsDoItem = (pcsPorSC[scN] || pcsPorSC[scNorm] || []).filter(p => String(p.c7_produto||"").trim() === it.codigo);
+        const pcsDoItem = (pcsPorSC[scNorm]||pcsPorSC[scN]||[]).filter(p => String(p.c7_produto||"").trim() === cod);
+        const nomeCC = ccNome[sol.cc] || sol.cc;
         if (pcsDoItem.length === 0) {
           return `<tr>
             <td style="padding:5px 8px;font-family:ui-monospace,monospace">${scN}</td>
-            <td style="padding:5px 8px">${it.descricao||it.codigo}</td>
-            <td style="padding:5px 8px;text-align:right">${it.quantidade}</td>
-            <td style="padding:5px 8px;color:#94a3b8">—</td>
-            <td style="padding:5px 8px;color:#94a3b8">Sem PC</td>
-            <td style="padding:5px 8px;color:#94a3b8">—</td>
+            <td style="padding:5px 8px;font-size:12px">${nomeCC}</td>
+            <td style="padding:5px 8px;text-align:right">—</td>
+            <td style="padding:5px 8px">—</td>
+            <td style="padding:5px 8px;color:#94a3b8;font-size:11.5px">Sem PC</td>
+            <td style="padding:5px 8px;color:#94a3b8;font-size:11px">—</td>
           </tr>`;
         }
-        return pcsDoItem.map(p => {
+        return pcsDoItem.map((p, idx) => {
           const st = (p.status_desc||"").toLowerCase();
           const cor = st.includes("receb")?"#16a34a":st.includes("pend")?"#d97706":"#64748b";
           const dtEmis = p.c7_emissao ? String(p.c7_emissao).slice(6,8)+"/"+String(p.c7_emissao).slice(4,6)+"/"+String(p.c7_emissao).slice(0,4) : "—";
           return `<tr>
-            <td style="padding:5px 8px;font-family:ui-monospace,monospace">${scN}</td>
-            <td style="padding:5px 8px;font-size:12px">${it.descricao||it.codigo}</td>
-            <td style="padding:5px 8px;text-align:right">${p.c7_quant||0}</td>
+            <td style="padding:5px 8px;font-family:ui-monospace,monospace">${idx===0?scN:""}</td>
+            <td style="padding:5px 8px;font-size:12px">${idx===0?nomeCC:""}</td>
+            <td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace">${p.c7_quant||0}</td>
             <td style="padding:5px 8px;font-family:ui-monospace,monospace">${p.c7_num||"—"}</td>
-            <td style="padding:5px 8px;font-weight:600;color:${cor}">${p.status_desc||"—"}</td>
+            <td style="padding:5px 8px;font-weight:600;color:${cor};font-size:11.5px">${p.status_desc||"—"}</td>
             <td style="padding:5px 8px;color:#64748b;font-size:11px">${dtEmis}</td>
           </tr>`;
         }).join("");
-      }).join("") || `<tr><td colspan="6" style="padding:8px;color:#94a3b8;text-align:center">Nenhuma SC de fardamento</td></tr>`;
-
-      // Sugestão de compra: consumo 3m - já recebido
-      const sugestoes = Object.entries(consumoCC).map(([cod, consumo3m]) => {
-        const jaRecebido = solCC.flatMap(({sol,it}) => {
-          if (it.codigo !== cod) return [];
-          const scN = (sol.sc_numero||"").trim().replace(/^0+/,"")||"0";
-          return (pcsPorSC[scN]||[]).filter(p => String(p.c7_produto||"").trim()===cod && (p.status_desc||"").toLowerCase().includes("receb"));
-        }).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
-        const sugerir = Math.max(0, Math.round(consumo3m - jaRecebido));
-        return sugerir > 0 ? `<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between">
-          <span>${descMap[cod]||cod}</span>
-          <span style="font-weight:700;color:#0d9488;font-family:ui-monospace,monospace">${sugerir} ${umMap[cod]||""}</span>
-        </div>` : "";
-      }).filter(Boolean).join("");
+      }).join("");
 
       return `
-        <div class="card card-fard" data-cc="${info.nome.toLowerCase()}" data-tem_pedido="${temPedido?'1':'0'}"
+        <div class="card card-fard-item" data-desc="${info.descricao.toLowerCase()}" data-pg="${pgKey}"
           style="margin-bottom:10px;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#fff">
-          <div style="padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center"
-            onclick="toggleFard('fard-${cc}')">
-            <div>
-              <div style="font-weight:700;font-size:14px">${info.nome}
-                <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px;font-weight:400"> · ${cc}</span>
+          <div style="padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;gap:12px"
+            onclick="toggleFard('fard-${cod}')">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:14px;margin-bottom:4px">${info.descricao}
+                <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px;font-weight:400"> · ${cod}</span>
               </div>
-              <div style="font-size:12px;color:#64748b;margin-top:3px">
-                👥 ${totalPessoas} pessoas
-                · ${Object.keys(consumoCC).length} itens com consumo
-                · ${solCC.length} SC(s)
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <span style="font-size:12px;color:#64748b">📋 ${scUnicas.length} SC(s) · 🏭 ${totalPCs} PC(s) · 📦 ${qtdConsumo} ${info.unidade} consumidos em ${numCCs} CC(s)</span>
+                ${pillStatus}${pillPend}${pillSemPC}
               </div>
             </div>
-            <div style="color:#0d9488;font-weight:600;font-size:12.5px">Ver ▾</div>
+            <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0">Ver ▾</div>
           </div>
-          <div id="fard-${cc}" style="display:none;border-top:1px solid #e2e8f0;background:#f8fafc;padding:16px">
-
-            <!-- Pessoas por cargo -->
-            <div style="margin-bottom:16px">
-              <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">👥 Pessoas por cargo</div>
-              ${cargos.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:6px">
-                ${cargos.map(p=>`<span style="background:#f1f5f9;border-radius:6px;padding:4px 10px;font-size:12px"><b>${p.quantidade}</b> ${p.cargo}</span>`).join("")}
-              </div>` : '<div style="font-size:12px;color:#94a3b8">Sem dados de SRA</div>'}
-            </div>
-
-            <!-- Consumo 3m -->
-            <div style="margin-bottom:16px">
-              <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">📦 Consumo últimos 3 meses</div>
-              <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
-                <tr style="background:#f1f5f9">
-                  <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Item</th>
-                  <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd consumida (3m)</th>
-                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Un</th>
-                </tr>
-                ${linhasConsumo}
-              </table>
-            </div>
-
-            <!-- SCs e Pedidos -->
-            <div style="margin-bottom:16px">
-              <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">📋 SCs e Pedidos de compra</div>
-              <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
-                <tr style="background:#f1f5f9">
-                  <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">SC</th>
-                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Item</th>
-                  <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd</th>
-                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Nº PC</th>
-                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Status</th>
-                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Emissão PC</th>
-                </tr>
-                ${linhaSCs}
-              </table>
-            </div>
-
-            <!-- Sugestão de compra -->
-            ${sugestoes ? `<div>
-              <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">💡 Sugestão de compra</div>
-              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px">
-                <div style="font-size:11.5px;color:#16a34a;margin-bottom:6px">Consumo 3m − já recebido</div>
-                ${sugestoes}
-              </div>
-            </div>` : '<div style="font-size:12px;color:#16a34a;font-weight:600">✓ Nada pendente de compra</div>'}
-
+          <div id="fard-${cod}" style="display:none;border-top:1px solid #e2e8f0;background:#f8fafc;padding:16px">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
+              <tr style="background:#f1f5f9">
+                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">SC</th>
+                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">CC</th>
+                <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd</th>
+                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Nº PC</th>
+                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Status</th>
+                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Emissão PC</th>
+              </tr>
+              ${linhasSCs || '<tr><td colspan="6" style="padding:8px;color:#94a3b8;text-align:center">Nenhuma SC encontrada</td></tr>'}
+            </table>
           </div>
         </div>`;
-    }).join("") + '<div id="fard-vazio" class="vazio" style="display:none">Nenhum CC encontrado.</div>';
+    }).join("") + '<div id="fard-vazio" class="vazio" style="display:none">Nenhum item encontrado.</div>';
   }
   window.carregarFardamento = carregarFardamento;
 
