@@ -1958,7 +1958,7 @@
     el.innerHTML = '<div class="vazio">Carregando dados...</div>';
 
     // 1. Itens do grupo 2040
-    const { data: itensFard } = await db.from("itens").select("codigo,descricao,unidade").eq("grupo", "2040");
+    const { data: itensFard } = await db.from("itens").select("codigo,descricao,unidade").eq("grupo", "FARDAMENTOS & UNIFORMES");
     const codigos2040 = (itensFard || []).map(i => i.codigo);
     const descMap = {}; // codigo -> descricao
     const umMap   = {}; // codigo -> unidade
