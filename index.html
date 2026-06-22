@@ -1779,33 +1779,44 @@
     logEl.innerHTML = `<span style="color:#64748b">${scList.length} SC(s) encontradas. Importando...</span>`;
 
     let ok = 0, erros = 0;
+    const msgErros = [];
     for (const sc of scList) {
       const rows = grupos[sc];
       const first = rows[0];
       const nomeCC = (first[iCC]||"").trim().toUpperCase();
-      // 1. busca exata
+      console.log("Importando SC:", sc, "| CC no CSV:", nomeCC);
+
+      // 1. exata, 2. normalizado, 3. parcial
       let ccCode = nomeParaCC[nomeCC];
-      // 2. normalizado (sem espaços/acentos)
       if (!ccCode) ccCode = nomeNormParaCC[norm(nomeCC)];
-      // 3. parcial normalizado
       if (!ccCode) {
         const normCC = norm(nomeCC);
         const chave = Object.keys(nomeNormParaCC).find(n => n.includes(normCC) || normCC.includes(n));
         ccCode = chave ? nomeNormParaCC[chave] : null;
       }
       if (!ccCode) {
-        const normCC = norm(nomeCC);
-        logEl.innerHTML += `<br>❌ <b>SC ${sc}</b>: CC "<b>${nomeCC}</b>" não encontrado no banco. Verifique se o nome no CSV bate com o nome em Configurações → Gerentes.`;
+        const msg = `SC ${sc}: CC "${nomeCC}" não encontrado no banco`;
+        console.error(msg);
+        msgErros.push(msg);
         erros++; continue;
       }
+      console.log("CC encontrado:", ccCode);
 
       const statusRaw = (first[iStat]||"").trim().toLowerCase();
       const status = statusRaw.includes("atend") ? "aprovada" : statusRaw.includes("andamento") ? "aprovada" : "pendente";
       const emissao = (first[iEmis]||"").trim() || new Date().toISOString();
-      const obs  = (first[iObs]||"").trim();
-      const sol  = (first[iSol]||"").trim();
+      const obs = (first[iObs]||"").trim();
+      const sol = (first[iSol]||"").trim();
 
-      // cria solicitacao
+      // verifica se SC já existe
+      const { data: scExist } = await db.from("solicitacoes").select("id").eq("sc_numero", sc).maybeSingle();
+      if (scExist) {
+        const msg = `SC ${sc}: já existe no banco (duplicada)`;
+        console.warn(msg);
+        msgErros.push(msg);
+        erros++; continue;
+      }
+
       const { data: sol_data, error: e1 } = await db.from("solicitacoes").insert({
         cc: ccCode, sc_numero: sc, status, observacao: obs,
         solicitante_nome: sol, solicitante_matricula: "000",
@@ -1813,9 +1824,13 @@
         justificativa: obs
       }).select().single();
 
-      if (e1 || !sol_data) { logEl.innerHTML += `<br>❌ <b>SC ${sc}</b>: erro ao gravar — ${e1?.message || "resposta vazia"}. Pode ser SC duplicada.`; erros++; continue; }
+      if (e1 || !sol_data) {
+        const msg = `SC ${sc}: erro ao gravar — ${e1?.message || "resposta vazia"}`;
+        console.error(msg);
+        msgErros.push(msg);
+        erros++; continue;
+      }
 
-      // cria itens
       const itens = rows.map(r => ({
         solicitacao_id: sol_data.id,
         codigo: (r[iProd]||"").trim(),
@@ -1823,13 +1838,15 @@
         quantidade: parseFloat((r[iQtd]||"1").trim()) || 1,
         situacao: status === "aprovada" ? "aprovado" : "pendente"
       }));
-      await db.from("solicitacao_itens").insert(itens);
+      const { error: eItens } = await db.from("solicitacao_itens").insert(itens);
+      if (eItens) console.error("Erro itens SC", sc, eItens.message);
       ok++;
-      logEl.innerHTML = `<span style="color:#64748b">Importando... ${ok}/${scList.length}</span>`;
+      logEl.textContent = `Importando... ${ok}/${scList.length}`;
     }
 
-    logEl.innerHTML = `<span style="color:#065f46">✓ ${ok} SC(s) importadas com sucesso!</span>${erros > 0 ? ` <span style="color:#dc2626">${erros} com erro.</span>` : ""}`;
-    if (erros > 0) alert(logEl.innerText);
+    const resumo = `✓ ${ok} SC(s) importadas!${erros > 0 ? ` ${erros} com erro.` : ""}`;
+    logEl.textContent = resumo;
+    if (msgErros.length > 0) alert(resumo + "\n\nDetalhes:\n" + msgErros.join("\n"));
     fileInput.value = ""; document.getElementById("nome-import-csv").textContent = "Escolher arquivo (.csv)";
     document.getElementById("btn-import-csv").disabled = true;
   }
