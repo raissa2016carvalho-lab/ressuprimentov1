@@ -1422,9 +1422,8 @@
             <td onclick="event.stopPropagation()">
               ${codTrim
                 ? `<input type="number" min="0" value="${qtdEstoque||""}" placeholder="0"
-                    style="width:64px;text-align:right;padding:3px 6px;font-size:12px;border:1px solid #e2e8f0;border-radius:5px;font-family:ui-monospace,monospace"
-                    onblur="salvarEstoqueInline(${mobId},'${codTrim}',this)"
-                    onkeydown="if(event.key==='Enter')this.blur()"/>`
+                    class="mob-est-input" data-cod="${codTrim}" data-mob="${mobId}"
+                    style="width:64px;text-align:right;padding:3px 6px;font-size:12px;border:1px solid #e2e8f0;border-radius:5px;font-family:ui-monospace,monospace"/>`
                 : '<span style="color:#cbd5e1">—</span>'}
             </td>
             <td ${toggle}>${pedResume}</td>
@@ -1454,27 +1453,47 @@
           </tr>` : "";
           return [mainRow, detailRow];
         }).join("")}
-      </table>    `;
+      </table>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:10px">
+        <button onclick="salvarTodoEstoque(${mobId})" class="btn-salvar" style="padding:8px 18px;font-size:13px">
+          💾 Salvar estoque
+        </button>
+        <span id="msg-estoque-${mobId}" style="font-size:12.5px"></span>
+      </div>
+    `;
   }
 
-  async function salvarEstoqueInline(mobId, codigo, inputEl) {
-    const qtd = Number(inputEl.value) || 0;
+  async function salvarTodoEstoque(mobId) {
+    const inputs = document.querySelectorAll(`.mob-est-input[data-mob="${mobId}"]`);
+    if (!inputs.length) return;
+    const msgEl = document.getElementById("msg-estoque-" + mobId);
+    if (msgEl) msgEl.textContent = "Salvando...";
+
+    const registros = [...inputs].map(inp => ({
+      mobilizacao_id: Number(mobId),
+      codigo: inp.dataset.cod,
+      qtd_estoque: Number(inp.value) || 0
+    })).filter(r => r.codigo);
+
     const { error } = await db.from("mobilizacao_estoque")
-      .upsert({ mobilizacao_id: mobId, codigo, qtd_estoque: qtd }, { onConflict: "mobilizacao_id,codigo" });
+      .upsert(registros, { onConflict: "mobilizacao_id,codigo" });
+
     if (error) {
-      inputEl.style.borderColor = "#ef4444";
-      alert("Erro ao salvar estoque: " + error.message);
+      if (msgEl) { msgEl.textContent = "Erro: " + error.message; msgEl.style.color = "#991b1b"; }
     } else {
-      // re-renderiza pra atualizar chips com a nova quantidade
+      if (msgEl) { msgEl.textContent = "✓ Salvo!"; msgEl.style.color = "#065f46"; setTimeout(() => { msgEl.textContent = ""; }, 2000); }
+      // re-renderiza pra atualizar chips sem scroll para o topo
       const container = document.getElementById("corpo-mob-" + mobId);
       if (container) {
+        const scrollY = window.scrollY;
         container.dataset.carregado = "0";
         await renderDetalheMob(mobId, container);
         container.classList.add("aberto");
+        window.scrollTo({ top: scrollY, behavior: "instant" });
       }
     }
   }
-  window.salvarEstoqueInline = salvarEstoqueInline;
+  window.salvarTodoEstoque = salvarTodoEstoque;
 
   async function adicionarScMob(mobId) {
     const input = document.getElementById("novo-sc-mob-" + mobId);
