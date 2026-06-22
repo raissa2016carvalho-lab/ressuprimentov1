@@ -530,6 +530,12 @@
           <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>
         </div>
         <div class="card-corpo" id="corpo-${s.id}">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            <button onclick="aprovarTodosItens(${s.id})"
+              style="border:none;background:#16a34a;color:#fff;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">
+              ✓ Aprovar todos os itens
+            </button>
+          </div>
           <table>
             <tr>
               <th>Item</th>
@@ -1756,6 +1762,20 @@
     container.classList.add("aberto");
   }
   window.removerScMob = removerScMob;
+
+  function aprovarTodosItens(solId) {
+    const sol = solicitacoes.find(s => s.id === solId);
+    if (!sol) return;
+    sol.itens.forEach(it => {
+      decisoes[it.id] = "aprovado";
+      const btnAp = document.getElementById("ap-" + it.id);
+      const btnRe = document.getElementById("re-" + it.id);
+      if (btnAp) btnAp.className = "btn-dec aprovado";
+      if (btnRe) btnRe.className = "btn-dec";
+    });
+    atualizarBotoesSol(solId);
+  }
+  window.aprovarTodosItens = aprovarTodosItens;
 
   function atualizarBotoesSol(solId) {
     const sc  = (document.getElementById("sc-"  + solId)?.value || "").trim();
