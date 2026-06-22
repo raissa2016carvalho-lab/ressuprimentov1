@@ -129,6 +129,9 @@
     <button class="aba" id="aba-btn-mobilizacao" onclick="irPara('mobilizacao')">
       Mobilização
     </button>
+    <button class="aba" id="aba-btn-fardamento" onclick="irPara('fardamento')">
+      👕 Fardamento
+    </button>
     <button class="aba" id="aba-btn-settings" onclick="irPara('settings')">
       ⚙ Configurações
     </button>
@@ -209,6 +212,28 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div id="aba-fardamento" style="display:none">
+      <div class="topo-aba">
+        <div style="font-weight:700;font-size:14px">👕 Análise de Fardamento — Grupo 2040</div>
+        <button id="btn-atualizar-fard" onclick="carregarFardamento()">↻ Atualizar</button>
+      </div>
+      <div class="corpo-aba">
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+          <input id="filtro-fard-cc" placeholder="🔍 Filtrar por centro de custo..." oninput="filtrarFardamento()"
+            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;flex:1;min-width:200px"/>
+          <div style="display:flex;gap:4px">
+            <button onclick="setFiltroFard('todos')" id="ffard-todos"
+              style="border:1px solid #0d9488;background:#0d9488;color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Todos</button>
+            <button onclick="setFiltroFard('com_pedido')" id="ffard-com_pedido"
+              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Com pedido</button>
+            <button onclick="setFiltroFard('sem_pedido')" id="ffard-sem_pedido"
+              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Sem pedido</button>
+          </div>
+        </div>
+        <div id="lista-fardamento"><div class="vazio">Clique em Atualizar para carregar.</div></div>
       </div>
     </div>
 
@@ -356,12 +381,15 @@
     $("aba-acompanhamento").style.display = aba === "acompanhamento" ? "block" : "none";
     $("aba-mobilizacao").style.display = aba === "mobilizacao" ? "block" : "none";
     $("aba-settings").style.display = aba === "settings" ? "block" : "none";
+    $("aba-fardamento").style.display = aba === "fardamento" ? "block" : "none";
     $("aba-btn-solicitacoes").classList.toggle("ativo", aba === "solicitacoes");
     $("aba-btn-acompanhamento").classList.toggle("ativo", aba === "acompanhamento");
     $("aba-btn-mobilizacao").classList.toggle("ativo", aba === "mobilizacao");
     $("aba-btn-settings").classList.toggle("ativo", aba === "settings");
+    $("aba-btn-fardamento").classList.toggle("ativo", aba === "fardamento");
     if (aba === "acompanhamento") carregarAcompanhamento();
     if (aba === "settings") { irSubSettings("bases"); carregarCarimbos(); }
+    if (aba === "fardamento") carregarFardamento();
     if (aba === "mobilizacao") { mostrarListaMob(); carregarMobilizacoes(); }
   }
   window.irPara = irPara;
@@ -1884,6 +1912,270 @@
     else await carregarAcompanhamento();
   }
   window.editarSC = editarSC;
+
+
+  // ══════════════════════════════════════════════════════════
+  // ABA FARDAMENTO
+  // ══════════════════════════════════════════════════════════
+  let _cardsFardamento = []; // cache para filtro
+  let _filtroFard = "todos";
+
+  function setFiltroFard(f) {
+    _filtroFard = f;
+    ["todos","com_pedido","sem_pedido"].forEach(k => {
+      const btn = document.getElementById("ffard-" + k);
+      if (!btn) return;
+      const ativo = k === f;
+      btn.style.background = ativo ? "#0d9488" : "#fff";
+      btn.style.color = ativo ? "#fff" : "#64748b";
+      btn.style.borderColor = ativo ? "#0d9488" : "#e2e8f0";
+    });
+    filtrarFardamento();
+  }
+  window.setFiltroFard = setFiltroFard;
+
+  function filtrarFardamento() {
+    const termo = ($("filtro-fard-cc")?.value || "").toLowerCase().trim();
+    const cards = document.querySelectorAll("#lista-fardamento .card-fard[data-cc]");
+    let vis = 0;
+    cards.forEach(card => {
+      const ccNome = card.dataset.cc || "";
+      const temPedido = card.dataset.tem_pedido === "1";
+      const okCC   = !termo || ccNome.includes(termo);
+      const okFilt = _filtroFard === "todos"
+        || (_filtroFard === "com_pedido" && temPedido)
+        || (_filtroFard === "sem_pedido" && !temPedido);
+      card.style.display = okCC && okFilt ? "" : "none";
+      if (okCC && okFilt) vis++;
+    });
+    const vz = $("fard-vazio");
+    if (vz) vz.style.display = vis === 0 ? "block" : "none";
+  }
+  window.filtrarFardamento = filtrarFardamento;
+
+  async function carregarFardamento() {
+    const el = $("lista-fardamento");
+    el.innerHTML = '<div class="vazio">Carregando dados...</div>';
+
+    // 1. Itens do grupo 2040
+    const { data: itensFard } = await db.from("itens").select("codigo,descricao,unidade").eq("grupo", "2040");
+    const codigos2040 = (itensFard || []).map(i => i.codigo);
+    const descMap = {}; // codigo -> descricao
+    const umMap   = {}; // codigo -> unidade
+    (itensFard || []).forEach(i => { descMap[i.codigo] = i.descricao; umMap[i.codigo] = i.unidade; });
+
+    if (codigos2040.length === 0) {
+      el.innerHTML = '<div class="vazio">Nenhum item do grupo 2040 encontrado. Verifique a SB1.</div>'; return;
+    }
+
+    // 2. Consumo 3m por CC para esses itens
+    const { data: consumoFard } = await db.from("consumo").select("cc,codigo,consumo_medio").in("codigo", codigos2040);
+
+    // 3. Pessoas por CC
+    const { data: pessoasData } = await db.from("cc_pessoas").select("cc,cargo,quantidade");
+    const pessoasMapFard = {};
+    (pessoasData || []).forEach(p => { (pessoasMapFard[p.cc] = pessoasMapFard[p.cc] || []).push(p); });
+
+    // 4. CCs desbloqueados com dados
+    const { data: ccs } = await db.from("centros_custo").select("cc,nome,pessoas").eq("status","Desbloqueado");
+    const ccNomeMap = {};
+    (ccs || []).forEach(c => { ccNomeMap[c.cc] = c; });
+
+    // 5. Solicitação itens do grupo 2040
+    const { data: solItens } = await db.from("solicitacao_itens").select("*").in("codigo", codigos2040);
+    const solIds = [...new Set((solItens || []).map(i => i.solicitacao_id))];
+    let solsMap = {};
+    if (solIds.length > 0) {
+      const { data: sols } = await db.from("solicitacoes").select("id,cc,sc_numero,criado_em,observacao,status").in("id", solIds).in("status",["aprovada","parcial"]);
+      (sols || []).forEach(s => { solsMap[s.id] = s; });
+    }
+
+    // 6. Busca PCs no Protheus pelas SCs
+    const numerosSC = [...new Set(Object.values(solsMap).map(s => s.sc_numero).filter(Boolean))];
+    let pcsPorSC = {}; // sc -> [pcs]
+    if (numerosSC.length > 0) {
+      const variantes = [...new Set(numerosSC.flatMap(sc => {
+        const s = String(sc).trim();
+        return /^\d+$/.test(s) ? [s, s.replace(/^0+/,"")||"0"] : [s];
+      }))];
+      const orCond = variantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g,"")}%`).join(",");
+      const { data: pcs } = await dbProtheus.from("pedidos_compra")
+        .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_emissao,dt_entrega")
+        .or(orCond).limit(5000);
+      (pcs || []).forEach(p => {
+        const sc = String(p.c7_numsc||"").trim().replace(/^0+/,"")||"0";
+        (pcsPorSC[sc] = pcsPorSC[sc] || []).push(p);
+      });
+    }
+
+    // Agrupa consumo por CC
+    const consumoPorCC = {}; // cc -> {codigo -> qtd}
+    (consumoFard || []).forEach(r => {
+      if (!consumoPorCC[r.cc]) consumoPorCC[r.cc] = {};
+      consumoPorCC[r.cc][r.codigo] = Number(r.consumo_medio) || 0;
+    });
+
+    // Agrupa solicitação itens por CC
+    const solItensPorCC = {}; // cc -> [{sol, item}]
+    (solItens || []).forEach(it => {
+      const sol = solsMap[it.solicitacao_id];
+      if (!sol) return;
+      (solItensPorCC[sol.cc] = solItensPorCC[sol.cc] || []).push({ sol, it });
+    });
+
+    // Junta todos os CCs que têm consumo OU solicitação de fardamento
+    const todosCCs = [...new Set([
+      ...Object.keys(consumoPorCC),
+      ...Object.keys(solItensPorCC)
+    ])].filter(cc => cc && cc.length > 5 && ccNomeMap[cc]);
+
+    todosCCs.sort((a, b) => (ccNomeMap[a]?.nome||a).localeCompare(ccNomeMap[b]?.nome||b));
+
+    if (todosCCs.length === 0) {
+      el.innerHTML = '<div class="vazio">Nenhum CC com dados de fardamento encontrado. Verifique se a SCP e SB1 estão sincronizadas.</div>'; return;
+    }
+
+    // Renderiza cards
+    el.innerHTML = todosCCs.map(cc => {
+      const info = ccNomeMap[cc] || { nome: cc, pessoas: 0 };
+      const totalPessoas = Number(info.pessoas) || (pessoasMapFard[cc]||[]).reduce((a,p)=>a+p.quantidade,0);
+      const cargos = (pessoasMapFard[cc] || []).sort((a,b) => b.quantidade - a.quantidade);
+      const consumoCC = consumoPorCC[cc] || {};
+      const solCC     = solItensPorCC[cc] || [];
+      const temPedido = solCC.length > 0;
+
+      // Tabela consumo
+      const linhasConsumo = Object.entries(consumoCC).map(([cod, qtd]) => {
+        const qPessoa = totalPessoas > 0 ? (qtd / totalPessoas).toFixed(2) : "—";
+        return `<tr>
+          <td style="padding:5px 8px">${descMap[cod] || cod} <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${cod}</span></td>
+          <td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:600">${qtd}</td>
+          <td style="padding:5px 8px;text-align:right;color:#64748b">${qPessoa}</td>
+          <td style="padding:5px 8px;color:#64748b;font-size:11px">${umMap[cod]||""}</td>
+        </tr>`;
+      }).join("") || `<tr><td colspan="4" style="padding:8px;color:#94a3b8;text-align:center">Sem consumo registrado nos últimos 3 meses</td></tr>`;
+
+      // Tabela SCs/PCs
+      const linhaSCs = solCC.map(({sol, it}) => {
+        const scN = (sol.sc_numero||"").trim();
+        const scNorm = scN.replace(/^0+/,"")||"0";
+        const pcsDoItem = (pcsPorSC[scN] || pcsPorSC[scNorm] || []).filter(p => String(p.c7_produto||"").trim() === it.codigo);
+        if (pcsDoItem.length === 0) {
+          return `<tr>
+            <td style="padding:5px 8px;font-family:ui-monospace,monospace">${scN}</td>
+            <td style="padding:5px 8px">${it.descricao||it.codigo}</td>
+            <td style="padding:5px 8px;text-align:right">${it.quantidade}</td>
+            <td style="padding:5px 8px;color:#94a3b8">—</td>
+            <td style="padding:5px 8px;color:#94a3b8">Sem PC</td>
+            <td style="padding:5px 8px;color:#94a3b8">—</td>
+          </tr>`;
+        }
+        return pcsDoItem.map(p => {
+          const st = (p.status_desc||"").toLowerCase();
+          const cor = st.includes("receb")?"#16a34a":st.includes("pend")?"#d97706":"#64748b";
+          const dtEmis = p.c7_emissao ? String(p.c7_emissao).slice(6,8)+"/"+String(p.c7_emissao).slice(4,6)+"/"+String(p.c7_emissao).slice(0,4) : "—";
+          return `<tr>
+            <td style="padding:5px 8px;font-family:ui-monospace,monospace">${scN}</td>
+            <td style="padding:5px 8px;font-size:12px">${it.descricao||it.codigo}</td>
+            <td style="padding:5px 8px;text-align:right">${p.c7_quant||0}</td>
+            <td style="padding:5px 8px;font-family:ui-monospace,monospace">${p.c7_num||"—"}</td>
+            <td style="padding:5px 8px;font-weight:600;color:${cor}">${p.status_desc||"—"}</td>
+            <td style="padding:5px 8px;color:#64748b;font-size:11px">${dtEmis}</td>
+          </tr>`;
+        }).join("");
+      }).join("") || `<tr><td colspan="6" style="padding:8px;color:#94a3b8;text-align:center">Nenhuma SC de fardamento</td></tr>`;
+
+      // Sugestão de compra: consumo 3m - já recebido
+      const sugestoes = Object.entries(consumoCC).map(([cod, consumo3m]) => {
+        const jaRecebido = solCC.flatMap(({sol,it}) => {
+          if (it.codigo !== cod) return [];
+          const scN = (sol.sc_numero||"").trim().replace(/^0+/,"")||"0";
+          return (pcsPorSC[scN]||[]).filter(p => String(p.c7_produto||"").trim()===cod && (p.status_desc||"").toLowerCase().includes("receb"));
+        }).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+        const sugerir = Math.max(0, Math.round(consumo3m - jaRecebido));
+        return sugerir > 0 ? `<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between">
+          <span>${descMap[cod]||cod}</span>
+          <span style="font-weight:700;color:#0d9488;font-family:ui-monospace,monospace">${sugerir} ${umMap[cod]||""}</span>
+        </div>` : "";
+      }).filter(Boolean).join("");
+
+      return `
+        <div class="card card-fard" data-cc="${info.nome.toLowerCase()}" data-tem_pedido="${temPedido?'1':'0'}"
+          style="margin-bottom:10px;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#fff">
+          <div style="padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center"
+            onclick="toggleFard('fard-${cc}')">
+            <div>
+              <div style="font-weight:700;font-size:14px">${info.nome}
+                <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px;font-weight:400"> · ${cc}</span>
+              </div>
+              <div style="font-size:12px;color:#64748b;margin-top:3px">
+                👥 ${totalPessoas} pessoas
+                · ${Object.keys(consumoCC).length} itens com consumo
+                · ${solCC.length} SC(s)
+              </div>
+            </div>
+            <div style="color:#0d9488;font-weight:600;font-size:12.5px">Ver ▾</div>
+          </div>
+          <div id="fard-${cc}" style="display:none;border-top:1px solid #e2e8f0;background:#f8fafc;padding:16px">
+
+            <!-- Pessoas por cargo -->
+            <div style="margin-bottom:16px">
+              <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">👥 Pessoas por cargo</div>
+              ${cargos.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:6px">
+                ${cargos.map(p=>`<span style="background:#f1f5f9;border-radius:6px;padding:4px 10px;font-size:12px"><b>${p.quantidade}</b> ${p.cargo}</span>`).join("")}
+              </div>` : '<div style="font-size:12px;color:#94a3b8">Sem dados de SRA</div>'}
+            </div>
+
+            <!-- Consumo 3m -->
+            <div style="margin-bottom:16px">
+              <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">📦 Consumo últimos 3 meses</div>
+              <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
+                <tr style="background:#f1f5f9">
+                  <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Item</th>
+                  <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd total</th>
+                  <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd/pessoa</th>
+                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Un</th>
+                </tr>
+                ${linhasConsumo}
+              </table>
+            </div>
+
+            <!-- SCs e Pedidos -->
+            <div style="margin-bottom:16px">
+              <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">📋 SCs e Pedidos de compra</div>
+              <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
+                <tr style="background:#f1f5f9">
+                  <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">SC</th>
+                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Item</th>
+                  <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd</th>
+                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Nº PC</th>
+                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Status</th>
+                  <th style="padding:6px 8px;font-size:11px;color:#64748b">Emissão PC</th>
+                </tr>
+                ${linhaSCs}
+              </table>
+            </div>
+
+            <!-- Sugestão de compra -->
+            ${sugestoes ? `<div>
+              <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">💡 Sugestão de compra</div>
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px">
+                <div style="font-size:11.5px;color:#16a34a;margin-bottom:6px">Consumo 3m − já recebido</div>
+                ${sugestoes}
+              </div>
+            </div>` : '<div style="font-size:12px;color:#16a34a;font-weight:600">✓ Nada pendente de compra</div>'}
+
+          </div>
+        </div>`;
+    }).join("") + '<div id="fard-vazio" class="vazio" style="display:none">Nenhum CC encontrado.</div>';
+  }
+  window.carregarFardamento = carregarFardamento;
+
+  function toggleFard(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = el.style.display === "none" ? "block" : "none";
+  }
+  window.toggleFard = toggleFard;
 
   // ---------- ABA GERENTES ----------
   let todosCC = []; // cache pra filtro
