@@ -129,10 +129,7 @@
     <button class="aba" id="aba-btn-mobilizacao" onclick="irPara('mobilizacao')">
       Mobilização
     </button>
-    <button class="aba" id="aba-btn-fardamento" onclick="irPara('fardamento')">
-      👕 Fardamento
-    </button>
-    <button class="aba" id="aba-btn-settings" onclick="irPara('settings')">
+<button class="aba" id="aba-btn-settings" onclick="irPara('settings')">
       ⚙ Configurações
     </button>
     <div class="rodape">
@@ -212,30 +209,6 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div id="aba-fardamento" style="display:none">
-      <div class="topo-aba">
-        <div style="font-weight:700;font-size:14px">👕 Análise de Fardamento — Grupo 2040</div>
-        <button id="btn-atualizar-fard" onclick="carregarFardamento()">↻ Atualizar</button>
-      </div>
-      <div class="corpo-aba">
-        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
-          <input id="filtro-fard-cc" placeholder="🔍 Filtrar por item de fardamento..." oninput="filtrarFardamento()"
-            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;flex:1;min-width:200px"/>
-          <div style="display:flex;gap:4px">
-            <button onclick="setFiltroFard('todos')" id="ffard-todos"
-              style="border:1px solid #0d9488;background:#0d9488;color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Todos</button>
-            <button onclick="setFiltroFard('com_pedido')" id="ffard-com_pedido"
-              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Com pedido</button>
-            <button onclick="setFiltroFard('sem_pedido')" id="ffard-sem_pedido"
-              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Sem pedido</button>
-            <button onclick="setFiltroFard('recebido')" id="ffard-recebido"
-              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">Recebido</button>
-          </div>
-        </div>
-        <div id="lista-fardamento"><div class="vazio">Clique em Atualizar para carregar.</div></div>
       </div>
     </div>
 
@@ -383,15 +356,12 @@
     $("aba-acompanhamento").style.display = aba === "acompanhamento" ? "block" : "none";
     $("aba-mobilizacao").style.display = aba === "mobilizacao" ? "block" : "none";
     $("aba-settings").style.display = aba === "settings" ? "block" : "none";
-    $("aba-fardamento").style.display = aba === "fardamento" ? "block" : "none";
     $("aba-btn-solicitacoes").classList.toggle("ativo", aba === "solicitacoes");
     $("aba-btn-acompanhamento").classList.toggle("ativo", aba === "acompanhamento");
     $("aba-btn-mobilizacao").classList.toggle("ativo", aba === "mobilizacao");
     $("aba-btn-settings").classList.toggle("ativo", aba === "settings");
-    $("aba-btn-fardamento").classList.toggle("ativo", aba === "fardamento");
     if (aba === "acompanhamento") carregarAcompanhamento();
     if (aba === "settings") { irSubSettings("bases"); carregarCarimbos(); }
-    if (aba === "fardamento") carregarFardamento();
     if (aba === "mobilizacao") { mostrarListaMob(); carregarMobilizacoes(); }
   }
   window.irPara = irPara;
@@ -1941,221 +1911,6 @@
   window.editarSC = editarSC;
 
 
-  // ══════════════════════════════════════════════════════════
-  // ABA FARDAMENTO — visão por item
-  // ══════════════════════════════════════════════════════════
-  let _filtroFard = "todos";
-
-  function setFiltroFard(f) {
-    _filtroFard = f;
-    ["todos","com_pedido","sem_pedido","recebido"].forEach(k => {
-      const btn = document.getElementById("ffard-" + k);
-      if (!btn) return;
-      const ativo = k === f;
-      btn.style.background = ativo ? "#0d9488" : "#fff";
-      btn.style.color = ativo ? "#fff" : "#64748b";
-      btn.style.borderColor = ativo ? "#0d9488" : "#e2e8f0";
-    });
-    filtrarFardamento();
-  }
-  window.setFiltroFard = setFiltroFard;
-
-  function filtrarFardamento() {
-    const termo = ($("filtro-fard-cc")?.value || "").toLowerCase().trim();
-    const cards = document.querySelectorAll("#lista-fardamento .card-fard-item[data-desc]");
-    let vis = 0;
-    cards.forEach(card => {
-      const desc = card.dataset.desc || "";
-      const pg   = card.dataset.pg || "";
-      const okTermo = !termo || desc.includes(termo);
-      const okFilt  = _filtroFard === "todos"
-        || (_filtroFard === "com_pedido"  && pg !== "sem_pedido")
-        || (_filtroFard === "sem_pedido"  && pg === "sem_pedido")
-        || (_filtroFard === "recebido"    && pg === "recebido");
-      card.style.display = okTermo && okFilt ? "" : "none";
-      if (okTermo && okFilt) vis++;
-    });
-    const vz = $("fard-vazio");
-    if (vz) vz.style.display = vis === 0 ? "block" : "none";
-  }
-  window.filtrarFardamento = filtrarFardamento;
-
-  async function carregarFardamento() {
-    const el = $("lista-fardamento");
-    el.innerHTML = '<div class="vazio">Carregando...</div>';
-
-    // 1. Itens grupo 2040
-    const { data: itensFard } = await db.from("itens").select("codigo,descricao,unidade").eq("grupo", "FARDAMENTOS & UNIFORMES");
-    if (!itensFard || itensFard.length === 0) {
-      el.innerHTML = '<div class="vazio">Nenhum item do grupo FARDAMENTOS & UNIFORMES encontrado.</div>'; return;
-    }
-    const codigos2040 = itensFard.map(i => i.codigo);
-    const itemInfo = {}; // codigo -> {descricao, unidade}
-    itensFard.forEach(i => { itemInfo[i.codigo] = i; });
-
-    // 2. Consumo SCP: quantas SCs/CCs consumiram cada item
-    const { data: consumoFard } = await db.from("consumo").select("cc,codigo,consumo_medio").in("codigo", codigos2040);
-    const consumoPorItem = {}; // codigo -> {totalQtd, numCCs}
-    (consumoFard || []).forEach(r => {
-      if (!consumoPorItem[r.codigo]) consumoPorItem[r.codigo] = { totalQtd: 0, ccs: [] };
-      consumoPorItem[r.codigo].totalQtd += Number(r.consumo_medio) || 0;
-      consumoPorItem[r.codigo].ccs.push({ cc: r.cc, qtd: Number(r.consumo_medio) || 0 });
-    });
-
-    // 3. Solicitação itens grupo 2040
-    const { data: solItens } = await db.from("solicitacao_itens").select("*").in("codigo", codigos2040);
-    const solIds = [...new Set((solItens || []).map(i => i.solicitacao_id))];
-    let solsMap = {};
-    if (solIds.length > 0) {
-      const { data: sols } = await db.from("solicitacoes").select("id,cc,sc_numero,criado_em,observacao,status").in("id", solIds);
-      (sols || []).forEach(s => { solsMap[s.id] = s; });
-    }
-
-    // 4. CCs para nomes
-    const { data: ccs } = await db.from("centros_custo").select("cc,nome");
-    const ccNome = {};
-    (ccs || []).forEach(c => { ccNome[c.cc] = c.nome; });
-
-    // 5. PCs do Protheus pelas SCs
-    const numerosSC = [...new Set(Object.values(solsMap).map(s => s.sc_numero).filter(Boolean))];
-    let pcsPorSC = {};
-    if (numerosSC.length > 0) {
-      const variantes = [...new Set(numerosSC.flatMap(sc => {
-        const s = String(sc).trim();
-        return /^\d+$/.test(s) ? [s, s.replace(/^0+/,"")||"0"] : [s];
-      }))];
-      const orCond = variantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g,"")}%`).join(",");
-      const { data: pcs } = await dbProtheus.from("pedidos_compra")
-        .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_emissao,dt_entrega")
-        .or(orCond).limit(5000);
-      (pcs || []).forEach(p => {
-        const sc = String(p.c7_numsc||"").trim().replace(/^0+/,"")||"0";
-        (pcsPorSC[sc] = pcsPorSC[sc] || []).push(p);
-      });
-    }
-
-    // Agrupa por item: SCs que têm esse item
-    const scsPorItem = {}; // codigo -> [{sol, it}]
-    (solItens || []).forEach(it => {
-      const sol = solsMap[it.solicitacao_id];
-      if (!sol) return;
-      (scsPorItem[it.codigo] = scsPorItem[it.codigo] || []).push({ sol, it });
-    });
-
-    // Renderiza por item
-    const todosItens = [...new Set([...codigos2040.filter(c => scsPorItem[c] || consumoPorItem[c])])];
-    todosItens.sort((a,b) => (itemInfo[a]?.descricao||a).localeCompare(itemInfo[b]?.descricao||b));
-
-    if (todosItens.length === 0) {
-      el.innerHTML = '<div class="vazio">Nenhum dado de fardamento encontrado. Verifique se SCP e SCs estão carregadas.</div>'; return;
-    }
-
-    el.innerHTML = todosItens.map(cod => {
-      const info = itemInfo[cod] || { descricao: cod, unidade: "" };
-      const scsDoItem = scsPorItem[cod] || [];
-      const consumoItem = consumoPorItem[cod] || { totalQtd: 0, ccs: [] };
-
-      // conta SCs únicas
-      const scUnicas = [...new Map(scsDoItem.map(({ sol }) => [sol.sc_numero, sol])).values()];
-
-      // conta PCs e status
-      let totalPCs = 0, recebidos = 0, pendentes = 0, semPC = 0;
-      scUnicas.forEach(sol => {
-        const scN = String(sol.sc_numero||"").trim().replace(/^0+/,"")||"0";
-        const pcsDoItem = (pcsPorSC[scN]||[]).filter(p => String(p.c7_produto||"").trim() === cod);
-        if (pcsDoItem.length === 0) { semPC++; return; }
-        pcsDoItem.forEach(p => {
-          totalPCs++;
-          const st = (p.status_desc||"").toLowerCase();
-          if (st.includes("receb")) recebidos++;
-          else pendentes++;
-        });
-      });
-
-      // pg key
-      const pgKey = recebidos > 0 && pendentes === 0 && semPC === 0 ? "recebido"
-        : scUnicas.length === 0 ? "sem_pedido"
-        : semPC === scUnicas.length ? "sem_pedido" : "com_pedido";
-
-      // consumo total e nº de CCs
-      const qtdConsumo = consumoItem.totalQtd < 1 ? 0 : Math.round(consumoItem.totalQtd);
-      const numCCs = consumoItem.ccs.length;
-
-      // pills de status
-      const pillStatus = recebidos > 0 ? `<span style="background:#dcfce7;color:#16a34a;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">${recebidos} recebido(s)</span>` : "";
-      const pillPend   = pendentes > 0 ? `<span style="background:#fef3c7;color:#b45309;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">${pendentes} pendente(s)</span>` : "";
-      const pillSemPC  = semPC > 0    ? `<span style="background:#fee2e2;color:#991b1b;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">${semPC} sem PC</span>` : "";
-
-      // Tabela de SCs e PCs
-      const linhasSCs = scUnicas.map(sol => {
-        const scN = String(sol.sc_numero||"").trim();
-        const scNorm = scN.replace(/^0+/,"")||"0";
-        const pcsDoItem = (pcsPorSC[scNorm]||pcsPorSC[scN]||[]).filter(p => String(p.c7_produto||"").trim() === cod);
-        const nomeCC = ccNome[sol.cc] || sol.cc;
-        if (pcsDoItem.length === 0) {
-          return `<tr>
-            <td style="padding:5px 8px;font-family:ui-monospace,monospace">${scN}</td>
-            <td style="padding:5px 8px;font-size:12px">${nomeCC}</td>
-            <td style="padding:5px 8px;text-align:right">—</td>
-            <td style="padding:5px 8px">—</td>
-            <td style="padding:5px 8px;color:#94a3b8;font-size:11.5px">Sem PC</td>
-            <td style="padding:5px 8px;color:#94a3b8;font-size:11px">—</td>
-          </tr>`;
-        }
-        return pcsDoItem.map((p, idx) => {
-          const st = (p.status_desc||"").toLowerCase();
-          const cor = st.includes("receb")?"#16a34a":st.includes("pend")?"#d97706":"#64748b";
-          const dtEmis = p.c7_emissao ? String(p.c7_emissao).slice(6,8)+"/"+String(p.c7_emissao).slice(4,6)+"/"+String(p.c7_emissao).slice(0,4) : "—";
-          return `<tr>
-            <td style="padding:5px 8px;font-family:ui-monospace,monospace">${idx===0?scN:""}</td>
-            <td style="padding:5px 8px;font-size:12px">${idx===0?nomeCC:""}</td>
-            <td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace">${p.c7_quant||0}</td>
-            <td style="padding:5px 8px;font-family:ui-monospace,monospace">${p.c7_num||"—"}</td>
-            <td style="padding:5px 8px;font-weight:600;color:${cor};font-size:11.5px">${p.status_desc||"—"}</td>
-            <td style="padding:5px 8px;color:#64748b;font-size:11px">${dtEmis}</td>
-          </tr>`;
-        }).join("");
-      }).join("");
-
-      return `
-        <div class="card card-fard-item" data-desc="${info.descricao.toLowerCase()}" data-pg="${pgKey}"
-          style="margin-bottom:10px;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#fff">
-          <div style="padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;gap:12px"
-            onclick="toggleFard('fard-${cod}')">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:14px;margin-bottom:4px">${info.descricao}
-                <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px;font-weight:400"> · ${cod}</span>
-              </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-                <span style="font-size:12px;color:#64748b">📋 ${scUnicas.length} SC(s) · 🏭 ${totalPCs} PC(s) · 📦 ${qtdConsumo} ${info.unidade} consumidos em ${numCCs} CC(s)</span>
-                ${pillStatus}${pillPend}${pillSemPC}
-              </div>
-            </div>
-            <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0">Ver ▾</div>
-          </div>
-          <div id="fard-${cod}" style="display:none;border-top:1px solid #e2e8f0;background:#f8fafc;padding:16px">
-            <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
-              <tr style="background:#f1f5f9">
-                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">SC</th>
-                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">CC</th>
-                <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Qtd</th>
-                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Nº PC</th>
-                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Status</th>
-                <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Emissão PC</th>
-              </tr>
-              ${linhasSCs || '<tr><td colspan="6" style="padding:8px;color:#94a3b8;text-align:center">Nenhuma SC encontrada</td></tr>'}
-            </table>
-          </div>
-        </div>`;
-    }).join("") + '<div id="fard-vazio" class="vazio" style="display:none">Nenhum item encontrado.</div>';
-  }
-  window.carregarFardamento = carregarFardamento;
-
-  function toggleFard(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = el.style.display === "none" ? "block" : "none";
-  }
-  window.toggleFard = toggleFard;
 
   // ---------- ABA GERENTES ----------
   let todosCC = []; // cache pra filtro
