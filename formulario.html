@@ -158,6 +158,8 @@
     const nomesVistos = new Set();
     const semDuplicata = (data || []).filter(c => {
       if (!c.nome || !c.nome.trim()) return false;
+      if (!c.cc || c.cc.length <= 5) return false;
+      if ((c.status || "Desbloqueado") !== "Desbloqueado") return false;
       if (nomesVistos.has(c.nome.trim())) return false;
       nomesVistos.add(c.nome.trim());
       return true;
