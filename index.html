@@ -1810,7 +1810,8 @@
       console.log("CC encontrado:", ccCode);
 
       const statusRaw = (first[iStat]||"").trim().toLowerCase();
-      const status = statusRaw.includes("atend") ? "aprovada" : statusRaw.includes("andamento") ? "aprovada" : "pendente";
+      // importação sempre vai para Acompanhamento — usa status aprovada
+      const status = "aprovada";
       const emissao = (first[iEmis]||"").trim() || new Date().toISOString();
       const obs = (first[iObs]||"").trim();
       const sol = (first[iSol]||"").trim();
