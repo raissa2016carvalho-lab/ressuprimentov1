@@ -1791,7 +1791,7 @@
       }
       if (!ccCode) {
         const normCC = norm(nomeCC);
-        logEl.innerHTML += `<br><span style="color:#dc2626">SC ${sc}: CC não encontrado para "${nomeCC}" (normalizado: "${normCC}").</span>`;
+        logEl.innerHTML += `<br>❌ <b>SC ${sc}</b>: CC "<b>${nomeCC}</b>" não encontrado no banco. Verifique se o nome no CSV bate com o nome em Configurações → Gerentes.`;
         erros++; continue;
       }
 
@@ -1809,7 +1809,7 @@
         justificativa: obs
       }).select().single();
 
-      if (e1 || !sol_data) { logEl.innerHTML += `<br><span style="color:#dc2626">SC ${sc}: erro ao criar solicitação</span>`; erros++; continue; }
+      if (e1 || !sol_data) { logEl.innerHTML += `<br>❌ <b>SC ${sc}</b>: erro ao gravar — ${e1?.message || "resposta vazia"}. Pode ser SC duplicada.`; erros++; continue; }
 
       // cria itens
       const itens = rows.map(r => ({
