@@ -820,7 +820,13 @@
               </div>
               <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns)${s.observacao ? ` · <i style="color:#475569">${s.observacao}</i>` : ""} · ${e2 ? "status indisponível" : totalEncontrados + " pedido(s)"}</div>
             </div>
-            <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+              <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
+              <button onclick="event.stopPropagation();excluirAcomp(${s.id},'${s.sc_numero}')"
+                title="Excluir esta SC"
+                style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:16px;padding:0;line-height:1"
+                onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
+            </div>
           </div>
           <div class="card-corpo" id="corpo-ac-${s.id}">
             <table>
@@ -1852,6 +1858,22 @@
     document.getElementById("btn-import-csv").disabled = true;
   }
   window.importarRessuprimentosCSV = importarRessuprimentosCSV;
+
+  async function excluirAcomp(solId, scNumero) {
+    const confirmado = prompt(`Para excluir a SC ${scNumero}, digite o número da SC para confirmar:`);
+    if (confirmado === null) return;
+    if (confirmado.trim() !== String(scNumero).trim()) {
+      alert("Número incorreto. Exclusão cancelada.");
+      return;
+    }
+    // exclui itens primeiro, depois a solicitação
+    const { error: e1 } = await db.from("solicitacao_itens").delete().eq("solicitacao_id", solId);
+    if (e1) { alert("Erro ao excluir itens: " + e1.message); return; }
+    const { error: e2 } = await db.from("solicitacoes").delete().eq("id", solId);
+    if (e2) { alert("Erro ao excluir SC: " + e2.message); return; }
+    await carregarAcompanhamento();
+  }
+  window.excluirAcomp = excluirAcomp;
 
   async function editarSC(solId, scAtual) {
     const nova = prompt("Nº da SC:", scAtual);
