@@ -1685,10 +1685,11 @@
     const iEmis = idx("emissao_sc");
     const iCC   = headers.findIndex(h => h.trim().toLowerCase().includes("descri"));
 
-    // carrega CCs para lookup por nome
-    const { data: ccs } = await db.from("centros_custo").select("cc,nome").gt("cc","99999");
+    // carrega CCs para lookup por nome (todos, filtra client-side por >5 chars)
+    const { data: ccs } = await db.from("centros_custo").select("cc,nome,status");
     const nomeParaCC = {};
-    (ccs||[]).forEach(c => { nomeParaCC[c.nome.trim().toUpperCase()] = c.cc; });
+    (ccs||[]).filter(c => c.cc && c.cc.length > 5 && (c.status||"Desbloqueado") === "Desbloqueado")
+      .forEach(c => { nomeParaCC[c.nome.trim().toUpperCase()] = c.cc; });
 
     // agrupa linhas por SC
     const grupos = {};
@@ -1708,9 +1709,17 @@
     for (const sc of scList) {
       const rows = grupos[sc];
       const first = rows[0];
-      const nomeCC  = (first[iCC]||"").trim().toUpperCase();
-      const ccCode  = nomeParaCC[nomeCC] || Object.keys(nomeParaCC).find(n => n.includes(nomeCC) || nomeCC.includes(n)) && nomeParaCC[Object.keys(nomeParaCC).find(n => n.includes(nomeCC) || nomeCC.includes(n))];
-      if (!ccCode) { logEl.innerHTML += `<br><span style="color:#dc2626">SC ${sc}: CC "${nomeCC}" não encontrado</span>`; erros++; continue; }
+      const nomeCC = (first[iCC]||"").trim().toUpperCase();
+      // busca exata, depois parcial
+      let ccCode = nomeParaCC[nomeCC];
+      if (!ccCode) {
+        const chave = Object.keys(nomeParaCC).find(n => n.includes(nomeCC) || nomeCC.includes(n));
+        ccCode = chave ? nomeParaCC[chave] : null;
+      }
+      if (!ccCode) {
+        logEl.innerHTML += `<br><span style="color:#dc2626">SC ${sc}: CC não encontrado para "${nomeCC}". CCs disponíveis: ${Object.keys(nomeParaCC).filter(n=>n.includes(nomeCC.split(" ")[0])).slice(0,3).join(", ")||"nenhum similar"}</span>`;
+        erros++; continue;
+      }
 
       const statusRaw = (first[iStat]||"").trim().toLowerCase();
       const status = statusRaw.includes("atend") ? "aprovada" : statusRaw.includes("andamento") ? "aprovada" : "pendente";
