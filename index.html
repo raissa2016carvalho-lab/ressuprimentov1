@@ -1751,9 +1751,14 @@
 
     // carrega CCs para lookup por nome (todos, filtra client-side por >5 chars)
     const { data: ccs } = await db.from("centros_custo").select("cc,nome,status");
-    const nomeParaCC = {};
+    const nomeParaCC = {};      // nome original → cc
+    const nomeNormParaCC = {};  // nome sem espaços/acentos → cc
+    const norm = s => s.toUpperCase().replace(/\s+/g,"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     (ccs||[]).filter(c => c.cc && c.cc.length > 5 && (c.status||"Desbloqueado") === "Desbloqueado")
-      .forEach(c => { nomeParaCC[c.nome.trim().toUpperCase()] = c.cc; });
+      .forEach(c => {
+        nomeParaCC[c.nome.trim().toUpperCase()] = c.cc;
+        nomeNormParaCC[norm(c.nome)] = c.cc;
+      });
 
     // agrupa linhas por SC
     const grupos = {};
@@ -1774,14 +1779,19 @@
       const rows = grupos[sc];
       const first = rows[0];
       const nomeCC = (first[iCC]||"").trim().toUpperCase();
-      // busca exata, depois parcial
+      // 1. busca exata
       let ccCode = nomeParaCC[nomeCC];
+      // 2. normalizado (sem espaços/acentos)
+      if (!ccCode) ccCode = nomeNormParaCC[norm(nomeCC)];
+      // 3. parcial normalizado
       if (!ccCode) {
-        const chave = Object.keys(nomeParaCC).find(n => n.includes(nomeCC) || nomeCC.includes(n));
-        ccCode = chave ? nomeParaCC[chave] : null;
+        const normCC = norm(nomeCC);
+        const chave = Object.keys(nomeNormParaCC).find(n => n.includes(normCC) || normCC.includes(n));
+        ccCode = chave ? nomeNormParaCC[chave] : null;
       }
       if (!ccCode) {
-        logEl.innerHTML += `<br><span style="color:#dc2626">SC ${sc}: CC não encontrado para "${nomeCC}". CCs disponíveis: ${Object.keys(nomeParaCC).filter(n=>n.includes(nomeCC.split(" ")[0])).slice(0,3).join(", ")||"nenhum similar"}</span>`;
+        const normCC = norm(nomeCC);
+        logEl.innerHTML += `<br><span style="color:#dc2626">SC ${sc}: CC não encontrado para "${nomeCC}" (normalizado: "${normCC}").</span>`;
         erros++; continue;
       }
 
