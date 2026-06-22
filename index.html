@@ -162,11 +162,16 @@
           <input id="filtro-acomp-obs" placeholder="🔎 Buscar por observação..." oninput="filtrarAcomp()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;min-width:200px;flex:1"/>
           <div style="display:flex;gap:4px;flex-wrap:wrap" id="filtros-status-acomp">
-            ${["todos","sem_pedido","pendente","parcial","recebido"].map((f,i) =>
-              `<button onclick="setFiltroStatusAcomp('${f}')" id="facomp-${f}"
-                style="border:1px solid ${i===0?'#0d9488':'#e2e8f0'};background:${i===0?'#0d9488':'#fff'};color:${i===0?'#fff':'#64748b'};border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">
-                ${{todos:"Todos",sem_pedido:"Sem pedido",pendente:"Pendente",parcial:"Parcial",recebido:"Recebido"}[f]}</button>`
-            ).join("")}
+            <button onclick="setFiltroStatusAcomp('todos')" id="facomp-todos"
+              style="border:1px solid #0d9488;background:#0d9488;color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Todos</button>
+            <button onclick="setFiltroStatusAcomp('sem_pedido')" id="facomp-sem_pedido"
+              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Sem pedido</button>
+            <button onclick="setFiltroStatusAcomp('pendente')" id="facomp-pendente"
+              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Pendente</button>
+            <button onclick="setFiltroStatusAcomp('parcial')" id="facomp-parcial"
+              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Parcial</button>
+            <button onclick="setFiltroStatusAcomp('recebido')" id="facomp-recebido"
+              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Recebido</button>
           </div>
         </div>
         <div id="lista-acomp"></div>
