@@ -509,17 +509,28 @@
         </div>
         <div class="card-corpo" id="corpo-${s.id}">
           <table>
-            <tr><th>Item</th><th style="text-align:right">Qtd</th><th style="text-align:center">Decisão</th></tr>
-            ${s.itens.map(it => `
+            <tr>
+              <th>Item</th>
+              <th style="text-align:right;width:80px">Cons. 3m</th>
+              <th style="text-align:right;width:55px">Qtd</th>
+              <th style="text-align:center;width:150px">Decisão</th>
+            </tr>
+            ${s.itens.map(it => {
+              const cons = (it.codigo && it.codigo !== "MANUAL") ? (consumoMap[s.cc + "|" + it.codigo] || 0) : 0;
+              const consHtml = cons > 0
+                ? `<span style="font-size:12px;font-family:ui-monospace,monospace;color:#0d9488;font-weight:600">${cons}</span>`
+                : `<span style="font-size:11px;color:#cbd5e1">—</span>`;
+              return `
               <tr>
                 <td>${it.descricao || it.codigo}</td>
+                <td style="text-align:right">${consHtml}</td>
                 <td class="qtd">${it.quantidade}</td>
                 <td style="text-align:center;white-space:nowrap">
                   <button class="btn-dec ${it.situacao === 'aprovado' ? 'aprovado' : ''}" id="ap-${it.id}" onclick="decidir(${s.id}, ${it.id}, 'aprovado')">Aprovar</button>
                   <button class="btn-dec ${it.situacao === 'recusado' ? 'recusado' : ''}" id="re-${it.id}" onclick="decidir(${s.id}, ${it.id}, 'recusado')">Recusar</button>
                 </td>
-              </tr>
-            `).join("")}
+              </tr>`;
+            }).join("")}
           </table>
           <div class="rodape-card">
             <div>
