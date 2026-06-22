@@ -153,16 +153,17 @@
       mostrarMsg("Não foi possível carregar as bases: " + error.message, "erro");
       return;
     }
-    // só mostra CCs que vieram do CTT (têm nome preenchido)
+    // mostra TODOS os CCs com nome — bloqueados e desbloqueados visíveis
+    // o status fica no data-status para validação no submit
     const nomesVistos = new Set();
     const semDuplicata = (data || []).filter(c => {
-      if (!c.nome || !c.nome.trim()) return false; // sem nome = não veio do CTT
+      if (!c.nome || !c.nome.trim()) return false;
       if (nomesVistos.has(c.nome.trim())) return false;
       nomesVistos.add(c.nome.trim());
       return true;
     });
     select.innerHTML = `<option value="">Selecione sua base...</option>` +
-      semDuplicata.map(c => `<option value="${c.cc}">${c.nome} — ${c.cc}</option>`).join("");
+      semDuplicata.map(c => `<option value="${c.cc}" data-status="${c.status || 'Desbloqueado'}">${c.nome}</option>`).join("");
   }
   carregarBases();
 
@@ -191,6 +192,12 @@
 
     if (!nome || !matricula) { mostrarMsg("Preencha nome e matrícula.", "erro"); return; }
     if (!cc) { mostrarMsg("Selecione sua base.", "erro"); return; }
+    // bloqueia envio se o CC estiver bloqueado
+    const optCC = $("cc").querySelector(`option[value="${cc}"]`);
+    if (optCC && (optCC.dataset.status || "Desbloqueado") !== "Desbloqueado") {
+      mostrarMsg("Este centro de custo está bloqueado. Não é possível abrir solicitação para ele.", "erro");
+      return;
+    }
     if (itens.length === 0) { mostrarMsg("Adicione pelo menos um item.", "erro"); return; }
     for (const it of itens) {
       if (!it.descricao || !it.quantidade) {
