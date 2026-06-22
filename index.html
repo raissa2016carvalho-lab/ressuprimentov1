@@ -1747,7 +1747,8 @@
     const iSol  = idx("solicitante");
     const iStat = idx("status_sc");
     const iEmis = idx("emissao_sc");
-    const iCC   = headers.findIndex(h => h.trim().toLowerCase().includes("descri"));
+    // Pega a ÚLTIMA coluna com "descri" (Descrição do CC, não descricao do item)
+    const iCC   = headers.reduce((last, h, i) => h.trim().toLowerCase().includes("descri") ? i : last, -1);
 
     // carrega CCs para lookup por nome (todos, filtra client-side por >5 chars)
     const { data: ccs, error: eCCs } = await db.from("centros_custo").select("cc,nome,status");
