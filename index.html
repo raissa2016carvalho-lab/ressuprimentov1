@@ -1657,7 +1657,7 @@
     const el = $("lista-gerentes");
     el.innerHTML = '<div class="vazio">Carregando...</div>';
     const [{ data: ccs }, { data: gc }] = await Promise.all([
-      db.from("centros_custo").select("*").order("nome"),
+      db.from("centros_custo").select("*").order("nome").gt("cc", "99999"),
       db.from("gerentes_cc").select("*"),
     ]);
     const porCC = {};
@@ -1668,6 +1668,7 @@
   window.carregarGerentes = carregarGerentes;
 
   function renderListaGerentes(lista) {
+    lista = lista.filter(cc => cc.cc && cc.cc.length > 5);
     const el = $("lista-gerentes");
     if (!lista.length) {
       el.innerHTML = '<div class="vazio">Nenhum centro de custo encontrado.</div>'; return;
