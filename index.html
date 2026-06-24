@@ -655,7 +655,7 @@
       return;
     }
 
-    const { data: itens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", associadas.map(s => s.id));
+    const { data: itens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", associadas.map(s => s.id)).limit(50000);
     const porSol = {};
     (itens || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
 
