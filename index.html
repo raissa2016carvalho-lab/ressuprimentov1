@@ -683,7 +683,7 @@
     const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
     const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
 
-    const { data: pcs, error: e2 } = await dbProtheus
+    const { data: pcs, error: e2 } = await db
       .from("pedidos_compra")
       .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri,c7_emissao,dt_entrega")
       .or(condicoesOr)
