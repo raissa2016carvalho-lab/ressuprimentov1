@@ -1779,6 +1779,9 @@
     const iStat = idx("status_sc");
     const iEmis = idx("emissao_sc");
     // Pega a ÚLTIMA coluna com "descri" (Descrição do CC, não descricao do item)
+    // Pega coluna "Cod CC" se existir, senão usa última coluna com "descri"
+    const iCodCC = headers.findIndex(h => h.trim().toLowerCase().replace(/\s/g,"") === "codcc");
+    // Pega a ÚLTIMA coluna com "descri" (Descrição do CC, não descricao do item)
     const iCC   = headers.reduce((last, h, i) => h.trim().toLowerCase().includes("descri") ? i : last, -1);
 
     // carrega CCs para lookup por nome (todos, filtra client-side por >5 chars)
@@ -1815,24 +1818,30 @@
     for (const sc of scList) {
       const rows = grupos[sc];
       const first = rows[0];
+      // Usa código direto se coluna "Cod CC" existir
+      const codCCDireto = iCodCC >= 0 ? (first[iCodCC]||"").trim() : "";
       const nomeCC = (first[iCC]||"").trim().toUpperCase();
-      console.log("Importando SC:", sc, "| CC no CSV:", nomeCC);
+      console.log("Importando SC:", sc, "| CodCC:", codCCDireto, "| Nome:", nomeCC);
 
-      // 1. exata, 2. normalizado, 3. parcial
-      let ccCode = nomeParaCC[nomeCC];
-      if (!ccCode) ccCode = nomeNormParaCC[norm(nomeCC)];
+      let ccCode = "";
+      if (codCCDireto) {
+        // verifica se o código existe no banco
+        const ccExiste = (ccs||[]).find(c => c.cc === codCCDireto);
+        ccCode = ccExiste ? codCCDireto : "";
+        if (!ccCode) console.warn("Cod CC", codCCDireto, "não encontrado no banco");
+      }
+      // fallback: busca por nome se não veio código ou não encontrou
       if (!ccCode) {
-        const normCC = norm(nomeCC);
-        const chave = Object.keys(nomeNormParaCC).find(n => n.includes(normCC) || normCC.includes(n));
-        ccCode = chave ? nomeNormParaCC[chave] : null;
+        ccCode = nomeParaCC[nomeCC];
+        if (!ccCode) ccCode = nomeNormParaCC[norm(nomeCC)];
       }
       if (!ccCode) {
-        const msg = `SC ${sc}: CC "${nomeCC}" não encontrado no banco`;
+        const msg = `SC ${sc}: CC "${codCCDireto||nomeCC}" não encontrado no banco`;
         console.error(msg);
         msgErros.push(msg);
         erros++; continue;
       }
-      console.log("CC encontrado:", ccCode);
+      console.log("CC resolvido:", ccCode);
 
       const statusRaw = (first[iStat]||"").trim().toLowerCase();
       // importação sempre vai para Acompanhamento — usa status aprovada
