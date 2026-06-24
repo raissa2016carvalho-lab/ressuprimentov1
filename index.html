@@ -656,8 +656,10 @@
     }
 
     const { data: itens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", associadas.map(s => s.id)).limit(50000);
+    console.log("Itens carregados:", itens?.length, "| IDs buscados:", associadas.map(s=>s.id));
     const porSol = {};
     (itens || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
+    console.log("porSol keys:", Object.keys(porSol), "| REGYVN id esperado:", associadas.find(s=>s.sc_numero==='REGYVN')?.id);
 
     const { data: ccs } = await db.from("centros_custo").select("*");
     const ccMapLocal = {};
@@ -1351,7 +1353,7 @@
     if (numerosSc.length > 0) {
       const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
       const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
-      const { data: pcs, error: e2 } = await dbProtheus
+      const { data: pcs, error: e2 } = await db
         .from("pedidos_compra")
         .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc")
         .or(condicoesOr)
