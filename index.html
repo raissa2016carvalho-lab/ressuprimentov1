@@ -666,21 +666,23 @@
       if (lote.length < 1000) break;
       offset += 1000;
     }
-    console.log("Itens carregados:", itens?.length, "| IDs buscados:", associadas.map(s=>s.id));
+
     const porSol = {};
     (itens || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
-    console.log("porSol keys:", Object.keys(porSol), "| REGYVN id esperado:", associadas.find(s=>s.sc_numero==='REGYVN')?.id);
 
     const { data: ccs } = await db.from("centros_custo").select("*");
     const ccMapLocal = {};
     (ccs || []).forEach(c => ccMapLocal[c.cc] = c);
 
-    // busca na pedidos_compra (banco painel-protheus) pelos números de SC associados.
-    // usa "ilike + %" em vez de igualdade exata, porque o numsc no Protheus pode vir com espaços extras.
-    // normaliza removendo zeros à esquerda quando for só número — o mesmo SC pode aparecer
-    // como "50" em alguns relatórios do Protheus e "000050" em outros.
+    // normaliza SC: remove zeros à esquerda quando for só número
     function normalizarSc(sc) {
       const s = String(sc || "").trim();
+      return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
+    }
+    // normaliza código de item igual ao que o Protheus grava em c7_produto:
+    // remove padding de espaços e zeros à esquerda quando for só número
+    function normalizarCodigo(cod) {
+      const s = String(cod || "").trim();
       return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
     }
     function variantesSc(sc) {
@@ -699,17 +701,14 @@
       .or(condicoesOr)
       .limit(5000);
 
-    // se a busca no painel-protheus falhar, NÃO apaga a lista — mostra as SCs associadas
-    // mesmo assim, só sem o status (avisando que não foi possível verificar agora).
     const avisoProtheus = e2 ? `<div class="msg erro" style="max-width:920px;margin-bottom:12px">Não foi possível verificar o status agora: ${e2.message}</div>` : "";
 
-    // chave de cruzamento precisa: SC normalizada + código do item (ambos sem espaços nas pontas)
+    // chave de cruzamento: SC normalizada + código do item normalizado (sem zeros à esquerda, sem espaços)
     const pcMap = {};
-    // chave de cruzamento simples: só SC normalizada — usada quando o item não tem código real (digitado manual)
     const pcMapPorSc = {};
     (pcs || []).forEach(p => {
       const sc = normalizarSc(p.c7_numsc);
-      const k = sc + "|" + String(p.c7_produto || "").trim();
+      const k = sc + "|" + normalizarCodigo(p.c7_produto);
       (pcMap[k] = pcMap[k] || []).push(p);
       (pcMapPorSc[sc] = pcMapPorSc[sc] || []).push(p);
     });
@@ -721,7 +720,7 @@
       let comPedido = 0, completos = 0;
       itensSol.forEach(it => {
         const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCodigoReal ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : (pcMapPorSc[scTrim] || []);
+        const ps = temCodigoReal ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
         if (ps.length > 0) {
           comPedido++;
           const todosRecebidos = ps.every(p => (p.status_desc || "").toLowerCase().includes("receb"));
@@ -740,7 +739,7 @@
         const qtdSolicitada = Number(it.quantidade) || 0;
         totalSolicitado += qtdSolicitada;
         const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCodigoReal ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : (pcMapPorSc[scTrim] || []);
+        const ps = temCodigoReal ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
         const recebidoItem = ps.reduce((acc, p) => {
           const st = (p.status_desc || "").toLowerCase();
           return acc + (st.includes("receb") ? (Number(p.c7_quant) || 0) : 0);
@@ -765,7 +764,6 @@
     }
 
     function fmtProtheus(d) {
-      // Protheus dates come as YYYYMMDD or YYYY-MM-DD
       if (!d || d === "" || d === "NaT") return null;
       const s = String(d).replace(/-/g,"").trim();
       if (s.length < 8) return null;
@@ -773,18 +771,15 @@
     }
 
     function timelineHtml(s, itensSol, scTrim) {
-      // coleta datas dos PCs
       const pcsDA = (pcMapPorSc[scTrim] || []);
       const todasPC = itensSol.flatMap(it => {
         const temCod = it.codigo && it.codigo !== "MANUAL";
-        return temCod ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : pcsDA;
+        return temCod ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : pcsDA;
       });
 
-      // data do PC mais antigo (c7_emissao)
       const emissoes = todasPC.map(p => String(p.c7_emissao||"").replace(/-/g,"").trim()).filter(d => d.length>=8).sort();
       const dtPedido = emissoes.length ? fmtProtheus(emissoes[0]) : null;
 
-      // data de entrega dos recebidos
       const recebidos = todasPC.filter(p => (p.status_desc||"").toLowerCase().includes("receb"));
       const entregas = recebidos.map(p => String(p.dt_entrega||"").replace(/-/g,"").trim()).filter(d => d.length>=8).sort();
       const dtRecebido = entregas.length ? fmtProtheus(entregas[entregas.length-1]) : null;
@@ -823,7 +818,7 @@
       const scTrim = normalizarSc(s.sc_numero.trim());
       const totalEncontrados = itensSol.reduce((acc, it) => {
         const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCodigoReal ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || []) : (pcMapPorSc[scTrim] || []);
+        const ps = temCodigoReal ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
         return acc + ps.length;
       }, 0);
       const pedidoGeral = e2 ? null : classificarPedidoGeral(itensSol, scTrim);
@@ -860,7 +855,7 @@
                 }
                 const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
                 const ps = temCodigoReal
-                  ? (pcMap[scTrim + "|" + String(it.codigo).trim()] || [])
+                  ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || [])
                   : (pcMapPorSc[scTrim] || []);
                 if (ps.length === 0) {
                   return `<tr><td>${it.descricao || it.codigo}</td><td colspan="3" style="color:#94a3b8;font-style:italic">sem pedido ainda</td></tr>`;
@@ -926,7 +921,7 @@
   }
   window.filtrarAcomp = filtrarAcomp;
 
-  // ---------- ABA BASES (upload de SB1 e Centro de Custo, independentes) ----------
+  // ---------- ABA BASES ----------
   function normChave(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
   function pegar(linha, ...chaves) {
     const mapa = {};
@@ -987,7 +982,7 @@
     logFn("Lendo Centro de Custo (.csv do Protheus — CTT)...");
     const texto = await file.text();
     const resultado = Papa.parse(texto, { header: false, skipEmptyLines: true });
-    const linhasBrutas = resultado.data.slice(1); // pula o cabeçalho
+    const linhasBrutas = resultado.data.slice(1);
 
     function extrairLinha(r) {
       if (r.length >= 5) return { cc: r[0], nome: r[1], status: r[2] };
@@ -1004,7 +999,6 @@
       const statusLimpo = String(status || "").trim();
       if (!ccLimpo || !nomeLimpo) continue;
       totalLinhas++;
-      // salva TODOS (bloqueados e desbloqueados) — o formulário valida na hora
       if (statusLimpo === "Desbloqueado") totalDesbloq++;
       else totalBloq++;
       mapaCC[ccLimpo] = { cc: ccLimpo, nome: nomeLimpo, status: statusLimpo || "Desbloqueado" };
@@ -1022,9 +1016,8 @@
     const linhas = await parseCsv(file);
     logFn(`${linhas.length} linhas lidas. Contando ativos por CC e cargo...`);
 
-    // agrupa por CC -> cargo -> count (só SIT_FOLHA = NORMAL)
-    const agg = {}; // cc -> { cargo -> count }
-    const totais = {}; // cc -> total
+    const agg = {};
+    const totais = {};
     for (const r of linhas) {
       const cc    = String(pegar(r, "CCUSTO") || "").trim();
       const sit   = String(pegar(r, "SIT_FOLHA") || "").trim().toUpperCase();
@@ -1035,7 +1028,6 @@
       totais[cc] = (totais[cc] || 0) + 1;
     }
 
-    // upsert cc_pessoas
     const registrosPessoas = [];
     for (const [cc, cargos] of Object.entries(agg)) {
       for (const [cargo, qtd] of Object.entries(cargos)) {
@@ -1047,7 +1039,6 @@
       await upsertEmPartes("cc_pessoas", registrosPessoas, "cc,cargo", logFn);
     }
 
-    // atualiza total de pessoas em centros_custo
     for (const [cc, total] of Object.entries(totais)) {
       await db.from("centros_custo").update({ pessoas: total }).eq("cc", cc);
     }
@@ -1062,19 +1053,17 @@
     const linhas = await parseCsv(file);
     logFn(`${linhas.length} linhas lidas. Calculando últimos 3 meses...`);
 
-    // data máxima do arquivo para calcular os 3 meses
     const datas = linhas.map(r => String(pegar(r, "CP_EMISSAO") || "").trim()).filter(d => /^\d{8}$/.test(d)).sort();
     const maxData = datas[datas.length - 1] || "";
     if (!maxData) { logFn("Erro: nenhuma data encontrada."); return 0; }
 
     const ano = parseInt(maxData.slice(0,4));
     const mes = parseInt(maxData.slice(4,6));
-    const dtLimite = new Date(ano, mes - 4, 1); // 3 meses antes
+    const dtLimite = new Date(ano, mes - 4, 1);
     const limitStr = dtLimite.getFullYear().toString() +
       String(dtLimite.getMonth() + 1).padStart(2, "0") + "01";
     logFn(`Período: ${limitStr.slice(6,8)}/${limitStr.slice(4,6)}/${limitStr.slice(0,4)} → ${maxData.slice(6,8)}/${maxData.slice(4,6)}/${maxData.slice(0,4)}`);
 
-    // soma CP_QUANT por (CP_CC, CP_PRODUTO) no período
     const agg = {};
     for (const r of linhas) {
       const emissao = String(pegar(r, "CP_EMISSAO") || "").trim();
@@ -1214,7 +1203,6 @@
       return;
     }
 
-    // busca descrição oficial na SB1 pelos códigos
     const codigosUnicos = [...new Set(linhas.map(l => l.codigo).filter(Boolean))];
     let mapaDescricoes = {};
     for (let i = 0; i < codigosUnicos.length; i += 200) {
@@ -1226,7 +1214,6 @@
 
     linhasMobParaSalvar = linhas;
 
-    // Preview compacto dos primeiros 8 itens
     const preview = linhas.slice(0, 8).map(l =>
       `<tr><td style="padding:4px 8px;font-size:12px;font-family:ui-monospace,monospace;color:#64748b">${l.codigo||"—"}</td>
        <td style="padding:4px 8px;font-size:12px">${l.descricao}</td>
@@ -1331,8 +1318,6 @@
 
     const numEquipes = mob.num_equipes;
 
-    // consolida por código (somando o total das funções que pedem o mesmo item).
-    // sem código real, agrupa pela descrição como alternativa.
     const grupos = {};
     (itens || []).forEach(it => {
       const chave = (it.codigo && it.codigo.trim()) ? "cod:" + it.codigo.trim() : "desc:" + (it.descricao || "").trim();
@@ -1346,10 +1331,12 @@
 
     const numerosSc = (scsLista || []).map(s => s.sc_numero.trim()).filter(Boolean);
 
-    // normaliza removendo zeros à esquerda quando for só número — no Protheus, o mesmo
-    // SC pode aparecer como "50" em alguns relatórios e "000050" em outros.
     function normalizarSc(sc) {
       const s = String(sc || "").trim();
+      return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
+    }
+    function normalizarCodigo(cod) {
+      const s = String(cod || "").trim();
       return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
     }
     function variantesSc(sc) {
@@ -1372,7 +1359,6 @@
         avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${e2.message}</div>`;
       } else {
         pcsEncontrados = pcs || [];
-
       }
     }
 
@@ -1387,53 +1373,45 @@
       return st.includes("pendente") || st.includes("aprova") || st.includes("em receb");
     };
 
-    // Retorna quantidade total recebida do item nas SCs associadas
     function qtdRecebidaDoItem(codigo) {
       if (!codigo || !codigo.trim()) return 0;
-      const codTrim = codigo.trim();
+      const codNorm = normalizarCodigo(codigo);
       return pcsEncontrados
         .filter(p =>
-          String(p.c7_produto || "").trim() === codTrim &&
+          normalizarCodigo(p.c7_produto) === codNorm &&
           numerosScNormalizados.has(normalizarSc(p.c7_numsc)) &&
           statusRecebido(p.status_desc)
         )
         .reduce((acc, p) => acc + (Number(p.c7_quant) || 0), 0);
     }
 
-    // Compatibilidade: boolean pra categorização
     function itemEstaRecebido(codigo) {
       return qtdRecebidaDoItem(codigo) > 0;
     }
 
-    // ── Categorizar itens ──────────────────────────────────────────────────────
-    // 5 categorias: recebido (via PC), estoque (via estoque manual),
-    // aprovacao, pendente, semPedido (sem SC ou sem evidência alguma)
     const cats = { recebido: [], estoque: [], pendente: [], aprovacao: [], semPedido: [] };
     itensConsolidados.forEach(it => {
       const codTrim = (it.codigo || "").trim();
       const qtdEst  = codTrim ? (mapaEstoque[codTrim] || 0) : 0;
 
-      // item com estoque definido pelo usuário → categoria estoque
       if (qtdEst > 0) {
         const linhas = codTrim ? pcsEncontrados.filter(p =>
-          String(p.c7_produto || "").trim() === codTrim &&
+          normalizarCodigo(p.c7_produto) === normalizarCodigo(codTrim) &&
           numerosScNormalizados.has(normalizarSc(p.c7_numsc))
         ) : [];
         cats.estoque.push({ ...it, linhas, qtdEst }); return;
       }
 
-      // sem código ou sem SCs cadastradas na mobilização → sem pedido real
       if (!codTrim || !temDadosNoBanco) {
         cats.semPedido.push({ ...it, linhas: [] }); return;
       }
 
       const linhas = pcsEncontrados.filter(p =>
-        String(p.c7_produto || "").trim() === codTrim &&
+        normalizarCodigo(p.c7_produto) === normalizarCodigo(codTrim) &&
         numerosScNormalizados.has(normalizarSc(p.c7_numsc))
       );
 
       if (linhas.length === 0) {
-        // genuinamente sem PC no banco
         cats.semPedido.push({ ...it, linhas: [] });
       } else if (linhas.every(p => statusRecebido(p.status_desc))) {
         cats.recebido.push({ ...it, linhas });
@@ -1450,7 +1428,6 @@
     const pctAprov  = Math.round(cats.aprovacao.length  / total * 100);
     const pctSem    = Math.round(cats.semPedido.length  / total * 100);
 
-    // ── Excel por categoria ──────────────────────────────────────────────────
     function baixarExcelCatMob(catKey) {
       const map = { recebido: cats.recebido, pendente: cats.pendente,
                     aprovacao: cats.aprovacao, semPedido: cats.semPedido };
@@ -1477,7 +1454,6 @@
       const el = document.getElementById(uid);
       if (!el) return;
       const aberto = el.style.display !== "none";
-      // fecha todos os painéis dessa mob
       ["recebido","estoque","aprovacao","pendente","semPedido"].forEach(k => {
         const outro = document.getElementById("cat-" + mobId + "-" + k);
         if (outro) outro.style.display = "none";
@@ -1486,8 +1462,6 @@
     }
     window.toggleCatMob = toggleCatMob;
 
-    // ── Render de um card de categoria ──────────────────────────────────────
-    // Gera só o card compacto; painel de detalhe fica em div separada fora do grid
     function renderCardCat(catKey, label, cor, icone, itens) {
       const uid = "cat-" + mobId + "-" + catKey;
       const pct = Math.round(itens.length / total * 100);
@@ -1502,7 +1476,6 @@
         </div>`;
     }
 
-    // Gera os painéis de detalhe (ocultos inicialmente)
     function renderPaineisCat() {
       return ["recebido","estoque","aprovacao","pendente","semPedido"].map(catKey => {
         const mapCats = { recebido: cats.recebido, estoque: cats.estoque,
@@ -1545,7 +1518,6 @@
       }).join("");
     }
 
-    // ── Gráfico de pizza (conic-gradient) ────────────────────────────────────
     function pizzaCats() {
       const r = cats.recebido.length, e = cats.estoque.length, pe = cats.pendente.length,
             a = cats.aprovacao.length, s = cats.semPedido.length, t = total;
@@ -1578,7 +1550,6 @@
         </div>`;
     }
 
-    // ── SC chips ─────────────────────────────────────────────────────────────
     const listaScsHtml = (scsLista || []).length === 0
       ? '<span style="font-size:12.5px;color:#94a3b8">Nenhuma SC adicionada ainda.</span>'
       : (scsLista || []).map(s => `
@@ -1630,9 +1601,8 @@
           const chips = Array.from({ length: numEquipes }, (_, i) =>
             `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}" style="${chipStyle}">${i + 1}</span>`
           ).join("");
-          // pedidos vinculados ao item nas SCs desta mobilização
           const linhasPC = codTrim ? pcsEncontrados.filter(p =>
-            String(p.c7_produto || "").trim() === codTrim &&
+            normalizarCodigo(p.c7_produto) === normalizarCodigo(codTrim) &&
             numerosScNormalizados.has(normalizarSc(p.c7_numsc))
           ) : [];
           const detId = "ped-" + mobId + "-" + idx;
@@ -1713,7 +1683,6 @@
       if (msgEl) { msgEl.textContent = "Erro: " + error.message; msgEl.style.color = "#991b1b"; }
     } else {
       if (msgEl) { msgEl.textContent = "✓ Salvo!"; msgEl.style.color = "#065f46"; setTimeout(() => { msgEl.textContent = ""; }, 2000); }
-      // re-renderiza pra atualizar chips sem scroll para o topo
       const container = document.getElementById("corpo-mob-" + mobId);
       if (container) {
         const scrollY = window.scrollY;
@@ -1781,7 +1750,6 @@
     const text = await file.text();
     const linhas = text.trim().split("\n");
 
-    // Parser CSV que respeita campos entre aspas (evita quebrar em vírgulas internas)
     function parseLinha(linha) {
       const cols = []; let cur = ""; let inQ = false;
       for (let i = 0; i < linha.length; i++) {
@@ -1804,20 +1772,16 @@
     const iSol  = idx("solicitante");
     const iStat = idx("status_sc");
     const iEmis = idx("emissao_sc");
-    // Pega a ÚLTIMA coluna com "descri" (Descrição do CC, não descricao do item)
-    // Pega coluna "Cod CC" se existir, senão usa última coluna com "descri"
     const iCodCC = headers.findIndex(h => h.trim().toLowerCase().replace(/\s/g,"") === "codcc");
-    // Pega a ÚLTIMA coluna com "descri" (Descrição do CC, não descricao do item)
     const iCC   = headers.reduce((last, h, i) => h.trim().toLowerCase().includes("descri") ? i : last, -1);
 
-    // carrega CCs para lookup por nome (todos, filtra client-side por >5 chars)
     const { data: ccs, error: eCCs } = await db.from("centros_custo").select("cc,nome,status");
     if (eCCs || !ccs || ccs.length === 0) {
       logEl.innerHTML = `<span style="color:#dc2626">❌ Erro ao carregar centros de custo do banco: ${eCCs?.message || "lista vazia — verifique sua conexão com a internet"}.</span>`;
       return;
     }
-    const nomeParaCC = {};      // nome original → cc
-    const nomeNormParaCC = {};  // nome sem espaços/acentos → cc
+    const nomeParaCC = {};
+    const nomeNormParaCC = {};
     const norm = s => s.toUpperCase().replace(/\s+/g,"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
     (ccs||[]).filter(c => c.cc && c.cc.length > 5 && (c.status||"Desbloqueado") === "Desbloqueado")
       .forEach(c => {
@@ -1825,7 +1789,6 @@
         nomeNormParaCC[norm(c.nome)] = c.cc;
       });
 
-    // agrupa linhas por SC
     const grupos = {};
     for (let i = 1; i < linhas.length; i++) {
       const cols = parseLinha(linhas[i].replace(/\r/,""));
@@ -1844,43 +1807,32 @@
     for (const sc of scList) {
       const rows = grupos[sc];
       const first = rows[0];
-      // Usa código direto se coluna "Cod CC" existir
       const codCCDireto = iCodCC >= 0 ? (first[iCodCC]||"").trim() : "";
       const nomeCC = (first[iCC]||"").trim().toUpperCase();
-      console.log("Importando SC:", sc, "| CodCC:", codCCDireto, "| Nome:", nomeCC);
 
       let ccCode = "";
       if (codCCDireto) {
-        // verifica se o código existe no banco
         const ccExiste = (ccs||[]).find(c => c.cc === codCCDireto);
         ccCode = ccExiste ? codCCDireto : "";
-        if (!ccCode) console.warn("Cod CC", codCCDireto, "não encontrado no banco");
       }
-      // fallback: busca por nome se não veio código ou não encontrou
       if (!ccCode) {
         ccCode = nomeParaCC[nomeCC];
         if (!ccCode) ccCode = nomeNormParaCC[norm(nomeCC)];
       }
       if (!ccCode) {
         const msg = `SC ${sc}: CC "${codCCDireto||nomeCC}" não encontrado no banco`;
-        console.error(msg);
         msgErros.push(msg);
         erros++; continue;
       }
-      console.log("CC resolvido:", ccCode);
 
-      const statusRaw = (first[iStat]||"").trim().toLowerCase();
-      // importação sempre vai para Acompanhamento — usa status aprovada
       const status = "aprovada";
       const emissao = (first[iEmis]||"").trim() || new Date().toISOString();
       const obs = (first[iObs]||"").trim();
       const sol = (first[iSol]||"").trim();
 
-      // verifica se SC já existe
       const { data: scExist } = await db.from("solicitacoes").select("id").eq("sc_numero", sc).maybeSingle();
       if (scExist) {
         const msg = `SC ${sc}: já existe no banco (duplicada)`;
-        console.warn(msg);
         msgErros.push(msg);
         erros++; continue;
       }
@@ -1894,7 +1846,6 @@
 
       if (e1 || !sol_data) {
         const msg = `SC ${sc}: erro ao gravar — ${e1?.message || "resposta vazia"}`;
-        console.error(msg);
         msgErros.push(msg);
         erros++; continue;
       }
@@ -1904,7 +1855,7 @@
         codigo: (r[iProd]||"").trim(),
         descricao: (r[iDesc]||"").trim(),
         quantidade: parseFloat((r[iQtd]||"1").trim()) || 1,
-        situacao: status === "aprovada" ? "aprovado" : "pendente"
+        situacao: "aprovado"
       }));
       const { error: eItens } = await db.from("solicitacao_itens").insert(itens);
       if (eItens) console.error("Erro itens SC", sc, eItens.message);
@@ -1927,7 +1878,6 @@
       alert("Número incorreto. Exclusão cancelada.");
       return;
     }
-    // exclui itens primeiro, depois a solicitação
     const { error: e1 } = await db.from("solicitacao_itens").delete().eq("solicitacao_id", solId);
     if (e1) { alert("Erro ao excluir itens: " + e1.message); return; }
     const { error: e2 } = await db.from("solicitacoes").delete().eq("id", solId);
@@ -1945,10 +1895,8 @@
   }
   window.editarSC = editarSC;
 
-
-
   // ---------- ABA GERENTES ----------
-  let todosCC = []; // cache pra filtro
+  let todosCC = [];
 
   async function carregarGerentes() {
     const el = $("lista-gerentes");
