@@ -156,23 +156,44 @@
       </div>
       <div class="corpo-aba">
         <!-- filtros -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-          <input id="filtro-acomp-cc" placeholder="🔍 Centro de custo..." oninput="filtrarAcomp()"
-            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;min-width:200px;flex:1"/>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+          <!-- select CC com lupa -->
+          <div style="position:relative;flex:1;min-width:200px">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none">🔍</span>
+            <select id="filtro-acomp-cc" onchange="filtrarAcomp()"
+              style="margin:0;padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;width:100%;background:#fff;appearance:none;-webkit-appearance:none;cursor:pointer">
+              <option value="">Todos os centros de custo</option>
+            </select>
+          </div>
+          <!-- select grupo de material -->
+          <div style="position:relative;flex:1;min-width:180px">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none">📦</span>
+            <select id="filtro-acomp-grupo" onchange="filtrarAcomp()"
+              style="margin:0;padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;width:100%;background:#fff;appearance:none;-webkit-appearance:none;cursor:pointer">
+              <option value="">Todos os grupos</option>
+            </select>
+          </div>
+          <!-- busca por observação -->
           <input id="filtro-acomp-obs" placeholder="🔎 Buscar por observação..." oninput="filtrarAcomp()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;min-width:200px;flex:1"/>
-          <div style="display:flex;gap:4px;flex-wrap:wrap" id="filtros-status-acomp">
-            <button onclick="setFiltroStatusAcomp('todos')" id="facomp-todos"
-              style="border:1px solid #0d9488;background:#0d9488;color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Todos</button>
-            <button onclick="setFiltroStatusAcomp('sem_pedido')" id="facomp-sem_pedido"
-              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Sem pedido</button>
-            <button onclick="setFiltroStatusAcomp('pendente')" id="facomp-pendente"
-              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Pendente</button>
-            <button onclick="setFiltroStatusAcomp('parcial')" id="facomp-parcial"
-              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Parcial</button>
-            <button onclick="setFiltroStatusAcomp('recebido')" id="facomp-recebido"
-              style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Recebido</button>
-          </div>
+          <!-- botão Excel -->
+          <button onclick="exportarExcelAcomp()"
+            style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;flex-shrink:0">
+            ⬇ Excel
+          </button>
+        </div>
+        <!-- pills de status -->
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px" id="filtros-status-acomp">
+          <button onclick="setFiltroStatusAcomp('todos')" id="facomp-todos"
+            style="border:1px solid #0d9488;background:#0d9488;color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Todos</button>
+          <button onclick="setFiltroStatusAcomp('sem_pedido')" id="facomp-sem_pedido"
+            style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Sem pedido</button>
+          <button onclick="setFiltroStatusAcomp('pendente')" id="facomp-pendente"
+            style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Pendente</button>
+          <button onclick="setFiltroStatusAcomp('parcial')" id="facomp-parcial"
+            style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Parcial</button>
+          <button onclick="setFiltroStatusAcomp('recebido')" id="facomp-recebido"
+            style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Recebido</button>
         </div>
         <div id="lista-acomp"></div>
       </div>
@@ -704,7 +725,7 @@
     while (true) {
       const { data: lote, error: eLote } = await db
         .from("pedidos_compra")
-        .select("c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,c7_descri,c7_emissao,dt_entrega")
+        .select("c7_numsc,c7_produto,c7_num,c7_quant,c7_total,c7_grpprod,status_desc,c7_descri,c7_emissao,dt_entrega")
         .or(condicoesOr)
         .range(pcOffset, pcOffset + 999);
       if (eLote) { e2 = eLote; break; }
@@ -862,8 +883,16 @@
       const pgKey = e2 ? "sem_pedido" : (pedidoGeral || "sem_pedido");
       const nomeCC = base ? base.nome.toLowerCase() : s.cc.toLowerCase();
       const obsLow = (s.observacao||"").toLowerCase();
+      // grupos dos itens desta SC (via c7_grpprod dos PCs encontrados)
+      const gruposSet = new Set();
+      itensSol.forEach(it => {
+        const temCod = it.codigo && it.codigo !== "MANUAL";
+        const ps = temCod ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
+        ps.forEach(p => { if (p.c7_grpprod) gruposSet.add(String(p.c7_grpprod).trim()); });
+      });
+      const gruposStr = [...gruposSet].join("|").toLowerCase();
       return `
-        <div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}">
+        <div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-grupo="${gruposStr}">
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -926,6 +955,28 @@
     }).join("");
 
     $("lista-acomp").innerHTML = avisoProtheus + listaHtml + '<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div>';
+
+    // popular select de CC
+    const selCC = $("filtro-acomp-cc");
+    if (selCC) {
+      const ccsVisiveis = [...new Set(associadas.map(s => {
+        const base = ccMapLocal[s.cc];
+        return JSON.stringify({ cc: s.cc, nome: base ? base.nome : s.cc });
+      }))].map(j => JSON.parse(j)).sort((a,b) => a.nome.localeCompare(b.nome));
+      selCC.innerHTML = '<option value="">Todos os centros de custo</option>' +
+        ccsVisiveis.map(c => `<option value="${c.nome.toLowerCase()}">${c.nome}</option>`).join("");
+    }
+
+    // popular select de grupo a partir dos data-grupo dos cards
+    const selGrupo = $("filtro-acomp-grupo");
+    if (selGrupo) {
+      const todosGrupos = new Set();
+      document.querySelectorAll("#lista-acomp .card[data-grupo]").forEach(card => {
+        (card.dataset.grupo || "").split("|").forEach(g => { if (g.trim()) todosGrupos.add(g.trim()); });
+      });
+      selGrupo.innerHTML = '<option value="">Todos os grupos</option>' +
+        [...todosGrupos].sort().map(g => `<option value="${g}">${g.toUpperCase()}</option>`).join("");
+    }
   }
   $("btn-atualizar-acomp").addEventListener("click", carregarAcompanhamento);
 
@@ -947,16 +998,19 @@
   window.setFiltroStatusAcomp = setFiltroStatusAcomp;
 
   function filtrarAcomp() {
-    const termCC  = ($("filtro-acomp-cc")?.value  || "").toLowerCase().trim();
-    const termObs = ($("filtro-acomp-obs")?.value || "").toLowerCase().trim();
+    const termCC    = ($("filtro-acomp-cc")?.value    || "").toLowerCase().trim();
+    const termObs   = ($("filtro-acomp-obs")?.value   || "").toLowerCase().trim();
+    const termGrupo = ($("filtro-acomp-grupo")?.value || "").toLowerCase().trim();
     const cards = document.querySelectorAll("#lista-acomp .card[data-cc]");
     let visiveis = 0;
     cards.forEach(card => {
-      const cc  = card.dataset.cc  || "";
-      const obs = card.dataset.obs || "";
-      const pg  = card.dataset.pg  || "";
-      const ok = (!termCC  || cc.includes(termCC))
-              && (!termObs || obs.includes(termObs))
+      const cc    = card.dataset.cc    || "";
+      const obs   = card.dataset.obs   || "";
+      const pg    = card.dataset.pg    || "";
+      const grupo = card.dataset.grupo || "";
+      const ok = (!termCC    || cc.includes(termCC))
+              && (!termObs   || obs.includes(termObs))
+              && (!termGrupo || grupo.includes(termGrupo))
               && (_filtroStatusAcomp === "todos" || pg === _filtroStatusAcomp);
       card.style.display = ok ? "" : "none";
       if (ok) visiveis++;
@@ -1921,6 +1975,41 @@
     document.getElementById("btn-import-csv").disabled = true;
   }
   window.importarRessuprimentosCSV = importarRessuprimentosCSV;
+
+  function exportarExcelAcomp() {
+    const rows = [];
+    document.querySelectorAll("#lista-acomp .card[data-cc]").forEach(card => {
+      if (card.style.display === "none") return;
+      // pega dados do cabeçalho do card
+      const titulo = card.querySelector(".card-titulo");
+      const sub    = card.querySelector(".card-sub");
+      const pills  = card.querySelectorAll(".pill");
+      const scNum  = titulo ? titulo.innerText.split("✏")[0].replace("SC","").trim() : "";
+      const subTxt = sub ? sub.innerText : "";
+      let statusSol = "", statusPed = "", pctAtend = "";
+      pills.forEach(p => {
+        const t = p.innerText.trim();
+        if (t.includes("%")) pctAtend = t;
+        else if (["Aprovada","Pendente","Parcial","Recusada","Aguardando master","Em análise"].includes(t)) statusSol = t;
+        else statusPed = t;
+      });
+      rows.push({
+        "SC": scNum,
+        "Centro de Custo": subTxt.split("·")[0]?.trim() || "",
+        "Observação": subTxt.split("·").slice(2).join("·").trim() || "",
+        "Status": statusSol,
+        "Pedido": statusPed,
+        "Atendimento": pctAtend,
+      });
+    });
+    if (!rows.length) { alert("Nenhuma SC visível para exportar."); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [{ wch: 12 }, { wch: 40 }, { wch: 50 }, { wch: 16 }, { wch: 18 }, { wch: 18 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Acompanhamento");
+    XLSX.writeFile(wb, `acompanhamento_${new Date().toLocaleDateString("pt-BR").replace(/\//g,"-")}.xlsx`);
+  }
+  window.exportarExcelAcomp = exportarExcelAcomp;
 
   function baixarExcelAcomp(solId, scNumero) {
     // busca os dados já renderizados da tabela do card
