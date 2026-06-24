@@ -747,17 +747,14 @@
     }
 
     function calcularProporcaoRecebida(itensSol, scTrim) {
-      let totalSolicitado = 0, totalRecebido = 0;
+      // conta em SKUs (itens distintos), não em quantidade
+      let totalSolicitado = itensSol.length;
+      let totalRecebido = 0;
       itensSol.forEach(it => {
-        const qtdSolicitada = Number(it.quantidade) || 0;
-        totalSolicitado += qtdSolicitada;
         const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
         const ps = temCodigoReal ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
-        const recebidoItem = ps.reduce((acc, p) => {
-          const st = (p.status_desc || "").toLowerCase();
-          return acc + (st.includes("receb") ? (Number(p.c7_quant) || 0) : 0);
-        }, 0);
-        totalRecebido += Math.min(recebidoItem, qtdSolicitada);
+        const estaRecebido = ps.some(p => (p.status_desc || "").toLowerCase().includes("receb"));
+        if (estaRecebido) totalRecebido++;
       });
       return { totalSolicitado, totalRecebido };
     }
@@ -770,7 +767,7 @@
           <div style="width:60px;height:60px;border-radius:50%;flex-shrink:0;background:conic-gradient(#16a34a 0% ${pct}%, #e2e8f0 ${pct}% 100%)"></div>
           <div>
             <div style="font-size:14px;font-weight:700;color:#0f172a">${pct}% recebido</div>
-            <div style="font-size:11.5px;color:#64748b">${totalRecebido} de ${totalSolicitado} unidade(s) solicitada(s)</div>
+            <div style="font-size:11.5px;color:#64748b">${totalRecebido} de ${totalSolicitado} SKU(s) recebido(s)</div>
           </div>
         </div>
       `;
@@ -847,7 +844,7 @@
                 <button onclick="event.stopPropagation();editarSC(${s.id},'${s.sc_numero}')" title="Corrigir nº da SC" style="border:none;background:none;color:#0d9488;cursor:pointer;font-size:12px;padding:0;vertical-align:middle">✏️</button>
                 <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span>
                 ${pedidoGeral ? `<span class="pill ${PG_CLASSE[pedidoGeral]}">${PG_LABEL[pedidoGeral]}</span>` : ""}
-                ${(() => { const {totalSolicitado, totalRecebido} = calcularProporcaoRecebida(itensSol, scTrim); if (!totalSolicitado) return ""; const pct = Math.round((totalRecebido/totalSolicitado)*100); const [bg, cor] = pct===100?["#dcfce7","#16a34a"]:pct>0?["#fef3c7","#b45309"]:["#f1f5f9","#94a3b8"]; return `<span style="background:${bg};color:${cor};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700">${pct}% atendido</span>`; })()}
+                ${(() => { const {totalSolicitado, totalRecebido} = calcularProporcaoRecebida(itensSol, scTrim); if (!totalSolicitado) return ""; const pct = Math.round((totalRecebido/totalSolicitado)*100); const [bg, cor] = pct===100?["#dcfce7","#16a34a"]:pct>0?["#fef3c7","#b45309"]:["#f1f5f9","#94a3b8"]; return `<span style="background:${bg};color:${cor};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700">${pct}% SKUs recebidos</span>`; })()}
               </div>
               <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns)${s.observacao ? ` · <i style="color:#475569">${s.observacao}</i>` : ""} · ${e2 ? "status indisponível" : totalEncontrados + " pedido(s)"}</div>
             </div>
