@@ -884,33 +884,41 @@
             </div>
           </div>
           <div class="card-corpo" id="corpo-ac-${s.id}">
+            ${e2 ? "" : pizzaHtml(...Object.values(calcularProporcaoRecebida(itensSol, scTrim)), itensSol, scTrim)}
+            <div style="display:flex;justify-content:flex-end;margin:10px 0 6px">
+              <button onclick="baixarExcelAcomp(${s.id},'${s.sc_numero}')"
+                style="border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:6px 14px;font-size:12.5px;font-weight:600;color:#475569;cursor:pointer;display:flex;align-items:center;gap:6px">
+                ⬇ Exportar Excel
+              </button>
+            </div>
             <table>
-              <tr><th>Item solicitado</th><th>Pedido (PC)</th><th style="text-align:right">Qtd</th><th>Status</th></tr>
+              <tr><th>Item solicitado</th><th>Pedido (PC)</th><th style="text-align:right">Qtd</th><th style="text-align:right">Valor</th><th>Status</th></tr>
               ${itensSol.map(it => {
                 if (e2) {
-                  return `<tr><td>${it.descricao || it.codigo}</td><td colspan="3" style="color:#94a3b8;font-style:italic">não foi possível verificar agora</td></tr>`;
+                  return `<tr><td>${it.descricao || it.codigo}</td><td colspan="4" style="color:#94a3b8;font-style:italic">não foi possível verificar agora</td></tr>`;
                 }
                 const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
                 const ps = temCodigoReal
                   ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || [])
                   : (pcMapPorSc[scTrim] || []);
                 if (ps.length === 0) {
-                  return `<tr><td>${it.descricao || it.codigo}</td><td colspan="3" style="color:#94a3b8;font-style:italic">sem pedido ainda</td></tr>`;
+                  return `<tr><td>${it.descricao || it.codigo}</td><td colspan="4" style="color:#94a3b8;font-style:italic">sem pedido ainda</td></tr>`;
                 }
                 const avisoItem = !temCodigoReal ? ' <span style="color:#94a3b8;font-style:italic;font-size:11px">(todos os itens da SC — item sem código cadastrado)</span>' : "";
                 return ps.map((p, idx) => {
                   const st = (p.status_desc || "").toLowerCase();
                   const cls = st.includes("receb") ? "st-recebido" : (st.includes("pend") || st.includes("aprov")) ? "st-pendente" : "st-outro";
+                  const val = Number(p.c7_total) || 0;
                   return `<tr>
                     <td>${idx === 0 ? (it.descricao || it.codigo) + avisoItem : ""}</td>
                     <td style="font-family:ui-monospace,monospace">${p.c7_num || ""}</td>
                     <td class="qtd">${p.c7_quant || 0}</td>
+                    <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12px;color:#475569">${val > 0 ? fmtBRL(val) : "—"}</td>
                     <td class="status-pc ${cls}">${p.status_desc || "—"}</td>
                   </tr>`;
                 }).join("");
               }).join("")}
             </table>
-            ${e2 ? "" : pizzaHtml(...Object.values(calcularProporcaoRecebida(itensSol, scTrim)), itensSol, scTrim)}
             ${e2 ? "" : timelineHtml(s, itensSol, scTrim)}
           </div>
         </div>
@@ -1913,6 +1921,33 @@
     document.getElementById("btn-import-csv").disabled = true;
   }
   window.importarRessuprimentosCSV = importarRessuprimentosCSV;
+
+  function baixarExcelAcomp(solId, scNumero) {
+    // busca os dados já renderizados da tabela do card
+    const corpo = document.getElementById("corpo-ac-" + solId);
+    if (!corpo) return;
+    const rows = [];
+    corpo.querySelectorAll("table tr").forEach((tr, i) => {
+      if (i === 0) return; // pula header
+      const tds = tr.querySelectorAll("td");
+      if (!tds.length) return;
+      rows.push({
+        "Item": tds[0]?.innerText?.trim() || "",
+        "Nº PC": tds[1]?.innerText?.trim() || "",
+        "Qtd": tds[2]?.innerText?.trim() || "",
+        "Valor": tds[3]?.innerText?.trim() || "",
+        "Status": tds[4]?.innerText?.trim() || "",
+      });
+    });
+    if (!rows.length) { alert("Nenhum dado para exportar."); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // largura das colunas
+    ws["!cols"] = [{ wch: 60 }, { wch: 10 }, { wch: 8 }, { wch: 16 }, { wch: 30 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "SC " + scNumero);
+    XLSX.writeFile(wb, `SC_${scNumero}_acompanhamento.xlsx`);
+  }
+  window.baixarExcelAcomp = baixarExcelAcomp;
 
   async function excluirAcomp(solId, scNumero) {
     const confirmado = prompt(`Para excluir a SC ${scNumero}, digite o número da SC para confirmar:`);
