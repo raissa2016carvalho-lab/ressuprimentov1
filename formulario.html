@@ -25,13 +25,17 @@
   .erro{background:#fee2e2;color:#991b1b}
   .ok{background:#d1fae5;color:#065f46;text-align:center;padding:24px}
   .item-descricao-wrap{position:relative;flex:1}
-  .item-descricao-wrap input{margin-bottom:0}
+  .item-descricao-wrap input[type="text"]{margin-bottom:0}
   .item-qtd{width:64px!important;margin-bottom:0!important;flex-shrink:0}
   .item-sugestoes{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;z-index:5;box-shadow:0 8px 20px rgba(15,23,42,.1);display:none}
   .sug-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9}
   .sug-item:hover{background:#f8fafc}
   .sug-item:last-child{border-bottom:none}
   .sug-item small{color:#94a3b8;font-size:11px;font-family:ui-monospace,monospace;margin-left:6px}
+  /* badge verde quando item foi selecionado da lista */
+  .item-descricao-wrap.selecionado .item-descricao{border-color:#0d9488;background:#f0fdf4}
+  .item-codigo-badge{font-size:10.5px;color:#0d9488;font-family:ui-monospace,monospace;margin-top:3px;display:none}
+  .item-descricao-wrap.selecionado .item-codigo-badge{display:block}
 </style>
 </head>
 <body>
@@ -93,30 +97,39 @@
     const termo = inputEl.value.trim();
     if (termo.length < 2) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
     const pareceCode = /^\d+$/.test(termo);
-        let query = db.from("itens_publico").select("codigo,descricao,unidade").limit(12);
-        if (pareceCode) { query = query.ilike("codigo", termo + "%"); }
-        else { query = query.ilike("descricao", "%" + termo + "%"); }
-        const { data, error } = await query;
+    let query = db.from("itens_publico").select("codigo,descricao,unidade").limit(12);
+    if (pareceCode) { query = query.ilike("codigo", termo + "%"); }
+    else { query = query.ilike("descricao", "%" + termo + "%"); }
+    const { data, error } = await query;
     if (error || !data || data.length === 0) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
     sugEl.innerHTML = data.map(it =>
       `<div class="sug-item" data-codigo="${it.codigo}" data-descricao="${it.descricao.replace(/"/g, '&quot;')}">${it.descricao} <small>${it.codigo}</small></div>`
-    ).join("") + (data.length === 100 ? '<div style="padding:8px 12px;font-size:11.5px;color:#94a3b8;text-align:center">Mostrando os 100 primeiros — digite mais letras pra refinar</div>' : "");
+    ).join("") + (data.length === 12 ? '<div style="padding:8px 12px;font-size:11.5px;color:#94a3b8;text-align:center">Digite mais letras para refinar</div>' : "");
     sugEl.style.display = "block";
   }, 300);
 
+  // quando digita: limpa o código guardado e abre sugestões
   document.addEventListener("input", (e) => {
     if (!e.target.classList.contains("item-descricao")) return;
-    e.target.dataset.codigo = ""; // digitou de novo, não é mais um item escolhido da lista
+    const wrap = e.target.closest(".item-descricao-wrap");
+    // limpa seleção anterior
+    wrap.querySelector(".item-codigo-hidden").value = "";
+    wrap.classList.remove("selecionado");
     buscarSugestoes(e.target);
   });
 
+  // quando clica numa sugestão: guarda código no input hidden (não no dataset!)
   document.addEventListener("click", (e) => {
     const sug = e.target.closest(".sug-item");
     if (sug) {
       const wrap = sug.closest(".item-descricao-wrap");
       const input = wrap.querySelector(".item-descricao");
-      input.value = sug.dataset.descricao;
-      input.dataset.codigo = sug.dataset.codigo;
+      const hidden = wrap.querySelector(".item-codigo-hidden");
+      const badge  = wrap.querySelector(".item-codigo-badge");
+      input.value  = sug.dataset.descricao;
+      hidden.value = sug.dataset.codigo;           // ← guarda aqui, nunca se perde
+      badge.textContent = "✓ " + sug.dataset.codigo;
+      wrap.classList.add("selecionado");
       wrap.querySelector(".item-sugestoes").style.display = "none";
       return;
     }
@@ -133,10 +146,12 @@
     div.id = id;
     div.innerHTML = `
       <div class="item-descricao-wrap">
-        <input class="item-descricao" placeholder="Nome do material (digite para buscar)"/>
+        <input class="item-descricao" type="text" placeholder="Nome do material (digite para buscar)"/>
+        <input class="item-codigo-hidden" type="hidden" value=""/>
+        <div class="item-codigo-badge"></div>
         <div class="item-sugestoes"></div>
       </div>
-      <input class="item-qtd" type="number" min="0" placeholder="Qtd"/>
+      <input class="item-qtd" type="number" min="1" placeholder="Qtd"/>
       <button class="item-remover" onclick="document.getElementById('${id}').remove()">✕</button>
     `;
     $("itens-lista").appendChild(div);
@@ -144,7 +159,6 @@
   $("btn-add-item").addEventListener("click", adicionarItem);
   adicionarItem(); // já começa com 1 item
 
-  // carrega as bases (centros de custo) na lista — se o nome se repetir, mantém só 1
   async function carregarBases() {
     const { data, error } = await db.from("ccs_publico").select("*");
     const select = $("cc");
@@ -153,8 +167,6 @@
       mostrarMsg("Não foi possível carregar as bases: " + error.message, "erro");
       return;
     }
-    // mostra TODOS os CCs com nome — bloqueados e desbloqueados visíveis
-    // o status fica no data-status para validação no submit
     const nomesVistos = new Set();
     const semDuplicata = (data || []).filter(c => {
       if (!c.nome || !c.nome.trim()) return false;
@@ -180,27 +192,28 @@
     const cc = $("cc").value;
     const justificativaGeral = $("justificativa-geral").value.trim();
 
-    const itensEls = document.querySelectorAll(".item");
+    // lê os itens usando o input hidden para o código — nunca perde o valor
+    const itensEls = document.querySelectorAll("#itens-lista .item");
     const itens = [];
     for (const el of itensEls) {
       const descricaoEl = el.querySelector(".item-descricao");
-      const descricao = descricaoEl.value.trim();
-      const codigo = descricaoEl.dataset.codigo || "MANUAL";
-      const qtd = el.querySelector(".item-qtd").value;
-      if (descricao || qtd) {
-        itens.push({ codigo, descricao, quantidade: Number(qtd) || 0 });
+      const hiddenEl    = el.querySelector(".item-codigo-hidden");
+      const descricao   = descricaoEl.value.trim();
+      const codigo      = hiddenEl.value.trim() || "MANUAL";
+      const qtd         = el.querySelector(".item-qtd").value;
+      if (descricao && qtd) {
+        itens.push({ codigo, descricao, quantidade: Number(qtd) || 1 });
       }
     }
 
     if (!nome || !matricula) { mostrarMsg("Preencha nome e matrícula.", "erro"); return; }
     if (!cc) { mostrarMsg("Selecione sua base.", "erro"); return; }
-    // bloqueia envio se o CC estiver bloqueado
     const optCC = $("cc").querySelector(`option[value="${cc}"]`);
     if (optCC && (optCC.dataset.status || "Desbloqueado") !== "Desbloqueado") {
       mostrarMsg("Este centro de custo está bloqueado. Não é possível abrir solicitação para ele.", "erro");
       return;
     }
-    if (itens.length === 0) { mostrarMsg("Adicione pelo menos um item.", "erro"); return; }
+    if (itens.length === 0) { mostrarMsg("Adicione pelo menos um item com descrição e quantidade.", "erro"); return; }
     for (const it of itens) {
       if (!it.descricao || !it.quantidade) {
         mostrarMsg("Preencha a descrição e a quantidade de todos os itens.", "erro");
