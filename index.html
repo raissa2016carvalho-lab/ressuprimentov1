@@ -695,11 +695,20 @@
     const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
     const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
 
-    const { data: pcs, error: e2 } = await db
-      .from("pedidos_compra")
-      .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri,c7_emissao,dt_entrega")
-      .or(condicoesOr)
-      .limit(5000);
+    // busca pedidos em lotes de 1000 — o banco tem 30k+ registros e limit(5000) cortava SCs do final
+    let pcs = [], e2 = null, pcOffset = 0;
+    while (true) {
+      const { data: lote, error: eLote } = await db
+        .from("pedidos_compra")
+        .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc,c7_descri,c7_emissao,dt_entrega")
+        .or(condicoesOr)
+        .range(pcOffset, pcOffset + 999);
+      if (eLote) { e2 = eLote; break; }
+      if (!lote || lote.length === 0) break;
+      pcs = pcs.concat(lote);
+      if (lote.length < 1000) break;
+      pcOffset += 1000;
+    }
 
     const avisoProtheus = e2 ? `<div class="msg erro" style="max-width:920px;margin-bottom:12px">Não foi possível verificar o status agora: ${e2.message}</div>` : "";
 
@@ -1350,15 +1359,21 @@
     if (numerosSc.length > 0) {
       const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
       const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
-      const { data: pcs, error: e2 } = await db
-        .from("pedidos_compra")
-        .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc")
-        .or(condicoesOr)
-        .limit(5000);
-      if (e2) {
-        avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${e2.message}</div>`;
-      } else {
-        pcsEncontrados = pcs || [];
+      let pcOffset = 0, ePcs = null;
+      while (true) {
+        const { data: lote, error: eLote } = await db
+          .from("pedidos_compra")
+          .select("c7_numsc,c7_produto,c7_num,c7_quant,status_desc")
+          .or(condicoesOr)
+          .range(pcOffset, pcOffset + 999);
+        if (eLote) { ePcs = eLote; break; }
+        if (!lote || lote.length === 0) break;
+        pcsEncontrados = pcsEncontrados.concat(lote);
+        if (lote.length < 1000) break;
+        pcOffset += 1000;
+      }
+      if (ePcs) {
+        avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${ePcs.message}</div>`;
       }
     }
 
