@@ -1768,7 +1768,21 @@
 
     const text = await file.text();
     const linhas = text.trim().split("\n");
-    const headers = linhas[0].replace(/\r/,"").split(",");
+
+    // Parser CSV que respeita campos entre aspas (evita quebrar em vírgulas internas)
+    function parseLinha(linha) {
+      const cols = []; let cur = ""; let inQ = false;
+      for (let i = 0; i < linha.length; i++) {
+        const ch = linha[i];
+        if (ch === '"') { inQ = !inQ; }
+        else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
+        else { cur += ch; }
+      }
+      cols.push(cur.trim());
+      return cols;
+    }
+
+    const headers = parseLinha(linhas[0].replace(/\r/,""));
     const idx = h => headers.findIndex(c => c.trim().toLowerCase().replace(/[^a-z_]/g,"") === h.toLowerCase());
     const iSC   = idx("n_sc");
     const iProd = idx("produto");
@@ -1802,7 +1816,7 @@
     // agrupa linhas por SC
     const grupos = {};
     for (let i = 1; i < linhas.length; i++) {
-      const cols = linhas[i].replace(/\r/,"").split(",");
+      const cols = parseLinha(linhas[i].replace(/\r/,""));
       if (cols.length < 6) continue;
       const sc = (cols[iSC]||"").trim();
       if (!sc) continue;
