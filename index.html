@@ -685,6 +685,8 @@
       const s = String(cod || "").trim();
       return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
     }
+    // variantesSc: retorna a SC original + sem zeros à esquerda
+    // Ex: "000217" → ["000217", "217"] | "REGYVN" → ["REGYVN"]
     function variantesSc(sc) {
       const v = new Set([sc]);
       if (/^\d+$/.test(sc)) v.add(normalizarSc(sc));
@@ -693,7 +695,9 @@
 
     const numerosSc = [...new Set(associadas.map(s => s.sc_numero.trim()))].filter(Boolean);
     const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
-    const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
+    // usa eq (igualdade exata) em vez de ilike para não errar com zeros à esquerda
+    // "000217" com ilike.217% não batia — agora usa eq.000217,eq.217
+    const condicoesOr = todasVariantes.map(n => `c7_numsc.eq.${n.replace(/[%,()]/g, "")}`).join(",");
 
     // busca pedidos em lotes de 1000 — o banco tem 30k+ registros e limit(5000) cortava SCs do final
     let pcs = [], e2 = null, pcOffset = 0;
@@ -1358,7 +1362,7 @@
     let pcsEncontrados = [], avisoProtheus = "";
     if (numerosSc.length > 0) {
       const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
-      const condicoesOr = todasVariantes.map(n => `c7_numsc.ilike.${n.replace(/[%,()]/g, "")}%`).join(",");
+      const condicoesOr = todasVariantes.map(n => `c7_numsc.eq.${n.replace(/[%,()]/g, "")}`).join(",");
       let pcOffset = 0, ePcs = null;
       while (true) {
         const { data: lote, error: eLote } = await db
