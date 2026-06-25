@@ -128,7 +128,10 @@
     </button>
     <button class="aba" id="aba-btn-mobilizacao" onclick="irPara('mobilizacao')">
       Mobilização
-    </button><button class="aba" id="aba-btn-settings" onclick="irPara('settings')">
+    </button>    <button class="aba" id="aba-btn-consolidados" onclick="irPara('consolidados')">
+      📊 Consolidados
+    </button>
+<button class="aba" id="aba-btn-settings" onclick="irPara('settings')">
       ⚙ Configurações
     </button>
     <div class="rodape">
@@ -194,9 +197,23 @@
           <button onclick="setFiltroStatusAcomp('recebido')" id="facomp-recebido"
             style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Recebido</button>
         </div>
+        <!-- barra de consolidação -->
+        <div id="barra-consolidar" style="display:none;background:#0f172a;color:#fff;border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap">
+          <span id="count-sel-cons" style="font-size:13px;font-weight:600">0 SC(s)</span>
+          <button onclick="consolidarSelecionadas()" style="background:#0d9488;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">📊 Criar consolidado</button>
+          <button onclick="limparSelecaoAcomp()" style="background:transparent;color:#94a3b8;border:1px solid #334155;border-radius:7px;padding:7px 14px;font-size:13px;cursor:pointer">Cancelar</button>
+        </div>
         <div id="lista-acomp"></div>
       </div>
     </div>
+    <div id="aba-consolidados" style="display:none">
+      <div class="topo-aba">
+        <div style="font-weight:700;font-size:14px">📊 Consolidados</div>
+        <button onclick="novoConsolidado()" style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">+ Novo consolidado</button>
+      </div>
+      <div class="corpo-aba"><div id="lista-consolidados"><div class="vazio">Carregando...</div></div></div>
+    </div>
+
     <div id="aba-mobilizacao" style="display:none">
       <div class="topo-aba">
         <div style="font-weight:700;font-size:14px">Mobilizações</div>
@@ -378,13 +395,16 @@
     $("aba-acompanhamento").style.display = aba === "acompanhamento" ? "block" : "none";
     $("aba-mobilizacao").style.display = aba === "mobilizacao" ? "block" : "none";
     $("aba-settings").style.display = aba === "settings" ? "block" : "none";
+    $("aba-consolidados").style.display = aba === "consolidados" ? "block" : "none";
     $("aba-btn-solicitacoes").classList.toggle("ativo", aba === "solicitacoes");
     $("aba-btn-acompanhamento").classList.toggle("ativo", aba === "acompanhamento");
     $("aba-btn-mobilizacao").classList.toggle("ativo", aba === "mobilizacao");
     $("aba-btn-settings").classList.toggle("ativo", aba === "settings");
+    $("aba-btn-consolidados").classList.toggle("ativo", aba === "consolidados");
     if (aba === "acompanhamento") carregarAcompanhamento();
     if (aba === "settings") { irSubSettings("bases"); carregarCarimbos(); }
     if (aba === "mobilizacao") { mostrarListaMob(); carregarMobilizacoes(); }
+    if (aba === "consolidados") carregarConsolidados();
   }
   window.irPara = irPara;
 
@@ -930,7 +950,12 @@
       });
       const gruposStr = [...gruposSet].join("|").toLowerCase();
       return `
-        ${(() => { const {totalSolicitado:ts2, totalRecebido:tr2} = calcularProporcaoRecebida(itensSol, scTrim, filialSol); const pctCard = ts2 > 0 ? Math.round(tr2/ts2*100) : 0; return `<div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}">`; })()}
+        ${(() => { const {totalSolicitado:ts2, totalRecebido:tr2} = calcularProporcaoRecebida(itensSol, scTrim, filialSol); const pctCard = ts2 > 0 ? Math.round(tr2/ts2*100) : 0; return `<div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-sol-id="${s.id}">`; })()}
+          <div style="display:flex;align-items:flex-start;gap:8px">
+          <input type="checkbox" class="acomp-cb" data-id="${s.id}"
+            style="margin:18px 0 0 12px;width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:#0d9488"
+            onchange="atualizarBarraCons()"/>
+          <div style="flex:1;min-width:0">
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -994,8 +1019,8 @@
               }).join("")}
             </table>
             ${e2 ? "" : timelineHtml(s, itensSol, scTrim, filialEfetiva)}
-          </div><!-- card-corpo -->
-            </div><!-- flex:1 -->
+          </div>
+          </div><!-- flex:1 -->
           </div><!-- flex wrapper -->
         </div><!-- card -->
       `;
@@ -2261,44 +2286,122 @@
 
   // ========== CONSOLIDADOS ==========
 
+  function atualizarBarraCons() {
+    const sels = document.querySelectorAll(".acomp-cb:checked");
+    const barra = document.getElementById("barra-consolidar");
+    const count = document.getElementById("count-sel-cons");
+    if (sels.length > 0) {
+      barra.style.display = "flex";
+      count.textContent = sels.length + " SC(s) selecionada(s)";
+    } else {
+      barra.style.display = "none";
+    }
+  }
+  window.atualizarBarraCons = atualizarBarraCons;
+
+  function limparSelecaoAcomp() {
+    document.querySelectorAll(".acomp-cb").forEach(cb => cb.checked = false);
+    atualizarBarraCons();
+  }
+  window.limparSelecaoAcomp = limparSelecaoAcomp;
+
+  async function consolidarSelecionadas() {
+    const sels = [...document.querySelectorAll(".acomp-cb:checked")];
+    if (!sels.length) return;
+    const nome = prompt("Nome do consolidado:\nEx.: Ressuprimento Fardamentos Junho/Julho/Agosto");
+    if (!nome || !nome.trim()) return;
+    const { data: cons, error: e1 } = await db.from("consolidados").insert({ nome: nome.trim() }).select().single();
+    if (e1) { alert("Erro: " + e1.message); return; }
+    const inserts = sels.map(cb => ({ consolidado_id: cons.id, solicitacao_id: Number(cb.dataset.id) }));
+    const { error: e2 } = await db.from("consolidado_scs").insert(inserts);
+    if (e2) { alert("Erro ao vincular SCs: " + e2.message); return; }
+    limparSelecaoAcomp();
+    alert("Consolidado criado com " + sels.length + " SC(s)!");
+    irPara("consolidados");
+  }
+  window.consolidarSelecionadas = consolidarSelecionadas;
+
+  async function novoConsolidado() {
+    const nome = prompt("Nome do consolidado:");
+    if (!nome || !nome.trim()) return;
+    const { error } = await db.from("consolidados").insert({ nome: nome.trim() });
+    if (error) { alert("Erro: " + error.message); return; }
+    await carregarConsolidados();
+  }
+  window.novoConsolidado = novoConsolidado;
+
+  async function excluirConsolidado(id, nome) {
+    if (!confirm("Excluir o consolidado '" + nome + "'?\nAs SCs continuam no Acompanhamento.")) return;
+    await db.from("consolidados").delete().eq("id", id);
+    await carregarConsolidados();
+  }
+  window.excluirConsolidado = excluirConsolidado;
+
+  async function carregarConsolidados() {
+    const el = document.getElementById("lista-consolidados");
+    if (!el) return;
+    el.innerHTML = '<div class="vazio">Carregando...</div>';
+    const { data: cons, error } = await db.from("consolidados").select("*").order("criado_em", { ascending: false });
+    if (error) { el.innerHTML = '<div class="vazio">Erro: ' + error.message + '</div>'; return; }
+    if (!cons || !cons.length) {
+      el.innerHTML = '<div class="vazio">Nenhum consolidado ainda.<br><br>No Acompanhamento, marque SCs com o checkbox e clique em "Criar consolidado".</div>';
+      return;
+    }
+    el.innerHTML = cons.map(c => `
+      <div class="card" style="max-width:100%" id="cons-card-${c.id}">
+        <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleConsolidado(${c.id})">
+          <div>
+            <div style="font-weight:700;font-size:15px">${c.nome}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:3px">criado em ${fmtData(c.criado_em)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="color:#0d9488;font-weight:600;font-size:12.5px">Ver ▾</span>
+            <button onclick="event.stopPropagation();excluirConsolidado(${c.id},'${c.nome.replace(/'/g, "\'")}')"
+              style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:16px;padding:0"
+              onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
+          </div>
+        </div>
+        <div class="card-corpo" id="cons-corpo-${c.id}" data-carregado="0"></div>
+      </div>
+    `).join("");
+  }
+
+  async function toggleConsolidado(id) {
+    const corpo = document.getElementById("cons-corpo-" + id);
+    corpo.classList.toggle("aberto");
+    if (corpo.classList.contains("aberto") && corpo.dataset.carregado === "0") {
+      corpo.dataset.carregado = "1";
+      await renderConsolidado(id, corpo);
+    }
+  }
+  window.toggleConsolidado = toggleConsolidado;
+
   async function renderConsolidado(consId, container) {
     container.innerHTML = '<div style="padding:12px;color:#64748b;font-size:13px">Carregando...</div>';
 
-    // busca SCs do consolidado
-    const { data: links } = await db.from("consolidado_scs")
-      .select("solicitacao_id").eq("consolidado_id", consId);
+    const { data: links } = await db.from("consolidado_scs").select("solicitacao_id").eq("consolidado_id", consId);
     if (!links || !links.length) {
       container.innerHTML = '<div style="padding:16px;color:#94a3b8;font-size:13px">Nenhuma SC vinculada.</div>';
       return;
     }
     const ids = links.map(l => l.solicitacao_id);
-
-    // busca solicitações
     const { data: sols } = await db.from("solicitacoes").select("*").in("id", ids);
-    // busca itens
-    const { data: itens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", ids);
-    // busca CCs
+    const { data: itensDB } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", ids);
     const { data: ccs } = await db.from("centros_custo").select("cc,nome");
     const ccNomes = {};
     (ccs || []).forEach(c => ccNomes[c.cc] = c.nome);
-
     const porSol = {};
-    (itens || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
+    (itensDB || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
 
-    // busca pedidos das SCs
+    // busca pedidos — mesmo processo do acompanhamento
     const numerosSc = [...new Set((sols || []).map(s => s.sc_numero).filter(Boolean))];
-
     function normSc(sc) { const s = String(sc||"").trim(); return /^\d+$/.test(s)?(s.replace(/^0+/,"")||"0"):s; }
     function normCod(c) { const s = String(c||"").trim(); return /^\d+$/.test(s)?(s.replace(/^0+/,"")||"0"):s; }
 
     let pcs = [];
     if (numerosSc.length) {
-      const variantes = [...new Set(numerosSc.flatMap(sc => {
-        const v = new Set([sc]);
-        if (/^\d+$/.test(sc)) v.add(normSc(sc));
-        return [...v];
-      }))];
-      const orCond = variantes.map(n => `c7_numsc.eq.${n}`).join(",");
+      const variantes = [...new Set(numerosSc.flatMap(sc => { const v = new Set([sc]); if(/^\d+$/.test(sc)) v.add(normSc(sc)); return [...v]; }))];
+      const orCond = variantes.map(n => "c7_numsc.eq." + n).join(",");
       let off = 0;
       while (true) {
         const { data: lote } = await db.from("pedidos_compra")
@@ -2311,172 +2414,152 @@
       }
     }
 
-    // índice de PCs por sc+filial+produto
-    const pcIdx = {};
-    const pcIdxPorSc = {}; // sc|filial → [pcs] para detectar filial
+    // montar índices — IDÊNTICO ao acompanhamento
+    const pcMap = {};
+    const pcMapPorSc = {};
     pcs.forEach(p => {
       const sc = normSc(p.c7_numsc);
       const filial = String(p.c7_filial||"").trim();
-      const k = sc + "|" + filial + "|" + normCod(p.c7_produto);
-      (pcIdx[k] = pcIdx[k] || []).push(p);
-      const kSc = sc + "|" + filial;
-      (pcIdxPorSc[kSc] = pcIdxPorSc[kSc] || []).push(p);
+      const cod = normCod(p.c7_produto);
+      (pcMap[sc+"|"+filial+"|"+cod] = pcMap[sc+"|"+filial+"|"+cod] || []).push(p);
+      (pcMapPorSc[sc+"|"+filial] = pcMapPorSc[sc+"|"+filial] || []).push(p);
     });
 
-    // detectar filial pelo banco (igual ao acompanhamento)
-    const FILIAIS_VALIDAS_CONS = new Set(["01","03","04","06","07","08","09","10","11","13","14","15","22","23","24","25","27","29","34","36","37","40","41","42","43"]);
+    const FILIAIS_VALIDAS = new Set(["01","03","04","06","07","08","09","10","11","13","14","15","22","23","24","25","27","29","34","36","37","40","41","42","43"]);
+    const FILIAIS_NOMES = {"01":"MATRIZ","03":"PAU DOS FERROS","04":"ITAPIPOCA","06":"CURRAIS NOVOS","07":"SOBRAL","08":"APARECIDA DE GOIANIA","09":"MARACANAU","10":"MOSSORO","11":"ANAPOLIS","13":"ALAGOINHAS","14":"RIBEIRA DO POMBAL","15":"PAULO AFONSO","22":"GOIANIA","23":"BATURITE","24":"MORRINHOS","25":"CASCAVEL","27":"CAUCAIA","29":"HORIZONTE","34":"SENHOR DO BONFIM","36":"LUZIANIA","37":"DIVINOPOLIS","40":"GARANHUNS","41":"FLORIANO","42":"LIVRAMENTO DE NOSSA SENHORA","43":"HORTOLANDIA"};
+
     function detectarFilialCons(scTrim) {
-      const contagem = {};
-      for (const chave of Object.keys(pcIdxPorSc)) {
-        const partes = chave.split("|");
-        if (partes.length === 2 && partes[0] === scTrim && FILIAIS_VALIDAS_CONS.has(partes[1])) {
-          contagem[partes[1]] = (contagem[partes[1]] || 0) + pcIdxPorSc[chave].length;
-        }
-      }
-      if (!Object.keys(contagem).length) return null;
-      return Object.entries(contagem).sort((a,b) => b[1]-a[1])[0][0];
+      const cont = {};
+      Object.keys(pcMapPorSc).forEach(k => {
+        const p = k.split("|");
+        if (p.length === 2 && p[0] === scTrim && FILIAIS_VALIDAS.has(p[1]))
+          cont[p[1]] = (cont[p[1]]||0) + pcMapPorSc[k].length;
+      });
+      if (!Object.keys(cont).length) return null;
+      return Object.entries(cont).sort((a,b)=>b[1]-a[1])[0][0];
     }
 
+    // getPCsCons — IDÊNTICO ao getPCs do acompanhamento
     function getPCsCons(sc, filial, codigo) {
       if (!filial) return [];
-      const cod = normCod(codigo);
-      if (cod && cod !== "MANUAL") return pcIdx[sc + "|" + filial + "|" + cod] || [];
-      return pcIdxPorSc[sc + "|" + filial] || [];
+      const temCod = codigo && codigo !== "MANUAL";
+      if (temCod) return pcMap[sc+"|"+filial+"|"+normCod(codigo)] || [];
+      return pcMapPorSc[sc+"|"+filial] || [];
     }
 
-    // calcular métricas por SC
-    const metricasPorCC = {}; // cc → {total, recebidos, valor}
-    let totalSkus = 0, totalRecebidos = 0, valorTotal = 0, valorRecebido = 0;
+    // calcularProporcaoCons — IDÊNTICO ao calcularProporcaoRecebida
+    function calcularProporcaoCons(itensSol, sc, filial) {
+      let total = itensSol.length, recebidos = 0;
+      itensSol.forEach(it => {
+        const ps = getPCsCons(sc, filial, it.codigo);
+        if (ps.some(p => (p.status_desc||"").toLowerCase().includes("receb"))) recebidos++;
+      });
+      return { total, recebidos };
+    }
 
-    (sols || []).forEach(sol => {
+    function calcularValorCons(itensSol, sc, filial) {
+      let valorTotal = 0, valorRecebido = 0;
+      itensSol.forEach(it => {
+        getPCsCons(sc, filial, it.codigo).forEach(p => {
+          valorTotal += Number(p.c7_total)||0;
+          if ((p.status_desc||"").toLowerCase().includes("receb")) valorRecebido += Number(p.c7_total)||0;
+        });
+      });
+      return { valorTotal, valorRecebido };
+    }
+
+    // calcular métricas por CC e totais gerais
+    const metPorCC = {};
+    let totalSkus = 0, totalRecebidos = 0, valorTotalGeral = 0;
+
+    (sols||[]).forEach(sol => {
       const itensSol = porSol[sol.id] || [];
-      const sc = normSc(sol.sc_numero || "");
+      const sc = normSc(sol.sc_numero||"");
       const filial = sol.filial || detectarFilialCons(sc) || "";
       const cc = sol.cc;
-      if (!metricasPorCC[cc]) metricasPorCC[cc] = { nome: ccNomes[cc] || cc, total: 0, recebidos: 0, valor: 0 };
+      if (!metPorCC[cc]) metPorCC[cc] = { nome: ccNomes[cc]||cc, total:0, recebidos:0, valor:0 };
 
       itensSol.forEach(it => {
-        // só cruza por código real — MANUAL sem código real não conta como recebido
-        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCodigoReal ? getPCsCons(sc, filial, it.codigo) : [];
+        const temCodReal = it.codigo && it.codigo !== "MANUAL";
+        const ps = temCodReal ? getPCsCons(sc, filial, it.codigo) : [];
         totalSkus++;
-        metricasPorCC[cc].total++;
+        metPorCC[cc].total++;
         const recebido = ps.some(p => (p.status_desc||"").toLowerCase().includes("receb"));
-        if (recebido) { totalRecebidos++; metricasPorCC[cc].recebidos++; }
+        if (recebido) { totalRecebidos++; metPorCC[cc].recebidos++; }
         ps.forEach(p => {
-          const v = Number(p.c7_total) || 0;
-          valorTotal += v;
-          metricasPorCC[cc].valor += v;
-          if ((p.status_desc||"").toLowerCase().includes("receb")) valorRecebido += v;
+          const v = Number(p.c7_total)||0;
+          valorTotalGeral += v;
+          metPorCC[cc].valor += v;
         });
       });
     });
 
-    const pctGeral = totalSkus > 0 ? Math.round(totalRecebidos / totalSkus * 100) : 0;
-    const corPct = pctGeral === 100 ? "#16a34a" : pctGeral > 50 ? "#0d9488" : pctGeral > 20 ? "#f59e0b" : "#ef4444";
+    const pctGeral = totalSkus > 0 ? Math.round(totalRecebidos/totalSkus*100) : 0;
+    const corPct = pctGeral===100?"#16a34a":pctGeral>50?"#0d9488":pctGeral>20?"#f59e0b":"#ef4444";
 
-    // ordenar CCs por % atendimento (maior primeiro)
-    const ccList = Object.entries(metricasPorCC)
-      .map(([cc, m]) => ({ cc, ...m, pct: m.total > 0 ? Math.round(m.recebidos/m.total*100) : 0 }))
-      .sort((a,b) => b.pct - a.pct);
+    const ccList = Object.entries(metPorCC)
+      .map(([cc,m]) => ({...m, cc, pct: m.total>0?Math.round(m.recebidos/m.total*100):0}))
+      .sort((a,b) => b.pct-a.pct);
 
-    // ordenar CCs por valor (maior primeiro)
-    const ccPorValor = [...ccList].sort((a,b) => b.valor - a.valor).slice(0, 8);
-
-    function barChart(items, valorFn, labelFn, corFn, titulo) {
+    function barChart(items, valorFn, labelFn, fmt, titulo) {
       const max = Math.max(...items.map(valorFn), 1);
-      return `<div style="margin-bottom:20px">
-        <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">${titulo}</div>
-        ${items.slice(0,8).map(it => {
+      return '<div style="margin-bottom:20px">' +
+        '<div style="font-size:11.5px;font-weight:700;color:#475569;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">' + titulo + '</div>' +
+        items.slice(0,8).map(it => {
           const v = valorFn(it);
-          const pct = Math.round(v / max * 100);
-          return `<div style="margin-bottom:8px">
-            <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:3px">
-              <span style="color:#334155;font-weight:500;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${labelFn(it)}</span>
-              <span style="font-weight:700;color:#0f172a;margin-left:8px;flex-shrink:0">${corFn(it, v)}</span>
-            </div>
-            <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden">
-              <div style="height:100%;width:${pct}%;background:${it.pct !== undefined ? (it.pct===100?'#16a34a':it.pct>50?'#0d9488':it.pct>20?'#f59e0b':'#ef4444') : '#0d9488'};border-radius:999px;transition:width .3s"></div>
-            </div>
-          </div>`;
-        }).join("")}
-      </div>`;
+          const pct = Math.round(v/max*100);
+          const cor = it.pct!==undefined?(it.pct===100?"#16a34a":it.pct>50?"#0d9488":it.pct>20?"#f59e0b":"#ef4444"):"#0d9488";
+          return '<div style="margin-bottom:8px">' +
+            '<div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:3px">' +
+            '<span style="color:#334155;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px">' + labelFn(it) + '</span>' +
+            '<span style="font-weight:700;color:#0f172a;margin-left:8px;flex-shrink:0">' + fmt(it,v) + '</span></div>' +
+            '<div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden">' +
+            '<div style="height:100%;width:' + pct + '%;background:' + cor + ';border-radius:999px"></div></div></div>';
+        }).join("") + '</div>';
     }
 
-    const graficoAtendimento = barChart(
-      ccList, it => it.pct, it => it.nome,
-      (it,v) => v + "%", "% Atendimento por Centro de Custo"
-    );
-    const graficoValor = barChart(
-      ccPorValor, it => it.valor, it => it.nome,
-      (it,v) => fmtBRL(v), "Valor Total por Centro de Custo (Top 8)"
-    );
+    const grafAtend = barChart(ccList, it=>it.pct, it=>it.nome, (it,v)=>v+"%", "% Atendimento por Centro de Custo");
+    const grafValor = barChart([...ccList].sort((a,b)=>b.valor-a.valor), it=>it.valor, it=>it.nome, (it,v)=>fmtBRL(v), "Valor Total por Centro de Custo (Top 8)");
 
-    // lista de SCs
-    const listaScs = (sols || []).map(sol => {
-      const itensSol = porSol[sol.id] || [];
-      const sc = normSc(sol.sc_numero || "");
+    // lista de SCs com % — USANDO MESMO CÁLCULO
+    const listaScs = (sols||[]).map(sol => {
+      const itensSol = porSol[sol.id]||[];
+      const sc = normSc(sol.sc_numero||"");
       const filial = sol.filial || detectarFilialCons(sc) || "";
-      let tot = 0, rec = 0;
-      itensSol.forEach(it => {
-        tot++;
-        const temCodReal = it.codigo && it.codigo !== "MANUAL";
-        if (temCodReal && getPCsCons(sc, filial, it.codigo).some(p => (p.status_desc||"").toLowerCase().includes("receb"))) rec++;
-      });
-      const pct = tot > 0 ? Math.round(rec/tot*100) : 0;
+      const {total, recebidos} = calcularProporcaoCons(itensSol, sc, filial);
+      const pct = total>0?Math.round(recebidos/total*100):0;
       const cor = pct===100?"#16a34a":pct>50?"#0d9488":pct>20?"#f59e0b":"#ef4444";
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px">
-        <span style="color:#334155">${ccNomes[sol.cc]||sol.cc} <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px">SC ${sol.sc_numero}</span></span>
-        <span style="font-weight:700;color:${cor};${pct===100?'':''}min-width:45px;text-align:right">${pct}%</span>
-      </div>`;
+      const {valorTotal} = calcularValorCons(itensSol, sc, filial);
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px">' +
+        '<span style="color:#334155">' + (ccNomes[sol.cc]||sol.cc) + ' <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px">SC ' + sol.sc_numero + '</span></span>' +
+        '<div style="display:flex;align-items:center;gap:12px;flex-shrink:0">' +
+        (valorTotal>0?'<span style="font-size:11px;color:#64748b">'+fmtBRL(valorTotal)+'</span>':'') +
+        '<span style="font-weight:700;color:'+cor+';min-width:38px;text-align:right">'+pct+'%</span>' +
+        '</div></div>';
     }).join("");
 
-    container.innerHTML = `
-      <div style="padding:16px">
-        <!-- KPIs -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
-          <div style="background:#f8fafc;border-radius:10px;padding:14px;text-align:center">
-            <div style="font-size:28px;font-weight:800;color:${corPct}">${pctGeral}%</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px">Atendimento geral</div>
-          </div>
-          <div style="background:#f8fafc;border-radius:10px;padding:14px;text-align:center">
-            <div style="font-size:28px;font-weight:800;color:#0f172a">${totalSkus}</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px">Total de SKUs</div>
-          </div>
-          <div style="background:#f8fafc;border-radius:10px;padding:14px;text-align:center">
-            <div style="font-size:28px;font-weight:800;color:#16a34a">${totalRecebidos}</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px">SKUs recebidos</div>
-          </div>
-          <div style="background:#f8fafc;border-radius:10px;padding:14px;text-align:center">
-            <div style="font-size:14px;font-weight:800;color:#0f172a">${fmtBRL(valorTotal)}</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px">Valor total</div>
-          </div>
-        </div>
-
-        <!-- barra de progresso geral -->
-        <div style="margin-bottom:20px">
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
-            <span style="color:#64748b;font-weight:600">Progresso geral do consolidado</span>
-            <span style="font-weight:700;color:${corPct}">${totalRecebidos} de ${totalSkus} SKUs</span>
-          </div>
-          <div style="height:12px;background:#f1f5f9;border-radius:999px;overflow:hidden">
-            <div style="height:100%;width:${pctGeral}%;background:${corPct};border-radius:999px;transition:width .5s"></div>
-          </div>
-        </div>
-
-        <!-- gráficos -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px">${graficoAtendimento}</div>
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px">${graficoValor}</div>
-        </div>
-
-        <!-- lista de SCs -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px">
-          <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">SCs neste consolidado (${sols?.length||0})</div>
-          ${listaScs}
-        </div>
-      </div>
-    `;
+    container.innerHTML =
+      '<div style="padding:16px">' +
+      // KPIs
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">' +
+      '<div style="background:#f8fafc;border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:800;color:'+corPct+'">'+pctGeral+'%</div><div style="font-size:11px;color:#64748b;margin-top:2px">Atendimento geral</div></div>' +
+      '<div style="background:#f8fafc;border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:800;color:#0f172a">'+totalSkus+'</div><div style="font-size:11px;color:#64748b;margin-top:2px">Total SKUs</div></div>' +
+      '<div style="background:#f8fafc;border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:800;color:#16a34a">'+totalRecebidos+'</div><div style="font-size:11px;color:#64748b;margin-top:2px">SKUs recebidos</div></div>' +
+      '<div style="background:#f8fafc;border-radius:10px;padding:14px;text-align:center"><div style="font-size:15px;font-weight:800;color:#0f172a">'+fmtBRL(valorTotalGeral)+'</div><div style="font-size:11px;color:#64748b;margin-top:2px">Valor total</div></div>' +
+      '</div>' +
+      // barra progresso
+      '<div style="margin-bottom:20px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span style="color:#64748b;font-weight:600">Progresso geral</span><span style="font-weight:700;color:'+corPct+'">'+totalRecebidos+' de '+totalSkus+' SKUs</span></div>' +
+      '<div style="height:12px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div style="height:100%;width:'+pctGeral+'%;background:'+corPct+';border-radius:999px;transition:width .5s"></div></div></div>' +
+      // gráficos
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">' +
+      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px">'+grafAtend+'</div>' +
+      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px">'+grafValor+'</div>' +
+      '</div>' +
+      // lista SCs
+      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px">' +
+      '<div style="font-size:11.5px;font-weight:700;color:#475569;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">SCs neste consolidado ('+((sols||[]).length)+')</div>' +
+      listaScs +
+      '</div></div>';
   }
 
   verificarSessao();
