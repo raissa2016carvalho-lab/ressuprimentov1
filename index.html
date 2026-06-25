@@ -2458,10 +2458,36 @@
 
     // índice de PCs por sc+filial+produto
     const pcIdx = {};
+    const pcIdxPorSc = {}; // sc|filial → [pcs] para detectar filial
     pcs.forEach(p => {
-      const k = normSc(p.c7_numsc) + "|" + String(p.c7_filial||"").trim() + "|" + normCod(p.c7_produto);
+      const sc = normSc(p.c7_numsc);
+      const filial = String(p.c7_filial||"").trim();
+      const k = sc + "|" + filial + "|" + normCod(p.c7_produto);
       (pcIdx[k] = pcIdx[k] || []).push(p);
+      const kSc = sc + "|" + filial;
+      (pcIdxPorSc[kSc] = pcIdxPorSc[kSc] || []).push(p);
     });
+
+    // detectar filial pelo banco (igual ao acompanhamento)
+    const FILIAIS_VALIDAS_CONS = new Set(["01","03","04","06","07","08","09","10","11","13","14","15","22","23","24","25","27","29","34","36","37","40","41","42","43"]);
+    function detectarFilialCons(scTrim) {
+      const contagem = {};
+      for (const chave of Object.keys(pcIdxPorSc)) {
+        const partes = chave.split("|");
+        if (partes.length === 2 && partes[0] === scTrim && FILIAIS_VALIDAS_CONS.has(partes[1])) {
+          contagem[partes[1]] = (contagem[partes[1]] || 0) + pcIdxPorSc[chave].length;
+        }
+      }
+      if (!Object.keys(contagem).length) return null;
+      return Object.entries(contagem).sort((a,b) => b[1]-a[1])[0][0];
+    }
+
+    function getPCsCons(sc, filial, codigo) {
+      if (!filial) return [];
+      const cod = normCod(codigo);
+      if (cod && cod !== "MANUAL") return pcIdx[sc + "|" + filial + "|" + cod] || [];
+      return pcIdxPorSc[sc + "|" + filial] || [];
+    }
 
     // calcular métricas por SC
     const metricasPorCC = {}; // cc → {total, recebidos, valor}
@@ -2470,14 +2496,12 @@
     (sols || []).forEach(sol => {
       const itensSol = porSol[sol.id] || [];
       const sc = normSc(sol.sc_numero || "");
-      const filial = sol.filial || "";
+      const filial = sol.filial || detectarFilialCons(sc) || "";
       const cc = sol.cc;
       if (!metricasPorCC[cc]) metricasPorCC[cc] = { nome: ccNomes[cc] || cc, total: 0, recebidos: 0, valor: 0 };
 
       itensSol.forEach(it => {
-        const cod = normCod(it.codigo);
-        const k = sc + "|" + filial + "|" + cod;
-        const ps = pcIdx[k] || [];
+        const ps = getPCsCons(sc, filial, it.codigo);
         totalSkus++;
         metricasPorCC[cc].total++;
         const recebido = ps.some(p => (p.status_desc||"").toLowerCase().includes("receb"));
@@ -2539,8 +2563,7 @@
       let tot = 0, rec = 0;
       itensSol.forEach(it => {
         tot++;
-        const k = sc + "|" + filial + "|" + normCod(it.codigo);
-        if ((pcIdx[k]||[]).some(p => (p.status_desc||"").toLowerCase().includes("receb"))) rec++;
+        if (getPCsCons(sc, filial, it.codigo).some(p => (p.status_desc||"").toLowerCase().includes("receb"))) rec++;
       });
       const pct = tot > 0 ? Math.round(rec/tot*100) : 0;
       const cor = pct===100?"#16a34a":pct>50?"#0d9488":pct>20?"#f59e0b":"#ef4444";
