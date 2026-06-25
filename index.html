@@ -855,9 +855,9 @@
       return s.slice(6,8) + "/" + s.slice(4,6) + "/" + s.slice(0,4);
     }
 
-    function timelineHtml(s, itensSol, scTrim) {
-      const pcsDA = getPCs(scTrim, filialSol, null);
-      const todasPC = itensSol.flatMap(it => getPCs(scTrim, filialSol, it.codigo));
+    function timelineHtml(s, itensSol, scTrim, filial) {
+      const pcsDA = getPCs(scTrim, filial, null);
+      const todasPC = itensSol.flatMap(it => getPCs(scTrim, filial, it.codigo));
 
       const emissoes = todasPC.map(p => String(p.c7_emissao||"").replace(/-/g,"").trim()).filter(d => d.length>=8).sort();
       const dtPedido = emissoes.length ? fmtProtheus(emissoes[0]) : null;
@@ -898,10 +898,10 @@
       const base = ccMapLocal[s.cc];
       const itensSol = porSol[s.id] || [];
       const scTrim = normalizarSc(s.sc_numero.trim());
+      const filialSol = s.filial || "";
       const totalEncontrados = itensSol.reduce((acc, it) => {
         return acc + getPCs(scTrim, filialSol, it.codigo).length;
       }, 0);
-      const filialSol = s.filial || "";
       const pedidoGeral = e2 ? null : classificarPedidoGeral(itensSol, scTrim, filialSol);
       const pgKey = e2 ? "sem_pedido" : (pedidoGeral || "sem_pedido");
       const nomeCC = base ? base.nome.toLowerCase() : s.cc.toLowerCase();
@@ -909,9 +909,9 @@
       // grupos dos itens desta SC (via c7_grpprod dos PCs encontrados)
       const gruposSet = new Set();
       itensSol.forEach(it => {
-        const temCod = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCod ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
-        ps.forEach(p => { if (p.c7_grpprod) gruposSet.add(String(p.c7_grpprod).trim()); });
+        getPCs(scTrim, filialSol, it.codigo).forEach(p => {
+          if (p.c7_grpprod) gruposSet.add(String(p.c7_grpprod).trim());
+        });
       });
       const gruposStr = [...gruposSet].join("|").toLowerCase();
       return `
@@ -968,7 +968,7 @@
                 }).join("");
               }).join("")}
             </table>
-            ${e2 ? "" : timelineHtml(s, itensSol, scTrim)}
+            ${e2 ? "" : timelineHtml(s, itensSol, scTrim, filialSol)}
           </div>
         </div>
       `;
