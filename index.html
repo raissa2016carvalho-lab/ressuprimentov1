@@ -2339,7 +2339,7 @@
     if (e2) { alert("Erro ao vincular SCs: " + e2.message); return; }
 
     limparSelecaoAcomp();
-    alert("✓ Consolidado "" + nome.trim() + "" criado com " + sels.length + " SC(s)!");
+    alert("✓ Consolidado '" + nome.trim() + "' criado com " + sels.length + " SC(s)!");
     irPara("consolidados");
   }
   window.consolidarSelecionadas = consolidarSelecionadas;
@@ -2355,7 +2355,7 @@
   window.criarConsolidado = criarConsolidado;
 
   async function excluirConsolidado(id, nome) {
-    if (!confirm("Excluir o consolidado \"" + nome + "\"?\nAs SCs individuais continuam no Acompanhamento.")) return;
+    if (!confirm("Excluir o consolidado '" + nome + "'?\nAs SCs individuais continuam no Acompanhamento.")) return;
     await db.from("consolidados").delete().eq("id", id);
     await carregarConsolidados();
   }
