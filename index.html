@@ -2398,9 +2398,17 @@
     function normSc(sc) { const s = String(sc||"").trim(); return /^\d+$/.test(s)?(s.replace(/^0+/,"")||"0"):s; }
     function normCod(c) { const s = String(c||"").trim(); return /^\d+$/.test(s)?(s.replace(/^0+/,"")||"0"):s; }
 
-    let pcs = [];
+    // Buscar pedidos e montar pcMap IDÊNTICO ao acompanhamento
+    // Incluindo chaves com e sem filial como fallback
+    const pcMap = {};
+    const pcMapPorSc = {};
+
     if (numerosSc.length) {
-      const variantes = [...new Set(numerosSc.flatMap(sc => { const v = new Set([sc]); if(/^\d+$/.test(sc)) v.add(normSc(sc)); return [...v]; }))];
+      const variantes = [...new Set(numerosSc.flatMap(sc => {
+        const v = new Set([sc]);
+        if (/^\d+$/.test(sc)) v.add(normSc(sc));
+        return [...v];
+      }))];
       const orCond = variantes.map(n => "c7_numsc.eq." + n).join(",");
       let off = 0;
       while (true) {
@@ -2408,22 +2416,26 @@
           .select("c7_numsc,c7_filial,c7_produto,c7_num,c7_quant,c7_total,status_desc")
           .or(orCond).range(off, off+999);
         if (!lote || !lote.length) break;
-        pcs = pcs.concat(lote);
+        lote.forEach(p => {
+          const sc = normSc(p.c7_numsc);
+          const filial = String(p.c7_filial||"").trim();
+          const cod = normCod(p.c7_produto);
+          // chave com filial — principal
+          const kf = sc+"|"+filial+"|"+cod;
+          (pcMap[kf] = pcMap[kf] || []).push(p);
+          // chave sem filial — fallback igual ao acompanhamento
+          const k = sc+"|"+cod;
+          (pcMap[k] = pcMap[k] || []).push(p);
+          // por sc+filial
+          const ks = sc+"|"+filial;
+          (pcMapPorSc[ks] = pcMapPorSc[ks] || []).push(p);
+          // fallback por sc
+          (pcMapPorSc[sc] = pcMapPorSc[sc] || []).push(p);
+        });
         if (lote.length < 1000) break;
         off += 1000;
       }
     }
-
-    // montar índices — IDÊNTICO ao acompanhamento
-    const pcMap = {};
-    const pcMapPorSc = {};
-    pcs.forEach(p => {
-      const sc = normSc(p.c7_numsc);
-      const filial = String(p.c7_filial||"").trim();
-      const cod = normCod(p.c7_produto);
-      (pcMap[sc+"|"+filial+"|"+cod] = pcMap[sc+"|"+filial+"|"+cod] || []).push(p);
-      (pcMapPorSc[sc+"|"+filial] = pcMapPorSc[sc+"|"+filial] || []).push(p);
-    });
 
     const FILIAIS_VALIDAS = new Set(["01","03","04","06","07","08","09","10","11","13","14","15","22","23","24","25","27","29","34","36","37","40","41","42","43"]);
     const FILIAIS_NOMES = {"01":"MATRIZ","03":"PAU DOS FERROS","04":"ITAPIPOCA","06":"CURRAIS NOVOS","07":"SOBRAL","08":"APARECIDA DE GOIANIA","09":"MARACANAU","10":"MOSSORO","11":"ANAPOLIS","13":"ALAGOINHAS","14":"RIBEIRA DO POMBAL","15":"PAULO AFONSO","22":"GOIANIA","23":"BATURITE","24":"MORRINHOS","25":"CASCAVEL","27":"CAUCAIA","29":"HORIZONTE","34":"SENHOR DO BONFIM","36":"LUZIANIA","37":"DIVINOPOLIS","40":"GARANHUNS","41":"FLORIANO","42":"LIVRAMENTO DE NOSSA SENHORA","43":"HORTOLANDIA"};
@@ -2439,15 +2451,20 @@
       return Object.entries(cont).sort((a,b)=>b[1]-a[1])[0][0];
     }
 
-    // getPCsCons — IDÊNTICO ao getPCs do acompanhamento
+    // getPCsCons — usa pcMap construído por SC individual
+    // chave: sc|filial|cod (com filial) ou sc|cod (fallback sem filial, igual ao acompanhamento)
     function getPCsCons(sc, filial, codigo) {
       if (!filial) return [];
       const temCod = codigo && codigo !== "MANUAL";
-      if (temCod) return pcMap[sc+"|"+filial+"|"+normCod(codigo)] || [];
-      return pcMapPorSc[sc+"|"+filial] || [];
+      if (temCod) {
+        const cod = normCod(codigo);
+        // tenta com filial primeiro, depois fallback sem filial (igual ao acompanhamento)
+        return pcMap[sc+"|"+filial+"|"+cod] || pcMap[sc+"|"+cod] || [];
+      }
+      return pcMapPorSc[sc+"|"+filial] || pcMapPorSc[sc] || [];
     }
 
-    // calcularProporcaoCons — IDÊNTICO ao calcularProporcaoRecebida
+    // calcularProporcaoCons — IDÊNTICO ao calcularProporcaoRecebida do acompanhamento
     function calcularProporcaoCons(itensSol, sc, filial) {
       let total = itensSol.length, recebidos = 0;
       itensSol.forEach(it => {
