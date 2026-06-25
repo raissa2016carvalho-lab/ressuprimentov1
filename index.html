@@ -2504,6 +2504,7 @@
         metPorSc[sol.sc_numero].total++;
         metPorCC[cc].total++;
         const recebido = ps.some(p => (p.status_desc||"").toLowerCase().includes("receb"));
+        if (sol.sc_numero === "REGYVF") console.log("REGYVF", it.codigo, "filial:", filial, "ps:", ps.length, "recebido:", recebido);
         if (recebido) { totalRecebidos++; metPorSc[sol.sc_numero].recebidos++; metPorCC[cc].recebidos++; }
         ps.forEach(p => {
           const v = Number(p.c7_total)||0;
