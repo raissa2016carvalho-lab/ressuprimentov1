@@ -371,6 +371,11 @@
   let consumoMap = {}; // "cc|codigo" -> consumo 3 meses
   let pessoasMap = {}; // "cc" -> [{cargo, quantidade}]
 
+  // formatação global de moeda — usada em acompanhamento e consolidados
+  function fmtBRL(v) {
+    return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+
   // ---------- LOGIN ----------
   async function verificarSessao() {
     const { data } = await db.auth.getSession();
@@ -853,10 +858,6 @@
         if (estaRecebido) totalRecebido++;
       });
       return { totalSolicitado, totalRecebido };
-    }
-
-    function fmtBRL(v) {
-      return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     }
 
     function calcularValorTotal(itensSol, scTrim, filial) {
