@@ -2501,7 +2501,9 @@
       if (!metricasPorCC[cc]) metricasPorCC[cc] = { nome: ccNomes[cc] || cc, total: 0, recebidos: 0, valor: 0 };
 
       itensSol.forEach(it => {
-        const ps = getPCsCons(sc, filial, it.codigo);
+        // só cruza por código real — MANUAL sem código real não conta como recebido
+        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
+        const ps = temCodigoReal ? getPCsCons(sc, filial, it.codigo) : [];
         totalSkus++;
         metricasPorCC[cc].total++;
         const recebido = ps.some(p => (p.status_desc||"").toLowerCase().includes("receb"));
@@ -2559,11 +2561,12 @@
     const listaScs = (sols || []).map(sol => {
       const itensSol = porSol[sol.id] || [];
       const sc = normSc(sol.sc_numero || "");
-      const filial = sol.filial || "";
+      const filial = sol.filial || detectarFilialCons(sc) || "";
       let tot = 0, rec = 0;
       itensSol.forEach(it => {
         tot++;
-        if (getPCsCons(sc, filial, it.codigo).some(p => (p.status_desc||"").toLowerCase().includes("receb"))) rec++;
+        const temCodReal = it.codigo && it.codigo !== "MANUAL";
+        if (temCodReal && getPCsCons(sc, filial, it.codigo).some(p => (p.status_desc||"").toLowerCase().includes("receb"))) rec++;
       });
       const pct = tot > 0 ? Math.round(rec/tot*100) : 0;
       const cor = pct===100?"#16a34a":pct>50?"#0d9488":pct>20?"#f59e0b":"#ef4444";
