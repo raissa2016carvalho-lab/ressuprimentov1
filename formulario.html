@@ -49,8 +49,10 @@
       <input id="nome" placeholder="Seu nome"/>
       <label>Matrícula</label>
       <input id="matricula" placeholder="Ex.: 12345"/>
+      <label>Filial</label>
+      <select id="filial"><option value="">Carregando filiais...</option></select>
       <label>Centro de custo / base</label>
-      <select id="cc"><option value="">Carregando bases...</option></select>
+      <select id="cc"><option value="">Selecione sua base...</option></select>
       <label>Justificativa (opcional)</label>
       <input id="justificativa-geral" placeholder="Por que precisa desses itens?"/>
     </div>
@@ -159,6 +161,22 @@
   $("btn-add-item").addEventListener("click", adicionarItem);
   adicionarItem(); // já começa com 1 item
 
+  // filiais disponíveis — buscadas dos pedidos_compra
+  const FILIAIS_DISPONIVEIS = [
+    "01","03","04","05","06","07","08","09","10","11","12","13","14","15",
+    "16","17","19","20","21","22","23","24","25","26","27","28","29","30",
+    "32","33","34","36","37","39","40","41","42","43"
+  ];
+
+  async function carregarFiliais() {
+    const sel = $("filial");
+    sel.innerHTML = '<option value="">Selecione a filial...</option>' +
+      FILIAIS_DISPONIVEIS.map(f => `<option value="${f}">${f}</option>`).join("");
+  }
+  carregarFiliais();
+
+  let todosCCs = [];
+
   async function carregarBases() {
     const { data, error } = await db.from("ccs_publico").select("*");
     const select = $("cc");
@@ -167,18 +185,27 @@
       mostrarMsg("Não foi possível carregar as bases: " + error.message, "erro");
       return;
     }
-    const nomesVistos = new Set();
-    const semDuplicata = (data || []).filter(c => {
+    todosCCs = (data || []).filter(c => {
       if (!c.nome || !c.nome.trim()) return false;
       if (!c.cc || c.cc.length <= 5) return false;
       if ((c.status || "Desbloqueado") !== "Desbloqueado") return false;
+      return true;
+    });
+    popularSelectCC();
+  }
+
+  function popularSelectCC() {
+    const select = $("cc");
+    const nomesVistos = new Set();
+    const filtrado = todosCCs.filter(c => {
       if (nomesVistos.has(c.nome.trim())) return false;
       nomesVistos.add(c.nome.trim());
       return true;
     });
-    select.innerHTML = `<option value="">Selecione sua base...</option>` +
-      semDuplicata.map(c => `<option value="${c.cc}" data-status="${c.status || 'Desbloqueado'}">${c.nome}</option>`).join("");
+    select.innerHTML = '<option value="">Selecione sua base...</option>' +
+      filtrado.map(c => `<option value="${c.cc}" data-status="${c.status || 'Desbloqueado'}">${c.nome}</option>`).join("");
   }
+
   carregarBases();
 
   function mostrarMsg(texto, tipo) {
@@ -224,8 +251,11 @@
     $("btn-enviar").disabled = true;
     $("btn-enviar").textContent = "Enviando...";
 
+    const filial = $("filial").value;
+    if (!filial) { mostrarMsg("Selecione a filial.", "erro"); $("btn-enviar").disabled = false; $("btn-enviar").textContent = "Enviar solicitação"; return; }
+
     const { data, error } = await db.rpc("criar_solicitacao", {
-      p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens, p_justificativa: justificativaGeral || null
+      p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens, p_justificativa: justificativaGeral || null, p_filial: filial
     });
 
     if (error) {
