@@ -963,13 +963,15 @@
         });
       });
       const gruposStr = [...gruposSet].join("|").toLowerCase();
+      const {totalSolicitado:ts2, totalRecebido:tr2} = calcularProporcaoRecebida(itensSol, scTrim, filialSol);
+      const pctCard = ts2 > 0 ? Math.round(tr2/ts2*100) : 0;
       return `
-        ${(() => { const {totalSolicitado:ts, totalRecebido:tr} = calcularProporcaoRecebida(itensSol, scTrim, filialSol); const pctCard = ts > 0 ? Math.round(tr/ts*100) : 0; return `<div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}">`; })()}
-          <div style="display:flex;align-items:flex-start;gap:8px">
-          <input type="checkbox" class="acomp-checkbox" data-id="${s.id}"
-            style="margin-top:18px;width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:#0d9488"
-            onchange="atualizarBarraConsolidar()"/>
-          <div style="flex:1;min-width:0">
+        <div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}">
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:0">
+            <input type="checkbox" class="acomp-checkbox" data-id="${s.id}"
+              style="margin-top:18px;margin-left:16px;width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:#0d9488"
+              onchange="atualizarBarraConsolidar()"/>
+            <div style="flex:1;min-width:0">
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1033,8 +1035,10 @@
               }).join("")}
             </table>
             ${e2 ? "" : timelineHtml(s, itensSol, scTrim, filialEfetiva)}
-          </div>
-        </div>
+          </div><!-- card-corpo -->
+            </div><!-- flex:1 -->
+          </div><!-- flex wrapper -->
+        </div><!-- card -->
       `;
     }).join("");
 
