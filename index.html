@@ -2451,17 +2451,13 @@
       return Object.entries(cont).sort((a,b)=>b[1]-a[1])[0][0];
     }
 
-    // getPCsCons — usa pcMap construído por SC individual
-    // chave: sc|filial|cod (com filial) ou sc|cod (fallback sem filial, igual ao acompanhamento)
+    // getPCsCons — ESTRITAMENTE por sc+filial, sem fallback
+    // para garantir que não pega pedidos de outras filiais
     function getPCsCons(sc, filial, codigo) {
       if (!filial) return [];
       const temCod = codigo && codigo !== "MANUAL";
-      if (temCod) {
-        const cod = normCod(codigo);
-        // tenta com filial primeiro, depois fallback sem filial (igual ao acompanhamento)
-        return pcMap[sc+"|"+filial+"|"+cod] || pcMap[sc+"|"+cod] || [];
-      }
-      return pcMapPorSc[sc+"|"+filial] || pcMapPorSc[sc] || [];
+      if (temCod) return pcMap[sc+"|"+filial+"|"+normCod(codigo)] || [];
+      return pcMapPorSc[sc+"|"+filial] || [];
     }
 
     // calcularProporcaoCons — IDÊNTICO ao calcularProporcaoRecebida do acompanhamento
