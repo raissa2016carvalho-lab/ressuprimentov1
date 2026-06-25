@@ -953,6 +953,7 @@
                 if (ps.length === 0) {
                   return `<tr><td>${it.descricao || it.codigo}</td><td colspan="4" style="color:#94a3b8;font-style:italic">sem pedido ainda</td></tr>`;
                 }
+                const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
                 const avisoItem = !temCodigoReal ? ' <span style="color:#94a3b8;font-style:italic;font-size:11px">(todos os itens da SC — item sem código cadastrado)</span>' : "";
                 return ps.map((p, idx) => {
                   const st = (p.status_desc || "").toLowerCase();
