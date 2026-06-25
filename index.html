@@ -950,7 +950,7 @@
       });
       const gruposStr = [...gruposSet].join("|").toLowerCase();
       return `
-        ${(() => { const {totalSolicitado:ts2, totalRecebido:tr2} = calcularProporcaoRecebida(itensSol, scTrim, filialSol); const pctCard = ts2 > 0 ? Math.round(tr2/ts2*100) : 0; return `<div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-sol-id="${s.id}">`; })()}
+        ${(() => { const {totalSolicitado:ts2, totalRecebido:tr2} = calcularProporcaoRecebida(itensSol, scTrim, filialEfetiva); const pctCard = ts2 > 0 ? Math.round(tr2/ts2*100) : 0; return `<div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-sol-id="${s.id}">`; })()}
           <div style="display:flex;align-items:flex-start;gap:8px">
           <input type="checkbox" class="acomp-cb" data-id="${s.id}"
             style="margin:18px 0 0 12px;width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:#0d9488"
