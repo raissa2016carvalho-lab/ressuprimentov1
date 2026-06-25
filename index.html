@@ -128,11 +128,7 @@
     </button>
     <button class="aba" id="aba-btn-mobilizacao" onclick="irPara('mobilizacao')">
       Mobilização
-    </button>
-    <button class="aba" id="aba-btn-consolidados" onclick="irPara('consolidados')">
-      📊 Consolidados
-    </button>
-<button class="aba" id="aba-btn-settings" onclick="irPara('settings')">
+    </button><button class="aba" id="aba-btn-settings" onclick="irPara('settings')">
       ⚙ Configurações
     </button>
     <div class="rodape">
@@ -172,13 +168,6 @@
           <!-- busca por observação -->
           <input id="filtro-acomp-obs" placeholder="🔎 Buscar por observação..." oninput="filtrarAcomp()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;min-width:200px;flex:1"/>
-          <!-- ordenação por % -->
-          <select id="ordem-acomp" onchange="ordenarAcomp()"
-            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;flex-shrink:0">
-            <option value="padrao">Ordem padrão</option>
-            <option value="maior">% Maior → Menor</option>
-            <option value="menor">% Menor → Maior</option>
-          </select>
           <!-- botão Excel -->
           <button onclick="exportarExcelAcomp()"
             style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;flex-shrink:0">
@@ -198,37 +187,9 @@
           <button onclick="setFiltroStatusAcomp('recebido')" id="facomp-recebido"
             style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Recebido</button>
         </div>
-        <!-- barra de consolidação (aparece ao selecionar) -->
-        <div id="barra-consolidar" style="display:none;background:#0f172a;color:#fff;border-radius:10px;padding:10px 16px;margin-bottom:12px;display:none;align-items:center;gap:12px;flex-wrap:wrap">
-          <span id="count-sel-cons" style="font-size:13px;font-weight:600">0 SC(s) selecionada(s)</span>
-          <button onclick="consolidarSelecionadas()"
-            style="background:#0d9488;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">
-            📊 Criar consolidado
-          </button>
-          <button onclick="limparSelecaoAcomp()"
-            style="background:transparent;color:#94a3b8;border:1px solid #334155;border-radius:7px;padding:7px 14px;font-size:13px;cursor:pointer">
-            Cancelar
-          </button>
-        </div>
         <div id="lista-acomp"></div>
       </div>
     </div>
-
-
-
-    <div id="aba-consolidados" style="display:none">
-      <div class="topo-aba">
-        <div style="font-weight:700;font-size:14px">📊 Consolidados</div>
-        <button id="btn-novo-consolidado" onclick="criarConsolidado()"
-          style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">
-          + Novo consolidado
-        </button>
-      </div>
-      <div class="corpo-aba">
-        <div id="lista-consolidados"><div class="vazio">Carregando...</div></div>
-      </div>
-    </div>
-
     <div id="aba-mobilizacao" style="display:none">
       <div class="topo-aba">
         <div style="font-weight:700;font-size:14px">Mobilizações</div>
@@ -410,16 +371,13 @@
     $("aba-acompanhamento").style.display = aba === "acompanhamento" ? "block" : "none";
     $("aba-mobilizacao").style.display = aba === "mobilizacao" ? "block" : "none";
     $("aba-settings").style.display = aba === "settings" ? "block" : "none";
-    $("aba-consolidados").style.display = aba === "consolidados" ? "block" : "none";
     $("aba-btn-solicitacoes").classList.toggle("ativo", aba === "solicitacoes");
     $("aba-btn-acompanhamento").classList.toggle("ativo", aba === "acompanhamento");
     $("aba-btn-mobilizacao").classList.toggle("ativo", aba === "mobilizacao");
     $("aba-btn-settings").classList.toggle("ativo", aba === "settings");
-    $("aba-btn-consolidados").classList.toggle("ativo", aba === "consolidados");
     if (aba === "acompanhamento") carregarAcompanhamento();
     if (aba === "settings") { irSubSettings("bases"); carregarCarimbos(); }
     if (aba === "mobilizacao") { mostrarListaMob(); carregarMobilizacoes(); }
-    if (aba === "consolidados") carregarConsolidados();
   }
   window.irPara = irPara;
 
@@ -964,15 +922,8 @@
         });
       });
       const gruposStr = [...gruposSet].join("|").toLowerCase();
-      const {totalSolicitado:ts2, totalRecebido:tr2} = calcularProporcaoRecebida(itensSol, scTrim, filialSol);
-      const pctCard = ts2 > 0 ? Math.round(tr2/ts2*100) : 0;
       return `
-        <div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}">
-          <div style="display:flex;align-items:flex-start;gap:8px;padding:0">
-            <input type="checkbox" class="acomp-checkbox" data-id="${s.id}"
-              style="margin-top:18px;margin-left:16px;width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:#0d9488"
-              onchange="atualizarBarraConsolidar()"/>
-            <div style="flex:1;min-width:0">
+        <div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}">
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1099,28 +1050,6 @@
     if (vazio) vazio.style.display = visiveis === 0 ? "block" : "none";
   }
   window.filtrarAcomp = filtrarAcomp;
-
-  function ordenarAcomp() {
-    const ordem = document.getElementById("ordem-acomp")?.value || "padrao";
-    const lista = document.getElementById("lista-acomp");
-    if (!lista) return;
-    const cards = [...lista.querySelectorAll(".card[data-pct]")];
-    if (!cards.length) return;
-    if (ordem === "padrao") {
-      // recarrega para restaurar ordem original
-      carregarAcompanhamento(); return;
-    }
-    cards.sort((a, b) => {
-      const pa = Number(a.dataset.pct) || 0;
-      const pb = Number(b.dataset.pct) || 0;
-      return ordem === "maior" ? pb - pa : pa - pb;
-    });
-    // remove vazio e reinsere cards ordenados
-    const vazio = document.getElementById("acomp-vazio-filtro");
-    cards.forEach(c => lista.insertBefore(c, vazio));
-    filtrarAcomp();
-  }
-  window.ordenarAcomp = ordenarAcomp;
 
   // ---------- ABA BASES ----------
   function normChave(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
@@ -2306,105 +2235,6 @@
   window.removerGerente = removerGerente;
 
   // ========== CONSOLIDADOS ==========
-
-  function atualizarBarraConsolidar() {
-    const sels = document.querySelectorAll(".acomp-checkbox:checked");
-    const barra = document.getElementById("barra-consolidar");
-    const count = document.getElementById("count-sel-cons");
-    if (sels.length > 0) {
-      barra.style.display = "flex";
-      count.textContent = sels.length + " SC(s) selecionada(s)";
-    } else {
-      barra.style.display = "none";
-    }
-  }
-  window.atualizarBarraConsolidar = atualizarBarraConsolidar;
-
-  function limparSelecaoAcomp() {
-    document.querySelectorAll(".acomp-checkbox").forEach(cb => cb.checked = false);
-    atualizarBarraConsolidar();
-  }
-  window.limparSelecaoAcomp = limparSelecaoAcomp;
-
-  async function consolidarSelecionadas() {
-    const sels = [...document.querySelectorAll(".acomp-checkbox:checked")];
-    if (!sels.length) return;
-    const nome = prompt("Nome do consolidado:\nEx.: Ressuprimento Fardamentos Junho/Julho/Agosto");
-    if (!nome || !nome.trim()) return;
-
-    const { data: cons, error: e1 } = await db.from("consolidados")
-      .insert({ nome: nome.trim() }).select().single();
-    if (e1) { alert("Erro: " + e1.message); return; }
-
-    const inserts = sels.map(cb => ({
-      consolidado_id: cons.id,
-      solicitacao_id: Number(cb.dataset.id)
-    }));
-    const { error: e2 } = await db.from("consolidado_scs").insert(inserts);
-    if (e2) { alert("Erro ao vincular SCs: " + e2.message); return; }
-
-    limparSelecaoAcomp();
-    alert("✓ Consolidado '" + nome.trim() + "' criado com " + sels.length + " SC(s)!");
-    irPara("consolidados");
-  }
-  window.consolidarSelecionadas = consolidarSelecionadas;
-
-  async function criarConsolidado() {
-    const nome = prompt("Nome do consolidado:");
-    if (!nome || !nome.trim()) return;
-    const { data: cons, error } = await db.from("consolidados")
-      .insert({ nome: nome.trim() }).select().single();
-    if (error) { alert("Erro: " + error.message); return; }
-    await carregarConsolidados();
-  }
-  window.criarConsolidado = criarConsolidado;
-
-  async function excluirConsolidado(id, nome) {
-    if (!confirm("Excluir o consolidado '" + nome + "'?\nAs SCs individuais continuam no Acompanhamento.")) return;
-    await db.from("consolidados").delete().eq("id", id);
-    await carregarConsolidados();
-  }
-  window.excluirConsolidado = excluirConsolidado;
-
-  async function carregarConsolidados() {
-    const el = document.getElementById("lista-consolidados");
-    if (!el) return;
-    el.innerHTML = '<div class="vazio">Carregando...</div>';
-
-    const { data: cons, error } = await db.from("consolidados").select("*").order("criado_em", { ascending: false });
-    if (error) { el.innerHTML = '<div class="vazio">Erro: ' + error.message + '</div>'; return; }
-    if (!cons || !cons.length) {
-      el.innerHTML = '<div class="vazio">Nenhum consolidado criado ainda.<br><br>No Acompanhamento, selecione SCs com os checkboxes e clique em "Criar consolidado".</div>';
-      return;
-    }
-    el.innerHTML = cons.map(c => `
-      <div class="card" style="max-width:100%" id="cons-card-${c.id}">
-        <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleConsolidado(${c.id})">
-          <div>
-            <div style="font-weight:700;font-size:15px;color:#0f172a">${c.nome}</div>
-            <div style="font-size:12px;color:#64748b;margin-top:3px">criado em ${fmtData(c.criado_em)}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="color:#0d9488;font-weight:600;font-size:12.5px">Ver ▾</div>
-            <button onclick="event.stopPropagation();excluirConsolidado(${c.id},'${c.nome.replace(/'/g,"\'")}'')"
-              style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:16px;padding:0"
-              onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
-          </div>
-        </div>
-        <div class="card-corpo" id="cons-corpo-${c.id}" data-carregado="0"></div>
-      </div>
-    `).join("");
-  }
-
-  async function toggleConsolidado(id) {
-    const corpo = document.getElementById("cons-corpo-" + id);
-    corpo.classList.toggle("aberto");
-    if (corpo.classList.contains("aberto") && corpo.dataset.carregado === "0") {
-      corpo.dataset.carregado = "1";
-      await renderConsolidado(id, corpo);
-    }
-  }
-  window.toggleConsolidado = toggleConsolidado;
 
   async function renderConsolidado(consId, container) {
     container.innerHTML = '<div style="padding:12px;color:#64748b;font-size:13px">Carregando...</div>';
