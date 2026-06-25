@@ -165,17 +165,17 @@
               <option value="">Todos os centros de custo</option>
             </select>
           </div>
-          <!-- select grupo de material -->
-          <div style="position:relative;flex:1;min-width:180px">
-            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none">📦</span>
-            <select id="filtro-acomp-grupo" onchange="filtrarAcomp()"
-              style="margin:0;padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;width:100%;background:#fff;appearance:none;-webkit-appearance:none;cursor:pointer">
-              <option value="">Todos os grupos</option>
-            </select>
-          </div>
+
           <!-- busca por observação -->
           <input id="filtro-acomp-obs" placeholder="🔎 Buscar por observação..." oninput="filtrarAcomp()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;min-width:200px;flex:1"/>
+          <!-- ordenação por % -->
+          <select id="ordem-acomp" onchange="ordenarAcomp()"
+            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;flex-shrink:0">
+            <option value="padrao">Ordem padrão</option>
+            <option value="maior">% Maior → Menor</option>
+            <option value="menor">% Menor → Maior</option>
+          </select>
           <!-- botão Excel -->
           <button onclick="exportarExcelAcomp()"
             style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;flex-shrink:0">
@@ -933,7 +933,7 @@
       });
       const gruposStr = [...gruposSet].join("|").toLowerCase();
       return `
-        <div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-grupo="${gruposStr}">
+        ${(() => { const {totalSolicitado:ts, totalRecebido:tr} = calcularProporcaoRecebida(itensSol, scTrim, filialSol); const pctCard = ts > 0 ? Math.round(tr/ts*100) : 0; return `<div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}">`; })()}
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1015,16 +1015,7 @@
         ccsVisiveis.map(c => `<option value="${c.nome.toLowerCase()}">${c.nome}</option>`).join("");
     }
 
-    // popular select de grupo a partir dos data-grupo dos cards
-    const selGrupo = $("filtro-acomp-grupo");
-    if (selGrupo) {
-      const todosGrupos = new Set();
-      document.querySelectorAll("#lista-acomp .card[data-grupo]").forEach(card => {
-        (card.dataset.grupo || "").split("|").forEach(g => { if (g.trim()) todosGrupos.add(g.trim()); });
-      });
-      selGrupo.innerHTML = '<option value="">Todos os grupos</option>' +
-        [...todosGrupos].sort().map(g => `<option value="${g}">${g.toUpperCase()}</option>`).join("");
-    }
+
   }
   $("btn-atualizar-acomp").addEventListener("click", carregarAcompanhamento);
 
@@ -1048,7 +1039,7 @@
   function filtrarAcomp() {
     const termCC    = ($("filtro-acomp-cc")?.value    || "").toLowerCase().trim();
     const termObs   = ($("filtro-acomp-obs")?.value   || "").toLowerCase().trim();
-    const termGrupo = ($("filtro-acomp-grupo")?.value || "").toLowerCase().trim();
+
     const cards = document.querySelectorAll("#lista-acomp .card[data-cc]");
     let visiveis = 0;
     cards.forEach(card => {
@@ -1058,7 +1049,7 @@
       const grupo = card.dataset.grupo || "";
       const ok = (!termCC    || cc.includes(termCC))
               && (!termObs   || obs.includes(termObs))
-              && (!termGrupo || grupo.includes(termGrupo))
+
               && (_filtroStatusAcomp === "todos" || pg === _filtroStatusAcomp);
       card.style.display = ok ? "" : "none";
       if (ok) visiveis++;
@@ -1067,6 +1058,28 @@
     if (vazio) vazio.style.display = visiveis === 0 ? "block" : "none";
   }
   window.filtrarAcomp = filtrarAcomp;
+
+  function ordenarAcomp() {
+    const ordem = document.getElementById("ordem-acomp")?.value || "padrao";
+    const lista = document.getElementById("lista-acomp");
+    if (!lista) return;
+    const cards = [...lista.querySelectorAll(".card[data-pct]")];
+    if (!cards.length) return;
+    if (ordem === "padrao") {
+      // recarrega para restaurar ordem original
+      carregarAcompanhamento(); return;
+    }
+    cards.sort((a, b) => {
+      const pa = Number(a.dataset.pct) || 0;
+      const pb = Number(b.dataset.pct) || 0;
+      return ordem === "maior" ? pb - pa : pa - pb;
+    });
+    // remove vazio e reinsere cards ordenados
+    const vazio = document.getElementById("acomp-vazio-filtro");
+    cards.forEach(c => lista.insertBefore(c, vazio));
+    filtrarAcomp();
+  }
+  window.ordenarAcomp = ordenarAcomp;
 
   // ---------- ABA BASES ----------
   function normChave(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
