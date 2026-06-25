@@ -717,8 +717,13 @@
     const numerosSc = [...new Set(associadas.map(s => s.sc_numero.trim()))].filter(Boolean);
     const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
     // usa eq (igualdade exata) em vez de ilike para não errar com zeros à esquerda
-    // "000217" com ilike.217% não batia — agora usa eq.000217,eq.217
     const condicoesOr = todasVariantes.map(n => `c7_numsc.eq.${n.replace(/[%,()]/g, "")}`).join(",");
+
+    // mapa sc_normalizada → filial da solicitação (para filtrar pedidos da filial correta)
+    const scFilialMap = {};
+    associadas.forEach(s => {
+      if (s.filial) scFilialMap[normalizarSc(s.sc_numero.trim())] = s.filial;
+    });
 
     // busca pedidos em lotes de 1000 — o banco tem 30k+ registros e limit(5000) cortava SCs do final
     let pcs = [], e2 = null, pcOffset = 0;
@@ -737,24 +742,48 @@
 
     const avisoProtheus = e2 ? `<div class="msg erro" style="max-width:920px;margin-bottom:12px">Não foi possível verificar o status agora: ${e2.message}</div>` : "";
 
-    // chave de cruzamento: SC normalizada + código do item normalizado (sem zeros à esquerda, sem espaços)
+    // chave de cruzamento: SC normalizada + filial + código do item
+    // inclui também chave sem filial como fallback para SCs sem filial cadastrada
     const pcMap = {};
     const pcMapPorSc = {};
     (pcs || []).forEach(p => {
-      const sc = normalizarSc(p.c7_numsc);
-      const k = sc + "|" + normalizarCodigo(p.c7_produto);
+      const sc     = normalizarSc(p.c7_numsc);
+      const filial = String(p.c7_filial || "").trim();
+      const cod    = normalizarCodigo(p.c7_produto);
+      // chave com filial (precisa)
+      const kFilial = sc + "|" + filial + "|" + cod;
+      (pcMap[kFilial] = pcMap[kFilial] || []).push(p);
+      // chave sem filial (fallback para SCs antigas sem filial)
+      const k = sc + "|" + cod;
       (pcMap[k] = pcMap[k] || []).push(p);
+      // por SC+filial (sem código)
+      const kSc = sc + "|" + filial;
+      (pcMapPorSc[kSc] = pcMapPorSc[kSc] || []).push(p);
+      // fallback por SC apenas
       (pcMapPorSc[sc] = pcMapPorSc[sc] || []).push(p);
     });
 
     const PG_LABEL = { sem_pedido: "Sem pedido", pendente: "Pedido pendente", parcial: "Pedido parcial", recebido: "Pedido recebido" };
     const PG_CLASSE = { sem_pedido: "p-recusada", pendente: "p-pendente", parcial: "p-parcial", recebido: "p-aprovada" };
 
-    function classificarPedidoGeral(itensSol, scTrim) {
+    // lookup de PCs: usa filial quando disponível, senão fallback sem filial
+    function getPCs(scTrim, filial, codigo) {
+      const temCod = codigo && codigo !== "MANUAL";
+      if (temCod) {
+        const comFilial = filial ? (pcMap[scTrim + "|" + filial + "|" + normalizarCodigo(codigo)] || []) : [];
+        if (comFilial.length > 0) return comFilial;
+        return pcMap[scTrim + "|" + normalizarCodigo(codigo)] || [];
+      } else {
+        const comFilial = filial ? (pcMapPorSc[scTrim + "|" + filial] || []) : [];
+        if (comFilial.length > 0) return comFilial;
+        return pcMapPorSc[scTrim] || [];
+      }
+    }
+
+    function classificarPedidoGeral(itensSol, scTrim, filial) {
       let comPedido = 0, completos = 0;
       itensSol.forEach(it => {
-        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCodigoReal ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
+        const ps = getPCs(scTrim, filial, it.codigo);
         if (ps.length > 0) {
           comPedido++;
           const todosRecebidos = ps.every(p => (p.status_desc || "").toLowerCase().includes("receb"));
@@ -767,13 +796,12 @@
       return "pendente";
     }
 
-    function calcularProporcaoRecebida(itensSol, scTrim) {
+    function calcularProporcaoRecebida(itensSol, scTrim, filial) {
       // conta em SKUs (itens distintos), não em quantidade
       let totalSolicitado = itensSol.length;
       let totalRecebido = 0;
       itensSol.forEach(it => {
-        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCodigoReal ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
+        const ps = getPCs(scTrim, filial, it.codigo);
         const estaRecebido = ps.some(p => (p.status_desc || "").toLowerCase().includes("receb"));
         if (estaRecebido) totalRecebido++;
       });
@@ -784,11 +812,10 @@
       return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     }
 
-    function calcularValorTotal(itensSol, scTrim) {
+    function calcularValorTotal(itensSol, scTrim, filial) {
       let valorTotal = 0, valorRecebido = 0;
       itensSol.forEach(it => {
-        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCodigoReal ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
+        const ps = getPCs(scTrim, filial, it.codigo);
         ps.forEach(p => {
           valorTotal += Number(p.c7_total) || 0;
           if ((p.status_desc || "").toLowerCase().includes("receb")) {
@@ -802,7 +829,7 @@
     function pizzaHtml(totalSolicitado, totalRecebido, itensSol, scTrim) {
       if (totalSolicitado <= 0) return "";
       const pct = Math.round((totalRecebido / totalSolicitado) * 100);
-      const { valorTotal, valorRecebido } = calcularValorTotal(itensSol, scTrim);
+      const { valorTotal, valorRecebido } = calcularValorTotal(itensSol, scTrim, filialSol);
       const temValor = valorTotal > 0;
       return `
         <div style="display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;flex-wrap:wrap">
@@ -829,11 +856,8 @@
     }
 
     function timelineHtml(s, itensSol, scTrim) {
-      const pcsDA = (pcMapPorSc[scTrim] || []);
-      const todasPC = itensSol.flatMap(it => {
-        const temCod = it.codigo && it.codigo !== "MANUAL";
-        return temCod ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : pcsDA;
-      });
+      const pcsDA = getPCs(scTrim, filialSol, null);
+      const todasPC = itensSol.flatMap(it => getPCs(scTrim, filialSol, it.codigo));
 
       const emissoes = todasPC.map(p => String(p.c7_emissao||"").replace(/-/g,"").trim()).filter(d => d.length>=8).sort();
       const dtPedido = emissoes.length ? fmtProtheus(emissoes[0]) : null;
@@ -875,11 +899,10 @@
       const itensSol = porSol[s.id] || [];
       const scTrim = normalizarSc(s.sc_numero.trim());
       const totalEncontrados = itensSol.reduce((acc, it) => {
-        const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-        const ps = temCodigoReal ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || []) : (pcMapPorSc[scTrim] || []);
-        return acc + ps.length;
+        return acc + getPCs(scTrim, filialSol, it.codigo).length;
       }, 0);
-      const pedidoGeral = e2 ? null : classificarPedidoGeral(itensSol, scTrim);
+      const filialSol = s.filial || "";
+      const pedidoGeral = e2 ? null : classificarPedidoGeral(itensSol, scTrim, filialSol);
       const pgKey = e2 ? "sem_pedido" : (pedidoGeral || "sem_pedido");
       const nomeCC = base ? base.nome.toLowerCase() : s.cc.toLowerCase();
       const obsLow = (s.observacao||"").toLowerCase();
@@ -900,9 +923,9 @@
                 <button onclick="event.stopPropagation();editarSC(${s.id},'${s.sc_numero}')" title="Corrigir nº da SC" style="border:none;background:none;color:#0d9488;cursor:pointer;font-size:12px;padding:0;vertical-align:middle">✏️</button>
                 <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span>
                 ${pedidoGeral ? `<span class="pill ${PG_CLASSE[pedidoGeral]}">${PG_LABEL[pedidoGeral]}</span>` : ""}
-                ${(() => { const {totalSolicitado, totalRecebido} = calcularProporcaoRecebida(itensSol, scTrim); if (!totalSolicitado) return ""; const pct = Math.round((totalRecebido/totalSolicitado)*100); const [bg, cor] = pct===100?["#dcfce7","#16a34a"]:pct>0?["#fef3c7","#b45309"]:["#f1f5f9","#94a3b8"]; return `<span style="background:${bg};color:${cor};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700">${pct}% SKUs recebidos</span>`; })()}
+                ${(() => { const {totalSolicitado, totalRecebido} = calcularProporcaoRecebida(itensSol, scTrim, filialSol); if (!totalSolicitado) return ""; const pct = Math.round((totalRecebido/totalSolicitado)*100); const [bg, cor] = pct===100?["#dcfce7","#16a34a"]:pct>0?["#fef3c7","#b45309"]:["#f1f5f9","#94a3b8"]; return `<span style="background:${bg};color:${cor};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700">${pct}% SKUs recebidos</span>`; })()}
               </div>
-              <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns)${s.observacao ? ` · <i style="color:#475569">${s.observacao}</i>` : ""} · ${e2 ? "status indisponível" : totalEncontrados + " pedido(s)"}${!e2 && (() => { const {valorTotal} = calcularValorTotal(itensSol, scTrim); return valorTotal > 0 ? " · " + fmtBRL(valorTotal) : ""; })()}</div>
+              <div class="card-sub">${base ? base.nome : s.cc} · ${s.cc} · ${itensSol.length} item(ns)${s.observacao ? ` · <i style="color:#475569">${s.observacao}</i>` : ""} · ${e2 ? "status indisponível" : totalEncontrados + " pedido(s)"}${!e2 && (() => { const {valorTotal} = calcularValorTotal(itensSol, scTrim, filialSol); return valorTotal > 0 ? " · " + fmtBRL(valorTotal) : ""; })()}</div>
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
               <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
@@ -913,7 +936,7 @@
             </div>
           </div>
           <div class="card-corpo" id="corpo-ac-${s.id}">
-            ${e2 ? "" : pizzaHtml(...Object.values(calcularProporcaoRecebida(itensSol, scTrim)), itensSol, scTrim)}
+            ${e2 ? "" : pizzaHtml(...Object.values(calcularProporcaoRecebida(itensSol, scTrim, filialSol)), itensSol, scTrim)}
             <div style="display:flex;justify-content:flex-end;margin:10px 0 6px">
               <button onclick="baixarExcelAcomp(${s.id},'${s.sc_numero}')"
                 style="border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:6px 14px;font-size:12.5px;font-weight:600;color:#475569;cursor:pointer;display:flex;align-items:center;gap:6px">
@@ -926,10 +949,7 @@
                 if (e2) {
                   return `<tr><td>${it.descricao || it.codigo}</td><td colspan="4" style="color:#94a3b8;font-style:italic">não foi possível verificar agora</td></tr>`;
                 }
-                const temCodigoReal = it.codigo && it.codigo !== "MANUAL";
-                const ps = temCodigoReal
-                  ? (pcMap[scTrim + "|" + normalizarCodigo(it.codigo)] || [])
-                  : (pcMapPorSc[scTrim] || []);
+                const ps = getPCs(scTrim, filialSol, it.codigo);
                 if (ps.length === 0) {
                   return `<tr><td>${it.descricao || it.codigo}</td><td colspan="4" style="color:#94a3b8;font-style:italic">sem pedido ainda</td></tr>`;
                 }
