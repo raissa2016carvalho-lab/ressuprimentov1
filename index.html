@@ -2468,8 +2468,9 @@
       return { valorTotal, valorRecebido };
     }
 
-    // calcular métricas por CC e totais gerais
-    const metPorCC = {};
+    // calcular métricas por SC e totais gerais
+    const metPorSc = {}; // sc → {nome, obs, total, recebidos, valor}
+    const metPorCC = {}; // cc → {nome, total, recebidos, valor} para gráfico de valor
     let totalSkus = 0, totalRecebidos = 0, valorTotalGeral = 0;
 
     (sols||[]).forEach(sol => {
@@ -2477,18 +2478,24 @@
       const sc = normSc(sol.sc_numero||"");
       const filial = sol.filial || detectarFilialCons(sc) || "";
       const cc = sol.cc;
-      if (!metPorCC[cc]) metPorCC[cc] = { nome: ccNomes[cc]||cc, total:0, recebidos:0, valor:0 };
+      const nomeCC = ccNomes[cc]||cc;
+      const obs = (sol.observacao||"").trim();
+      const label = nomeCC + (obs ? " · " + obs : "");
+      if (!metPorSc[sol.sc_numero]) metPorSc[sol.sc_numero] = { nome: nomeCC, obs, label, total:0, recebidos:0, valor:0 };
+      if (!metPorCC[cc]) metPorCC[cc] = { nome: nomeCC, total:0, recebidos:0, valor:0 };
 
       itensSol.forEach(it => {
         const temCodReal = it.codigo && it.codigo !== "MANUAL";
         const ps = temCodReal ? getPCsCons(sc, filial, it.codigo) : [];
         totalSkus++;
+        metPorSc[sol.sc_numero].total++;
         metPorCC[cc].total++;
         const recebido = ps.some(p => (p.status_desc||"").toLowerCase().includes("receb"));
-        if (recebido) { totalRecebidos++; metPorCC[cc].recebidos++; }
+        if (recebido) { totalRecebidos++; metPorSc[sol.sc_numero].recebidos++; metPorCC[cc].recebidos++; }
         ps.forEach(p => {
           const v = Number(p.c7_total)||0;
           valorTotalGeral += v;
+          metPorSc[sol.sc_numero].valor += v;
           metPorCC[cc].valor += v;
         });
       });
@@ -2496,6 +2503,10 @@
 
     const pctGeral = totalSkus > 0 ? Math.round(totalRecebidos/totalSkus*100) : 0;
     const corPct = pctGeral===100?"#16a34a":pctGeral>50?"#0d9488":pctGeral>20?"#f59e0b":"#ef4444";
+
+    const scList = Object.entries(metPorSc)
+      .map(([sc,m]) => ({...m, sc, pct: m.total>0?Math.round(m.recebidos/m.total*100):0}))
+      .sort((a,b) => b.pct-a.pct);
 
     const ccList = Object.entries(metPorCC)
       .map(([cc,m]) => ({...m, cc, pct: m.total>0?Math.round(m.recebidos/m.total*100):0}))
@@ -2518,7 +2529,7 @@
         }).join("") + '</div>';
     }
 
-    const grafAtend = barChart(ccList, it=>it.pct, it=>it.nome, (it,v)=>v+"%", "% Atendimento por Centro de Custo");
+    const grafAtend = barChart(scList, it=>it.pct, it=>it.label, (it,v)=>v+"%", "% Atendimento por SC");
     const grafValor = barChart([...ccList].sort((a,b)=>b.valor-a.valor), it=>it.valor, it=>it.nome, (it,v)=>fmtBRL(v), "Valor Total por Centro de Custo (Top 8)");
 
     // lista de SCs com % — USANDO MESMO CÁLCULO
