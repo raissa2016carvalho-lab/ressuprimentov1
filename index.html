@@ -2504,7 +2504,6 @@
         metPorSc[sol.sc_numero].total++;
         metPorCC[cc].total++;
         const recebido = ps.some(p => (p.status_desc||"").toLowerCase().includes("receb"));
-        if (sol.sc_numero === "REGYVF") console.log("REGYVF", it.codigo, "filial:", filial, "ps:", ps.length, "recebido:", recebido);
         if (recebido) { totalRecebidos++; metPorSc[sol.sc_numero].recebidos++; metPorCC[cc].recebidos++; }
         ps.forEach(p => {
           const v = Number(p.c7_total)||0;
@@ -2546,19 +2545,15 @@
     const grafAtend = barChart(scList, it=>it.pct, it=>it.label, (it,v)=>v+"%", "% Atendimento por SC");
     const grafValor = barChart([...ccList].sort((a,b)=>b.valor-a.valor), it=>it.valor, it=>it.nome, (it,v)=>fmtBRL(v), "Valor Total por Centro de Custo (Top 8)");
 
-    // lista de SCs com % — USANDO MESMO CÁLCULO
+    // lista de SCs — usa metPorSc que já foi calculado com o mesmo pcMap/getPCsCons
     const listaScs = (sols||[]).map(sol => {
-      const itensSol = porSol[sol.id]||[];
-      const sc = normSc(sol.sc_numero||"");
-      const filial = sol.filial || detectarFilialCons(sc) || "";
-      const {total, recebidos} = calcularProporcaoCons(itensSol, sc, filial);
-      const pct = total>0?Math.round(recebidos/total*100):0;
+      const m = metPorSc[sol.sc_numero] || { total:0, recebidos:0, valor:0 };
+      const pct = m.total>0?Math.round(m.recebidos/m.total*100):0;
       const cor = pct===100?"#16a34a":pct>50?"#0d9488":pct>20?"#f59e0b":"#ef4444";
-      const {valorTotal} = calcularValorCons(itensSol, sc, filial);
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px">' +
         '<span style="color:#334155">' + (ccNomes[sol.cc]||sol.cc) + ' <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px">SC ' + sol.sc_numero + '</span></span>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-shrink:0">' +
-        (valorTotal>0?'<span style="font-size:11px;color:#64748b">'+fmtBRL(valorTotal)+'</span>':'') +
+        (m.valor>0?'<span style="font-size:11px;color:#64748b">'+fmtBRL(m.valor)+'</span>':'') +
         '<span style="font-weight:700;color:'+cor+';min-width:38px;text-align:right">'+pct+'%</span>' +
         '</div></div>';
     }).join("");
