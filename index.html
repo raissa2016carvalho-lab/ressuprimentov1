@@ -168,6 +168,13 @@
           <!-- busca por observação -->
           <input id="filtro-acomp-obs" placeholder="🔎 Buscar por observação..." oninput="filtrarAcomp()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;min-width:200px;flex:1"/>
+          <!-- ordenação por % -->
+          <select id="ordem-acomp" onchange="ordenarAcomp()"
+            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;flex-shrink:0">
+            <option value="padrao">Ordem padrão</option>
+            <option value="maior">% Maior → Menor</option>
+            <option value="menor">% Menor → Maior</option>
+          </select>
           <!-- botão Excel -->
           <button onclick="exportarExcelAcomp()"
             style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;flex-shrink:0">
@@ -923,7 +930,7 @@
       });
       const gruposStr = [...gruposSet].join("|").toLowerCase();
       return `
-        <div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}">
+        ${(() => { const {totalSolicitado:ts2, totalRecebido:tr2} = calcularProporcaoRecebida(itensSol, scTrim, filialSol); const pctCard = ts2 > 0 ? Math.round(tr2/ts2*100) : 0; return `<div class="card" data-cc="${nomeCC}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}">`; })()}
           <div class="card-topo" onclick="toggleCard('ac-${s.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1050,6 +1057,24 @@
     if (vazio) vazio.style.display = visiveis === 0 ? "block" : "none";
   }
   window.filtrarAcomp = filtrarAcomp;
+
+  function ordenarAcomp() {
+    const ordem = document.getElementById("ordem-acomp")?.value || "padrao";
+    const lista = document.getElementById("lista-acomp");
+    if (!lista) return;
+    const cards = [...lista.querySelectorAll(".card[data-pct]")];
+    if (!cards.length) return;
+    if (ordem === "padrao") { carregarAcompanhamento(); return; }
+    cards.sort((a, b) => {
+      const pa = Number(a.dataset.pct) || 0;
+      const pb = Number(b.dataset.pct) || 0;
+      return ordem === "maior" ? pb - pa : pa - pb;
+    });
+    const vazio = document.getElementById("acomp-vazio-filtro");
+    cards.forEach(c => lista.insertBefore(c, vazio));
+    filtrarAcomp();
+  }
+  window.ordenarAcomp = ordenarAcomp;
 
   // ---------- ABA BASES ----------
   function normChave(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
