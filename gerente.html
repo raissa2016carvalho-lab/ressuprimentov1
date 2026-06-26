@@ -390,7 +390,9 @@ async function salvar(solId) {
     const novaQtd = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : null;
     const just = (justificativas[it.id] || "").trim();
     const upd = { situacao: valor };
-    if (novaQtd !== null && novaQtd !== it.quantidade) upd.quantidade = novaQtd;
+    // salva qtd_almoxarife (original) se ainda não foi salvo
+    upd.qtd_almoxarife = it.quantidade; // quantidade original do almoxarife
+    if (novaQtd !== null) upd.quantidade = novaQtd; // qtd do gerente
     if (just) upd.justificativa_gerente = just;
     await db.from("solicitacao_itens").update(upd).eq("id", it.id);
   }
