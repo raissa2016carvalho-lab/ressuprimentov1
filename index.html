@@ -945,7 +945,7 @@
     if (selCC) {
       const ccsVisiveis = [...new Set(associadas.map(s => {
         const sc = s.sc_numero.trim();
-        const itens = getItensSc(sol);
+        const itens = getItensSc(s);
         const cc = itens.length > 0 ? (itens[0].c1_cc || s.cc || "") : (s.cc || "");
         const nome = ccNomes[cc] || cc;
         return JSON.stringify({ cc, nome });
