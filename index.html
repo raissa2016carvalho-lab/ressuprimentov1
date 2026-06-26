@@ -161,6 +161,15 @@
       <div class="corpo-aba">
         <!-- filtros -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+          <!-- filtro consolidado -->
+          <div style="position:relative;flex:1;min-width:180px">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none">📊</span>
+            <select id="filtro-acomp-consolidado" onchange="filtrarAcomp()"
+              style="margin:0;padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;width:100%;background:#fff;appearance:none;-webkit-appearance:none;cursor:pointer">
+              <option value="">Todos os consolidados</option>
+            </select>
+          </div>
+
           <!-- select CC com lupa -->
           <div style="position:relative;flex:1;min-width:200px">
             <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none">🔍</span>
@@ -358,6 +367,7 @@
   let consumoMap = {}; // "cc|codigo" -> consumo 3 meses
   let pessoasMap = {}; // "cc" -> [{cargo, quantidade}]
   const abaCarregada = { acompanhamento: false, mobilizacao: false, consolidados: false };
+  let _consolidadoScMap = {}; // consolidado_id -> Set de solicitacao_id
 
   // formatação global de moeda — usada em acompanhamento e consolidados
   function fmtBRL(v) {
@@ -891,7 +901,7 @@
       const pctCard = pct;
 
       return `
-        <div class="card" data-cc="${nomeCC_low}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}">
+        <div class="card" data-cc="${nomeCC_low}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-solid="${sol.id}">
           <div class="card-topo" onclick="toggleCard('ac-${sol.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -966,6 +976,24 @@
 
     $("lista-acomp").innerHTML = listaHtml + '<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div>';
 
+    // Popular select de consolidados
+    const selCons = $("filtro-acomp-consolidado");
+    if (selCons) {
+      const { data: consData } = await db.from("consolidados").select("id,nome").order("criado_em", { ascending: false });
+      // Para cada consolidado, buscar as SCs vinculadas
+      _consolidadoScMap = {};
+      if (consData && consData.length) {
+        const consIds = consData.map(c => c.id);
+        const { data: linksData } = await db.from("consolidado_scs").select("consolidado_id,solicitacao_id").in("consolidado_id", consIds);
+        (linksData || []).forEach(l => {
+          if (!_consolidadoScMap[l.consolidado_id]) _consolidadoScMap[l.consolidado_id] = new Set();
+          _consolidadoScMap[l.consolidado_id].add(l.solicitacao_id);
+        });
+        selCons.innerHTML = '<option value="">Todos os consolidados</option>' +
+          consData.map(c => `<option value="${c.id}">${c.nome}</option>`).join("");
+      }
+    }
+
     // Popular select de CC
     const selCC = $("filtro-acomp-cc");
     if (selCC) {
@@ -1000,8 +1028,10 @@
   window.setFiltroStatusAcomp = setFiltroStatusAcomp;
 
   function filtrarAcomp() {
-    const termCC    = ($("filtro-acomp-cc")?.value    || "").toLowerCase().trim();
-    const termObs   = ($("filtro-acomp-obs")?.value   || "").toLowerCase().trim();
+    const consFiltro = $("filtro-acomp-consolidado")?.value || "";
+    const termCC     = ($("filtro-acomp-cc")?.value    || "").toLowerCase().trim();
+    const termObs    = ($("filtro-acomp-obs")?.value   || "").toLowerCase().trim();
+    const consIds    = consFiltro ? _consolidadoScMap[Number(consFiltro)] : null;
 
     const cards = document.querySelectorAll("#lista-acomp .card[data-cc]");
     let visiveis = 0;
@@ -1010,9 +1040,10 @@
       const obs   = card.dataset.obs   || "";
       const pg    = card.dataset.pg    || "";
       const grupo = card.dataset.grupo || "";
-      const ok = (!termCC    || cc.includes(termCC))
+      const solId = Number(card.dataset.solid || 0);
+      const ok = (!consFiltro || (consIds && consIds.has(solId)))
+              && (!termCC    || cc.includes(termCC))
               && (!termObs   || obs.includes(termObs))
-
               && (_filtroStatusAcomp === "todos" || pg === _filtroStatusAcomp);
       card.style.display = ok ? "" : "none";
       if (ok) visiveis++;
