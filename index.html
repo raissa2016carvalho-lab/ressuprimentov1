@@ -563,23 +563,35 @@
           <table>
             <tr>
               <th>Item</th>
-              <th style="text-align:right;width:80px">Cons. 3m</th>
-              <th style="text-align:right;width:55px">Qtd</th>
-              <th style="text-align:center;width:150px">Decisão</th>
+              <th style="text-align:center;width:70px">Consumo<br>6m (un)</th>
+              <th style="text-align:center;width:70px">Qtd<br>almoxarife</th>
+              <th style="text-align:center;width:70px">Qtd<br>gerente</th>
+              <th style="text-align:left;width:200px">Justificativa<br>gerente</th>
+              <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
             ${s.itens.map(it => {
               const cons = (it.codigo && it.codigo !== "MANUAL") ? (consumoMap[s.cc + "|" + it.codigo] || 0) : 0;
               const consHtml = cons > 0
-                ? `<span style="font-size:12px;font-family:ui-monospace,monospace;color:#0d9488;font-weight:600">${cons}</span>`
+                ? `<span style="font-size:12px;font-family:ui-monospace,monospace;color:#0d9488;font-weight:600">${Math.floor(cons)}</span>`
                 : `<span style="font-size:11px;color:#cbd5e1">—</span>`;
+              const qtdAlmox = it.qtd_almoxarife != null ? it.qtd_almoxarife : it.quantidade;
+              const qtdGerente = it.quantidade;
+              const justGer = it.justificativa_gerente || "";
+              const alterada = qtdAlmox !== qtdGerente;
               return `
               <tr>
-                <td>${it.descricao || it.codigo}</td>
-                <td style="text-align:right">${consHtml}</td>
-                <td class="qtd">${it.quantidade}</td>
-                <td style="text-align:center;white-space:nowrap">
-                  <button class="btn-dec ${it.situacao === 'aprovado' ? 'aprovado' : ''}" id="ap-${it.id}" onclick="decidir(${s.id}, ${it.id}, 'aprovado')">Aprovar</button>
-                  <button class="btn-dec ${it.situacao === 'recusado' ? 'recusado' : ''}" id="re-${it.id}" onclick="decidir(${s.id}, ${it.id}, 'recusado')">Recusar</button>
+                <td>
+                  ${it.descricao || it.codigo}
+                  ${it.codigo && it.codigo !== "MANUAL" ? `<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>` : ""}
+                </td>
+                <td style="text-align:center">${consHtml}</td>
+                <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;color:#475569">${qtdAlmox}</td>
+                <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:${alterada ? '#b45309' : '#0f172a'}">${qtdGerente}${alterada ? ' ✎' : ''}</td>
+                <td style="font-size:11.5px;color:#64748b;font-style:${justGer ? 'italic' : 'normal'}">${justGer || '—'}</td>
+                <td style="text-align:center">
+                  <input type="number" min="0" value="${qtdGerente}"
+                    style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
+                    oninput="masterQtd[${it.id}]=Number(this.value)||0"/>
                 </td>
               </tr>`;
             }).join("")}
@@ -608,6 +620,7 @@
   }
 
   const decisoes = {};
+  const masterQtd = {};
   function decidir(solId, itemId, valor) {
     decisoes[itemId] = decisoes[itemId] === valor ? "pendente" : valor;
     document.getElementById("ap-" + itemId).className = "btn-dec" + (decisoes[itemId] === "aprovado" ? " aprovado" : "");
@@ -628,7 +641,12 @@
     for (const it of sol.itens) {
       const valor = decisoes[it.id] !== undefined ? decisoes[it.id] : (it.situacao || "pendente");
       situacoesFinais.push(valor);
-      await db.from("solicitacao_itens").update({ situacao: valor }).eq("id", it.id);
+      const upd = { situacao: valor };
+      // se master alterou a quantidade, salva
+      if (masterQtd[it.id] !== undefined && masterQtd[it.id] !== it.quantidade) {
+        upd.quantidade = masterQtd[it.id];
+      }
+      await db.from("solicitacao_itens").update(upd).eq("id", it.id);
     }
 
     const ap = situacoesFinais.filter(v => v === "aprovado").length;
