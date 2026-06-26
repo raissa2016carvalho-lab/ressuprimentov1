@@ -425,22 +425,30 @@
 
   async function carregarSolicitacoes() {
     $("lista").innerHTML = '<div class="vazio">Carregando...</div>';
-    const [{ data: ccs }, { data: sols, error: e2 }, { data: itens, error: e3 }, { data: gc }] = await Promise.all([
+    const [{ data: ccs }, { data: sols, error: e2 }, { data: gc }] = await Promise.all([
       db.from("centros_custo").select("*"),
       db.from("solicitacoes").select("*").order("criado_em", { ascending: false }).limit(5000),
-      db.from("solicitacao_itens").select("*").limit(10000),
       db.from("gerentes_cc").select("cc,email"),
     ]);
-    if (e2 || e3) {
-      $("lista").innerHTML = '<div class="vazio">Erro ao carregar: ' + ((e2 || e3).message) + '</div>';
+    if (e2) {
+      $("lista").innerHTML = '<div class="vazio">Erro ao carregar: ' + e2.message + '</div>';
       return;
+    }
+    // buscar itens paginando para não cortar
+    let itens = [], itOff = 0;
+    while (true) {
+      const { data: lote } = await db.from("solicitacao_itens").select("*").range(itOff, itOff + 999);
+      if (!lote || !lote.length) break;
+      itens = itens.concat(lote);
+      if (lote.length < 1000) break;
+      itOff += 1000;
     }
     ccMap = {};
     (ccs || []).forEach(c => ccMap[c.cc] = c);
     gerentesMapCC = {};
     (gc || []).forEach(g => { (gerentesMapCC[g.cc] = gerentesMapCC[g.cc] || []).push(g.email); });
     const porSol = {};
-    (itens || []).forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
+    itens.forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
     solicitacoes = (sols || []).map(s => ({ ...s, itens: porSol[s.id] || [] }));
 
     // carrega consumo 3m e pessoas por cargo para os CCs visíveis
