@@ -125,7 +125,7 @@
   });
 
   // quando clica numa sugestão: guarda código no input hidden (não no dataset!)
-  document.addEventListener("click", (e) => {
+  document.addEventListener("click", async (e) => {
     const sug = e.target.closest(".sug-item");
     if (sug) {
       const wrap = sug.closest(".item-descricao-wrap");
