@@ -99,6 +99,8 @@ const qtdEditadas = {};
 const justificativas = {};
 // consumo por filial+produto: consumoMap["filial|produto"] = media
 const consumoMap = {};
+// preço por código: precoMap["codigo"] = preco
+const precoMap = {};
 
 async function verificarSessao() {
   const { data } = await db.auth.getSession();
@@ -173,6 +175,15 @@ async function carregarSolicitacoes() {
       (cons || []).forEach(c => { consumoMap[c.filial + "|" + c.produto] = c.consumo_medio_6m; });
     }
   }
+  // Buscar preços da tabela itens (SB1)
+  if (codigos.length > 0) {
+    for (let i = 0; i < codigos.length; i += 500) {
+      const { data: precos } = await db.from("itens")
+        .select("codigo,preco")
+        .in("codigo", codigos.slice(i, i + 500));
+      (precos || []).forEach(p => { if (p.preco > 0) precoMap[p.codigo] = p.preco; });
+    }
+  }
 
   $("subtitulo").textContent = solicitacoes.length > 0
     ? solicitacoes.length + " solicitação(ões) aguardando sua avaliação"
@@ -199,23 +210,35 @@ function renderCard(s) {
   const nomeBase = base ? base.nome : s.cc;
   const filial = s.filial || "";
 
+  // calcular valor total estimado inicial
+  let valorTotalInicial = 0;
+  s.itens.forEach(it => {
+    const qtd = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : it.quantidade;
+    const preco = (it.codigo && it.codigo !== "MANUAL") ? (precoMap[it.codigo] || 0) : 0;
+    valorTotalInicial += qtd * preco;
+  });
+
   const linhasItens = s.itens.map(it => {
     const qtdOrig = it.quantidade;
     const qtdAtual = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : qtdOrig;
     const consumo = (filial && it.codigo && it.codigo !== "MANUAL")
       ? consumoMap[filial + "|" + it.codigo]
       : undefined;
-    const consumoTag = consumo != null
-      ? `<span class="tag-consumo">📊 ${fmtNum(consumo)} un/mês</span>`
-      : `<span class="tag-sem">Sem histórico</span>`;
+    const consumoVal = consumo != null ? Math.floor(consumo) : null;
+    const preco = (it.codigo && it.codigo !== "MANUAL") ? (precoMap[it.codigo] || 0) : 0;
+    const valorEstimado = qtdAtual * preco;
     const justVal = justificativas[it.id] || "";
     const aumentada = qtdAtual > qtdOrig;
 
-    return `<tr>
+    return `<tr id="row-${it.id}">
       <td>
         <div>${it.descricao || it.codigo || "—"}</div>
         ${it.codigo && it.codigo !== "MANUAL" ? `<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>` : ""}
-        <div style="margin-top:4px">${consumoTag}</div>
+      </td>
+      <td style="text-align:center">
+        ${consumoVal != null
+          ? `<span style="font-weight:700;color:#0d9488">${consumoVal}</span>`
+          : `<span style="color:#cbd5e1">—</span>`}
       </td>
       <td style="text-align:center">
         <span class="qtd-original">${qtdOrig}</span>
@@ -224,17 +247,20 @@ function renderCard(s) {
         <input type="number" min="0" value="${qtdAtual}"
           class="qtd-input${aumentada ? " aumentada" : ""}"
           id="qtd-${it.id}"
-          oninput="onQtdChange(${s.id},${it.id},${qtdOrig},this.value)"/>
+          oninput="onQtdChange(${s.id},${it.id},${qtdOrig},${preco},this.value)"/>
         <input type="text" placeholder="Justificativa obrigatória ⚠"
           class="just-input${aumentada ? " visivel" : ""}"
           id="just-${it.id}"
           value="${justVal}"
           oninput="justificativas[${it.id}]=this.value"/>
       </td>
+      <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12px;color:#475569" id="val-${it.id}">
+        ${preco > 0 ? "R$ " + valorEstimado.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2}) : "—"}
+      </td>
       <td style="text-align:center;white-space:nowrap">
-        <button class="btn-dec ${decisoes[it.id] === 'aprovado' || it.situacao === 'aprovado' ? 'aprovado' : ''}"
+        <button class="btn-dec ${decisoes[it.id] === "aprovado" || it.situacao === "aprovado" ? "aprovado" : ""}"
           id="ap-${it.id}" onclick="decidir(${s.id},${it.id},'aprovado')">Aprovar</button>
-        <button class="btn-dec ${decisoes[it.id] === 'recusado' || it.situacao === 'recusado' ? 'recusado' : ''}"
+        <button class="btn-dec ${decisoes[it.id] === "recusado" || it.situacao === "recusado" ? "recusado" : ""}"
           id="re-${it.id}" onclick="decidir(${s.id},${it.id},'recusado')">Recusar</button>
       </td>
     </tr>`;
@@ -257,8 +283,10 @@ function renderCard(s) {
         <table>
           <tr>
             <th>Item</th>
-            <th style="text-align:center;width:80px">Qtd solicitada</th>
+            <th style="text-align:center;width:70px">Consumo<br>6m (un)</th>
+            <th style="text-align:center;width:80px">Qtd<br>almoxarife</th>
             <th style="text-align:center;width:180px">Qtd gerente</th>
+            <th style="text-align:right;width:110px">Valor est.</th>
             <th style="text-align:center;width:160px">Decisão</th>
           </tr>
           ${linhasItens}
@@ -266,13 +294,19 @@ function renderCard(s) {
         <div class="rodape-card">
           <button class="btn-aprovar-todas" onclick="aprovarTodas(${s.id})">✓ Aprovar todos os itens</button>
           <button class="btn-salvar" onclick="salvar(${s.id})">Encaminhar para aprovação final ▶</button>
+          <div style="margin-left:auto;text-align:right;flex-shrink:0">
+            <div style="font-size:10.5px;color:#94a3b8;font-weight:600">VALOR TOTAL ESTIMADO</div>
+            <div style="font-size:16px;font-weight:700;color:#0f172a" id="total-${s.id}">
+              ${valorTotalInicial > 0 ? "R$ " + valorTotalInicial.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2}) : "—"}
+            </div>
+          </div>
           <div id="msg-${s.id}" style="font-size:12.5px"></div>
         </div>
       </div>
     </div>`;
 }
 
-function onQtdChange(solId, itemId, qtdOrig, valor) {
+function onQtdChange(solId, itemId, qtdOrig, preco, valor) {
   const nova = Number(valor) || 0;
   qtdEditadas[itemId] = nova;
   const input = $("qtd-" + itemId);
@@ -283,6 +317,27 @@ function onQtdChange(solId, itemId, qtdOrig, valor) {
   } else {
     input.classList.remove("aumentada");
     just.classList.remove("visivel");
+  }
+  // atualizar valor estimado do item
+  const valEl = $("val-" + itemId);
+  if (valEl && preco > 0) {
+    const v = nova * preco;
+    valEl.textContent = "R$ " + v.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  // recalcular total da solicitação
+  const sol = solicitacoes.find(s => s.id === solId);
+  if (!sol) return;
+  let total = 0;
+  sol.itens.forEach(it => {
+    const q = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : it.quantidade;
+    const p = (it.codigo && it.codigo !== "MANUAL") ? (precoMap[it.codigo] || 0) : 0;
+    total += q * p;
+  });
+  const totalEl = $("total-" + solId);
+  if (totalEl) {
+    totalEl.textContent = total > 0
+      ? "R$ " + total.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2})
+      : "—";
   }
 }
 window.onQtdChange = onQtdChange;
