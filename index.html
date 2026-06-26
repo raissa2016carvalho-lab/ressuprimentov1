@@ -706,30 +706,90 @@
     // 3. Buscar itens de sc_pedidos para todas as SCs associadas
     const numerosSc = [...new Set(associadas.map(s => s.sc_numero.trim()))].filter(Boolean);
 
+    // 4. Buscar sc_pedidos filtrando por filial+SC para evitar cruzamento errado
+    // Chave: filial|sc_numero
+    const porSc = {}; // chave: "filial|sc"
+
+    // Montar mapa sc → filial da solicitação
+    const scFilialMap = {};
+    associadas.forEach(s => {
+      if (s.filial) scFilialMap[s.sc_numero.trim()] = s.filial;
+    });
+
+    // Buscar por lotes — filtrando por filial+SC via OR
+    // Para SCs sem filial, busca só por sc_numero (fallback)
+    const scsComFilial = associadas.filter(s => s.filial && s.sc_numero);
+    const scsSemFilial = associadas.filter(s => !s.filial && s.sc_numero);
+
     let scPedidos = [];
-    // buscar em lotes de 100 SCs por vez
-    for (let i = 0; i < numerosSc.length; i += 100) {
-      const lote = numerosSc.slice(i, i + 100);
-      let off = 0;
-      while (true) {
-        const { data: rows } = await db.from("sc_pedidos")
-          .select("*")
-          .in("c1_num", lote)
-          .range(off, off + 999);
-        if (!rows || !rows.length) break;
-        scPedidos = scPedidos.concat(rows);
-        if (rows.length < 1000) break;
-        off += 1000;
+
+    // Buscar SCs com filial — monta condição OR de filial+num
+    if (scsComFilial.length > 0) {
+      // agrupa por filial para fazer queries menores
+      const porFilial = {};
+      scsComFilial.forEach(s => {
+        const f = s.filial;
+        if (!porFilial[f]) porFilial[f] = [];
+        porFilial[f].push(s.sc_numero.trim());
+      });
+      for (const [filial, scs] of Object.entries(porFilial)) {
+        for (let i = 0; i < scs.length; i += 100) {
+          const lote = scs.slice(i, i + 100);
+          let off = 0;
+          while (true) {
+            const { data: rows } = await db.from("sc_pedidos")
+              .select("*")
+              .eq("c1_filial", filial)
+              .in("c1_num", lote)
+              .range(off, off + 999);
+            if (!rows || !rows.length) break;
+            scPedidos = scPedidos.concat(rows);
+            if (rows.length < 1000) break;
+            off += 1000;
+          }
+        }
       }
     }
 
-    // 4. Indexar por sc_numero
-    const porSc = {};
+    // Buscar SCs sem filial — só por sc_numero (fallback)
+    if (scsSemFilial.length > 0) {
+      const scsNums = [...new Set(scsSemFilial.map(s => s.sc_numero.trim()))];
+      for (let i = 0; i < scsNums.length; i += 100) {
+        const lote = scsNums.slice(i, i + 100);
+        let off = 0;
+        while (true) {
+          const { data: rows } = await db.from("sc_pedidos")
+            .select("*")
+            .in("c1_num", lote)
+            .range(off, off + 999);
+          if (!rows || !rows.length) break;
+          scPedidos = scPedidos.concat(rows);
+          if (rows.length < 1000) break;
+          off += 1000;
+        }
+      }
+    }
+
+    // Indexar por "filial|sc" ou "sc" para fallback
     scPedidos.forEach(r => {
-      const sc = r.c1_num;
-      if (!porSc[sc]) porSc[sc] = [];
-      porSc[sc].push(r);
+      const filial = (r.c1_filial || "").trim();
+      const sc = (r.c1_num || "").trim();
+      const chave = filial ? filial + "|" + sc : sc;
+      if (!porSc[chave]) porSc[chave] = [];
+      porSc[chave].push(r);
     });
+
+    // Função para buscar itens de uma solicitação
+    function getItensSc(sol) {
+      const sc = sol.sc_numero.trim();
+      const filial = sol.filial || "";
+      if (filial) {
+        const itens = porSc[filial + "|" + sc];
+        if (itens && itens.length) return itens;
+      }
+      // fallback sem filial
+      return porSc[sc] || [];
+    }
 
     // 5. Calcular métricas por SC
     function calcularMetricasSc(itens) {
@@ -780,7 +840,7 @@
 
     const listaHtml = associadas.map(sol => {
       const sc = sol.sc_numero.trim();
-      const itens = porSc[sc] || [];
+      const itens = getItensSc(sol);
       const { total, recebidos, valorTotal, temPedido } = calcularMetricasSc(itens);
       const pct = total > 0 ? Math.round(recebidos / total * 100) : 0;
       const pgKey = classificarPedidoGeral(itens);
@@ -885,7 +945,7 @@
     if (selCC) {
       const ccsVisiveis = [...new Set(associadas.map(s => {
         const sc = s.sc_numero.trim();
-        const itens = porSc[sc] || [];
+        const itens = getItensSc(sol);
         const cc = itens.length > 0 ? (itens[0].c1_cc || s.cc || "") : (s.cc || "");
         const nome = ccNomes[cc] || cc;
         return JSON.stringify({ cc, nome });
