@@ -2437,7 +2437,11 @@
 
     const ccList = Object.entries(metPorCC)
       .map(([cc,m]) => ({...m, cc, pct: m.total>0?Math.round(m.recebidos/m.total*100):0}))
-      .sort((a,b) => b.valor-a.valor).slice(0,8);
+      .sort((a,b) => b.valor-a.valor);
+
+    const ccPctList = Object.entries(metPorCC)
+      .map(([cc,m]) => ({...m, cc, pct: m.total>0?Math.round(m.recebidos/m.total*100):0}))
+      .sort((a,b) => b.pct-a.pct);
 
     // Gráfico barras % por SC
     function barChart(items, valFn, labelFn, corFn) {
@@ -2501,8 +2505,8 @@
       '<div style="font-size:11.5px;color:#64748b;text-align:right;margin-bottom:20px">'+totalRecebidos+' de '+totalSkus+' SKUs</div>' +
       // Gráficos
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">' +
-        '<div><div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">% Atendimento por SC</div>' + pctBar(scList, it => it.label || it.sc) + '</div>' +
-        '<div><div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Valor Total por Centro de Custo (Top 8)</div>' + barChart(ccList, it => it.valor, it => it.nome, () => "#0d9488") + '</div>' +
+        '<div><div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">% Atendimento por Centro de Custo</div>' + pctBar(ccPctList, it => it.nome) + '</div>' +
+        '<div><div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Valor Total por Centro de Custo</div>' + barChart(ccList, it => it.valor, it => it.nome, () => "#0d9488") + '</div>' +
       '</div>' +
       // Lista SCs
       '<div style="font-size:11px;color:#64748b;font-weight:700;color:#475569;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">SCs neste consolidado ('+((sols||[]).length)+')</div>' +
