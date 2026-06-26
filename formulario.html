@@ -36,6 +36,8 @@
   .item-descricao-wrap.selecionado .item-descricao{border-color:#0d9488;background:#f0fdf4}
   .item-codigo-badge{font-size:10.5px;color:#0d9488;font-family:ui-monospace,monospace;margin-top:3px;display:none}
   .item-descricao-wrap.selecionado .item-codigo-badge{display:block}
+  .item-consumo{font-size:11px;color:#0d9488;font-weight:600;background:#f0fdf4;border-radius:6px;padding:3px 8px;margin-top:3px;display:none;white-space:nowrap}
+  .item-descricao-wrap.selecionado .item-consumo{display:block}
 </style>
 </head>
 <body>
@@ -116,6 +118,8 @@
     const wrap = e.target.closest(".item-descricao-wrap");
     // limpa seleção anterior
     wrap.querySelector(".item-codigo-hidden").value = "";
+    wrap.querySelector(".item-consumo").textContent = "";
+    wrap.querySelector(".item-consumo").style.color = "#0d9488";
     wrap.classList.remove("selecionado");
     buscarSugestoes(e.target);
   });
@@ -129,10 +133,26 @@
       const hidden = wrap.querySelector(".item-codigo-hidden");
       const badge  = wrap.querySelector(".item-codigo-badge");
       input.value  = sug.dataset.descricao;
-      hidden.value = sug.dataset.codigo;           // ← guarda aqui, nunca se perde
+      hidden.value = sug.dataset.codigo;
       badge.textContent = "✓ " + sug.dataset.codigo;
       wrap.classList.add("selecionado");
       wrap.querySelector(".item-sugestoes").style.display = "none";
+      // buscar consumo médio da filial selecionada
+      const filialSel = $("filial").value;
+      const consumoEl = wrap.querySelector(".item-consumo");
+      if (filialSel && sug.dataset.codigo) {
+        const { data: cons } = await db.from("consumo_filial")
+          .select("consumo_medio_6m")
+          .eq("filial", filialSel)
+          .eq("produto", sug.dataset.codigo)
+          .maybeSingle();
+        if (cons && cons.consumo_medio_6m > 0) {
+          consumoEl.textContent = "📊 Consumo médio 6m: " + cons.consumo_medio_6m.toLocaleString("pt-BR", {maximumFractionDigits:2}) + " un.";
+        } else {
+          consumoEl.textContent = "📊 Sem consumo registrado nos últimos 6 meses";
+          consumoEl.style.color = "#94a3b8";
+        }
+      }
       return;
     }
     if (!e.target.closest(".item-descricao-wrap")) {
@@ -151,6 +171,7 @@
         <input class="item-descricao" type="text" placeholder="Nome do material (digite para buscar)"/>
         <input class="item-codigo-hidden" type="hidden" value=""/>
         <div class="item-codigo-badge"></div>
+        <div class="item-consumo"></div>
         <div class="item-sugestoes"></div>
       </div>
       <input class="item-qtd" type="number" min="1" placeholder="Qtd"/>
@@ -162,16 +183,14 @@
   adicionarItem(); // já começa com 1 item
 
   // filiais disponíveis — buscadas dos pedidos_compra
-  const FILIAIS_DISPONIVEIS = [
-    "01","03","04","05","06","07","08","09","10","11","12","13","14","15",
-    "16","17","19","20","21","22","23","24","25","26","27","28","29","30",
-    "32","33","34","36","37","39","40","41","42","43"
+  const FILIAIS_LISTA = [
+    {c:"01",n:"MATRIZ"}, {c:"03",n:"PAU DOS FERROS"}, {c:"04",n:"ITAPIPOCA"}, {c:"06",n:"CURRAIS NOVOS"}, {c:"07",n:"SOBRAL"}, {c:"08",n:"APARECIDA DE GOIANIA"}, {c:"09",n:"MARACANAU"}, {c:"10",n:"MOSSORO"}, {c:"11",n:"ANAPOLIS"}, {c:"13",n:"ALAGOINHAS"}, {c:"14",n:"RIBEIRA DO POMBAL"}, {c:"15",n:"PAULO AFONSO"}, {c:"22",n:"GOIANIA"}, {c:"23",n:"BATURITE"}, {c:"24",n:"MORRINHOS"}, {c:"25",n:"CASCAVEL"}, {c:"27",n:"CAUCAIA"}, {c:"29",n:"HORIZONTE"}, {c:"34",n:"SENHOR DO BONFIM"}, {c:"36",n:"LUZIANIA"}, {c:"37",n:"DIVINOPOLIS"}, {c:"40",n:"GARANHUNS"}, {c:"41",n:"FLORIANO"}, {c:"42",n:"LIVRAMENTO DE NOSSA SENHORA"}, {c:"43",n:"HORTOLANDIA"}
   ];
 
   async function carregarFiliais() {
     const sel = $("filial");
     sel.innerHTML = '<option value="">Selecione a filial...</option>' +
-      FILIAIS_DISPONIVEIS.map(f => `<option value="${f}">${f}</option>`).join("");
+      FILIAIS_LISTA.map(f => `<option value="${f.c}">${f.c} — ${f.n}</option>`).join("");
   }
   carregarFiliais();
 
