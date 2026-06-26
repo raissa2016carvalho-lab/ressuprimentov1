@@ -74,7 +74,9 @@
   .status-pc{font-size:11.5px;font-weight:600}
   .p-aguardando_master{background:#fef3c7;color:#b45309}
   .st-recebido{color:#16a34a}
+  .st-parcial{color:#0d9488}
   .st-pendente{color:#d97706}
+  .st-rejeitado{color:#ef4444}
   .st-outro{color:#64748b}
 
   .base-card{max-width:680px}
@@ -737,7 +739,7 @@
       let temPedido = 0;
       itens.forEach(it => {
         const st = (it.pc_status || "").toLowerCase();
-        const recebido = st.includes("receb") || st.includes("pré-nota") || st.includes("pre-nota") || st.includes("atendida");
+        const recebido = st === "recebido" || st === "recebido parcialmente" || st.includes("pré-nota") || st.includes("pre-nota");
         if (recebido) recebidos++;
         if (it.pc_numero) temPedido++;
         valorTotal += Number(it.pc_total) || 0;
@@ -765,8 +767,10 @@
     function statusCls(st) {
       if (!st) return "st-outro";
       const s = st.toLowerCase();
-      if (s.includes("receb") || s.includes("atendida") || s.includes("pré-nota")) return "st-recebido";
-      if (s.includes("pend") || s.includes("aprov")) return "st-pendente";
+      if (s === "recebido") return "st-recebido";
+      if (s === "recebido parcialmente" || s.includes("pré-nota") || s.includes("pre-nota")) return "st-parcial";
+      if (s === "pendente" || s === "em aprovação") return "st-pendente";
+      if (s === "rejeitado pelo aprovador" || s === "pc eliminado por resíduo") return "st-rejeitado";
       return "st-outro";
     }
 
