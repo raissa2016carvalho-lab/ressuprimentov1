@@ -2153,6 +2153,7 @@
       db.from("centros_custo").select("*").order("nome"),
       db.from("gerentes_cc").select("*"),
     ]);
+    console.log("CCs carregados:", ccs?.length, "Exemplo:", ccs?.[0]);
     const porCC = {};
     (gc || []).forEach(g => { (porCC[g.cc] = porCC[g.cc] || []).push(g); });
     todosCC = (ccs || []).map(cc => ({ ...cc, gerentes: porCC[cc.cc] || [] }));
