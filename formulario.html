@@ -691,11 +691,17 @@ async function enviarSolicitacao() {
 
   // Criar uma solicitação por CC
   for (const cc of ccsSelecionados) {
-    const itensCC = itensSelecionados.map(it => ({
-      codigo: it.codigo,
-      descricao: it.descricao || itensMap[it.codigo]?.descricao || "",
-      quantidade: Math.max(1, Math.round(it.qtd * cc.proporcao)) // proporcional
-    })).filter(it => it.quantidade > 0);
+    const itensCC = itensSelecionados.map(it => {
+      const qtdProporcional = Math.max(1, Math.round(it.qtd * cc.proporcao));
+      const media = consumoMap[it.codigo]?.media || 0;
+      const qtdSugerida = Math.max(1, Math.round(media * periodoMeses * cc.proporcao));
+      return {
+        codigo: it.codigo,
+        descricao: it.descricao || itensMap[it.codigo]?.descricao || "",
+        quantidade: qtdProporcional,
+        qtd_sugerida: qtdSugerida > 0 ? qtdSugerida : qtdProporcional,
+      };
+    }).filter(it => it.quantidade > 0);
 
     if (!itensCC.length) continue;
 
@@ -705,6 +711,7 @@ async function enviarSolicitacao() {
       p_matricula: matricula,
       p_justificativa: justificativa || null,
       p_filial: filial,
+      p_periodo_meses: periodoMeses,
       p_itens: itensCC,
     };
 
