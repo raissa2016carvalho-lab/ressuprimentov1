@@ -3,2559 +3,741 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Ressuprimento — Painel</title>
+<title>Solicitação de Ressuprimento</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
-  .center{display:grid;place-items:center;min-height:100vh;padding:20px}
-  .login-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;width:100%;max-width:360px}
-  .login-card h1{font-size:16px;margin:0 0 4px}
-  .login-card p{color:#64748b;font-size:12.5px;margin:0 0 18px}
+  .page{max-width:980px;margin:0 auto;padding:24px 16px}
+  h2{font-size:18px;font-weight:700;margin:0 0 4px}
+  p.sub{color:#64748b;font-size:13px;margin:0 0 20px}
   label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
-  input,select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
+  input,select,textarea{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:13.5px;outline:none;font-family:inherit;background:#fff}
+  input:focus,select:focus,textarea:focus{border-color:#0d9488}
   button{font-family:inherit;cursor:pointer}
-  .btn{padding:11px;border-radius:9px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:14px;width:100%}
-  .btn:disabled{background:#e2e8f0}
-  .msg{font-size:13px;padding:9px 11px;border-radius:8px;margin-bottom:12px}
+  .btn-primary{background:#0d9488;color:#fff;border:none;border-radius:9px;padding:11px 22px;font-weight:700;font-size:14px}
+  .btn-primary:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed}
+  .btn-secondary{background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:9px 16px;font-weight:600;font-size:13px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:14px}
+  .card-titulo{font-size:13.5px;font-weight:700;margin-bottom:14px;color:#0f172a}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .msg{font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:12px}
   .erro{background:#fee2e2;color:#991b1b}
   .ok{background:#d1fae5;color:#065f46}
 
-  /* ---- layout com menu lateral ---- */
-  #app{display:flex;min-height:100vh}
-  nav{width:220px;background:#0f172a;color:#cbd5e1;padding:20px 14px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
-  nav .logo{display:flex;align-items:center;gap:9px;padding:0 8px 18px}
-  nav .logo .box{width:30px;height:30px;border-radius:7px;background:#0d9488;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px}
-  nav .logo .txt b{color:#fff;font-weight:700;font-size:14px;display:block;line-height:1}
-  nav .logo .txt span{font-size:10px;color:#64748b}
-  nav button.aba{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:none;cursor:pointer;text-align:left;background:transparent;color:#94a3b8;font-weight:500;font-size:13.5px;width:100%}
-  nav button.aba.ativo{background:#0d9488;color:#fff;font-weight:600}
-  nav button.aba .badge{background:#ef4444;color:#fff;font-size:11px;font-weight:700;border-radius:999px;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;margin-left:auto}
-  nav .rodape{margin-top:auto;padding-top:16px;border-top:1px solid #1e293b}
-  nav .rodape .email{font-size:11px;color:#64748b;padding:0 8px 8px;word-break:break-all}
-  .btn-sair{width:100%;display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#cbd5e1;font-weight:500;font-size:13px}
+  /* CC chips */
+  .cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .cc-chip{display:inline-flex;align-items:center;gap:6px;background:#0d94881a;color:#0d9488;border:1px solid #0d948840;border-radius:999px;padding:4px 10px;font-size:12.5px;font-weight:600}
+  .cc-chip button{border:none;background:none;color:#0d9488;cursor:pointer;font-size:14px;line-height:1;padding:0}
 
-  main{flex:1;display:flex;flex-direction:column;min-width:0}
-  .topo-aba{background:#fff;border-bottom:1px solid #e2e8f0;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-  .filtros{display:flex;gap:10px;align-items:center}
-  .filtros select{margin-bottom:0;width:auto;min-width:160px}
-  .filtros button{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;color:#475569}
-  .corpo-aba{flex:1;overflow-y:auto;padding:24px}
+  /* Proporcional */
+  .prop-grid{display:grid;gap:8px;margin-top:10px}
+  .prop-row{display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:8px 12px}
+  .prop-bar{flex:1;background:#e2e8f0;border-radius:4px;height:8px;overflow:hidden}
+  .prop-bar-fill{height:100%;background:#0d9488;border-radius:4px;transition:width .3s}
+  .prop-pct{font-size:11.5px;font-weight:700;color:#0d9488;min-width:36px;text-align:right}
+  .prop-pessoas{font-size:11px;color:#64748b;min-width:60px}
 
-  .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden;max-width:920px}
-  .card-topo{padding:16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
-  .card-titulo{font-weight:700;font-size:14px}
-  .card-sub{font-size:12px;color:#64748b;margin-top:3px}
-  .pill{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
-  .p-pendente{background:#cffafe;color:#155e75}
-  .p-em_analise{background:#fef3c7;color:#92400e}
-  .p-aprovada{background:#dcfce7;color:#166534}
-  .p-recusada{background:#f1f5f9;color:#475569}
-  .p-parcial{background:#ede9fe;color:#5b21b6}
+  /* Tabela de itens */
+  .tabela-itens{width:100%;border-collapse:collapse;font-size:13px}
+  .tabela-itens th{text-align:left;color:#64748b;font-weight:600;font-size:11.5px;padding:8px 10px;border-bottom:2px solid #e2e8f0;background:#f8fafc}
+  .tabela-itens td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  .tabela-itens tr:hover td{background:#fafafa}
+  .consumo-badge{font-size:11px;font-weight:700;color:#0d9488;background:#f0fdf4;border-radius:4px;padding:2px 7px;white-space:nowrap}
+  .consumo-zero{font-size:11px;color:#cbd5e1;background:#f8fafc;border-radius:4px;padding:2px 7px}
+  .qtd-input{width:80px;text-align:right;padding:5px 8px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace}
+  .qtd-input:focus{border-color:#0d9488;outline:none}
+  .qtd-input.preenchida{border-color:#0d9488;background:#f0fdf4}
+  .grupo-badge{font-size:10px;color:#64748b;background:#f1f5f9;border-radius:3px;padding:1px 5px;white-space:nowrap}
+  .curva-badge{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap}
+  .curva-A{background:#fef9c3;color:#854d0e}
+  .curva-B{background:#dbeafe;color:#1e40af}
+  .curva-C{background:#f1f5f9;color:#64748b}
 
-  .card-corpo{border-top:1px solid #e2e8f0;background:#f8fafc;padding:16px;display:none}
-  .card-corpo.aberto{display:block}
-  table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
-  th{text-align:left;color:#64748b;font-weight:600;font-size:11.5px;padding:8px 10px;border-bottom:1px solid #e2e8f0}
-  td{padding:9px 10px;border-bottom:1px solid #f1f5f9}
-  .qtd{text-align:right;font-family:ui-monospace,monospace;font-weight:700}
-  .btn-dec{border:none;border-radius:6px;padding:5px 9px;font-size:11.5px;font-weight:700;margin-right:5px;background:#e2e8f0;color:#64748b}
-  .btn-dec.aprovado{background:#16a34a;color:#fff}
-  .btn-dec.recusado{background:#e11d48;color:#fff}
+  /* Busca item pontual */
+  .busca-wrap{position:relative}
+  .sugestoes{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;z-index:50;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.08)}
+  .sug-item{padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9}
+  .sug-item:hover{background:#f0fdf4}
 
-  .rodape-card{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0}
-  .rodape-card > div{flex:1;min-width:160px}
-  .rodape-card input{margin-bottom:0}
-  .btn-salvar{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
-
-  .vazio{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:36px;text-align:center;color:#64748b;font-size:13.5px;max-width:920px}
-  .status-pc{font-size:11.5px;font-weight:600}
-  .p-aguardando_master{background:#fef3c7;color:#b45309}
-  .st-recebido{color:#16a34a}
-  .st-parcial{color:#0d9488}
-  .st-pendente{color:#d97706}
-  .st-rejeitado{color:#ef4444}
-  .st-outro{color:#64748b}
-
-  .base-card{max-width:680px}
-  .carimbo{font-size:11.5px;font-weight:600;color:#64748b;background:#f1f5f9;padding:4px 10px;border-radius:999px;white-space:nowrap}
-  .carimbo.feito{color:#0d9488;background:#0d94881a}
-  .upload-area{display:block;border:1px dashed #cbd5e1;border-radius:9px;padding:11px;cursor:pointer;background:#f8fafc;margin-top:14px}
-  .upload-area span{font-size:13px;color:#475569}
-
-  .chip-equipe{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:10px;font-weight:700;margin-right:2px;margin-bottom:2px;background:#f1f5f9;color:#94a3b8;flex-shrink:0}
-  .chip-equipe.ok{background:#16a34a;color:#fff}
-  .btn-novo{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer}
-  .btn-voltar{background:none;border:none;color:#0d9488;font-weight:600;font-size:13px;cursor:pointer;padding:0;margin-bottom:14px}
-  table.tbl-mob{font-size:12.5px;table-layout:fixed;width:100%}
-  table.tbl-mob th{font-size:11px}
-  table.tbl-mob td{padding:6px 8px;vertical-align:middle}
-  table.tbl-mob td:first-child{word-break:break-word}
-  table.tbl-mob td:nth-child(2){width:80px;text-align:right}
-  table.tbl-mob td:nth-child(3){width:70px;text-align:right}
-  table.tbl-mob td:nth-child(4){width:auto}
-  table.tbl-mob th:nth-child(2){width:80px;text-align:right}
-  table.tbl-mob th:nth-child(3){width:70px;text-align:right}
-  .chips-wrap{display:flex;flex-wrap:wrap;gap:2px}
+  /* Sucesso */
+  #tela-sucesso{display:none;text-align:center;padding:40px 20px}
+  .check-circle{width:64px;height:64px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:32px}
+  .codigo-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:16px auto;max-width:280px}
 </style>
 </head>
 <body>
+<div class="page">
+  <div id="tela-form">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="width:32px;height:32px;border-radius:8px;background:#0d9488;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px">R</div>
+      <div>
+        <h2>Solicitação de Ressuprimento</h2>
+        <p class="sub" style="margin:0">Preencha seus dados, escolha a filial e os centros de custo.</p>
+      </div>
+    </div>
 
-<div id="tela-login" class="center">
-  <div class="login-card">
-    <h1>Ressuprimento</h1>
-    <p>Painel de gestão — faça login</p>
-    <label>E-mail</label>
-    <input id="email" type="email"/>
-    <label>Senha</label>
-    <input id="senha" type="password"/>
-    <div id="login-msg"></div>
-    <button class="btn" id="btn-login">Entrar</button>
+    <div id="form-msg"></div>
+
+    <!-- ETAPA 1: dados do solicitante -->
+    <div class="card">
+      <div class="card-titulo">👤 Dados do solicitante</div>
+      <div class="grid3">
+        <div>
+          <label>Nome completo</label>
+          <input id="nome" placeholder="Seu nome"/>
+        </div>
+        <div>
+          <label>Matrícula</label>
+          <input id="matricula" placeholder="Ex.: 014943"/>
+        </div>
+        <div>
+          <label>Justificativa / motivo</label>
+          <input id="justificativa" placeholder="Ex.: Ressuprimento trimestral"/>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <label>Período de ressuprimento</label>
+          <select id="periodo-meses" onchange="onPeriodoChange()" style="margin:0">
+            <option value="1">1 mês</option>
+            <option value="2">2 meses</option>
+            <option value="3" selected>3 meses</option>
+            <option value="6">6 meses</option>
+            <option value="12">12 meses</option>
+          </select>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:10px 16px;font-size:13px;color:#166534;font-weight:600;flex-shrink:0">
+          📊 Qtd sugerida = consumo médio × <span id="periodo-label">3</span> meses
+        </div>
+      </div>
+    </div>
+
+    <!-- ETAPA 2: filial + CCs -->
+    <div class="card">
+      <div class="card-titulo">📍 Filial e Centros de Custo</div>
+      <div class="grid2" style="margin-bottom:12px">
+        <div>
+          <label>Filial</label>
+          <select id="filial" onchange="onFilialChange()">
+            <option value="">Selecione a filial...</option>
+            <option value="01">01 — MATRIZ</option>
+            <option value="03">03 — PAU DOS FERROS</option>
+            <option value="04">04 — ITAPIPOCA</option>
+            <option value="06">06 — CURRAIS NOVOS</option>
+            <option value="07">07 — SOBRAL</option>
+            <option value="08">08 — APARECIDA DE GOIANIA</option>
+            <option value="09">09 — MARACANAU</option>
+            <option value="10">10 — MOSSORO</option>
+            <option value="11">11 — ANAPOLIS</option>
+            <option value="13">13 — ALAGOINHAS</option>
+            <option value="14">14 — RIBEIRA DO POMBAL</option>
+            <option value="15">15 — PAULO AFONSO</option>
+            <option value="22">22 — GOIANIA</option>
+            <option value="23">23 — BATURITE</option>
+            <option value="24">24 — MORRINHOS</option>
+            <option value="25">25 — CASCAVEL</option>
+            <option value="27">27 — CAUCAIA</option>
+            <option value="29">29 — HORIZONTE</option>
+            <option value="34">34 — SENHOR DO BONFIM</option>
+            <option value="36">36 — LUZIANIA</option>
+            <option value="37">37 — DIVINOPOLIS</option>
+            <option value="40">40 — GARANHUNS</option>
+            <option value="41">41 — FLORIANO</option>
+            <option value="42">42 — LIVRAMENTO DE NOSSA SENHORA</option>
+            <option value="43">43 — HORTOLANDIA</option>
+          </select>
+        </div>
+        <div>
+          <label>Adicionar Centro de Custo</label>
+          <div class="busca-wrap">
+            <input id="busca-cc" placeholder="🔍 Buscar CC..." oninput="buscarCC()" autocomplete="off"/>
+            <div class="sugestoes" id="sugs-cc" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+      <!-- CCs selecionados + proporção -->
+      <div id="area-ccs" style="display:none">
+        <div class="cc-chips" id="chips-cc"></div>
+        <div style="margin-top:12px">
+          <div style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:6px">PROPORÇÃO DE PESSOAS POR CC</div>
+          <div class="prop-grid" id="prop-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ETAPA 3: lista de itens por curva -->
+    <div class="card" id="card-itens" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="card-titulo" style="margin:0">📦 Itens — Curva de Consumo</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="filtro-itens" placeholder="🔍 Filtrar itens..." oninput="filtrarItens()"
+            style="width:200px;margin:0;padding:7px 12px;font-size:13px"/>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap;margin:0;cursor:pointer">
+            <input type="checkbox" id="mostrar-zero" onchange="filtrarItens()" style="width:auto;margin:0"/> Mostrar sem consumo
+          </label>
+        </div>
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:10px">
+        <span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:1px 6px;font-weight:700;font-size:11px">A</span> Top 20%  
+        <span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 6px;font-weight:700;font-size:11px;margin-left:8px">B</span> 20–50%  
+        <span style="background:#f1f5f9;color:#64748b;border-radius:3px;padding:1px 6px;font-weight:700;font-size:11px;margin-left:8px">C</span> Demais
+      </div>
+      <div id="loading-itens" style="color:#64748b;font-size:13px;padding:12px 0">Carregando itens...</div>
+      <table class="tabela-itens" id="tabela-itens" style="display:none">
+        <thead>
+          <tr>
+            <th style="width:40%">Item</th>
+            <th style="width:12%">Grupo</th>
+            <th style="width:8%;text-align:center">Curva</th>
+            <th style="width:12%;text-align:right">Consumo médio<br>6m (un)</th>
+            <th style="width:10%;text-align:center">Qtd</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-itens"></tbody>
+      </table>
+
+      <!-- Adicionar item pontual -->
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0">
+        <div style="font-size:12.5px;font-weight:600;color:#64748b;margin-bottom:8px">+ ITEM PONTUAL (fora da curva)</div>
+        <div class="busca-wrap">
+          <input id="busca-item-pontual" placeholder="🔍 Buscar item por descrição ou código..." oninput="buscarItemPontual()" autocomplete="off"/>
+          <div class="sugestoes" id="sugs-pontual" style="display:none"></div>
+        </div>
+        <div id="itens-pontuais" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- BOTÃO ENVIAR -->
+    <div id="area-enviar" style="display:none;margin-top:8px">
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:#0f172a;margin-bottom:4px">Resumo da solicitação</div>
+        <div id="resumo-envio" style="font-size:12.5px;color:#64748b"></div>
+      </div>
+      <button class="btn-primary" id="btn-enviar" onclick="enviarSolicitacao()" style="width:100%;padding:14px">
+        Enviar solicitação
+      </button>
+    </div>
+  </div>
+
+  <!-- TELA DE SUCESSO -->
+  <div id="tela-sucesso">
+    <div class="check-circle">✓</div>
+    <h2 style="margin-bottom:8px">Solicitação enviada!</h2>
+    <p style="color:#64748b;font-size:13.5px">Recebemos seu pedido. A equipe vai avaliar em breve.</p>
+    <div class="codigo-box">
+      <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:6px">SEU CÓDIGO DE ACOMPANHAMENTO</div>
+      <div id="codigo-retorno" style="font-size:28px;font-weight:800">#—</div>
+      <div style="font-size:12px;color:#64748b;margin-top:6px">Guarde esse número junto com sua matrícula para consultar o andamento depois.</div>
+    </div>
+    <button class="btn-primary" style="margin-top:16px" onclick="location.reload()">Nova solicitação</button>
   </div>
 </div>
 
-<div id="app" style="display:none">
-  <nav>
-    <div class="logo">
-      <div class="box">R</div>
-      <div class="txt"><b>Ressuprimento</b><span>Painel de gestão</span></div>
-    </div>
-    <button class="aba ativo" id="aba-btn-solicitacoes" onclick="irPara('solicitacoes')">
-      Solicitações <span class="badge" id="badge-pendentes" style="display:none"></span>
-    </button>
-    <button class="aba" id="aba-btn-acompanhamento" onclick="irPara('acompanhamento')">
-      Acompanhamento
-    </button>
-    <button class="aba" id="aba-btn-mobilizacao" onclick="irPara('mobilizacao')">
-      Mobilização
-    </button>    <button class="aba" id="aba-btn-consolidados" onclick="irPara('consolidados')">
-      📊 Consolidados
-    </button>
-<button class="aba" id="aba-btn-settings" onclick="irPara('settings')">
-      ⚙ Configurações
-    </button>
-    <div class="rodape">
-      <div class="email" id="user-email"></div>
-      <button class="btn-sair" id="btn-sair">Sair</button>
-    </div>
-  </nav>
-
-  <main>
-    <div id="aba-solicitacoes">
-      <div class="topo-aba">
-        <div class="filtros">
-          <button id="btn-atualizar">↻ Atualizar</button>
-        </div>
-
-      </div>
-      <div class="corpo-aba"><div id="lista"></div></div>
-    </div>
-
-    <div id="aba-acompanhamento" style="display:none">
-      <div class="topo-aba">
-        <div style="font-weight:700;font-size:14px">SCs associadas — status dos pedidos</div>
-        <button id="btn-atualizar-acomp">↻ Atualizar</button>
-      </div>
-      <div class="corpo-aba">
-        <!-- filtros -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
-          <!-- filtro consolidado -->
-          <div style="position:relative;flex:1;min-width:180px">
-            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none">📊</span>
-            <select id="filtro-acomp-consolidado" onchange="filtrarAcomp()"
-              style="margin:0;padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;width:100%;background:#fff;appearance:none;-webkit-appearance:none;cursor:pointer">
-              <option value="">Todos os consolidados</option>
-            </select>
-          </div>
-
-          <!-- select CC com lupa -->
-          <div style="position:relative;flex:1;min-width:200px">
-            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none">🔍</span>
-            <select id="filtro-acomp-cc" onchange="filtrarAcomp()"
-              style="margin:0;padding:8px 12px 8px 32px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;width:100%;background:#fff;appearance:none;-webkit-appearance:none;cursor:pointer">
-              <option value="">Todos os centros de custo</option>
-            </select>
-          </div>
-
-          <!-- busca por observação -->
-          <input id="filtro-acomp-obs" placeholder="🔎 Buscar por observação..." oninput="filtrarAcomp()"
-            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;min-width:200px;flex:1"/>
-          <!-- ordenação por % -->
-          <select id="ordem-acomp" onchange="ordenarAcomp()"
-            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;flex-shrink:0">
-            <option value="padrao">Ordem padrão</option>
-            <option value="maior">% Maior → Menor</option>
-            <option value="menor">% Menor → Maior</option>
-          </select>
-          <!-- botão Excel -->
-          <button onclick="exportarExcelAcomp()"
-            style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;flex-shrink:0">
-            ⬇ Excel
-          </button>
-        </div>
-        <!-- pills de status -->
-        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px" id="filtros-status-acomp">
-          <button onclick="setFiltroStatusAcomp('todos')" id="facomp-todos"
-            style="border:1px solid #0d9488;background:#0d9488;color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Todos</button>
-          <button onclick="setFiltroStatusAcomp('sem_pedido')" id="facomp-sem_pedido"
-            style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Sem pedido</button>
-          <button onclick="setFiltroStatusAcomp('pendente')" id="facomp-pendente"
-            style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Pendente</button>
-          <button onclick="setFiltroStatusAcomp('parcial')" id="facomp-parcial"
-            style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Parcial</button>
-          <button onclick="setFiltroStatusAcomp('recebido')" id="facomp-recebido"
-            style="border:1px solid #e2e8f0;background:#fff;color:#64748b;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Recebido</button>
-        </div>
-        <!-- barra de consolidação -->
-        <div id="barra-consolidar" style="display:none;background:#0f172a;color:#fff;border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap">
-          <span id="count-sel-cons" style="font-size:13px;font-weight:600">0 SC(s)</span>
-          <button onclick="consolidarSelecionadas()" style="background:#0d9488;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">📊 Criar consolidado</button>
-          <button onclick="limparSelecaoAcomp()" style="background:transparent;color:#94a3b8;border:1px solid #334155;border-radius:7px;padding:7px 14px;font-size:13px;cursor:pointer">Cancelar</button>
-        </div>
-        <div id="lista-acomp"></div>
-      </div>
-    </div>
-    <div id="aba-consolidados" style="display:none">
-      <div class="topo-aba">
-        <div style="font-weight:700;font-size:14px">📊 Consolidados</div>
-        <button onclick="novoConsolidado()" style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">+ Novo consolidado</button>
-      </div>
-      <div class="corpo-aba"><div id="lista-consolidados"><div class="vazio">Carregando...</div></div></div>
-    </div>
-
-    <div id="aba-mobilizacao" style="display:none">
-      <div class="topo-aba">
-        <div style="font-weight:700;font-size:14px">Mobilizações</div>
-        <button class="btn-novo" id="btn-nova-mob" onclick="mostrarFormMob()">+ Nova mobilização</button>
-      </div>
-      <div class="corpo-aba">
-        <div id="mob-lista-view">
-          <div id="lista-mob"></div>
-        </div>
-        <div id="mob-form-view" style="display:none">
-          <button class="btn-voltar" onclick="mostrarListaMob()">← Voltar</button>
-          <div class="card" style="max-width:680px">
-            <div style="padding:18px">
-              <label>Nome da mobilização</label>
-              <input id="mob-nome" placeholder="Ex.: Mobilização ENEL Norte"/>
-              <label>Número de equipes</label>
-              <input id="mob-num-equipes" type="number" min="1" placeholder="Ex.: 6"/>
-              <label>Planilha de itens (.csv ou .xlsx) — colunas: <strong>código, descrição, quantidade</strong></label>
-              <div style="font-size:12px;color:#94a3b8;margin:-6px 0 8px">A quantidade total será dividida pelo número de equipes automaticamente.</div>
-              <label class="upload-area" id="label-mob-arquivo">
-                <span id="nome-mob-arquivo">Escolher arquivo</span>
-                <input type="file" accept=".csv,.xlsx,.xls" style="display:none" id="mob-arquivo" onchange="lerArquivoMob()"/>
-              </label>
-              <div id="mob-preview-area"></div>
-              <div id="mob-msg" style="margin-top:12px"></div>
-              <button class="btn-salvar" style="margin-top:14px;width:100%" id="btn-salvar-mob" onclick="salvarMobilizacao()" disabled>Salvar mobilização</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="aba-settings" style="display:none">
-      <div class="topo-aba">
-        <div style="font-weight:700;font-size:14px">⚙ Configurações</div>
-        <div style="display:flex;gap:4px;background:#f1f5f9;border-radius:8px;padding:3px">
-          <button id="sub-btn-bases" onclick="irSubSettings('bases')"
-            style="border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;background:#fff;color:#0f172a;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08)">
-            Bases
-          </button>
-          <button id="sub-btn-gerentes" onclick="irSubSettings('gerentes')"
-            style="border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:500;background:transparent;color:#64748b;cursor:pointer">
-            Gerentes
-          </button>
-        </div>
-      </div>
-      <div class="corpo-aba">
-
-        <!-- SUB: BASES -->
-        <div id="sub-bases">
-          <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:10px;padding:14px 16px;max-width:680px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
-            <span style="font-size:22px">🤖</span>
-            <div>
-              <div style="font-size:13px;font-weight:600;color:#065f46">Sincronização automática ativa</div>
-              <div style="font-size:12.5px;color:#047857;margin-top:2px">Os dados são atualizados automaticamente todo dia às 07:00 via <code>sync_ressuprimento.py</code>. Não é necessário subir arquivos manualmente.</div>
-            </div>
-          </div>
-                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-width:680px">
-            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-              <div style="font-weight:600;font-size:13px;color:#0f172a;margin-bottom:4px">📦 Itens — SB1</div>
-              <div style="font-size:12px;color:#64748b;margin-bottom:10px">Código, descrição, unidade e preço</div>
-              <div class="carimbo" id="carimbo-itens">carregando...</div>
-            </div>
-            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-              <div style="font-weight:600;font-size:13px;color:#0f172a;margin-bottom:4px">🏢 Centros de Custo — CTT</div>
-              <div style="font-size:12px;color:#64748b;margin-bottom:10px">CCs bloqueados e desbloqueados</div>
-              <div class="carimbo" id="carimbo-centros_custo">carregando...</div>
-            </div>
-            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-              <div style="font-weight:600;font-size:13px;color:#0f172a;margin-bottom:4px">👥 Pessoas — SRA</div>
-              <div style="font-size:12px;color:#64748b;margin-bottom:10px">Ativos por cargo por CC</div>
-              <div class="carimbo" id="carimbo-sra">carregando...</div>
-            </div>
-            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-              <div style="font-weight:600;font-size:13px;color:#0f172a;margin-bottom:4px">📊 Consumo — SCP</div>
-              <div style="font-size:12px;color:#64748b;margin-bottom:10px">Consumo últimos 3 meses por item/CC</div>
-              <div class="carimbo" id="carimbo-consumo">carregando...</div>
-            </div>
-          </div>
-        <!-- IMPORTAR CSV -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;max-width:680px;margin-top:16px">
-          <div style="font-weight:700;font-size:14px;margin-bottom:4px">📥 Importar Ressuprimentos — CSV</div>
-          <div style="font-size:12.5px;color:#64748b;margin-bottom:12px">Importa solicitações já existentes em massa. O CSV deve ter as colunas: <code>n_sc, produto, descricao, qtde, obs, solicitante, status_sc, emissao_sc, Descrição</code></div>
-          <label class="upload-area" id="label-import-csv" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px;border:2px dashed #e2e8f0;border-radius:8px;margin-bottom:10px">
-            <span>📎</span>
-            <span id="nome-import-csv" style="font-size:13px;color:#64748b">Escolher arquivo (.csv)</span>
-            <input type="file" accept=".csv" style="display:none" id="arquivo-import-csv" onchange="document.getElementById('nome-import-csv').textContent=this.files[0]?.name||'Escolher arquivo';document.getElementById('btn-import-csv').disabled=!this.files[0]"/>
-          </label>
-          <button class="btn-salvar" id="btn-import-csv" onclick="importarRessuprimentosCSV()" disabled style="padding:8px 18px;font-size:13px">Importar</button>
-          <div id="log-import-csv" style="margin-top:10px;font-size:12.5px"></div>
-        </div>
-
-        </div>
-
-        <!-- SUB: GERENTES -->
-        <div id="sub-gerentes" style="display:none">
-          <p style="color:#64748b;font-size:13px;max-width:700px;margin-top:0;margin-bottom:14px">
-            Associe e-mails a centros de custo. Selecione vários CCs e associe um e-mail de uma vez.
-            O gerente precisa ter login criado no Supabase (<b>Authentication → Users → Add user</b>).
-          </p>
-          <div style="max-width:700px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px">
-            <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-              <input id="busca-cc" placeholder="🔍 Buscar centro de custo..." oninput="filtrarCCs()"
-                style="flex:1;min-width:200px;margin:0;padding:9px 12px;font-size:13px"/>
-              <button onclick="selecionarTodosFiltrados()" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap">Selecionar todos</button>
-              <button onclick="limparSelecao()" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;padding:9px 14px;font-size:12.5px;color:#94a3b8;white-space:nowrap">Limpar</button>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <input id="email-lote" type="email" placeholder="email@empresa.com" oninput="atualizarBtnLote()"
-                style="flex:1;min-width:220px;margin:0;padding:9px 12px;font-size:13px"/>
-              <button id="btn-lote" onclick="associarEmailLote()" disabled
-                style="background:#0d9488;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;white-space:nowrap;opacity:0.4;cursor:not-allowed">
-                + Associar aos selecionados (<span id="count-sel">0</span>)
-              </button>
-            </div>
-            <div id="msg-lote" style="margin-top:8px;font-size:12.5px"></div>
-          </div>
-          <div id="lista-gerentes"><div class="vazio">Carregando...</div></div>
-        </div>
-
-      </div>
-    </div>
-  </main>
-</div>
-
 <script>
-  // ===== conexão principal: dados do ressuprimento (login, solicitações) =====
-  const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
-  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
 
-  // ===== conexão secundária, SÓ LEITURA: painel-protheus (pedidos_compra automática) =====
-  const PROTHEUS_URL = "https://xeowqirpcclsgpampgto.supabase.co";
-  const PROTHEUS_KEY = "sb_publishable_PQLwX4R5Ju4sz5PFhJZtAw_ROwdXT6A";
-  const dbProtheus = window.supabase.createClient(PROTHEUS_URL, PROTHEUS_KEY);
+// Grupos permitidos
+const GRUPOS_PERMITIDOS = new Set([
+  "MATERIAIS DE EXPEDIENTE E CONSUMO ADM",
+  "MATERIAIS ELETRICOS",
+  "EPI / EPC E FERRAMENTAS",
+  "EQUIPAMENTOS DE INFORMATICA",
+  "FARDAMENTOS & UNIFORMES",
+  "MOVEIS & UTENSILIOS",
+  "MATERIAIS DE CONSUMO OBRA",
+  "MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA",
+  "MATERIAL P/ PERFURACAO DE ROCHAS",
+  "MATERIAL P/ LAVAGEM DE ISOLADORES",
+]);
 
-  const $ = (id) => document.getElementById(id);
-  let solicitacoes = [];
-  let ccMap = {};
-  let consumoMap = {}; // "cc|codigo" -> consumo 3 meses
-  let pessoasMap = {}; // "cc" -> [{cargo, quantidade}]
-  const abaCarregada = { acompanhamento: false, mobilizacao: false, consolidados: false };
-  let _consolidadoScMap = {}; // consolidado_id -> Set de solicitacao_id
+// Estado global
+let todosCCs = [];         // [{cc, nome, pessoas}]
+let ccCarregado = false;
+let ccsSelecionados = [];  // [{cc, nome, pessoas, proporcao}]
+let consumoMap = {};       // cc|produto -> consumo_medio_6m
+let itensMap = {};         // produto -> {codigo, descricao, grupo}
+let listaItens = [];       // itens ordenados por curva
+let itensPontuais = [];    // itens adicionados manualmente
+let filialAtual = "";
+let periodoMeses = 3;
 
-  // formatação global de moeda — usada em acompanhamento e consolidados
-  function fmtBRL(v) {
-    return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  }
+// ── FILIAL ──────────────────────────────────────────────────────────────────
+async function onFilialChange() {
+  filialAtual = $("filial").value;
+  // Carregar CCs na primeira vez
+  if (!ccCarregado) await carregarTodosCCs();
+}
 
-  // ---------- LOGIN ----------
-  async function verificarSessao() {
-    const { data } = await db.auth.getSession();
-    if (data.session) mostrarApp(data.session.user.email);
-    else $("tela-login").style.display = "flex";
-  }
+async function carregarTodosCCs() {
+  ccCarregado = true;
+  // Buscar TODOS os CCs (bloqueados e desbloqueados) para somar pessoas por nome
+  const [{ data: todosData }, { data: desblData }, { data: pessoasData }] = await Promise.all([
+    db.from("centros_custo").select("cc,nome,status").order("nome"),
+    db.from("centros_custo").select("cc,nome").eq("status","Desbloqueado"),
+    db.from("cc_pessoas").select("cc,quantidade"),
+  ]);
 
-  $("btn-login").addEventListener("click", async () => {
-    $("login-msg").innerHTML = "";
-    const email = $("email").value.trim();
-    const senha = $("senha").value;
-    if (!email || !senha) { $("login-msg").innerHTML = '<div class="msg erro">Preencha e-mail e senha.</div>'; return; }
-    $("btn-login").disabled = true; $("btn-login").textContent = "Entrando...";
-    const { error } = await db.auth.signInWithPassword({ email, password: senha });
-    $("btn-login").disabled = false; $("btn-login").textContent = "Entrar";
-    if (error) { $("login-msg").innerHTML = '<div class="msg erro">' + error.message + '</div>'; return; }
-    mostrarApp(email);
+  // Somar pessoas por nome (agrupa bloqueados + desbloqueados)
+  const pessoasPorCC = {};
+  (pessoasData || []).forEach(p => { pessoasPorCC[p.cc] = (pessoasPorCC[p.cc] || 0) + Number(p.quantidade); });
+
+  // Para cada nome, somar pessoas de todos os CCs com aquele nome
+  const pessoasPorNome = {};
+  (todosData || []).forEach(c => {
+    if (!c.nome || c.cc.length <= 5) return;
+    pessoasPorNome[c.nome] = (pessoasPorNome[c.nome] || 0) + (pessoasPorCC[c.cc] || 0);
   });
-  $("senha").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-login").click(); });
-  $("btn-sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
 
-  function mostrarApp(email) {
-    $("tela-login").style.display = "none";
-    $("app").style.display = "flex";
-    $("user-email").textContent = email;
-    carregarSolicitacoes();
-  }
-
-  // ---------- NAVEGAÇÃO ENTRE ABAS ----------
-  function irPara(aba) {
-    $("aba-solicitacoes").style.display = aba === "solicitacoes" ? "block" : "none";
-    $("aba-acompanhamento").style.display = aba === "acompanhamento" ? "block" : "none";
-    $("aba-mobilizacao").style.display = aba === "mobilizacao" ? "block" : "none";
-    $("aba-settings").style.display = aba === "settings" ? "block" : "none";
-    $("aba-consolidados").style.display = aba === "consolidados" ? "block" : "none";
-    $("aba-btn-solicitacoes").classList.toggle("ativo", aba === "solicitacoes");
-    $("aba-btn-acompanhamento").classList.toggle("ativo", aba === "acompanhamento");
-    $("aba-btn-mobilizacao").classList.toggle("ativo", aba === "mobilizacao");
-    $("aba-btn-settings").classList.toggle("ativo", aba === "settings");
-    $("aba-btn-consolidados").classList.toggle("ativo", aba === "consolidados");
-    if (aba === "acompanhamento" && !abaCarregada.acompanhamento) { abaCarregada.acompanhamento = true; carregarAcompanhamento(); }
-    if (aba === "settings") { irSubSettings("bases"); carregarCarimbos(); }
-    if (aba === "mobilizacao" && !abaCarregada.mobilizacao) { abaCarregada.mobilizacao = true; mostrarListaMob(); carregarMobilizacoes(); }
-    if (aba === "consolidados" && !abaCarregada.consolidados) { abaCarregada.consolidados = true; carregarConsolidados(); }
-  }
-  window.irPara = irPara;
-
-  function irSubSettings(sub) {
-    $("sub-bases").style.display = sub === "bases" ? "block" : "none";
-    $("sub-gerentes").style.display = sub === "gerentes" ? "block" : "none";
-    const btnB = $("sub-btn-bases"); const btnG = $("sub-btn-gerentes");
-    if (btnB) { btnB.style.background = sub==="bases"?"#fff":"transparent"; btnB.style.color = sub==="bases"?"#0f172a":"#64748b"; btnB.style.fontWeight = sub==="bases"?"600":"500"; btnB.style.boxShadow = sub==="bases"?"0 1px 3px rgba(0,0,0,.08)":"none"; }
-    if (btnG) { btnG.style.background = sub==="gerentes"?"#fff":"transparent"; btnG.style.color = sub==="gerentes"?"#0f172a":"#64748b"; btnG.style.fontWeight = sub==="gerentes"?"600":"500"; btnG.style.boxShadow = sub==="gerentes"?"0 1px 3px rgba(0,0,0,.08)":"none"; }
-    if (sub === "gerentes") carregarGerentes();
-  }
-  window.irSubSettings = irSubSettings;
-
-  // ---------- ABA SOLICITAÇÕES ----------
-  let gerentesMapCC = {}; // cc -> [email]
-
-  async function carregarSolicitacoes() {
-    $("lista").innerHTML = '<div class="vazio">Carregando...</div>';
-    const [{ data: ccs }, { data: sols, error: e2 }, { data: gc }] = await Promise.all([
-      db.from("centros_custo").select("*"),
-      db.from("solicitacoes").select("*").order("criado_em", { ascending: false }).limit(5000),
-      db.from("gerentes_cc").select("cc,email"),
-    ]);
-    if (e2) {
-      $("lista").innerHTML = '<div class="vazio">Erro ao carregar: ' + e2.message + '</div>';
-      return;
+  // Mapa nome -> CC desbloqueado (para gravar solicitação)
+  const ccDesblPorNome = {};
+  (desblData || []).forEach(c => {
+    if (!c.nome || c.cc.length <= 5) return;
+    // Se já tem um, mantém o que tem mais pessoas
+    if (!ccDesblPorNome[c.nome] || (pessoasPorCC[c.cc] || 0) > (pessoasPorCC[ccDesblPorNome[c.nome]] || 0)) {
+      ccDesblPorNome[c.nome] = c.cc;
     }
-    // buscar itens paginando para não cortar no limite de 1000
-    const solIds = (sols || []).map(s => s.id);
-    let itens = [];
-    for (let i = 0; i < solIds.length; i += 100) {
-      const lote = solIds.slice(i, i + 100);
-      let off = 0;
-      while (true) {
-        const { data: loteItens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", lote).range(off, off + 999);
-        if (!loteItens || !loteItens.length) break;
-        itens = itens.concat(loteItens);
-        if (loteItens.length < 1000) break;
-        off += 1000;
-      }
-    }
-    ccMap = {};
-    (ccs || []).forEach(c => ccMap[c.cc] = c);
-    gerentesMapCC = {};
-    (gc || []).forEach(g => { (gerentesMapCC[g.cc] = gerentesMapCC[g.cc] || []).push(g.email); });
-    const porSol = {};
-    itens.forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
-    solicitacoes = (sols || []).map(s => ({ ...s, itens: porSol[s.id] || [] }));
+  });
 
-    // carrega consumo 3m e pessoas por cargo para os CCs visíveis
-    const ccsSols = [...new Set(solicitacoes.map(s => s.cc).filter(Boolean))];
-    if (ccsSols.length > 0) {
-      const [{ data: consumoData }, { data: pessoasData }] = await Promise.all([
-        db.from("consumo").select("cc,codigo,consumo_medio").in("cc", ccsSols),
-        db.from("cc_pessoas").select("cc,cargo,quantidade").in("cc", ccsSols),
-      ]);
-      consumoMap = {};
-      (consumoData || []).forEach(r => { consumoMap[r.cc + "|" + r.codigo] = Number(r.consumo_medio) || 0; });
-      pessoasMap = {};
-      (pessoasData || []).forEach(r => {
-        (pessoasMap[r.cc] = pessoasMap[r.cc] || []).push({ cargo: r.cargo, qtd: r.quantidade });
-      });
-      // ordena cada CC do maior pro menor
-      Object.keys(pessoasMap).forEach(cc => {
-        pessoasMap[cc].sort((a, b) => b.qtd - a.qtd);
-      });
-    }
-
-    const atendem = solicitacoes.filter(s => s.status === "pendente" || s.status === "aguardando_master").length;
-    const badge = $("badge-pendentes");
-    if (atendem > 0) { badge.style.display = "inline-flex"; badge.textContent = atendem; }
-    else badge.style.display = "none";
-
-    renderLista();
-  }
-  $("btn-atualizar").addEventListener("click", carregarSolicitacoes);
-
-  async function aprovarTodas() {
-    const aguardando = solicitacoes.filter(s => s.status === "aguardando_master");
-    if (aguardando.length === 0) { alert("Nenhuma solicitação aguardando revisão do master."); return; }
-    if (!confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)) return;
-    for (const s of aguardando) {
-      for (const it of s.itens) {
-        await db.from("solicitacao_itens").update({ situacao: "aprovado" }).eq("id", it.id);
-      }
-      await db.from("solicitacoes").update({ status: "aprovada", atualizado_em: new Date().toISOString() }).eq("id", s.id);
-    }
-    await carregarSolicitacoes();
-    alert("✓ " + aguardando.length + " solicitação(ões) aprovada(s)!");
-  }
-  window.aprovarTodas = aprovarTodas;
-  function fmtData(iso) {
-    const d = new Date(iso);
-    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
-  }
-  const LABEL_STATUS = { pendente: "Pendente", em_analise: "Em análise", aprovada: "Aprovada", recusada: "Recusada", parcial: "Parcial", aguardando_master: "Aguardando master" };
-
-  function renderLista() {
-    // mostra tudo que precisa de ação do master:
-    // pendente (com ou sem SC) + aguardando_master
-    const visiveis = solicitacoes.filter(s =>
-      s.status === "pendente" || s.status === "aguardando_master" || s.status === "em_analise"
-    );
-    if (visiveis.length === 0) {
-      $("lista").innerHTML = '<div class="vazio">Nenhuma solicitação pendente. Tudo aprovado ou recusado.</div>';
-      return;
-    }
-    // ordena: aguardando_master primeiro, depois mais recentes
-    visiveis.sort((a, b) =>
-      (b.status === "aguardando_master") - (a.status === "aguardando_master") ||
-      new Date(b.criado_em) - new Date(a.criado_em)
-    );
-    $("lista").innerHTML = visiveis.map(s => renderCard(s)).join("");
-  }
-
-  function renderCard(s) {
-    const base = ccMap[s.cc];
-    const nomeBase = base ? base.nome : s.cc;
-    const temGerente = (gerentesMapCC[s.cc] || []).length > 0;
-    const badgeGerente = s.status === "aguardando_master"
-      ? `<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`
-      : (s.status === "pendente" && temGerente
-        ? `<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`
-        : "");
-    // badge de pessoas expansível
-    const pessoasCC = pessoasMap[s.cc] || [];
-    const totalPessoas = pessoasCC.reduce((acc, p) => acc + p.qtd, 0);
-    const badgePessoasId = "pessoas-detalhe-" + s.id;
-    const badgePessoas = totalPessoas > 0 ? `
-      <span onclick="event.stopPropagation();var el=document.getElementById('${badgePessoasId}');el.style.display=el.style.display==='none'?'block':'none';"
-        style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;cursor:pointer;margin-left:8px">
-        👥 ${totalPessoas} ▾
-      </span>
-      <div id="${badgePessoasId}" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-top:6px;max-width:320px">
-        ${pessoasCC.map(p => `
-          <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #f1f5f9">
-            <span style="color:#334155">${p.cargo}</span>
-            <span style="font-weight:700;color:#0f172a;font-family:ui-monospace,monospace;margin-left:16px">${p.qtd}</span>
-          </div>`).join("")}
-      </div>` : "";
-    return `
-      <div class="card" style="${s.status === 'aguardando_master' ? 'border-left:4px solid #f59e0b' : ''}">
-        <div class="card-topo" onclick="toggleCard(${s.id})">
-          <div style="flex:1;min-width:0">
-            <div class="card-titulo">${nomeBase} <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
-              <span class="pill p-${s.status}">${LABEL_STATUS[s.status] || s.status}</span>${badgeGerente}${badgePessoas}</div>
-            <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns)${s.sc_numero ? " · SC " + s.sc_numero : ""}${s.periodo_meses ? ' · <span style="background:#f0fdf4;color:#166534;border-radius:4px;padding:1px 7px;font-weight:700">📅 ' + s.periodo_meses + 'm</span>' : ''}</div>
-            ${s.justificativa ? `<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>` : ""}
-          </div>
-          <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>
-        </div>
-        <div class="card-corpo" id="corpo-${s.id}">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-            <button onclick="aprovarTodosItens(${s.id})"
-              style="border:none;background:#16a34a;color:#fff;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">
-              ✓ Aprovar todos os itens
-            </button>
-          </div>
-          <table>
-            <tr>
-              <th>Item</th>
-              <th style="text-align:center;width:70px">Consumo<br>6m (un)</th>
-              <th style="text-align:center;width:70px">Qtd sugerida</th>
-              <th style="text-align:center;width:70px">Qtd<br>almoxarife</th>
-              <th style="text-align:center;width:70px">Qtd<br>gerente</th>
-              <th style="text-align:left;width:200px">Justificativa<br>gerente</th>
-              <th style="text-align:center;width:100px">Qtd master</th>
-            </tr>
-            ${s.itens.map(it => {
-              const cons = (it.codigo && it.codigo !== "MANUAL") ? (consumoMap[s.cc + "|" + it.codigo] || 0) : 0;
-              const consHtml = cons > 0
-                ? `<span style="font-size:12px;font-family:ui-monospace,monospace;color:#0d9488;font-weight:600">${Math.floor(cons)}</span>`
-                : `<span style="font-size:11px;color:#cbd5e1">—</span>`;
-              const qtdAlmox = it.qtd_almoxarife != null ? it.qtd_almoxarife : it.quantidade;
-              const qtdGerente = it.quantidade;
-              const justGer = it.justificativa_gerente || "";
-              const alterada = qtdAlmox !== qtdGerente;
-              return `
-              <tr>
-                <td>
-                  ${it.descricao || it.codigo}
-                  ${it.codigo && it.codigo !== "MANUAL" ? `<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>` : ""}
-                </td>
-                <td style="text-align:center">${consHtml}</td>
-                <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;color:#0d9488;font-weight:700">${it.qtd_sugerida || '—'}</td>
-                <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;color:#475569">${qtdAlmox}</td>
-                <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:${alterada ? '#b45309' : '#0f172a'}">${qtdGerente}${alterada ? ' ✎' : ''}</td>
-                <td style="font-size:11.5px;color:#64748b;font-style:${justGer ? 'italic' : 'normal'}">${justGer || '—'}</td>
-                <td style="text-align:center">
-                  <input type="number" min="0" value="${qtdGerente}"
-                    style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
-                    oninput="masterQtd[${it.id}]=Number(this.value)||0"/>
-                </td>
-              </tr>`;
-            }).join("")}
-          </table>
-          <div class="rodape-card">
-            <div>
-              <label>Nº da SC <span style="color:#ef4444">*</span> (obrigatório para salvar)</label>
-              <input id="sc-${s.id}" value="${s.sc_numero || ''}" placeholder="Ex.: 045873"
-                oninput="atualizarBotoesSol(${s.id})"/>
-            </div>
-            <div style="flex:2">
-              <label>Observação <span style="color:#ef4444">*</span> (obrigatória para gerar Excel)</label>
-              <input id="obs-${s.id}" value="${s.observacao || ''}" placeholder="Descreva o motivo da compra"
-                oninput="atualizarBotoesSol(${s.id})"/>
-            </div>
-            <button class="btn-salvar" id="btn-salvar-sol-${s.id}" onclick="salvar(${s.id})"
-              ${s.sc_numero ? '' : 'disabled style="opacity:0.4;cursor:not-allowed"'}>Salvar</button>
-            <button class="btn-salvar" id="btn-excel-sol-${s.id}" style="background:#0f172a${s.observacao ? '' : ';opacity:0.4;cursor:not-allowed'}"
-              onclick="baixarExcelProtheus(${s.id})"
-              ${s.observacao ? '' : 'disabled'}>⬇ Excel p/ Protheus</button>
-          </div>
-          <div id="salvo-msg-${s.id}"></div>
-        </div>
-      </div>
-    `;
-  }
-
-  const decisoes = {};
-  const masterQtd = {};
-  function decidir(solId, itemId, valor) {
-    decisoes[itemId] = decisoes[itemId] === valor ? "pendente" : valor;
-    document.getElementById("ap-" + itemId).className = "btn-dec" + (decisoes[itemId] === "aprovado" ? " aprovado" : "");
-    document.getElementById("re-" + itemId).className = "btn-dec" + (decisoes[itemId] === "recusado" ? " recusado" : "");
-  }
-  window.decidir = decidir;
-
-  function toggleCard(id) { document.getElementById("corpo-" + id).classList.toggle("aberto"); }
-  window.toggleCard = toggleCard;
-
-  async function salvar(solId) {
-    const sol = solicitacoes.find(s => s.id === solId);
-    if (!sol) return;
-    const scNumero = $("sc-" + solId).value.trim();
-    const obs = $("obs-" + solId).value.trim();
-
-    const situacoesFinais = [];
-    for (const it of sol.itens) {
-      const valor = decisoes[it.id] !== undefined ? decisoes[it.id] : (it.situacao || "pendente");
-      situacoesFinais.push(valor);
-      const upd = { situacao: valor };
-      // se master alterou a quantidade, salva
-      if (masterQtd[it.id] !== undefined && masterQtd[it.id] !== it.quantidade) {
-        upd.quantidade = masterQtd[it.id];
-      }
-      await db.from("solicitacao_itens").update(upd).eq("id", it.id);
-    }
-
-    const ap = situacoesFinais.filter(v => v === "aprovado").length;
-    const re = situacoesFinais.filter(v => v === "recusado").length;
-    let status = "em_analise";
-    if (ap > 0 && re === 0 && ap === situacoesFinais.length) status = "aprovada";
-    else if (re === situacoesFinais.length) status = "recusada";
-    else if (ap > 0 && re > 0) status = "parcial";
-    else if (ap === 0 && re === 0) status = "pendente";
-
-    const { error } = await db.from("solicitacoes").update({
-      status, sc_numero: scNumero || null, observacao: obs || null, atualizado_em: new Date().toISOString()
-    }).eq("id", solId);
-
-    const msgEl = document.getElementById("salvo-msg-" + solId);
-    if (error) {
-      msgEl.innerHTML = '<div class="msg erro">Erro ao salvar: ' + error.message + '</div>';
-    } else {
-      msgEl.innerHTML = '<div class="msg ok">✓ Salvo!</div>';
-      setTimeout(carregarSolicitacoes, 800);
-    }
-  }
-  window.salvar = salvar;
-
-  function baixarExcelProtheus(solId) {
-    const sol = solicitacoes.find(s => s.id === solId);
-    if (!sol) return;
-    // considera decisões feitas na tela (mesmo sem salvar) + situação do banco
-    const aprovados = sol.itens.filter(it => {
-      const dec = decisoes[it.id];
-      return dec === "aprovado" || (dec === undefined && it.situacao === "aprovado");
+  // Montar lista única por nome — só onde tem CC desbloqueado
+  const vistos = new Set();
+  todosCCs = [];
+  (desblData || []).forEach(c => {
+    if (!c.nome || c.cc.length <= 5) return;
+    if (vistos.has(c.nome)) return;
+    const totalPessoas = pessoasPorNome[c.nome] || 0;
+    if (totalPessoas === 0) return;
+    vistos.add(c.nome);
+    todosCCs.push({
+      cc: ccDesblPorNome[c.nome], // CC desbloqueado para gravar
+      nome: c.nome,
+      pessoas: totalPessoas,
     });
-
-    if (aprovados.length === 0) {
-      alert("Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.");
-      return;
-    }
-    // lê direto do campo (usuário pode ter digitado sem salvar ainda)
-    const obs = (document.getElementById("obs-" + solId)?.value || sol.observacao || "").trim();
-    if (!obs) {
-      alert("Preencha a Observação antes de gerar o Excel.");
-      return;
-    }
-    const semCodigo = aprovados.filter(it => !it.codigo || it.codigo === "MANUAL").length;
-    const linhas = aprovados.map((it, i) => ({
-      C1_XTIPOSC: "004",
-      C1_ITEM: String(i + 1).padStart(2, "0"),
-      C1_PRODUTO: (it.codigo && it.codigo !== "MANUAL") ? it.codigo : "",
-      C1_DESCRI: it.descricao || "",
-      C1_QUANT: it.quantidade,
-      C1_CC: sol.cc,
-      C1_OBS: obs,
-      C1_ESTOQUE: "S",
-    }));
-    const ws = XLSX.utils.json_to_sheet(linhas);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "SC");
-    XLSX.writeFile(wb, `SC_solicitacao_${sol.id}.xlsx`);
-    if (semCodigo > 0) {
-      alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`);
-    }
-  }
-  window.baixarExcelProtheus = baixarExcelProtheus;
-
-  // ---------- ABA ACOMPANHAMENTO ----------
-  async function carregarAcompanhamento() {
-    $("lista-acomp").innerHTML = '<div class="vazio">Carregando...</div>';
-
-    // 1. Buscar solicitações com SC associada
-    const { data: sols, error: e1 } = await db.from("solicitacoes").select("*").not("sc_numero", "is", null);
-    if (e1) { $("lista-acomp").innerHTML = '<div class="vazio">Erro: ' + e1.message + '</div>'; return; }
-    const associadas = (sols || []).filter(s => s.sc_numero && s.sc_numero.trim());
-    if (!associadas.length) {
-      $("lista-acomp").innerHTML = '<div class="vazio">Nenhuma solicitação com SC associada ainda.</div>';
-      return;
-    }
-
-    // 2. Buscar dados de CC
-    const { data: ccs } = await db.from("centros_custo").select("cc,nome");
-    const ccNomes = {};
-    (ccs || []).forEach(c => ccNomes[c.cc] = c.nome);
-
-    // 3. Buscar itens de sc_pedidos para todas as SCs associadas
-    const numerosSc = [...new Set(associadas.map(s => s.sc_numero.trim()))].filter(Boolean);
-
-    // 4. Buscar sc_pedidos filtrando por filial+SC para evitar cruzamento errado
-    // Chave: filial|sc_numero
-    const porSc = {}; // chave: "filial|sc"
-
-    // Montar mapa sc → filial da solicitação
-    const scFilialMap = {};
-    associadas.forEach(s => {
-      if (s.filial) scFilialMap[s.sc_numero.trim()] = s.filial;
-    });
-
-    // Buscar por lotes — filtrando por filial+SC via OR
-    // Para SCs sem filial, busca só por sc_numero (fallback)
-    const scsComFilial = associadas.filter(s => s.filial && s.sc_numero);
-    const scsSemFilial = associadas.filter(s => !s.filial && s.sc_numero);
-
-    let scPedidos = [];
-
-    // Buscar SCs com filial — monta condição OR de filial+num
-    if (scsComFilial.length > 0) {
-      // agrupa por filial para fazer queries menores
-      const porFilial = {};
-      scsComFilial.forEach(s => {
-        const f = s.filial;
-        if (!porFilial[f]) porFilial[f] = [];
-        porFilial[f].push(s.sc_numero.trim());
-      });
-      for (const [filial, scs] of Object.entries(porFilial)) {
-        for (let i = 0; i < scs.length; i += 100) {
-          const lote = scs.slice(i, i + 100);
-          let off = 0;
-          while (true) {
-            const { data: rows } = await db.from("sc_pedidos")
-              .select("*")
-              .eq("c1_filial", filial)
-              .in("c1_num", lote)
-              .range(off, off + 999);
-            if (!rows || !rows.length) break;
-            scPedidos = scPedidos.concat(rows);
-            if (rows.length < 1000) break;
-            off += 1000;
-          }
-        }
-      }
-    }
-
-    // Buscar SCs sem filial — só por sc_numero (fallback)
-    if (scsSemFilial.length > 0) {
-      const scsNums = [...new Set(scsSemFilial.map(s => s.sc_numero.trim()))];
-      for (let i = 0; i < scsNums.length; i += 100) {
-        const lote = scsNums.slice(i, i + 100);
-        let off = 0;
-        while (true) {
-          const { data: rows } = await db.from("sc_pedidos")
-            .select("*")
-            .in("c1_num", lote)
-            .range(off, off + 999);
-          if (!rows || !rows.length) break;
-          scPedidos = scPedidos.concat(rows);
-          if (rows.length < 1000) break;
-          off += 1000;
-        }
-      }
-    }
-
-    // Indexar por "filial|sc" ou "sc" para fallback
-    scPedidos.forEach(r => {
-      const filial = (r.c1_filial || "").trim();
-      const sc = (r.c1_num || "").trim();
-      const chave = filial ? filial + "|" + sc : sc;
-      if (!porSc[chave]) porSc[chave] = [];
-      porSc[chave].push(r);
-    });
-
-    // Função para buscar itens de uma solicitação
-    function getItensSc(sol) {
-      const sc = sol.sc_numero.trim();
-      const filial = sol.filial || "";
-      if (filial) {
-        const itens = porSc[filial + "|" + sc];
-        if (itens && itens.length) return itens;
-      }
-      // fallback sem filial
-      return porSc[sc] || [];
-    }
-
-    // 5. Calcular métricas por SC
-    function calcularMetricasSc(itens) {
-      let total = itens.length;
-      let recebidos = 0;
-      let valorTotal = 0;
-      let temPedido = 0;
-      itens.forEach(it => {
-        const st = (it.pc_status || "").toLowerCase();
-        const recebido = st === "recebido" || st === "recebido parcialmente" || st.includes("pré-nota") || st.includes("pre-nota");
-        if (recebido) recebidos++;
-        if (it.pc_numero) temPedido++;
-        valorTotal += Number(it.pc_total) || 0;
-      });
-      return { total, recebidos, valorTotal, temPedido };
-    }
-
-    function classificarPedidoGeral(itens) {
-      const { total, recebidos, temPedido } = calcularMetricasSc(itens);
-      if (temPedido === 0) return "sem_pedido";
-      if (recebidos === total) return "recebido";
-      if (recebidos > 0) return "parcial";
-      return "pendente";
-    }
-
-    function fmtPcStatus(st) {
-      if (!st) return "—";
-      const s = st.toLowerCase();
-      if (s.includes("receb")) return "RECEBIDO";
-      if (s.includes("pré-nota") || s.includes("pre-nota")) return "EM RECEBIMENTO (PRÉ-NOTA)";
-      if (s.includes("atendida")) return "ATENDIDO";
-      return st;
-    }
-
-    function statusCls(st) {
-      if (!st) return "st-outro";
-      const s = st.toLowerCase();
-      if (s === "recebido") return "st-recebido";
-      if (s === "recebido parcialmente" || s.includes("pré-nota") || s.includes("pre-nota")) return "st-parcial";
-      if (s === "pendente" || s === "em aprovação") return "st-pendente";
-      if (s === "rejeitado pelo aprovador" || s === "pc eliminado por resíduo") return "st-rejeitado";
-      return "st-outro";
-    }
-
-    const PG_LABEL = { sem_pedido:"Sem pedido", pendente:"Pedido pendente", parcial:"Pedido parcial", recebido:"Pedido recebido" };
-    const PG_CLASSE = { sem_pedido:"p-recusada", pendente:"p-pendente", parcial:"p-parcial", recebido:"p-aprovada" };
-    const FILIAIS_NOMES = {"01":"MATRIZ","03":"PAU DOS FERROS","04":"ITAPIPOCA","06":"CURRAIS NOVOS","07":"SOBRAL","08":"APARECIDA DE GOIANIA","09":"MARACANAU","10":"MOSSORO","11":"ANAPOLIS","13":"ALAGOINHAS","14":"RIBEIRA DO POMBAL","15":"PAULO AFONSO","22":"GOIANIA","23":"BATURITE","24":"MORRINHOS","25":"CASCAVEL","27":"CAUCAIA","29":"HORIZONTE","34":"SENHOR DO BONFIM","36":"LUZIANIA","37":"DIVINOPOLIS","40":"GARANHUNS","41":"FLORIANO","42":"LIVRAMENTO DE NOSSA SENHORA","43":"HORTOLANDIA"};
-
-    const listaHtml = associadas.map(sol => {
-      const sc = sol.sc_numero.trim();
-      const itens = getItensSc(sol);
-      const { total, recebidos, valorTotal, temPedido } = calcularMetricasSc(itens);
-      const pct = total > 0 ? Math.round(recebidos / total * 100) : 0;
-      const pgKey = classificarPedidoGeral(itens);
-
-      // filial — pega dos dados do Protheus se disponível
-      const filialProtheus = itens.length > 0 ? (itens[0].c1_filial || "").trim() : "";
-      const filialSol = sol.filial || filialProtheus || "";
-      const nomeFilial = FILIAIS_NOMES[filialSol] || filialSol;
-
-      // CC — pega do Protheus ou da solicitação
-      const ccProtheus = itens.length > 0 ? (itens[0].c1_cc || "").trim() : "";
-      const cc = ccProtheus || sol.cc || "";
-      const nomeCC = ccNomes[cc] || cc;
-
-      // obs — pega do Protheus
-      const obs = itens.length > 0 ? (itens[0].c1_obs || sol.observacao || "") : (sol.observacao || "");
-
-      const nomeCC_low = nomeCC.toLowerCase();
-      const obsLow = obs.toLowerCase();
-      const [bg, cor] = pct===100?["#dcfce7","#16a34a"]:pct>0?["#fef3c7","#b45309"]:["#f1f5f9","#94a3b8"];
-
-      const pctCard = pct;
-
-      return `
-        <div class="card" data-cc="${nomeCC_low}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-solid="${sol.id}">
-          <div class="card-topo" onclick="toggleCard('ac-${sol.id}')">
-            <div>
-              <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span>SC ${sc}</span>
-                <button onclick="event.stopPropagation();editarSC(${sol.id},'${sc}')" title="Corrigir nº da SC" style="border:none;background:none;color:#0d9488;cursor:pointer;font-size:12px;padding:0">✏️</button>
-                ${filialSol
-                  ? `<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700">${filialSol} · ${nomeFilial}</span>`
-                  : ""}
-                <span class="pill p-${sol.status}">${LABEL_STATUS[sol.status] || sol.status}</span>
-                ${pgKey ? `<span class="pill ${PG_CLASSE[pgKey]}">${PG_LABEL[pgKey]}</span>` : ""}
-                <span style="background:${bg};color:${cor};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700">${pct}% SKUs recebidos</span>
-              </div>
-              <div class="card-sub">${nomeCC} · ${cc} · ${total} item(ns)${obs ? ` · <i style="color:#475569">${obs}</i>` : ""} · ${temPedido} pedido(s)${valorTotal > 0 ? " · " + fmtBRL(valorTotal) : ""}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
-              <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
-              <button onclick="event.stopPropagation();excluirAcomp(${sol.id},'${sc}')"
-                style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:16px;padding:0;line-height:1"
-                onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
-            </div>
-          </div>
-          <div class="card-corpo" id="corpo-ac-${sol.id}">
-            <!-- pizza -->
-            <div style="display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;flex-wrap:wrap">
-              <div style="width:60px;height:60px;border-radius:50%;flex-shrink:0;background:conic-gradient(#16a34a 0% ${pct}%, #e2e8f0 ${pct}% 100%)"></div>
-              <div style="flex:1;min-width:160px">
-                <div style="font-size:14px;font-weight:700;color:#0f172a">${pct}% recebido</div>
-                <div style="font-size:11.5px;color:#64748b">${recebidos} de ${total} SKU(s) recebido(s)</div>
-              </div>
-              ${valorTotal > 0 ? `
-              <div style="text-align:right;flex-shrink:0">
-                <div style="font-size:11px;color:#94a3b8;font-weight:600;margin-bottom:2px">VALOR TOTAL DOS PEDIDOS</div>
-                <div style="font-size:16px;font-weight:700;color:#0f172a">${fmtBRL(valorTotal)}</div>
-              </div>` : ""}
-            </div>
-            <!-- exportar -->
-            <div style="display:flex;justify-content:flex-end;margin:10px 0 6px">
-              <button onclick="baixarExcelAcomp(${sol.id},'${sc}')"
-                style="border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:6px 14px;font-size:12.5px;font-weight:600;color:#475569;cursor:pointer">
-                ⬇ Exportar Excel
-              </button>
-            </div>
-            <!-- tabela de itens -->
-            <table>
-              <tr>
-                <th>Item solicitado</th>
-                <th>Pedido (PC)</th>
-                <th style="text-align:right">Qtd</th>
-                <th style="text-align:right">Valor</th>
-                <th>Status</th>
-              </tr>
-              ${itens.length === 0
-                ? `<tr><td colspan="5" style="color:#94a3b8;font-style:italic">Nenhum item encontrado no banco para esta SC.</td></tr>`
-                : itens.map(it => {
-                    const val = Number(it.pc_total) || 0;
-                    const st = fmtPcStatus(it.pc_status);
-                    const cls = statusCls(it.pc_status);
-                    return `<tr>
-                      <td>${it.c1_descri || it.c1_produto || ""}</td>
-                      <td style="font-family:ui-monospace,monospace">${it.pc_numero || "sem pedido"}</td>
-                      <td class="qtd">${it.c1_quant || 0}</td>
-                      <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12px;color:#475569">${val > 0 ? fmtBRL(val) : "—"}</td>
-                      <td class="status-pc ${cls}">${it.pc_status || "Sem pedido"}</td>
-                    </tr>`;
-                  }).join("")
-              }
-            </table>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-    $("lista-acomp").innerHTML = listaHtml + '<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div>';
-
-    // Popular select de consolidados
-    const selCons = $("filtro-acomp-consolidado");
-    if (selCons) {
-      const { data: consData } = await db.from("consolidados").select("id,nome").order("criado_em", { ascending: false });
-      // Para cada consolidado, buscar as SCs vinculadas
-      _consolidadoScMap = {};
-      if (consData && consData.length) {
-        const consIds = consData.map(c => c.id);
-        const { data: linksData } = await db.from("consolidado_scs").select("consolidado_id,solicitacao_id").in("consolidado_id", consIds);
-        (linksData || []).forEach(l => {
-          if (!_consolidadoScMap[l.consolidado_id]) _consolidadoScMap[l.consolidado_id] = new Set();
-          _consolidadoScMap[l.consolidado_id].add(l.solicitacao_id);
-        });
-        selCons.innerHTML = '<option value="">Todos os consolidados</option>' +
-          consData.map(c => `<option value="${c.id}">${c.nome}</option>`).join("");
-      }
-    }
-
-    // Popular select de CC
-    const selCC = $("filtro-acomp-cc");
-    if (selCC) {
-      const ccsVisiveis = [...new Set(associadas.map(s => {
-        const sc = s.sc_numero.trim();
-        const itens = getItensSc(s);
-        const cc = itens.length > 0 ? (itens[0].c1_cc || s.cc || "") : (s.cc || "");
-        const nome = ccNomes[cc] || cc;
-        return JSON.stringify({ cc, nome });
-      }))].map(j => JSON.parse(j)).sort((a,b) => a.nome.localeCompare(b.nome));
-      selCC.innerHTML = '<option value="">Todos os centros de custo</option>' +
-        ccsVisiveis.map(c => `<option value="${c.nome.toLowerCase()}">${c.nome}</option>`).join("");
-    }
-  }
-    $("btn-atualizar-acomp").addEventListener("click", () => { abaCarregada.acompanhamento = false; carregarAcompanhamento(); });
-
-  let _solsAcomp = []; // cache para filtros
-  let _filtroStatusAcomp = "todos";
-
-  function setFiltroStatusAcomp(f) {
-    _filtroStatusAcomp = f;
-    ["todos","sem_pedido","pendente","parcial","recebido"].forEach(k => {
-      const btn = document.getElementById("facomp-" + k);
-      if (!btn) return;
-      const ativo = k === f;
-      btn.style.background = ativo ? "#0d9488" : "#fff";
-      btn.style.color = ativo ? "#fff" : "#64748b";
-      btn.style.borderColor = ativo ? "#0d9488" : "#e2e8f0";
-    });
-    filtrarAcomp();
-  }
-  window.setFiltroStatusAcomp = setFiltroStatusAcomp;
-
-  function filtrarAcomp() {
-    const consFiltro = $("filtro-acomp-consolidado")?.value || "";
-    const termCC     = ($("filtro-acomp-cc")?.value    || "").toLowerCase().trim();
-    const termObs    = ($("filtro-acomp-obs")?.value   || "").toLowerCase().trim();
-    const consIds    = consFiltro ? _consolidadoScMap[Number(consFiltro)] : null;
-
-    const cards = document.querySelectorAll("#lista-acomp .card[data-cc]");
-    let visiveis = 0;
-    cards.forEach(card => {
-      const cc    = card.dataset.cc    || "";
-      const obs   = card.dataset.obs   || "";
-      const pg    = card.dataset.pg    || "";
-      const grupo = card.dataset.grupo || "";
-      const solId = Number(card.dataset.solid || 0);
-      const ok = (!consFiltro || (consIds && consIds.has(solId)))
-              && (!termCC    || cc.includes(termCC))
-              && (!termObs   || obs.includes(termObs))
-              && (_filtroStatusAcomp === "todos" || pg === _filtroStatusAcomp);
-      card.style.display = ok ? "" : "none";
-      if (ok) visiveis++;
-    });
-    const vazio = document.getElementById("acomp-vazio-filtro");
-    if (vazio) vazio.style.display = visiveis === 0 ? "block" : "none";
-  }
-  window.filtrarAcomp = filtrarAcomp;
-
-  function ordenarAcomp() {
-    const ordem = document.getElementById("ordem-acomp")?.value || "padrao";
-    const lista = document.getElementById("lista-acomp");
-    if (!lista) return;
-    const cards = [...lista.querySelectorAll(".card[data-pct]")];
-    if (!cards.length) return;
-    if (ordem === "padrao") { carregarAcompanhamento(); return; }
-    cards.sort((a, b) => {
-      const pa = Number(a.dataset.pct) || 0;
-      const pb = Number(b.dataset.pct) || 0;
-      return ordem === "maior" ? pb - pa : pa - pb;
-    });
-    const vazio = document.getElementById("acomp-vazio-filtro");
-    cards.forEach(c => lista.insertBefore(c, vazio));
-    filtrarAcomp();
-  }
-  window.ordenarAcomp = ordenarAcomp;
-
-  // ---------- ABA BASES ----------
-  function normChave(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
-  function pegar(linha, ...chaves) {
-    const mapa = {};
-    for (const k in linha) mapa[normChave(k)] = linha[k];
-    for (const k of chaves) {
-      const v = mapa[normChave(k)];
-      if (v !== undefined && v !== "") return v;
-    }
-    return undefined;
-  }
-  function titulo(s) { return String(s || "").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()); }
-
-  function parseCsv(file) {
-    return new Promise((resolve, reject) => {
-      Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => resolve(r.data), error: reject });
-    });
-  }
-
-  async function upsertEmPartes(tabela, linhas, conflito, logFn) {
-    const tamanho = 500;
-    let feito = 0;
-    for (let i = 0; i < linhas.length; i += tamanho) {
-      const parte = linhas.slice(i, i + tamanho);
-      const { error } = await db.from(tabela).upsert(parte, conflito ? { onConflict: conflito } : undefined);
-      if (error) throw new Error(tabela + ": " + error.message);
-      feito += parte.length;
-      if (logFn) logFn(`  ${tabela}: ${feito}/${linhas.length}`);
-    }
-  }
-
-  async function registrarCarimbo(base, registros) {
-    await db.from("bases_status").upsert({ base, atualizado_em: new Date().toISOString(), registros: registros || 0 });
-  }
-
-  async function atualizarSB1(file, logFn) {
-    logFn("Lendo SB1...");
-    const linhas = await parseCsv(file);
-    const mapaItens = {};
-    for (const r of linhas) {
-      const codigo = String(pegar(r, "B1_COD") || "").trim();
-      if (!codigo) continue;
-      mapaItens[codigo] = {
-        codigo,
-        descricao: String(pegar(r, "B1_DESC") || "").replace(/\s+/g, " ").trim(),
-        grupo: String(pegar(r, "B1_DESCGP", "B1_GRUPO") || "").replace(/\s+/g, " ").trim() || "OUTROS",
-        unidade: String(pegar(r, "B1_UM") || "UN").trim(),
-        preco: parseFloat(String(pegar(r, "B1_UPRC", "B1_CUSTD") || "0").replace(",", ".")) || 0,
-      };
-    }
-    const itens = Object.values(mapaItens);
-    logFn(`${linhas.length} linhas lidas, ${itens.length} itens únicos. Gravando...`);
-    await upsertEmPartes("itens", itens, "codigo", logFn);
-    await registrarCarimbo("itens", itens.length);
-    return itens.length;
-  }
-
-  async function atualizarCC(file, logFn) {
-    logFn("Lendo Centro de Custo (.csv do Protheus — CTT)...");
-    const texto = await file.text();
-    const resultado = Papa.parse(texto, { header: false, skipEmptyLines: true });
-    const linhasBrutas = resultado.data.slice(1);
-
-    function extrairLinha(r) {
-      if (r.length >= 5) return { cc: r[0], nome: r[1], status: r[2] };
-      const partes = String(r[0]).split(",");
-      return { cc: partes[0], nome: partes[1], status: partes[2] };
-    }
-
-    const mapaCC = {};
-    let totalDesbloq = 0, totalBloq = 0, totalLinhas = 0;
-    for (const r of linhasBrutas) {
-      const { cc, nome, status } = extrairLinha(r);
-      const ccLimpo = String(cc || "").trim();
-      const nomeLimpo = String(nome || "").trim();
-      const statusLimpo = String(status || "").trim();
-      if (!ccLimpo || !nomeLimpo) continue;
-      totalLinhas++;
-      if (statusLimpo === "Desbloqueado") totalDesbloq++;
-      else totalBloq++;
-      mapaCC[ccLimpo] = { cc: ccLimpo, nome: nomeLimpo, status: statusLimpo || "Desbloqueado" };
-    }
-
-    const linhasCC = Object.values(mapaCC);
-    logFn(`${totalLinhas} linha(s): ${totalDesbloq} desbloqueadas, ${totalBloq} bloqueadas. Gravando todos...`);
-    await upsertEmPartes("centros_custo", linhasCC, "cc", logFn);
-    await registrarCarimbo("centros_custo", linhasCC.length);
-    return linhasCC.length;
-  }
-
-  async function atualizarSRA(file, logFn) {
-    logFn("Lendo SRA...");
-    const linhas = await parseCsv(file);
-    logFn(`${linhas.length} linhas lidas. Contando ativos por CC e cargo...`);
-
-    const agg = {};
-    const totais = {};
-    for (const r of linhas) {
-      const cc    = String(pegar(r, "CCUSTO") || "").trim();
-      const sit   = String(pegar(r, "SIT_FOLHA") || "").trim().toUpperCase();
-      const cargo = String(pegar(r, "DESC_CARGO") || pegar(r, "CARGO") || "").replace(/\s+/g, " ").trim() || "Sem cargo";
-      if (!cc || sit !== "NORMAL") continue;
-      if (!agg[cc]) agg[cc] = {};
-      agg[cc][cargo] = (agg[cc][cargo] || 0) + 1;
-      totais[cc] = (totais[cc] || 0) + 1;
-    }
-
-    const registrosPessoas = [];
-    for (const [cc, cargos] of Object.entries(agg)) {
-      for (const [cargo, qtd] of Object.entries(cargos)) {
-        registrosPessoas.push({ cc, cargo, quantidade: qtd });
-      }
-    }
-    if (registrosPessoas.length > 0) {
-      logFn(`${registrosPessoas.length} linhas CC/cargo. Gravando...`);
-      await upsertEmPartes("cc_pessoas", registrosPessoas, "cc,cargo", logFn);
-    }
-
-    for (const [cc, total] of Object.entries(totais)) {
-      await db.from("centros_custo").update({ pessoas: total }).eq("cc", cc);
-    }
-
-    await registrarCarimbo("sra", registrosPessoas.length);
-    logFn(`✓ ${Object.keys(agg).length} CC(s) atualizados.`);
-    return registrosPessoas.length;
-  }
-
-  async function atualizarSCP(file, logFn) {
-    logFn("Lendo SCP...");
-    const linhas = await parseCsv(file);
-    logFn(`${linhas.length} linhas lidas. Calculando últimos 3 meses...`);
-
-    const datas = linhas.map(r => String(pegar(r, "CP_EMISSAO") || "").trim()).filter(d => /^\d{8}$/.test(d)).sort();
-    const maxData = datas[datas.length - 1] || "";
-    if (!maxData) { logFn("Erro: nenhuma data encontrada."); return 0; }
-
-    const ano = parseInt(maxData.slice(0,4));
-    const mes = parseInt(maxData.slice(4,6));
-    const dtLimite = new Date(ano, mes - 4, 1);
-    const limitStr = dtLimite.getFullYear().toString() +
-      String(dtLimite.getMonth() + 1).padStart(2, "0") + "01";
-    logFn(`Período: ${limitStr.slice(6,8)}/${limitStr.slice(4,6)}/${limitStr.slice(0,4)} → ${maxData.slice(6,8)}/${maxData.slice(4,6)}/${maxData.slice(0,4)}`);
-
-    const agg = {};
-    for (const r of linhas) {
-      const emissao = String(pegar(r, "CP_EMISSAO") || "").trim();
-      if (emissao < limitStr) continue;
-      const cc      = String(pegar(r, "CP_CC") || "").trim();
-      const produto = String(pegar(r, "CP_PRODUTO") || "").trim();
-      const quant   = parseFloat(String(pegar(r, "CP_QUANT") || "0").replace(",", ".")) || 0;
-      if (!cc || !produto) continue;
-      const k = cc + "|" + produto;
-      agg[k] = (agg[k] || 0) + quant;
-    }
-
-    const registros = Object.entries(agg).map(([k, total]) => {
-      const [cc, codigo] = k.split("|");
-      return { cc, codigo, consumo_medio: Math.round(total * 100) / 100 };
-    });
-
-    logFn(`${registros.length} pares CC/item. Gravando...`);
-    await upsertEmPartes("consumo", registros, "cc,codigo", logFn);
-    await registrarCarimbo("consumo", registros.length);
-    logFn(`✓ Concluído!`);
-    return registros.length;
-  }
-
-  const ACOES_BASE = { itens: atualizarSB1, centros_custo: atualizarCC, sra: atualizarSRA, consumo: atualizarSCP };
-  const arquivosSelecionados = {};
-
-  function arquivoEscolhido(key) {
-    const input = $("arquivo-" + key);
-    const file = input.files[0];
-    if (!file) return;
-    arquivosSelecionados[key] = file;
-    $("nome-arquivo-" + key).textContent = file.name;
-    $("btn-" + key).disabled = false;
-  }
-  window.arquivoEscolhido = arquivoEscolhido;
-
-  async function processarBase(key) {
-    const file = arquivosSelecionados[key];
-    if (!file) return;
-    const btn = $("btn-" + key);
-    const logEl = $("log-" + key);
-    btn.disabled = true; btn.textContent = "Processando...";
-    const linhasLog = [];
-    function logFn(msg) {
-      linhasLog.push(msg);
-      logEl.innerHTML = linhasLog.map(l => `<div style="font-size:12px;color:#475569;font-family:ui-monospace,monospace">${l}</div>`).join("");
-    }
-    try {
-      await ACOES_BASE[key](file, logFn);
-      logFn("✓ Concluído!");
-      await carregarCarimbos();
-    } catch (e) {
-      logFn("✗ Erro: " + (e.message || e));
-    } finally {
-      btn.disabled = false; btn.textContent = "Atualizar";
-    }
-  }
-  window.processarBase = processarBase;
-
-  function fmtCarimbo(iso) {
-    const d = new Date(iso);
-    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
-  }
-
-  async function carregarCarimbos() {
-    const { data } = await db.from("bases_status").select("*");
-    const mapa = {};
-    (data || []).forEach(s => mapa[s.base] = s);
-    for (const key of ["itens", "centros_custo", "sra", "consumo"]) {
-      const el = $("carimbo-" + key);
-      const s = mapa[key];
-      if (s) {
-        el.textContent = "✓ " + fmtCarimbo(s.atualizado_em) + (s.registros ? ` · ${s.registros} reg.` : "");
-        el.classList.add("feito");
-      } else {
-        el.textContent = "nunca atualizado";
-        el.classList.remove("feito");
-      }
-    }
-  }
-
-  // ---------- ABA MOBILIZAÇÃO ----------
-  function mostrarFormMob() {
-    $("mob-lista-view").style.display = "none";
-    $("mob-form-view").style.display = "block";
-    $("mob-nome").value = ""; $("mob-num-equipes").value = ""; $("mob-msg").innerHTML = "";
-    $("nome-mob-arquivo").textContent = "Escolher arquivo";
-    $("mob-preview-area").innerHTML = "";
-    $("btn-salvar-mob").disabled = true;
-    linhasMobParaSalvar = null;
-  }
-  window.mostrarFormMob = mostrarFormMob;
-
-  function mostrarListaMob() {
-    $("mob-form-view").style.display = "none";
-    $("mob-lista-view").style.display = "block";
-  }
-  window.mostrarListaMob = mostrarListaMob;
-
-  function parseArquivoGenerico(file) {
-    return new Promise((resolve, reject) => {
-      const ext = file.name.split(".").pop().toLowerCase();
-      if (ext === "csv") {
-        Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => resolve(r.data), error: reject });
-      } else {
-        file.arrayBuffer().then(buf => {
-          const wb = XLSX.read(buf, { type: "array" });
-          resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" }));
-        }).catch(reject);
-      }
-    });
-  }
-
-  let linhasMobParaSalvar = null;
-
-  async function lerArquivoMob() {
-    const file = $("mob-arquivo").files[0];
-    if (!file) return;
-    $("nome-mob-arquivo").textContent = file.name;
-    $("mob-msg").innerHTML = '<div class="msg" style="background:#f1f5f9;color:#475569">Lendo planilha...</div>';
-    $("mob-preview-area").innerHTML = "";
-    $("btn-salvar-mob").disabled = true;
-
-    const linhasBrutas = await parseArquivoGenerico(file);
-    const linhas = [];
-    for (const r of linhasBrutas) {
-      const codigo = String(pegar(r, "código", "codigo", "cod", "Código", "Codigo") || "").trim();
-      const descricaoPlanilha = String(pegar(r, "descrição", "descricao", "descricao item", "descrição item", "item", "Descrição", "Descricao") || "").trim();
-      const totalMob = Number(pegar(r, "quantidade", "qtde", "qtd", "total", "total mob", "quantidade total", "Quantidade", "Qtde")) || 0;
-      if (!codigo && !descricaoPlanilha) continue;
-      linhas.push({ codigo, total_mob: totalMob, descricao_planilha: descricaoPlanilha });
-    }
-
-    if (linhas.length === 0) {
-      $("mob-msg").innerHTML = '<div class="msg erro">Não encontrei linhas válidas. Confira as colunas: código, descrição, quantidade.</div>';
-      return;
-    }
-
-    const codigosUnicos = [...new Set(linhas.map(l => l.codigo).filter(Boolean))];
-    let mapaDescricoes = {};
-    for (let i = 0; i < codigosUnicos.length; i += 200) {
-      const parte = codigosUnicos.slice(i, i + 200);
-      const { data } = await db.from("itens").select("codigo,descricao").in("codigo", parte);
-      (data || []).forEach(it => mapaDescricoes[it.codigo] = it.descricao);
-    }
-    linhas.forEach(l => { l.descricao = mapaDescricoes[l.codigo] || l.descricao_planilha || "(sem descrição)"; });
-
-    linhasMobParaSalvar = linhas;
-
-    const preview = linhas.slice(0, 8).map(l =>
-      `<tr><td style="padding:4px 8px;font-size:12px;font-family:ui-monospace,monospace;color:#64748b">${l.codigo||"—"}</td>
-       <td style="padding:4px 8px;font-size:12px">${l.descricao}</td>
-       <td style="padding:4px 8px;font-size:12px;text-align:right;font-family:ui-monospace,monospace">${l.total_mob}</td></tr>`
+  });
+  todosCCs.sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+// ── BUSCA CC ────────────────────────────────────────────────────────────────
+let debTimer = null;
+function buscarCC() {
+  clearTimeout(debTimer);
+  debTimer = setTimeout(async () => {
+    if (!ccCarregado) await carregarTodosCCs();
+    const termo = ($("busca-cc").value || "").toLowerCase().trim();
+    const sugsEl = $("sugs-cc");
+    if (!termo) { sugsEl.style.display = "none"; return; }
+    const filtrados = todosCCs.filter(c =>
+      c.nome.toLowerCase().includes(termo) || c.cc.includes(termo)
+    ).slice(0, 12);
+    if (!filtrados.length) { sugsEl.style.display = "none"; return; }
+    sugsEl.innerHTML = filtrados.map(c =>
+      `<div class="sug-item" onclick="selecionarCC('${c.cc}')">
+        <span style="font-weight:600">${c.nome}</span>
+        <span style="color:#94a3b8;font-size:11px;margin-left:6px">${c.cc}</span>
+        <span style="color:#64748b;font-size:11px;margin-left:6px">👥 ${c.pessoas}</span>
+      </div>`
     ).join("");
-    const mais = linhas.length > 8 ? `<tr><td colspan="3" style="padding:6px 8px;font-size:11.5px;color:#94a3b8;text-align:center">… e mais ${linhas.length - 8} iten(s)</td></tr>` : "";
-    $("mob-preview-area").innerHTML = `
-      <div style="margin-top:12px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
-        <table style="width:100%;border-collapse:collapse">
-          <tr style="background:#f8fafc">
-            <th style="padding:5px 8px;font-size:11px;color:#64748b;font-weight:600;text-align:left">Código</th>
-            <th style="padding:5px 8px;font-size:11px;color:#64748b;font-weight:600;text-align:left">Descrição</th>
-            <th style="padding:5px 8px;font-size:11px;color:#64748b;font-weight:600;text-align:right">Total</th>
-          </tr>
-          ${preview}${mais}
-        </table>
-      </div>`;
+    sugsEl.style.display = "block";
+  }, 200);
+}
 
-    $("mob-msg").innerHTML = `<div class="msg ok">✓ ${linhas.length} iten(s) lido(s). Informe o número de equipes e salve.</div>`;
-    $("btn-salvar-mob").disabled = false;
-  }
-  window.lerArquivoMob = lerArquivoMob;
+async function selecionarCC(cc) {
+  $("sugs-cc").style.display = "none";
+  $("busca-cc").value = "";
+  if (ccsSelecionados.find(c => c.cc === cc)) return; // já selecionado
+  const base = todosCCs.find(c => c.cc === cc);
+  if (!base) return;
+  ccsSelecionados.push({ ...base });
+  calcularProporcao();
+  renderChips();
+  await carregarConsumo();
+}
 
-  async function salvarMobilizacao() {
-    const nome = $("mob-nome").value.trim();
-    const numEquipes = Number($("mob-num-equipes").value) || 0;
-    if (!nome) { $("mob-msg").innerHTML = '<div class="msg erro">Dê um nome para a mobilização.</div>'; return; }
-    if (numEquipes <= 0) { $("mob-msg").innerHTML = '<div class="msg erro">Informe o número de equipes.</div>'; return; }
-    if (!linhasMobParaSalvar || linhasMobParaSalvar.length === 0) { $("mob-msg").innerHTML = '<div class="msg erro">Suba a planilha de itens primeiro.</div>'; return; }
+function removerCC(cc) {
+  ccsSelecionados = ccsSelecionados.filter(c => c.cc !== cc);
+  calcularProporcao();
+  renderChips();
+  carregarConsumo();
+}
 
-    $("btn-salvar-mob").disabled = true; $("btn-salvar-mob").textContent = "Salvando...";
+function calcularProporcao() {
+  const totalPessoas = ccsSelecionados.reduce((s, c) => s + c.pessoas, 0);
+  ccsSelecionados.forEach(c => {
+    c.proporcao = totalPessoas > 0 ? c.pessoas / totalPessoas : 1 / ccsSelecionados.length;
+  });
+}
 
-    const { data: mob, error: e1 } = await db.from("mobilizacoes")
-      .insert({ nome, num_equipes: numEquipes }).select().single();
-    if (e1) {
-      $("mob-msg").innerHTML = '<div class="msg erro">Erro ao criar mobilização: ' + e1.message + '</div>';
-      $("btn-salvar-mob").disabled = false; $("btn-salvar-mob").textContent = "Salvar mobilização";
-      return;
-    }
+function renderChips() {
+  const area = $("area-ccs");
+  const chips = $("chips-cc");
+  const propGrid = $("prop-grid");
 
-    const itensParaInserir = linhasMobParaSalvar.map(l => ({
-      mobilizacao_id: mob.id, codigo: l.codigo || null, descricao: l.descricao, funcao: null, total_mob: l.total_mob
-    }));
-    for (let i = 0; i < itensParaInserir.length; i += 500) {
-      const parte = itensParaInserir.slice(i, i + 500);
-      const { error } = await db.from("mobilizacao_itens").insert(parte);
-      if (error) {
-        $("mob-msg").innerHTML = '<div class="msg erro">Erro ao salvar itens: ' + error.message + '</div>';
-        $("btn-salvar-mob").disabled = false; $("btn-salvar-mob").textContent = "Salvar mobilização";
-        return;
-      }
-    }
+  if (!ccsSelecionados.length) { area.style.display = "none"; return; }
+  area.style.display = "block";
 
-    $("btn-salvar-mob").textContent = "Salvar mobilização";
-    mostrarListaMob();
-    carregarMobilizacoes();
-  }
-  window.salvarMobilizacao = salvarMobilizacao;
+  chips.innerHTML = ccsSelecionados.map(c =>
+    `<span class="cc-chip">${c.nome} <span style="font-size:10.5px;opacity:.7">${c.cc}</span>
+      <button onclick="removerCC('${c.cc}')">✕</button>
+    </span>`
+  ).join("");
 
-  async function carregarMobilizacoes() {
-    $("lista-mob").innerHTML = '<div class="vazio">Carregando...</div>';
-    const { data: mobs, error } = await db.from("mobilizacoes").select("*").order("criado_em", { ascending: false });
-    if (error) { $("lista-mob").innerHTML = '<div class="vazio">Erro: ' + error.message + '</div>'; return; }
-    if (!mobs || mobs.length === 0) {
-      $("lista-mob").innerHTML = '<div class="vazio">Nenhuma mobilização criada ainda. Clique em "+ Nova mobilização".</div>';
-      return;
-    }
-    $("lista-mob").innerHTML = mobs.map(m => `
-      <div class="card">
-        <div class="card-topo" onclick="toggleMob(${m.id})">
-          <div>
-            <div class="card-titulo">${m.nome}</div>
-            <div class="card-sub">${m.num_equipes} equipe(s) · criada em ${fmtData(m.criado_em)}</div>
-          </div>
-          <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
-        </div>
-        <div class="card-corpo" id="corpo-mob-${m.id}" data-carregado="0"></div>
+  propGrid.innerHTML = ccsSelecionados.map(c => {
+    const pct = Math.round(c.proporcao * 100);
+    return `<div class="prop-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:600;color:#0f172a">${c.nome}</div>
+        <div style="font-size:11px;color:#64748b">${c.cc}</div>
       </div>
-    `).join("");
+      <div class="prop-pessoas">👥 ${c.pessoas}</div>
+      <div class="prop-bar"><div class="prop-bar-fill" style="width:${pct}%"></div></div>
+      <div class="prop-pct">${pct}%</div>
+      <input type="number" min="0" max="100" value="${pct}"
+        style="width:60px;text-align:right;padding:4px 6px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;margin:0"
+        oninput="ajustarProporcao('${c.cc}', Number(this.value))"
+        title="Ajustar proporção manualmente"/>
+    </div>`;
+  }).join("");
+}
+
+function ajustarProporcao(cc, novoPct) {
+  // Ajusta manualmente a proporção de um CC
+  const idx = ccsSelecionados.findIndex(c => c.cc === cc);
+  if (idx < 0) return;
+  const novaP = Math.max(0, Math.min(100, novoPct)) / 100;
+  ccsSelecionados[idx].proporcao = novaP;
+  // normalizar os outros proporcionalmente
+  const resto = 1 - novaP;
+  const outros = ccsSelecionados.filter((_, i) => i !== idx);
+  const somaOutros = outros.reduce((s, c) => s + c.proporcao, 0);
+  if (somaOutros > 0) {
+    outros.forEach(c => { c.proporcao = c.proporcao / somaOutros * resto; });
+  } else if (outros.length) {
+    outros.forEach(c => { c.proporcao = resto / outros.length; });
+  }
+  renderChips();
+  renderTabelaItens();
+}
+window.ajustarProporcao = ajustarProporcao;
+
+// ── CONSUMO + ITENS ─────────────────────────────────────────────────────────
+async function carregarConsumo() {
+  if (!ccsSelecionados.length || !filialAtual) {
+    $("card-itens").style.display = "none";
+    $("area-enviar").style.display = "none";
+    return;
   }
 
-  async function toggleMob(id) {
-    const el = document.getElementById("corpo-mob-" + id);
-    el.classList.toggle("aberto");
-    if (el.classList.contains("aberto") && el.dataset.carregado === "0") {
-      el.dataset.carregado = "1";
-      await renderDetalheMob(id, el);
-    }
+  $("card-itens").style.display = "block";
+  $("loading-itens").style.display = "block";
+  $("tabela-itens").style.display = "none";
+
+  const ccs = ccsSelecionados.map(c => c.cc);
+
+  // Buscar todos os CCs com o mesmo nome dos selecionados (para somar consumo)
+  const nomesSelecionados = ccsSelecionados.map(c => c.nome);
+  const { data: todosHomonimos } = await db.from("centros_custo")
+    .select("cc,nome").in("nome", nomesSelecionados);
+  const todosCodigosCC = [...new Set((todosHomonimos || []).map(c => c.cc))];
+
+  // Buscar consumo mensal de TODOS os CCs com esses nomes
+  const { data: consumoData } = await db.from("consumo_mensal")
+    .select("cc,produto,descricao,quantidade,mes")
+    .in("cc", todosCodigosCC.length ? todosCodigosCC : ccs);
+
+  // Agregar: somar consumo de todos os CCs por produto, dividir por 6
+  const agg = {};
+  (consumoData || []).forEach(r => {
+    const k = r.produto;
+    if (!agg[k]) agg[k] = { produto: r.produto, descricao: r.descricao, total: 0 };
+    agg[k].total += Number(r.quantidade) || 0;
+  });
+
+  consumoMap = {};
+  Object.values(agg).forEach(v => {
+    consumoMap[v.produto] = { media: Math.floor(v.total / 6), descricao: v.descricao };
+  });
+
+  // Buscar itens dos grupos permitidos
+  let todosItens = [];
+  let off = 0;
+  while (true) {
+    const { data: lote } = await db.from("itens").select("codigo,descricao,grupo").range(off, off + 999);
+    if (!lote || !lote.length) break;
+    todosItens = todosItens.concat(lote);
+    if (lote.length < 1000) break;
+    off += 1000;
   }
-  window.toggleMob = toggleMob;
 
-  async function renderDetalheMob(mobId, container) {
-    container.innerHTML = '<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>';
-    const [{ data: mob }, { data: itens }, { data: scsLista }, { data: estoqueData }] = await Promise.all([
-      db.from("mobilizacoes").select("*").eq("id", mobId).single(),
-      db.from("mobilizacao_itens").select("*").eq("mobilizacao_id", mobId).order("descricao"),
-      db.from("mobilizacao_scs").select("*").eq("mobilizacao_id", mobId).order("criado_em"),
-      db.from("mobilizacao_estoque").select("*").eq("mobilizacao_id", mobId),
-    ]);
-    const mapaEstoque = {};
-    (estoqueData || []).forEach(e => { if (e.codigo) mapaEstoque[e.codigo.trim()] = Number(e.qtd_estoque) || 0; });
+  // Filtrar grupos permitidos
+  const itensFiltrados = todosItens.filter(it => GRUPOS_PERMITIDOS.has((it.grupo || "").trim().toUpperCase()));
+  itensMap = {};
+  itensFiltrados.forEach(it => { itensMap[it.codigo] = it; });
 
-    const numEquipes = mob.num_equipes;
+  // Montar lista: itens com consumo primeiro, depois sem consumo
+  const comConsumo = [];
+  const semConsumo = [];
 
-    const grupos = {};
-    (itens || []).forEach(it => {
-      const chave = (it.codigo && it.codigo.trim()) ? "cod:" + it.codigo.trim() : "desc:" + (it.descricao || "").trim();
-      if (!grupos[chave]) {
-        grupos[chave] = { descricao: it.descricao, codigo: it.codigo, total_mob: 0, ids: [] };
-      }
-      grupos[chave].total_mob += Number(it.total_mob) || 0;
-      grupos[chave].ids.push(it.id);
-    });
-    const itensConsolidados = Object.values(grupos);
+  itensFiltrados.forEach(it => {
+    const cons = consumoMap[it.codigo];
+    if (cons && cons.media > 0) comConsumo.push({ ...it, media: cons.media });
+    else semConsumo.push({ ...it, media: 0 });
+  });
 
-    const numerosSc = (scsLista || []).map(s => s.sc_numero.trim()).filter(Boolean);
+  // Ordenar por consumo desc
+  comConsumo.sort((a, b) => b.media - a.media);
 
-    function normalizarSc(sc) {
-      const s = String(sc || "").trim();
-      return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
-    }
-    function normalizarCodigo(cod) {
-      const s = String(cod || "").trim();
-      return /^\d+$/.test(s) ? (s.replace(/^0+/, "") || "0") : s;
-    }
-    function variantesSc(sc) {
-      const v = new Set([sc]);
-      if (/^\d+$/.test(sc)) v.add(normalizarSc(sc));
-      return [...v];
-    }
+  // Calcular curva ABC
+  const totalConsumo = comConsumo.reduce((s, it) => s + it.media, 0);
+  let acumulado = 0;
+  comConsumo.forEach(it => {
+    acumulado += it.media;
+    const pct = totalConsumo > 0 ? acumulado / totalConsumo : 1;
+    it.curva = pct <= 0.2 ? "A" : pct <= 0.5 ? "B" : "C";
+  });
+  semConsumo.forEach(it => { it.curva = "C"; });
 
-    const numerosScNormalizados = new Set(numerosSc.map(normalizarSc));
-    let pcsEncontrados = [], avisoProtheus = "";
-    if (numerosSc.length > 0) {
-      const todasVariantes = [...new Set(numerosSc.flatMap(variantesSc))];
-      const condicoesOr = todasVariantes.map(n => `c7_numsc.eq.${n.replace(/[%,()]/g, "")}`).join(",");
-      let pcOffset = 0, ePcs = null;
-      while (true) {
-        const { data: lote, error: eLote } = await db
-          .from("pedidos_compra")
-          .select("c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc")
-          .or(condicoesOr)
-          .range(pcOffset, pcOffset + 999);
-        if (eLote) { ePcs = eLote; break; }
-        if (!lote || lote.length === 0) break;
-        pcsEncontrados = pcsEncontrados.concat(lote);
-        if (lote.length < 1000) break;
-        pcOffset += 1000;
-      }
-      if (ePcs) {
-        avisoProtheus = `<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${ePcs.message}</div>`;
-      }
-    }
+  listaItens = [...comConsumo, ...semConsumo];
 
-    const temDadosNoBanco = pcsEncontrados.length > 0;
+  $("loading-itens").style.display = "none";
+  $("tabela-itens").style.display = "table";
+  renderTabelaItens();
+  $("area-enviar").style.display = "block";
+  atualizarResumo();
+}
 
-    const statusRecebido = s => {
-      const st = (s || "").toLowerCase();
-      return st.includes("receb") || st.includes("pré-nota") || st.includes("pre-nota");
+function renderTabelaItens() {
+  const tbody = $("tbody-itens");
+  const filtro = ($("filtro-itens")?.value || "").toLowerCase().trim();
+  const mostrarZero = $("mostrar-zero")?.checked;
+
+  const visiveis = listaItens.filter(it => {
+    if (!mostrarZero && it.media === 0) return false;
+    if (filtro && !it.descricao.toLowerCase().includes(filtro) && !it.codigo.includes(filtro)) return false;
+    return true;
+  });
+
+  tbody.innerHTML = visiveis.map(it => {
+    // Usar valor já editado ou sugerir consumo × período
+    const qtdExistente = Number(document.getElementById("qtd-" + it.codigo)?.value) || 0;
+    const qtdSugerida = it.media > 0 ? it.media * periodoMeses : 0;
+    const qtdAtual = qtdMap[it.codigo] ? qtdMap[it.codigo].qtd : (qtdExistente || qtdSugerida);
+    // Não auto-preencher — almoxarife digita a quantidade manualmente
+    return `<tr id="row-${it.codigo}">
+      <td>
+        <div style="font-size:13px;font-weight:500">${it.descricao}</div>
+        <div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>
+      </td>
+      <td><span class="grupo-badge">${abreviarGrupo(it.grupo)}</span></td>
+      <td style="text-align:center"><span class="curva-badge curva-${it.curva}">${it.curva}</span></td>
+      <td style="text-align:right">
+        ${it.media > 0
+          ? `<span class="consumo-badge">${it.media}</span>`
+          : `<span class="consumo-zero">—</span>`}
+      </td>
+      <td style="text-align:center">
+        <input type="number" min="0" id="qtd-${it.codigo}"
+          class="qtd-input${qtdAtual > 0 ? ' preenchida' : ''}"
+          value="${qtdMap[it.codigo] ? qtdMap[it.codigo].qtd : ''}"
+          placeholder="${it.media > 0 ? it.media + ' × ' + periodoMeses + ' = ' + (it.media * periodoMeses) : '0'}"
+          oninput="onQtdChange('${it.codigo}', '${it.descricao.replace(/'/g,"\\'")}', Number(this.value))"/>
+      </td>
+    </tr>`;
+  }).join("");
+
+  if (!visiveis.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Nenhum item encontrado.</td></tr>`;
+  }
+}
+
+function abreviarGrupo(grupo) {
+  const map = {
+    "MATERIAIS DE EXPEDIENTE E CONSUMO ADM": "Expediente",
+    "MATERIAIS ELETRICOS": "Elétrico",
+    "EPI / EPC E FERRAMENTAS": "EPI/EPC",
+    "EQUIPAMENTOS DE INFORMATICA": "TI",
+    "FARDAMENTOS & UNIFORMES": "Fardamento",
+    "MOVEIS & UTENSILIOS": "Móveis",
+    "MATERIAIS DE CONSUMO OBRA": "Obra",
+    "MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA": "Fotovoltaica",
+    "MATERIAL P/ PERFURACAO DE ROCHAS": "Perfuração",
+    "MATERIAL P/ LAVAGEM DE ISOLADORES": "Isoladores",
+  };
+  return map[(grupo || "").trim().toUpperCase()] || grupo || "Outros";
+}
+
+// Mapa de quantidades: codigo -> qtd total
+const qtdMap = {};
+
+function onQtdChange(codigo, descricao, qtd) {
+  if (qtd > 0) qtdMap[codigo] = { codigo, descricao, qtd };
+  else delete qtdMap[codigo];
+  const input = $("qtd-" + codigo);
+  if (input) input.classList.toggle("preenchida", qtd > 0);
+  atualizarResumo();
+}
+window.onQtdChange = onQtdChange;
+
+function filtrarItens() {
+  renderTabelaItens();
+}
+window.filtrarItens = filtrarItens;
+
+function atualizarResumo() {
+  const totalItens = Object.keys(qtdMap).length + itensPontuais.length;
+  const totalCCs = ccsSelecionados.length;
+  $("resumo-envio").innerHTML =
+    `<strong>${totalItens}</strong> iten(s) selecionado(s) · <strong>${totalCCs}</strong> centro(s) de custo · <strong>${totalCCs}</strong> solicitação(ões) gerada(s)`;
+}
+
+// ── ITEM PONTUAL ─────────────────────────────────────────────────────────────
+let debPontual = null;
+async function buscarItemPontual() {
+  clearTimeout(debPontual);
+  debPontual = setTimeout(async () => {
+    const termo = ($("busca-item-pontual").value || "").toLowerCase().trim();
+    const sugsEl = $("sugs-pontual");
+    if (termo.length < 2) { sugsEl.style.display = "none"; return; }
+
+    const { data } = await db.from("itens").select("codigo,descricao,grupo")
+      .or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%`)
+      .limit(12);
+
+    if (!data || !data.length) { sugsEl.style.display = "none"; return; }
+    sugsEl.innerHTML = data.map(it =>
+      `<div class="sug-item" onclick="adicionarPontual('${it.codigo}','${it.descricao.replace(/'/g,"\\'")}','${(it.grupo||"").replace(/'/g,"\\'")}')">
+        <span style="font-weight:600">${it.descricao}</span>
+        <span style="color:#94a3b8;font-size:11px;margin-left:6px">${it.codigo}</span>
+      </div>`
+    ).join("");
+    sugsEl.style.display = "block";
+  }, 250);
+}
+
+function adicionarPontual(codigo, descricao, grupo) {
+  $("sugs-pontual").style.display = "none";
+  $("busca-item-pontual").value = "";
+  if (itensPontuais.find(i => i.codigo === codigo)) return;
+  if (qtdMap[codigo]) return; // já está na tabela principal
+  const id = "pont-" + codigo;
+  itensPontuais.push({ codigo, descricao, grupo, qtd: 0 });
+  renderPontuais();
+  atualizarResumo();
+}
+window.adicionarPontual = adicionarPontual;
+
+function onQtdPontual(codigo, qtd) {
+  const item = itensPontuais.find(i => i.codigo === codigo);
+  if (item) item.qtd = qtd;
+  atualizarResumo();
+}
+window.onQtdPontual = onQtdPontual;
+
+function removerPontual(codigo) {
+  itensPontuais = itensPontuais.filter(i => i.codigo !== codigo);
+  renderPontuais();
+  atualizarResumo();
+}
+window.removerPontual = removerPontual;
+
+function renderPontuais() {
+  $("itens-pontuais").innerHTML = itensPontuais.map(it =>
+    `<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:8px 12px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${it.descricao}</div>
+        <div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>
+      </div>
+      <input type="number" min="0" value="${it.qtd || ''}" placeholder="Qtd"
+        class="qtd-input" style="width:80px"
+        oninput="onQtdPontual('${it.codigo}', Number(this.value))"/>
+      <button onclick="removerPontual('${it.codigo}')"
+        style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:0">✕</button>
+    </div>`
+  ).join("");
+}
+
+// ── ENVIAR ───────────────────────────────────────────────────────────────────
+async function enviarSolicitacao() {
+  const nome = $("nome").value.trim();
+  const matricula = $("matricula").value.trim();
+  const justificativa = $("justificativa").value.trim();
+  const filial = $("filial").value;
+  const msgEl = $("form-msg");
+
+  if (!nome || !matricula) { msgEl.innerHTML = '<div class="msg erro">Preencha nome e matrícula.</div>'; return; }
+  if (!filial) { msgEl.innerHTML = '<div class="msg erro">Selecione a filial.</div>'; return; }
+  if (!ccsSelecionados.length) { msgEl.innerHTML = '<div class="msg erro">Selecione pelo menos um centro de custo.</div>'; return; }
+
+  // Montar lista de itens selecionados
+  const itensSelecionados = [
+    ...Object.values(qtdMap).filter(it => it.qtd > 0),
+    ...itensPontuais.filter(it => it.qtd > 0)
+  ];
+
+  if (!itensSelecionados.length) { msgEl.innerHTML = '<div class="msg erro">Selecione pelo menos um item com quantidade.</div>'; return; }
+
+  $("btn-enviar").disabled = true;
+  $("btn-enviar").textContent = "Enviando...";
+  msgEl.innerHTML = "";
+
+  let ultimoId = null;
+  let erros = [];
+
+  // Criar uma solicitação por CC
+  for (const cc of ccsSelecionados) {
+    const itensCC = itensSelecionados.map(it => {
+      const qtdProporcional = Math.max(1, Math.round(it.qtd * cc.proporcao));
+      const media = consumoMap[it.codigo]?.media || 0;
+      const qtdSugerida = Math.max(1, Math.round(media * periodoMeses * cc.proporcao));
+      return {
+        codigo: it.codigo,
+        descricao: it.descricao || itensMap[it.codigo]?.descricao || "",
+        quantidade: qtdProporcional,
+        qtd_sugerida: qtdSugerida > 0 ? qtdSugerida : qtdProporcional,
+      };
+    }).filter(it => it.quantidade > 0);
+
+    if (!itensCC.length) continue;
+
+    const payload = {
+      p_cc: cc.cc,
+      p_nome: nome,
+      p_matricula: matricula,
+      p_justificativa: justificativa || null,
+      p_filial: filial,
+      p_periodo_meses: periodoMeses,
+      p_itens: itensCC,
     };
-    const statusPendente = s => {
-      const st = (s || "").toLowerCase();
-      return st.includes("pendente") || st.includes("aprova") || st.includes("em receb");
-    };
 
-    function qtdRecebidaDoItem(codigo) {
-      if (!codigo || !codigo.trim()) return 0;
-      const codNorm = normalizarCodigo(codigo);
-      return pcsEncontrados
-        .filter(p =>
-          normalizarCodigo(p.c7_produto) === codNorm &&
-          numerosScNormalizados.has(normalizarSc(p.c7_numsc)) &&
-          statusRecebido(p.status_desc)
-        )
-        .reduce((acc, p) => acc + (Number(p.c7_quant) || 0), 0);
-    }
-
-    function itemEstaRecebido(codigo) {
-      return qtdRecebidaDoItem(codigo) > 0;
-    }
-
-    const cats = { recebido: [], estoque: [], pendente: [], aprovacao: [], semPedido: [] };
-    itensConsolidados.forEach(it => {
-      const codTrim = (it.codigo || "").trim();
-      const qtdEst  = codTrim ? (mapaEstoque[codTrim] || 0) : 0;
-
-      if (qtdEst > 0) {
-        const linhas = codTrim ? pcsEncontrados.filter(p =>
-          normalizarCodigo(p.c7_produto) === normalizarCodigo(codTrim) &&
-          numerosScNormalizados.has(normalizarSc(p.c7_numsc))
-        ) : [];
-        cats.estoque.push({ ...it, linhas, qtdEst }); return;
-      }
-
-      if (!codTrim || !temDadosNoBanco) {
-        cats.semPedido.push({ ...it, linhas: [] }); return;
-      }
-
-      const linhas = pcsEncontrados.filter(p =>
-        normalizarCodigo(p.c7_produto) === normalizarCodigo(codTrim) &&
-        numerosScNormalizados.has(normalizarSc(p.c7_numsc))
-      );
-
-      if (linhas.length === 0) {
-        cats.semPedido.push({ ...it, linhas: [] });
-      } else if (linhas.every(p => statusRecebido(p.status_desc))) {
-        cats.recebido.push({ ...it, linhas });
-      } else if (linhas.some(p => (p.status_desc||"").toLowerCase().includes("aprov"))) {
-        cats.aprovacao.push({ ...it, linhas });
-      } else {
-        cats.pendente.push({ ...it, linhas });
-      }
-    });
-
-    const total = itensConsolidados.length || 1;
-    const pctReceb  = Math.round(cats.recebido.length  / total * 100);
-    const pctPend   = Math.round(cats.pendente.length   / total * 100);
-    const pctAprov  = Math.round(cats.aprovacao.length  / total * 100);
-    const pctSem    = Math.round(cats.semPedido.length  / total * 100);
-
-    function baixarExcelCatMob(catKey) {
-      const map = { recebido: cats.recebido, pendente: cats.pendente,
-                    aprovacao: cats.aprovacao, semPedido: cats.semPedido };
-      const itens = map[catKey] || [];
-      const linhas = itens.flatMap(it => {
-        if (it.linhas && it.linhas.length > 0)
-          return it.linhas.map(l => ({
-            "Código": it.codigo || "(manual)", "Descrição": it.descricao,
-            "Total mob.": it.total_mob, "SC": l.c7_numsc, "Status": l.status_desc, "Qtde PC": l.c7_quant
-          }));
-        return [{ "Código": it.codigo || "(manual)", "Descrição": it.descricao,
-                  "Total mob.": it.total_mob, "SC": "-", "Status": catKey === "recebido" ? "Recebido" : "Sem pedido", "Qtde PC": "" }];
-      });
-      if (!linhas.length) { alert("Nenhum item nesta categoria."); return; }
-      const ws = XLSX.utils.json_to_sheet(linhas);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, catKey);
-      XLSX.writeFile(wb, `mobilizacao_${catKey}.xlsx`);
-    }
-    window.baixarExcelCatMob = baixarExcelCatMob;
-
-    function toggleCatMob(mobId, catKey) {
-      const uid = "cat-" + mobId + "-" + catKey;
-      const el = document.getElementById(uid);
-      if (!el) return;
-      const aberto = el.style.display !== "none";
-      ["recebido","estoque","aprovacao","pendente","semPedido"].forEach(k => {
-        const outro = document.getElementById("cat-" + mobId + "-" + k);
-        if (outro) outro.style.display = "none";
-      });
-      if (!aberto) el.style.display = "block";
-    }
-    window.toggleCatMob = toggleCatMob;
-
-    function renderCardCat(catKey, label, cor, icone, itens) {
-      const uid = "cat-" + mobId + "-" + catKey;
-      const pct = Math.round(itens.length / total * 100);
-      return `
-        <div onclick="toggleCatMob('${mobId}','${catKey}')" style="border:2px solid ${cor}30;border-radius:12px;padding:18px 12px 14px;cursor:pointer;background:#fff;user-select:none;text-align:center;position:relative"
-             onmouseover="this.style.boxShadow='0 4px 18px ${cor}28';this.style.borderColor='${cor}80'"
-             onmouseout="this.style.boxShadow='none';this.style.borderColor='${cor}30'">
-          <div style="font-size:28px;margin-bottom:8px">${icone}</div>
-          <div style="font-size:32px;font-weight:800;color:${cor};line-height:1">${itens.length}</div>
-          <div style="font-size:12px;font-weight:600;color:#475569;margin-top:6px">${label}</div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:2px">${pct}% do total</div>
-        </div>`;
-    }
-
-    function renderPaineisCat() {
-      return ["recebido","estoque","aprovacao","pendente","semPedido"].map(catKey => {
-        const mapCats = { recebido: cats.recebido, estoque: cats.estoque,
-                          aprovacao: cats.aprovacao, pendente: cats.pendente,
-                          semPedido: cats.semPedido };
-        const mapLabels = { recebido:"Recebidos (PC)", estoque:"Via estoque",
-                            aprovacao:"Em aprovação", pendente:"Pendentes",
-                            semPedido:"Sem pedido" };
-        const mapCores  = { recebido:"#22c55e", estoque:"#6366f1",
-                            aprovacao:"#f59e0b", pendente:"#ef4444",
-                            semPedido:"#94a3b8" };
-        const itens = mapCats[catKey];
-        const cor   = mapCores[catKey];
-        const label = mapLabels[catKey];
-        const uid   = "cat-" + mobId + "-" + catKey;
-        const linhasHtml = itens.map(it => {
-          const scsDoItem = (it.linhas && it.linhas.length)
-            ? it.linhas.map(l => `<span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;border-radius:4px;padding:1px 5px;margin-right:4px">SC ${l.c7_numsc}</span><span style="font-size:11px;color:#64748b">${l.status_desc}</span>`).join(" ")
-            : `<span style="font-size:11px;color:#94a3b8">Sem PC gerado</span>`;
-          return `<tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>`:""}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap">${it.total_mob}</td>
-            <td style="padding:6px 10px;font-size:12px">${scsDoItem}</td>
-          </tr>`;
-        }).join("");
-        return `<div id="${uid}" style="display:none;border:1px solid ${cor}40;border-radius:10px;overflow:hidden;margin-bottom:8px">
-          <div style="padding:9px 14px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">
-            <span style="font-size:13px;font-weight:600;color:#1e293b">${label} — ${itens.length} iten(s)</span>
-            <button onclick="event.stopPropagation();baixarExcelCatMob('${catKey}')" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">⬇ Excel</button>
-          </div>
-          <table style="width:100%;border-collapse:collapse">
-            <tr style="background:#f8fafc">
-              <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">Item</th>
-              <th style="padding:6px 10px;font-size:11px;text-align:right;color:#64748b;font-weight:600">Qtde</th>
-              <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">SC / Status</th>
-            </tr>
-            ${linhasHtml||'<tr><td colspan="3" style="padding:12px;text-align:center;color:#94a3b8;font-size:12px">Nenhum item</td></tr>'}
-          </table>
-        </div>`;
-      }).join("");
-    }
-
-    function pizzaCats() {
-      const r = cats.recebido.length, e = cats.estoque.length, pe = cats.pendente.length,
-            a = cats.aprovacao.length, s = cats.semPedido.length, t = total;
-      const graus = (n) => Math.round(n / t * 360);
-      const g1 = graus(r), g2 = graus(e), g3 = graus(a), g4 = graus(pe);
-      const grad = `conic-gradient(#22c55e 0deg ${g1}deg, #6366f1 ${g1}deg ${g1+g2}deg, #f59e0b ${g1+g2}deg ${g1+g2+g3}deg, #ef4444 ${g1+g2+g3}deg ${g1+g2+g3+g4}deg, #94a3b8 ${g1+g2+g3+g4}deg 360deg)`;
-      const legend = [
-        { cor: "#22c55e", label: "Recebidos (PC)", n: r },
-        { cor: "#6366f1", label: "Via estoque", n: e },
-        { cor: "#f59e0b", label: "Em aprovação", n: a },
-        { cor: "#ef4444", label: "Pendentes", n: pe },
-        { cor: "#94a3b8", label: "Sem pedido", n: s },
-      ].map(l => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569">
-        <span style="width:10px;height:10px;border-radius:50%;background:${l.cor};flex-shrink:0"></span>
-        ${l.label}: <strong>${l.n}</strong> (${Math.round(l.n/t*100)}%)
-      </div>`).join("");
-      return `
-        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#fff;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
-          <div style="flex-shrink:0">
-            <div style="width:96px;height:96px;border-radius:50%;background:${grad}"></div>
-          </div>
-          <div>
-            <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:10px">Atendimento da mobilização</div>
-            <div style="display:flex;flex-direction:column;gap:6px">${legend}</div>
-          </div>
-          <div style="margin-left:auto;text-align:right">
-            <div style="font-size:32px;font-weight:700;color:#22c55e">${Math.round((cats.recebido.length+cats.estoque.length)/total*100)}%</div>
-            <div style="font-size:11px;color:#64748b">atendidos</div>
-          </div>
-        </div>`;
-    }
-
-    const listaScsHtml = (scsLista || []).length === 0
-      ? '<span style="font-size:12.5px;color:#94a3b8">Nenhuma SC adicionada ainda.</span>'
-      : (scsLista || []).map(s => `
-          <span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:999px;padding:5px 6px 5px 12px;font-size:12.5px;font-family:ui-monospace,monospace;margin:0 6px 6px 0">
-            SC ${s.sc_numero}
-            <button onclick="removerScMob(${mobId}, ${s.id})" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:14px;line-height:1;padding:2px">✕</button>
-          </span>
-        `).join("");
-
-    container.innerHTML = avisoProtheus + `
-      <div style="margin-bottom:16px">
-        <label style="font-size:11.5px;font-weight:600;color:#64748b;display:block;margin-bottom:8px">SCs desta mobilização</label>
-        <div>${listaScsHtml}</div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <input id="novo-sc-mob-${mobId}" placeholder="Ex.: 045873" style="width:160px;margin-bottom:0;padding:7px 10px;font-size:13px"/>
-          <button class="btn-salvar" style="padding:7px 14px;font-size:12.5px" onclick="adicionarScMob(${mobId})">+ Adicionar SC</button>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px">
-        ${renderCardCat("recebido",  "Recebidos",    "#22c55e", "✅", cats.recebido)}
-        ${renderCardCat("estoque",   "Via estoque",  "#6366f1", "📦", cats.estoque)}
-        ${renderCardCat("aprovacao", "Em aprovação", "#f59e0b", "⏳", cats.aprovacao)}
-        ${renderCardCat("pendente",  "Pendentes",    "#ef4444", "🔴", cats.pendente)}
-        ${renderCardCat("semPedido", "Sem pedido",   "#94a3b8", "⚪", cats.semPedido)}
-      </div>
-      <div style="margin-bottom:10px">${renderPaineisCat()}</div>
-      <div style="margin-bottom:20px">${pizzaCats()}</div>
-
-      <table class="tbl-mob">
-        <tr>
-          <th>Item</th>
-          <th style="text-align:right;width:75px">Total mob.</th>
-          <th style="text-align:right;width:85px">Estoque</th>
-          <th style="width:175px">Pedidos</th>
-          <th>Equipes atendidas</th>
-        </tr>
-        ${itensConsolidados.flatMap((it, idx) => {
-          const codTrim = (it.codigo || "").trim();
-          const qtdEstoque = codTrim ? (mapaEstoque[codTrim] || 0) : 0;
-          const qtdRecebidaPC = codTrim ? qtdRecebidaDoItem(codTrim) : 0;
-          const perEquipe = numEquipes > 0 ? (it.total_mob / numEquipes) : 0;
-          const equipesPC  = perEquipe > 0 ? Math.min(numEquipes, Math.floor(qtdRecebidaPC / perEquipe)) : 0;
-          const equipesEst = perEquipe > 0 ? Math.min(numEquipes - equipesPC, Math.floor(qtdEstoque / perEquipe)) : 0;
-          const equipesAtendidas = Math.min(numEquipes, equipesPC + equipesEst);
-          const chipSize = numEquipes <= 8 ? 26 : numEquipes <= 15 ? 22 : numEquipes <= 25 ? 18 : 14;
-          const chipFont = numEquipes <= 8 ? 11 : numEquipes <= 15 ? 10 : numEquipes <= 25 ? 9 : 8;
-          const chipStyle = `width:${chipSize}px;height:${chipSize}px;font-size:${chipFont}px;border-radius:${chipSize<=18?3:4}px`;
-          const chips = Array.from({ length: numEquipes }, (_, i) =>
-            `<span class="chip-equipe ${i < equipesAtendidas ? 'ok' : ''}" style="${chipStyle}">${i + 1}</span>`
-          ).join("");
-          const linhasPC = codTrim ? pcsEncontrados.filter(p =>
-            normalizarCodigo(p.c7_produto) === normalizarCodigo(codTrim) &&
-            numerosScNormalizados.has(normalizarSc(p.c7_numsc))
-          ) : [];
-          const detId = "ped-" + mobId + "-" + idx;
-          const pedResume = linhasPC.length === 0
-            ? '<span style="color:#cbd5e1;font-size:11px">—</span>'
-            : linhasPC.slice(0,2).map(p => {
-                const st = (p.status_desc||"").toLowerCase();
-                const cor = st.includes("receb") ? "#16a34a" : "#d97706";
-                return `<span style="font-size:10px;background:${cor}18;color:${cor};border-radius:3px;padding:1px 4px;margin-right:2px">${p.c7_num||"PC"} · ${p.status_desc}</span>`;
-              }).join("") + (linhasPC.length > 2 ? `<span style="font-size:10px;color:#94a3b8">+${linhasPC.length-2} mais</span>` : "");
-          const toggle = linhasPC.length > 0
-            ? `onclick="var e=document.getElementById('${detId}');e.style.display=e.style.display==='none'?'table-row':'none';"`
-            : "";
-          const mainRow = `<tr style="cursor:${linhasPC.length>0?'pointer':'default'}"
-              onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-            <td ${toggle}>${it.descricao}${it.codigo ? ` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>` : ""}</td>
-            <td style="text-align:right;font-family:ui-monospace,monospace" ${toggle}>${it.total_mob}</td>
-            <td onclick="event.stopPropagation()">
-              ${codTrim
-                ? `<input type="number" min="0" value="${qtdEstoque||""}" placeholder="0"
-                    class="mob-est-input" data-cod="${codTrim}" data-mob="${mobId}"
-                    style="width:64px;text-align:right;padding:3px 6px;font-size:12px;border:1px solid #e2e8f0;border-radius:5px;font-family:ui-monospace,monospace"/>`
-                : '<span style="color:#cbd5e1">—</span>'}
-            </td>
-            <td ${toggle}>${pedResume}</td>
-            <td ${toggle}><div class="chips-wrap">${chips}</div></td>
-          </tr>`;
-          const detailRow = linhasPC.length > 0 ? `<tr id="${detId}" style="display:none;background:#f8fafc">
-            <td colspan="5" style="padding:6px 14px 10px">
-              <table style="width:100%;border-collapse:collapse;font-size:11.5px">
-                <tr style="background:#f1f5f9">
-                  <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">Nº PC</th>
-                  <th style="padding:4px 8px;text-align:right;font-weight:600;color:#64748b">Qtde</th>
-                  <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">Status</th>
-                  <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">SC</th>
-                </tr>
-                ${linhasPC.map(p => {
-                  const st = (p.status_desc||"").toLowerCase();
-                  const cor = st.includes("receb") ? "#16a34a" : st.includes("pend") ? "#d97706" : "#64748b";
-                  return `<tr style="border-bottom:1px solid #e2e8f0">
-                    <td style="padding:4px 8px;font-family:ui-monospace,monospace">${p.c7_num||"—"}</td>
-                    <td style="padding:4px 8px;text-align:right;font-family:ui-monospace,monospace">${p.c7_quant||0}</td>
-                    <td style="padding:4px 8px;font-weight:600;color:${cor}">${p.status_desc||"—"}</td>
-                    <td style="padding:4px 8px;font-family:ui-monospace,monospace">${p.c7_numsc||"—"}</td>
-                  </tr>`;
-                }).join("")}
-              </table>
-            </td>
-          </tr>` : "";
-          return [mainRow, detailRow];
-        }).join("")}
-      </table>
-      <div style="margin-top:12px;display:flex;align-items:center;gap:10px">
-        <button onclick="salvarTodoEstoque(${mobId})" class="btn-salvar" style="padding:8px 18px;font-size:13px">
-          💾 Salvar estoque
-        </button>
-        <span id="msg-estoque-${mobId}" style="font-size:12.5px"></span>
-      </div>
-    `;
+    const { data, error } = await db.rpc("criar_solicitacao", payload);
+    if (error) { erros.push(cc.nome + ": " + error.message); }
+    else { ultimoId = data; }
   }
 
-  async function salvarTodoEstoque(mobId) {
-    const inputs = document.querySelectorAll(`.mob-est-input[data-mob="${mobId}"]`);
-    if (!inputs.length) return;
-    const msgEl = document.getElementById("msg-estoque-" + mobId);
-    if (msgEl) msgEl.textContent = "Salvando...";
+  $("btn-enviar").disabled = false;
+  $("btn-enviar").textContent = "Enviar solicitação";
 
-    const registros = [...inputs].map(inp => ({
-      mobilizacao_id: Number(mobId),
-      codigo: inp.dataset.cod,
-      qtd_estoque: Number(inp.value) || 0
-    })).filter(r => r.codigo);
-
-    const { error } = await db.from("mobilizacao_estoque")
-      .upsert(registros, { onConflict: "mobilizacao_id,codigo" });
-
-    if (error) {
-      if (msgEl) { msgEl.textContent = "Erro: " + error.message; msgEl.style.color = "#991b1b"; }
-    } else {
-      if (msgEl) { msgEl.textContent = "✓ Salvo!"; msgEl.style.color = "#065f46"; setTimeout(() => { msgEl.textContent = ""; }, 2000); }
-      const container = document.getElementById("corpo-mob-" + mobId);
-      if (container) {
-        const scrollY = window.scrollY;
-        container.dataset.carregado = "0";
-        await renderDetalheMob(mobId, container);
-        container.classList.add("aberto");
-        window.scrollTo({ top: scrollY, behavior: "instant" });
-      }
-    }
-  }
-  window.salvarTodoEstoque = salvarTodoEstoque;
-
-  async function adicionarScMob(mobId) {
-    const input = document.getElementById("novo-sc-mob-" + mobId);
-    const sc = input.value.trim();
-    if (!sc) return;
-    await db.from("mobilizacao_scs").insert({ mobilizacao_id: mobId, sc_numero: sc });
-    const container = document.getElementById("corpo-mob-" + mobId);
-    container.dataset.carregado = "0";
-    await renderDetalheMob(mobId, container);
-    container.classList.add("aberto");
-  }
-  window.adicionarScMob = adicionarScMob;
-
-  async function removerScMob(mobId, scId) {
-    await db.from("mobilizacao_scs").delete().eq("id", scId);
-    const container = document.getElementById("corpo-mob-" + mobId);
-    container.dataset.carregado = "0";
-    await renderDetalheMob(mobId, container);
-    container.classList.add("aberto");
-  }
-  window.removerScMob = removerScMob;
-
-  function aprovarTodosItens(solId) {
-    const sol = solicitacoes.find(s => s.id === solId);
-    if (!sol) return;
-    sol.itens.forEach(it => {
-      decisoes[it.id] = "aprovado";
-      const btnAp = document.getElementById("ap-" + it.id);
-      const btnRe = document.getElementById("re-" + it.id);
-      if (btnAp) btnAp.className = "btn-dec aprovado";
-      if (btnRe) btnRe.className = "btn-dec";
-    });
-    atualizarBotoesSol(solId);
-  }
-  window.aprovarTodosItens = aprovarTodosItens;
-
-  function atualizarBotoesSol(solId) {
-    const sc  = (document.getElementById("sc-"  + solId)?.value || "").trim();
-    const obs = (document.getElementById("obs-" + solId)?.value || "").trim();
-    const btnS = document.getElementById("btn-salvar-sol-" + solId);
-    const btnE = document.getElementById("btn-excel-sol-"  + solId);
-    if (btnS) { btnS.disabled = !sc;  btnS.style.opacity = sc  ? "1" : "0.4"; btnS.style.cursor = sc  ? "pointer" : "not-allowed"; }
-    if (btnE) { btnE.disabled = !obs; btnE.style.opacity = obs ? "1" : "0.4"; btnE.style.cursor = obs ? "pointer" : "not-allowed"; }
-  }
-  window.atualizarBotoesSol = atualizarBotoesSol;
-
-  async function importarRessuprimentosCSV() {
-    const fileInput = document.getElementById("arquivo-import-csv");
-    const logEl    = document.getElementById("log-import-csv");
-    const file = fileInput.files[0];
-    if (!file) return;
-    logEl.innerHTML = '<span style="color:#64748b">Lendo arquivo...</span>';
-
-    const text = await file.text();
-    const linhas = text.trim().split("\n");
-
-    function parseLinha(linha) {
-      const cols = []; let cur = ""; let inQ = false;
-      for (let i = 0; i < linha.length; i++) {
-        const ch = linha[i];
-        if (ch === '"') { inQ = !inQ; }
-        else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
-        else { cur += ch; }
-      }
-      cols.push(cur.trim());
-      return cols;
-    }
-
-    const headers = parseLinha(linhas[0].replace(/\r/,""));
-    const idx = h => headers.findIndex(c => c.trim().toLowerCase().replace(/[^a-z_]/g,"") === h.toLowerCase());
-    const iSC   = idx("n_sc");
-    const iProd = idx("produto");
-    const iDesc = idx("descricao");
-    const iQtd  = idx("qtde");
-    const iObs  = idx("obs");
-    const iSol  = idx("solicitante");
-    const iStat = idx("status_sc");
-    const iEmis = idx("emissao_sc");
-    const iCodCC  = headers.findIndex(h => h.trim().toLowerCase().replace(/\s/g,"") === "codcc");
-    const iCC     = headers.reduce((last, h, i) => h.trim().toLowerCase().includes("descri") ? i : last, -1);
-    const iFilial = headers.findIndex(h => { const n = h.trim().toLowerCase().replace(/\s/g,""); return n === "c1_filial" || n === "filial"; });
-
-    const { data: ccs, error: eCCs } = await db.from("centros_custo").select("cc,nome,status");
-    if (eCCs || !ccs || ccs.length === 0) {
-      logEl.innerHTML = `<span style="color:#dc2626">❌ Erro ao carregar centros de custo do banco: ${eCCs?.message || "lista vazia — verifique sua conexão com a internet"}.</span>`;
-      return;
-    }
-    const nomeParaCC = {};
-    const nomeNormParaCC = {};
-    const norm = s => s.toUpperCase().replace(/\s+/g,"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
-    (ccs||[]).filter(c => c.cc && c.cc.length > 5 && (c.status||"Desbloqueado") === "Desbloqueado")
-      .forEach(c => {
-        nomeParaCC[c.nome.trim().toUpperCase()] = c.cc;
-        nomeNormParaCC[norm(c.nome)] = c.cc;
-      });
-
-    const grupos = {};
-    for (let i = 1; i < linhas.length; i++) {
-      const cols = parseLinha(linhas[i].replace(/\r/,""));
-      if (cols.length < 6) continue;
-      const sc = (cols[iSC]||"").trim();
-      if (!sc) continue;
-      if (!grupos[sc]) grupos[sc] = [];
-      grupos[sc].push(cols);
-    }
-
-    const scList = Object.keys(grupos);
-    logEl.innerHTML = `<span style="color:#64748b">${scList.length} SC(s) encontradas. Importando...</span>`;
-
-    let ok = 0, erros = 0;
-    const msgErros = [];
-    for (const sc of scList) {
-      const rows = grupos[sc];
-      const first = rows[0];
-      const codCCDireto = iCodCC >= 0 ? (first[iCodCC]||"").trim() : "";
-      const nomeCC = (first[iCC]||"").trim().toUpperCase();
-
-      let ccCode = "";
-      if (codCCDireto) {
-        const ccExiste = (ccs||[]).find(c => c.cc === codCCDireto);
-        ccCode = ccExiste ? codCCDireto : "";
-      }
-      if (!ccCode) {
-        ccCode = nomeParaCC[nomeCC];
-        if (!ccCode) ccCode = nomeNormParaCC[norm(nomeCC)];
-      }
-      if (!ccCode) {
-        const msg = `SC ${sc}: CC "${codCCDireto||nomeCC}" não encontrado no banco`;
-        msgErros.push(msg);
-        erros++; continue;
-      }
-
-      const status = "aprovada";
-      const emissao = (first[iEmis]||"").trim() || new Date().toISOString();
-      const obs = (first[iObs]||"").trim();
-      const sol = (first[iSol]||"").trim();
-
-      const { data: scExist } = await db.from("solicitacoes").select("id").eq("sc_numero", sc).maybeSingle();
-      if (scExist) {
-        const msg = `SC ${sc}: já existe no banco (duplicada)`;
-        msgErros.push(msg);
-        erros++; continue;
-      }
-
-      const filialCSV = iFilial >= 0 ? (first[iFilial]||"").trim() : null;
-      const { data: sol_data, error: e1 } = await db.from("solicitacoes").insert({
-        cc: ccCode, sc_numero: sc, status, observacao: obs,
-        solicitante_nome: sol, solicitante_matricula: "000",
-        criado_em: emissao, atualizado_em: new Date().toISOString(),
-        justificativa: obs, filial: filialCSV || null
-      }).select().single();
-
-      if (e1 || !sol_data) {
-        const msg = `SC ${sc}: erro ao gravar — ${e1?.message || "resposta vazia"}`;
-        msgErros.push(msg);
-        erros++; continue;
-      }
-
-      const itens = rows.map(r => ({
-        solicitacao_id: sol_data.id,
-        codigo: (r[iProd]||"").trim(),
-        descricao: (r[iDesc]||"").trim(),
-        quantidade: parseFloat((r[iQtd]||"1").trim()) || 1,
-        situacao: "aprovado"
-      }));
-      const { error: eItens } = await db.from("solicitacao_itens").insert(itens);
-      if (eItens) console.error("Erro itens SC", sc, eItens.message);
-      ok++;
-      logEl.textContent = `Importando... ${ok}/${scList.length}`;
-    }
-
-    const resumo = `✓ ${ok} SC(s) importadas!${erros > 0 ? ` ${erros} com erro.` : ""}`;
-    logEl.textContent = resumo;
-    if (msgErros.length > 0) alert(resumo + "\n\nDetalhes:\n" + msgErros.join("\n"));
-    fileInput.value = ""; document.getElementById("nome-import-csv").textContent = "Escolher arquivo (.csv)";
-    document.getElementById("btn-import-csv").disabled = true;
-  }
-  window.importarRessuprimentosCSV = importarRessuprimentosCSV;
-
-  function exportarExcelAcomp() {
-    const rows = [];
-    document.querySelectorAll("#lista-acomp .card[data-cc]").forEach(card => {
-      if (card.style.display === "none") return;
-      // pega dados do cabeçalho do card
-      const titulo = card.querySelector(".card-titulo");
-      const sub    = card.querySelector(".card-sub");
-      const pills  = card.querySelectorAll(".pill");
-      const scNum  = titulo ? titulo.innerText.split("✏")[0].replace("SC","").trim() : "";
-      const subTxt = sub ? sub.innerText : "";
-      let statusSol = "", statusPed = "", pctAtend = "";
-      pills.forEach(p => {
-        const t = p.innerText.trim();
-        if (t.includes("%")) pctAtend = t;
-        else if (["Aprovada","Pendente","Parcial","Recusada","Aguardando master","Em análise"].includes(t)) statusSol = t;
-        else statusPed = t;
-      });
-      rows.push({
-        "SC": scNum,
-        "Centro de Custo": subTxt.split("·")[0]?.trim() || "",
-        "Observação": subTxt.split("·").slice(2).join("·").trim() || "",
-        "Status": statusSol,
-        "Pedido": statusPed,
-        "Atendimento": pctAtend,
-      });
-    });
-    if (!rows.length) { alert("Nenhuma SC visível para exportar."); return; }
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [{ wch: 12 }, { wch: 40 }, { wch: 50 }, { wch: 16 }, { wch: 18 }, { wch: 18 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Acompanhamento");
-    XLSX.writeFile(wb, `acompanhamento_${new Date().toLocaleDateString("pt-BR").replace(/\//g,"-")}.xlsx`);
-  }
-  window.exportarExcelAcomp = exportarExcelAcomp;
-
-  function baixarExcelAcomp(solId, scNumero) {
-    // busca os dados já renderizados da tabela do card
-    const corpo = document.getElementById("corpo-ac-" + solId);
-    if (!corpo) return;
-    const rows = [];
-    corpo.querySelectorAll("table tr").forEach((tr, i) => {
-      if (i === 0) return; // pula header
-      const tds = tr.querySelectorAll("td");
-      if (!tds.length) return;
-      rows.push({
-        "Item": tds[0]?.innerText?.trim() || "",
-        "Nº PC": tds[1]?.innerText?.trim() || "",
-        "Qtd": tds[2]?.innerText?.trim() || "",
-        "Valor": tds[3]?.innerText?.trim() || "",
-        "Status": tds[4]?.innerText?.trim() || "",
-      });
-    });
-    if (!rows.length) { alert("Nenhum dado para exportar."); return; }
-    const ws = XLSX.utils.json_to_sheet(rows);
-    // largura das colunas
-    ws["!cols"] = [{ wch: 60 }, { wch: 10 }, { wch: 8 }, { wch: 16 }, { wch: 30 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "SC " + scNumero);
-    XLSX.writeFile(wb, `SC_${scNumero}_acompanhamento.xlsx`);
-  }
-  window.baixarExcelAcomp = baixarExcelAcomp;
-
-  async function excluirAcomp(solId, scNumero) {
-    const confirmado = prompt(`Para excluir a SC ${scNumero}, digite o número da SC para confirmar:`);
-    if (confirmado === null) return;
-    if (confirmado.trim() !== String(scNumero).trim()) {
-      alert("Número incorreto. Exclusão cancelada.");
-      return;
-    }
-    const { error: e1 } = await db.from("solicitacao_itens").delete().eq("solicitacao_id", solId);
-    if (e1) { alert("Erro ao excluir itens: " + e1.message); return; }
-    const { error: e2 } = await db.from("solicitacoes").delete().eq("id", solId);
-    if (e2) { alert("Erro ao excluir SC: " + e2.message); return; }
-    await carregarAcompanhamento();
-  }
-  window.excluirAcomp = excluirAcomp;
-
-  async function editarFilial(solId) {
-    const FILIAIS_LISTA = [
-      {c:"01",n:"MATRIZ"}, {c:"03",n:"PAU DOS FERROS"}, {c:"04",n:"ITAPIPOCA"}, {c:"06",n:"CURRAIS NOVOS"}, {c:"07",n:"SOBRAL"}, {c:"08",n:"APARECIDA DE GOIANIA"}, {c:"09",n:"MARACANAU"}, {c:"10",n:"MOSSORO"}, {c:"11",n:"ANAPOLIS"}, {c:"13",n:"ALAGOINHAS"}, {c:"14",n:"RIBEIRA DO POMBAL"}, {c:"15",n:"PAULO AFONSO"}, {c:"22",n:"GOIANIA"}, {c:"23",n:"BATURITE"}, {c:"24",n:"MORRINHOS"}, {c:"25",n:"CASCAVEL"}, {c:"27",n:"CAUCAIA"}, {c:"29",n:"HORIZONTE"}, {c:"34",n:"SENHOR DO BONFIM"}, {c:"36",n:"LUZIANIA"}, {c:"37",n:"DIVINOPOLIS"}, {c:"40",n:"GARANHUNS"}, {c:"41",n:"FLORIANO"}, {c:"42",n:"LIVRAMENTO DE NOSSA SENHORA"}, {c:"43",n:"HORTOLANDIA"}
-    ];
-    const menu = "Escolha a filial:\n\n" + FILIAIS_LISTA.map(f => f.c + " - " + f.n).join("\n");
-    const nova = prompt(menu);
-    if (!nova || !nova.trim()) return;
-    const filialLimpa = nova.trim().padStart(2, "0");
-    if (!FILIAIS_LISTA.find(f => f.c === filialLimpa)) {
-      alert("Filial inválida: " + filialLimpa + "\nDigite apenas o código (ex: 43)");
-      return;
-    }
-    const { error } = await db.from("solicitacoes")
-      .update({ filial: filialLimpa, atualizado_em: new Date().toISOString() })
-      .eq("id", solId);
-    if (error) alert("Erro: " + error.message);
-    else await carregarAcompanhamento();
-  }
-  window.editarFilial = editarFilial;
-
-  async function editarSC(solId, scAtual) {
-    const nova = prompt("Nº da SC:", scAtual);
-    if (nova === null) return;
-    const { error } = await db.from("solicitacoes").update({ sc_numero: nova.trim(), atualizado_em: new Date().toISOString() }).eq("id", solId);
-    if (error) alert("Erro: " + error.message);
-    else await carregarAcompanhamento();
-  }
-  window.editarSC = editarSC;
-
-  // ---------- ABA GERENTES ----------
-  let todosCC = [];
-
-  async function carregarGerentes() {
-    const el = $("lista-gerentes");
-    el.innerHTML = '<div class="vazio">Carregando...</div>';
-    const [{ data: ccs }, { data: gc }] = await Promise.all([
-      db.from("centros_custo").select("*").order("nome"),
-      db.from("gerentes_cc").select("*"),
-    ]);
-    const porCC = {};
-    (gc || []).forEach(g => { (porCC[g.cc] = porCC[g.cc] || []).push(g); });
-    todosCC = (ccs || []).map(cc => ({ ...cc, gerentes: porCC[cc.cc] || [] }));
-    renderListaGerentes(todosCC);
-  }
-  window.carregarGerentes = carregarGerentes;
-
-  function renderListaGerentes(lista) {
-    lista = lista.filter(cc => cc.cc && cc.cc.length > 5 && (cc.status || "Desbloqueado") === "Desbloqueado");
-    const el = $("lista-gerentes");
-    if (!lista.length) {
-      el.innerHTML = '<div class="vazio">Nenhum centro de custo encontrado.</div>'; return;
-    }
-    el.innerHTML = lista.map(cc => {
-      const chipsGerentes = cc.gerentes.map(g =>
-        `<span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:999px;padding:4px 6px 4px 12px;font-size:12.5px;margin:0 6px 4px 0">
-          ${g.email}
-          <button onclick="removerGerente(${g.id})" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:14px;line-height:1;padding:2px">✕</button>
-        </span>`
-      ).join("");
-      return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;margin-bottom:6px;max-width:700px;display:flex;align-items:flex-start;gap:10px" id="cc-row-${cc.cc}">
-        <input type="checkbox" class="cc-checkbox" data-cc="${cc.cc}"
-          style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0"
-          onchange="atualizarContadorSel()"/>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:13px;color:#0f172a">${cc.nome} <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px">${cc.cc}</span></div>
-          <div style="margin-top:6px;min-height:24px">${chipsGerentes || '<span style="font-size:12px;color:#cbd5e1">Sem gerente</span>'}</div>
-        </div>
-      </div>`;
-    }).join("");
+  if (erros.length) {
+    msgEl.innerHTML = `<div class="msg erro">Erro em alguns CCs:<br>${erros.join("<br>")}</div>`;
+    return;
   }
 
-  function filtrarCCs() {
-    const termo = ($("busca-cc")?.value || "").toLowerCase().trim();
-    const filtrado = termo ? todosCC.filter(cc =>
-      cc.nome.toLowerCase().includes(termo) || cc.cc.toLowerCase().includes(termo)
-    ) : todosCC;
-    renderListaGerentes(filtrado);
-    atualizarContadorSel();
+  // Sucesso
+  $("tela-form").style.display = "none";
+  $("tela-sucesso").style.display = "block";
+  $("codigo-retorno").textContent = "#" + (ultimoId || "—");
+}
+window.enviarSolicitacao = enviarSolicitacao;
+
+// Fechar sugestões ao clicar fora
+document.addEventListener("click", e => {
+  if (!e.target.closest(".busca-wrap")) {
+    document.querySelectorAll(".sugestoes").forEach(s => s.style.display = "none");
   }
-  window.filtrarCCs = filtrarCCs;
-
-  function atualizarContadorSel() {
-    const sel = document.querySelectorAll(".cc-checkbox:checked").length;
-    const span = $("count-sel"); if (span) span.textContent = sel;
-    const btn = $("btn-lote"); if (!btn) return;
-    const email = ($("email-lote")?.value || "").trim();
-    const ok = sel > 0 && email;
-    btn.disabled = !ok; btn.style.opacity = ok ? "1" : "0.4"; btn.style.cursor = ok ? "pointer" : "not-allowed";
-  }
-  window.atualizarContadorSel = atualizarContadorSel;
-
-  function atualizarBtnLote() { atualizarContadorSel(); }
-  window.atualizarBtnLote = atualizarBtnLote;
-
-  function selecionarTodosFiltrados() {
-    document.querySelectorAll(".cc-checkbox").forEach(cb => { cb.checked = true; });
-    atualizarContadorSel();
-  }
-  window.selecionarTodosFiltrados = selecionarTodosFiltrados;
-
-  function limparSelecao() {
-    document.querySelectorAll(".cc-checkbox").forEach(cb => { cb.checked = false; });
-    atualizarContadorSel();
-  }
-  window.limparSelecao = limparSelecao;
-
-  async function associarEmailLote() {
-    const email = ($("email-lote")?.value || "").trim().toLowerCase();
-    const selecionados = [...document.querySelectorAll(".cc-checkbox:checked")].map(cb => cb.dataset.cc);
-    if (!email || !selecionados.length) return;
-    const msgEl = $("msg-lote");
-    msgEl.innerHTML = '<span style="color:#64748b">Salvando...</span>';
-    const inserts = selecionados.map(cc => ({ email, cc }));
-    const { error } = await db.from("gerentes_cc").upsert(inserts, { onConflict: "email,cc", ignoreDuplicates: true });
-    if (error) {
-      msgEl.innerHTML = `<span style="color:#991b1b">Erro: ${error.message}</span>`;
-    } else {
-      msgEl.innerHTML = `<span style="color:#065f46">✓ ${email} associado a ${selecionados.length} CC(s)!</span>`;
-      $("email-lote").value = "";
-      limparSelecao();
-      setTimeout(() => { msgEl.innerHTML = ""; carregarGerentes(); }, 1200);
-    }
-  }
-  window.associarEmailLote = associarEmailLote;
-
-  async function adicionarGerente(cc) {
-    const input = document.getElementById("ng-" + cc);
-    const email = (input.value || "").trim().toLowerCase();
-    const msgEl = document.getElementById("mg-" + cc);
-    if (!email) return;
-    const { error } = await db.from("gerentes_cc").insert({ email, cc });
-    if (error) {
-      msgEl.innerHTML = `<span style="font-size:12px;color:#991b1b">Erro: ${error.message}</span>`;
-    } else {
-      input.value = "";
-      msgEl.innerHTML = `<span style="font-size:12px;color:#065f46">✓ Adicionado!</span>`;
-      setTimeout(() => { msgEl.innerHTML = ""; carregarGerentes(); }, 800);
-    }
-  }
-  window.adicionarGerente = adicionarGerente;
-
-  async function removerGerente(id) {
-    if (!confirm("Remover este gerente?")) return;
-    await db.from("gerentes_cc").delete().eq("id", id);
-    carregarGerentes();
-  }
-  window.removerGerente = removerGerente;
-
-  // ========== CONSOLIDADOS ==========
-
-  function atualizarBarraCons() {
-    const sels = document.querySelectorAll(".acomp-cb:checked");
-    const barra = document.getElementById("barra-consolidar");
-    const count = document.getElementById("count-sel-cons");
-    if (sels.length > 0) {
-      barra.style.display = "flex";
-      count.textContent = sels.length + " SC(s) selecionada(s)";
-    } else {
-      barra.style.display = "none";
-    }
-  }
-  window.atualizarBarraCons = atualizarBarraCons;
-
-  function limparSelecaoAcomp() {
-    document.querySelectorAll(".acomp-cb").forEach(cb => cb.checked = false);
-    atualizarBarraCons();
-  }
-  window.limparSelecaoAcomp = limparSelecaoAcomp;
-
-  async function consolidarSelecionadas() {
-    const sels = [...document.querySelectorAll(".acomp-cb:checked")];
-    if (!sels.length) return;
-    const nome = prompt("Nome do consolidado:\nEx.: Ressuprimento Fardamentos Junho/Julho/Agosto");
-    if (!nome || !nome.trim()) return;
-    const { data: cons, error: e1 } = await db.from("consolidados").insert({ nome: nome.trim() }).select().single();
-    if (e1) { alert("Erro: " + e1.message); return; }
-    const inserts = sels.map(cb => ({ consolidado_id: cons.id, solicitacao_id: Number(cb.dataset.id) }));
-    const { error: e2 } = await db.from("consolidado_scs").insert(inserts);
-    if (e2) { alert("Erro ao vincular SCs: " + e2.message); return; }
-    limparSelecaoAcomp();
-    alert("Consolidado criado com " + sels.length + " SC(s)!");
-    irPara("consolidados");
-  }
-  window.consolidarSelecionadas = consolidarSelecionadas;
-
-  async function novoConsolidado() {
-    const nome = prompt("Nome do consolidado:");
-    if (!nome || !nome.trim()) return;
-    const { error } = await db.from("consolidados").insert({ nome: nome.trim() });
-    if (error) { alert("Erro: " + error.message); return; }
-    await carregarConsolidados();
-  }
-  window.novoConsolidado = novoConsolidado;
-
-  async function excluirConsolidado(id, nome) {
-    if (!confirm("Excluir o consolidado '" + nome + "'?\nAs SCs continuam no Acompanhamento.")) return;
-    await db.from("consolidados").delete().eq("id", id);
-    await carregarConsolidados();
-  }
-  window.excluirConsolidado = excluirConsolidado;
-
-  async function carregarConsolidados() {
-    const el = document.getElementById("lista-consolidados");
-    if (!el) return;
-    el.innerHTML = '<div class="vazio">Carregando...</div>';
-    const { data: cons, error } = await db.from("consolidados").select("*").order("criado_em", { ascending: false });
-    if (error) { el.innerHTML = '<div class="vazio">Erro: ' + error.message + '</div>'; return; }
-    if (!cons || !cons.length) {
-      el.innerHTML = '<div class="vazio">Nenhum consolidado ainda.<br><br>No Acompanhamento, marque SCs com o checkbox e clique em "Criar consolidado".</div>';
-      return;
-    }
-    el.innerHTML = cons.map(c => `
-      <div class="card" style="max-width:100%" id="cons-card-${c.id}">
-        <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleConsolidado(${c.id})">
-          <div>
-            <div style="font-weight:700;font-size:15px">${c.nome}</div>
-            <div style="font-size:12px;color:#64748b;margin-top:3px">criado em ${fmtData(c.criado_em)}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="color:#0d9488;font-weight:600;font-size:12.5px">Ver ▾</span>
-            <button onclick="event.stopPropagation();excluirConsolidado(${c.id},'${c.nome.replace(/'/g, "\'")}')"
-              style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:16px;padding:0"
-              onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
-          </div>
-        </div>
-        <div class="card-corpo" id="cons-corpo-${c.id}" data-carregado="0"></div>
-      </div>
-    `).join("");
-  }
-
-  async function toggleConsolidado(id) {
-    const corpo = document.getElementById("cons-corpo-" + id);
-    corpo.classList.toggle("aberto");
-    if (corpo.classList.contains("aberto") && corpo.dataset.carregado === "0") {
-      corpo.dataset.carregado = "1";
-      await renderConsolidado(id, corpo);
-    }
-  }
-  window.toggleConsolidado = toggleConsolidado;
-
-  async function renderConsolidado(consId, container) {
-    container.innerHTML = '<div style="padding:12px;color:#64748b;font-size:13px">Carregando...</div>';
-
-    const { data: links } = await db.from("consolidado_scs").select("solicitacao_id").eq("consolidado_id", consId);
-    if (!links || !links.length) {
-      container.innerHTML = '<div style="padding:16px;color:#94a3b8;font-size:13px">Nenhuma SC vinculada.</div>';
-      return;
-    }
-    const ids = links.map(l => l.solicitacao_id);
-    const { data: sols } = await db.from("solicitacoes").select("*").in("id", ids);
-    const { data: ccs } = await db.from("centros_custo").select("cc,nome");
-    const ccNomes = {};
-    (ccs || []).forEach(c => ccNomes[c.cc] = c.nome);
-
-    // Buscar sc_pedidos por filial+SC — igual ao acompanhamento
-    const porSc = {};
-
-    const scsComFilial = (sols||[]).filter(s => s.filial && s.sc_numero);
-    const scsSemFilial = (sols||[]).filter(s => !s.filial && s.sc_numero);
-
-    let scPedidos = [];
-
-    if (scsComFilial.length > 0) {
-      const porFilial = {};
-      scsComFilial.forEach(s => {
-        const f = s.filial;
-        if (!porFilial[f]) porFilial[f] = [];
-        porFilial[f].push(s.sc_numero.trim());
-      });
-      for (const [filial, scs] of Object.entries(porFilial)) {
-        for (let i = 0; i < scs.length; i += 100) {
-          const lote = scs.slice(i, i + 100);
-          let off = 0;
-          while (true) {
-            const { data: rows } = await db.from("sc_pedidos")
-              .select("*").eq("c1_filial", filial).in("c1_num", lote)
-              .range(off, off + 999);
-            if (!rows || !rows.length) break;
-            scPedidos = scPedidos.concat(rows);
-            if (rows.length < 1000) break;
-            off += 1000;
-          }
-        }
-      }
-    }
-
-    if (scsSemFilial.length > 0) {
-      const scsNums = [...new Set(scsSemFilial.map(s => s.sc_numero.trim()))];
-      for (let i = 0; i < scsNums.length; i += 100) {
-        const lote = scsNums.slice(i, i + 100);
-        let off = 0;
-        while (true) {
-          const { data: rows } = await db.from("sc_pedidos")
-            .select("*").in("c1_num", lote).range(off, off + 999);
-          if (!rows || !rows.length) break;
-          scPedidos = scPedidos.concat(rows);
-          if (rows.length < 1000) break;
-          off += 1000;
-        }
-      }
-    }
-
-    scPedidos.forEach(r => {
-      const filial = (r.c1_filial || "").trim();
-      const sc = (r.c1_num || "").trim();
-      const chave = filial ? filial + "|" + sc : sc;
-      if (!porSc[chave]) porSc[chave] = [];
-      porSc[chave].push(r);
-    });
-
-    function getItensSolCons(sol) {
-      const sc = sol.sc_numero.trim();
-      const filial = sol.filial || "";
-      if (filial) {
-        const itens = porSc[filial + "|" + sc];
-        if (itens && itens.length) return itens;
-      }
-      return porSc[sc] || [];
-    }
-
-    function isRecebido(st) {
-      if (!st) return false;
-      const s = st.toLowerCase();
-      return s === "recebido" || s === "recebido parcialmente" || s.includes("pré-nota") || s.includes("pre-nota");
-    }
-
-    // Calcular métricas
-    let totalSkus = 0, totalRecebidos = 0, valorTotalGeral = 0;
-    const metPorSc = {}, metPorCC = {};
-
-    (sols || []).forEach(sol => {
-      const sc = sol.sc_numero;
-      const cc = sol.cc;
-      const nomeCC = ccNomes[cc] || cc;
-      const obs = (sol.observacao || "").trim();
-      const label = nomeCC + (obs ? " · " + obs : "");
-      if (!metPorSc[sc]) metPorSc[sc] = { nome: nomeCC, obs, label, total:0, recebidos:0, valor:0 };
-      if (!metPorCC[cc]) metPorCC[cc] = { nome: nomeCC, total:0, recebidos:0, valor:0 };
-
-      const itens = getItensSolCons(sol);
-      itens.forEach(it => {
-        totalSkus++;
-        metPorSc[sc].total++;
-        metPorCC[cc].total++;
-        const recebido = isRecebido(it.pc_status);
-        if (recebido) { totalRecebidos++; metPorSc[sc].recebidos++; metPorCC[cc].recebidos++; }
-        const v = Number(it.pc_total) || 0;
-        valorTotalGeral += v;
-        metPorSc[sc].valor += v;
-        metPorCC[cc].valor += v;
-      });
-    });
-
-    const pctGeral = totalSkus > 0 ? Math.round(totalRecebidos/totalSkus*100) : 0;
-    const corPct = pctGeral===100?"#16a34a":pctGeral>50?"#0d9488":pctGeral>20?"#f59e0b":"#ef4444";
-
-    const scList = Object.entries(metPorSc)
-      .map(([sc,m]) => ({...m, sc, pct: m.total>0?Math.round(m.recebidos/m.total*100):0}))
-      .sort((a,b) => b.pct-a.pct);
-
-    const ccList = Object.entries(metPorCC)
-      .map(([cc,m]) => ({...m, cc, pct: m.total>0?Math.round(m.recebidos/m.total*100):0}))
-      .sort((a,b) => b.valor-a.valor);
-
-    const ccPctList = Object.entries(metPorCC)
-      .map(([cc,m]) => ({...m, cc, pct: m.total>0?Math.round(m.recebidos/m.total*100):0}))
-      .sort((a,b) => b.pct-a.pct);
-
-    // Gráfico barras % por SC
-    function barChart(items, valFn, labelFn, corFn) {
-      const max = Math.max(...items.map(valFn), 1);
-      return items.map(it => {
-        const v = valFn(it);
-        const pct = Math.round(v/max*100);
-        const cor = corFn ? corFn(it) : "#0d9488";
-        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
-          '<div style="flex:1;min-width:0;font-size:11.5px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+labelFn(it)+'">' + labelFn(it) + '</div>' +
-          '<div style="width:140px;flex-shrink:0;background:#f1f5f9;border-radius:4px;overflow:hidden;height:14px">' +
-            '<div style="width:'+pct+'%;height:100%;background:'+cor+';border-radius:4px"></div>' +
-          '</div>' +
-          '<div style="font-size:11.5px;font-weight:700;color:'+cor+';min-width:42px;text-align:right">' + fmtBRL(v) + '</div>' +
-        '</div>';
-      }).join("");
-    }
-
-    function pctBar(items, labelFn) {
-      return items.map(it => {
-        const p = it.pct;
-        const cor = p===100?"#16a34a":p>50?"#0d9488":p>20?"#f59e0b":"#ef4444";
-        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
-          '<div style="flex:1;min-width:0;font-size:11.5px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+labelFn(it)+'">' + labelFn(it) + '</div>' +
-          '<div style="width:140px;flex-shrink:0;background:#f1f5f9;border-radius:4px;overflow:hidden;height:14px">' +
-            '<div style="width:'+p+'%;height:100%;background:'+cor+';border-radius:4px"></div>' +
-          '</div>' +
-          '<div style="font-size:11.5px;font-weight:700;color:'+cor+';min-width:38px;text-align:right">'+p+'%</div>' +
-        '</div>';
-      }).join("");
-    }
-
-    // Lista de SCs
-    const listaScs = (sols||[]).map(sol => {
-      const m = metPorSc[sol.sc_numero] || { total:0, recebidos:0, valor:0 };
-      const pct = m.total>0?Math.round(m.recebidos/m.total*100):0;
-      const cor = pct===100?"#16a34a":pct>50?"#0d9488":pct>20?"#f59e0b":"#ef4444";
-      const nomeCC = ccNomes[sol.cc]||sol.cc;
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px">' +
-        '<span style="color:#334155">' + nomeCC + ' <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px">SC ' + sol.sc_numero + '</span></span>' +
-        '<div style="display:flex;align-items:center;gap:12px;flex-shrink:0">' +
-        (m.valor>0?'<span style="font-size:11px;color:#64748b">'+fmtBRL(m.valor)+'</span>':'') +
-        '<span style="font-weight:700;color:'+cor+';min-width:38px;text-align:right">'+pct+'%</span>' +
-        '</div></div>';
-    }).join("");
-
-    container.innerHTML =
-      '<div style="padding:16px">' +
-      // KPIs
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px">' +
-        '<div style="text-align:center"><div style="font-size:32px;font-weight:800;color:'+corPct+'">'+pctGeral+'%</div><div style="font-size:11px;color:#64748b;font-weight:600">Atendimento geral</div></div>' +
-        '<div style="text-align:center"><div style="font-size:32px;font-weight:800;color:#0f172a">'+totalSkus+'</div><div style="font-size:11px;color:#64748b;font-weight:600">Total SKUs</div></div>' +
-        '<div style="text-align:center"><div style="font-size:32px;font-weight:800;color:#16a34a">'+totalRecebidos+'</div><div style="font-size:11px;color:#64748b;font-weight:600">SKUs recebidos</div></div>' +
-        '<div style="text-align:right"><div style="font-size:20px;font-weight:800;color:#0f172a">'+fmtBRL(valorTotalGeral)+'</div><div style="font-size:11px;color:#64748b;font-weight:600">Valor total</div></div>' +
-      '</div>' +
-      // Barra geral
-      '<div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:6px">Progresso geral</div>' +
-      '<div style="background:#e2e8f0;border-radius:8px;height:14px;overflow:hidden;margin-bottom:4px">' +
-        '<div style="width:'+pctGeral+'%;height:100%;background:'+corPct+';border-radius:8px"></div>' +
-      '</div>' +
-      '<div style="font-size:11.5px;color:#64748b;text-align:right;margin-bottom:20px">'+totalRecebidos+' de '+totalSkus+' SKUs</div>' +
-      // Gráficos
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">' +
-        '<div><div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">% Atendimento por Centro de Custo</div>' + pctBar(ccPctList, it => it.nome) + '</div>' +
-        '<div><div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Valor Total por Centro de Custo</div>' + barChart(ccList, it => it.valor, it => it.nome, () => "#0d9488") + '</div>' +
-      '</div>' +
-      // Lista SCs
-      '<div style="font-size:11px;color:#64748b;font-weight:700;color:#475569;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">SCs neste consolidado ('+((sols||[]).length)+')</div>' +
-      listaScs +
-      '</div></div>';
-  }
-
-  
-
-  verificarSessao();
+});
 </script>
 </body>
 </html>
