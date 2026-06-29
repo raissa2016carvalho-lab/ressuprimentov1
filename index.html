@@ -459,6 +459,7 @@
     (gc || []).forEach(g => { (gerentesMapCC[g.cc] = gerentesMapCC[g.cc] || []).push(g.email); });
     const porSol = {};
     itens.forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
+    console.log("DEBUG itens:", itens.length, "porSol keys:", Object.keys(porSol), "sol ids:", (sols||[]).map(s=>s.id));
     solicitacoes = (sols || []).map(s => ({ ...s, itens: porSol[s.id] || [] }));
 
     // carrega consumo 3m e pessoas por cargo para os CCs visíveis
