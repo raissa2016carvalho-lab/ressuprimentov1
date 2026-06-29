@@ -8,287 +8,674 @@
 <style>
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
-  .wrap{max-width:520px;margin:0 auto;padding:24px 16px 60px}
-  h1{font-size:18px;margin:0 0 4px}
-  .sub{color:#64748b;font-size:13px;margin:0 0 18px}
-  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:14px}
+  .page{max-width:980px;margin:0 auto;padding:24px 16px}
+  h2{font-size:18px;font-weight:700;margin:0 0 4px}
+  p.sub{color:#64748b;font-size:13px;margin:0 0 20px}
   label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
-  input,select{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
-  .item{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid #f1f5f9}
-  .item:last-child{border-bottom:none}
-  .item-remover{border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0;padding-top:9px}
-  .btn-add{background:#0d9488;border:none;border-radius:50%;width:38px;height:38px;font-size:20px;color:#fff;cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;margin-left:auto;box-shadow:0 2px 6px rgba(13,148,136,.3)}
-  .add-row{display:flex;justify-content:flex-end;margin-top:4px}
-  .btn-enviar{width:100%;padding:14px;border-radius:10px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:15px;cursor:pointer;margin-top:6px}
-  .btn-enviar:disabled{background:#e2e8f0;cursor:not-allowed}
-  .msg{font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:14px}
+  input,select,textarea{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:13.5px;outline:none;font-family:inherit;background:#fff}
+  input:focus,select:focus,textarea:focus{border-color:#0d9488}
+  button{font-family:inherit;cursor:pointer}
+  .btn-primary{background:#0d9488;color:#fff;border:none;border-radius:9px;padding:11px 22px;font-weight:700;font-size:14px}
+  .btn-primary:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed}
+  .btn-secondary{background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:9px 16px;font-weight:600;font-size:13px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:14px}
+  .card-titulo{font-size:13.5px;font-weight:700;margin-bottom:14px;color:#0f172a}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .msg{font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:12px}
   .erro{background:#fee2e2;color:#991b1b}
-  .ok{background:#d1fae5;color:#065f46;text-align:center;padding:24px}
-  .item-descricao-wrap{position:relative;flex:1}
-  .item-descricao-wrap input[type="text"]{margin-bottom:0}
-  .item-qtd{width:64px!important;margin-bottom:0!important;flex-shrink:0}
-  .item-sugestoes{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;z-index:5;box-shadow:0 8px 20px rgba(15,23,42,.1);display:none}
-  .sug-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9}
-  .sug-item:hover{background:#f8fafc}
-  .sug-item:last-child{border-bottom:none}
-  .sug-item small{color:#94a3b8;font-size:11px;font-family:ui-monospace,monospace;margin-left:6px}
-  /* badge verde quando item foi selecionado da lista */
-  .item-descricao-wrap.selecionado .item-descricao{border-color:#0d9488;background:#f0fdf4}
-  .item-codigo-badge{font-size:10.5px;color:#0d9488;font-family:ui-monospace,monospace;margin-top:3px;display:none}
-  .item-descricao-wrap.selecionado .item-codigo-badge{display:block}
-  .item-consumo{font-size:11px;color:#0d9488;font-weight:600;background:#f0fdf4;border-radius:6px;padding:3px 8px;margin-top:3px;display:none;white-space:nowrap}
-  .item-descricao-wrap.selecionado .item-consumo{display:block}
+  .ok{background:#d1fae5;color:#065f46}
+
+  /* CC chips */
+  .cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .cc-chip{display:inline-flex;align-items:center;gap:6px;background:#0d94881a;color:#0d9488;border:1px solid #0d948840;border-radius:999px;padding:4px 10px;font-size:12.5px;font-weight:600}
+  .cc-chip button{border:none;background:none;color:#0d9488;cursor:pointer;font-size:14px;line-height:1;padding:0}
+
+  /* Proporcional */
+  .prop-grid{display:grid;gap:8px;margin-top:10px}
+  .prop-row{display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:8px 12px}
+  .prop-bar{flex:1;background:#e2e8f0;border-radius:4px;height:8px;overflow:hidden}
+  .prop-bar-fill{height:100%;background:#0d9488;border-radius:4px;transition:width .3s}
+  .prop-pct{font-size:11.5px;font-weight:700;color:#0d9488;min-width:36px;text-align:right}
+  .prop-pessoas{font-size:11px;color:#64748b;min-width:60px}
+
+  /* Tabela de itens */
+  .tabela-itens{width:100%;border-collapse:collapse;font-size:13px}
+  .tabela-itens th{text-align:left;color:#64748b;font-weight:600;font-size:11.5px;padding:8px 10px;border-bottom:2px solid #e2e8f0;background:#f8fafc}
+  .tabela-itens td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  .tabela-itens tr:hover td{background:#fafafa}
+  .consumo-badge{font-size:11px;font-weight:700;color:#0d9488;background:#f0fdf4;border-radius:4px;padding:2px 7px;white-space:nowrap}
+  .consumo-zero{font-size:11px;color:#cbd5e1;background:#f8fafc;border-radius:4px;padding:2px 7px}
+  .qtd-input{width:80px;text-align:right;padding:5px 8px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace}
+  .qtd-input:focus{border-color:#0d9488;outline:none}
+  .qtd-input.preenchida{border-color:#0d9488;background:#f0fdf4}
+  .grupo-badge{font-size:10px;color:#64748b;background:#f1f5f9;border-radius:3px;padding:1px 5px;white-space:nowrap}
+  .curva-badge{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px;white-space:nowrap}
+  .curva-A{background:#fef9c3;color:#854d0e}
+  .curva-B{background:#dbeafe;color:#1e40af}
+  .curva-C{background:#f1f5f9;color:#64748b}
+
+  /* Busca item pontual */
+  .busca-wrap{position:relative}
+  .sugestoes{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;z-index:50;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.08)}
+  .sug-item{padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9}
+  .sug-item:hover{background:#f0fdf4}
+
+  /* Sucesso */
+  #tela-sucesso{display:none;text-align:center;padding:40px 20px}
+  .check-circle{width:64px;height:64px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:32px}
+  .codigo-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:16px auto;max-width:280px}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Solicitação de Ressuprimento</h1>
-  <p class="sub">Preencha seus dados, escolha sua base e adicione os itens.</p>
-
-  <div id="form-area">
-    <div class="card">
-      <label>Nome completo</label>
-      <input id="nome" placeholder="Seu nome"/>
-      <label>Matrícula</label>
-      <input id="matricula" placeholder="Ex.: 12345"/>
-      <label>Filial</label>
-      <select id="filial"><option value="">Carregando filiais...</option></select>
-      <label>Centro de custo / base</label>
-      <select id="cc"><option value="">Selecione sua base...</option></select>
-      <label>Justificativa (opcional)</label>
-      <input id="justificativa-geral" placeholder="Por que precisa desses itens?"/>
+<div class="page">
+  <div id="tela-form">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="width:32px;height:32px;border-radius:8px;background:#0d9488;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px">R</div>
+      <div>
+        <h2>Solicitação de Ressuprimento</h2>
+        <p class="sub" style="margin:0">Preencha seus dados, escolha a filial e os centros de custo.</p>
+      </div>
     </div>
 
+    <div id="form-msg"></div>
+
+    <!-- ETAPA 1: dados do solicitante -->
     <div class="card">
-      <label style="margin-bottom:10px">Itens da solicitação</label>
-      <div id="itens-lista"></div>
-      <div class="add-row"><button class="btn-add" id="btn-add-item" title="Adicionar item">+</button></div>
+      <div class="card-titulo">👤 Dados do solicitante</div>
+      <div class="grid3">
+        <div>
+          <label>Nome completo</label>
+          <input id="nome" placeholder="Seu nome"/>
+        </div>
+        <div>
+          <label>Matrícula</label>
+          <input id="matricula" placeholder="Ex.: 014943"/>
+        </div>
+        <div>
+          <label>Justificativa / motivo</label>
+          <input id="justificativa" placeholder="Ex.: Ressuprimento trimestral"/>
+        </div>
+      </div>
     </div>
 
-    <div id="msg-area"></div>
-    <button class="btn-enviar" id="btn-enviar">Enviar solicitação</button>
+    <!-- ETAPA 2: filial + CCs -->
+    <div class="card">
+      <div class="card-titulo">📍 Filial e Centros de Custo</div>
+      <div class="grid2" style="margin-bottom:12px">
+        <div>
+          <label>Filial</label>
+          <select id="filial" onchange="onFilialChange()">
+            <option value="">Selecione a filial...</option>
+            <option value="01">01 — MATRIZ</option>
+            <option value="03">03 — PAU DOS FERROS</option>
+            <option value="04">04 — ITAPIPOCA</option>
+            <option value="06">06 — CURRAIS NOVOS</option>
+            <option value="07">07 — SOBRAL</option>
+            <option value="08">08 — APARECIDA DE GOIANIA</option>
+            <option value="09">09 — MARACANAU</option>
+            <option value="10">10 — MOSSORO</option>
+            <option value="11">11 — ANAPOLIS</option>
+            <option value="13">13 — ALAGOINHAS</option>
+            <option value="14">14 — RIBEIRA DO POMBAL</option>
+            <option value="15">15 — PAULO AFONSO</option>
+            <option value="22">22 — GOIANIA</option>
+            <option value="23">23 — BATURITE</option>
+            <option value="24">24 — MORRINHOS</option>
+            <option value="25">25 — CASCAVEL</option>
+            <option value="27">27 — CAUCAIA</option>
+            <option value="29">29 — HORIZONTE</option>
+            <option value="34">34 — SENHOR DO BONFIM</option>
+            <option value="36">36 — LUZIANIA</option>
+            <option value="37">37 — DIVINOPOLIS</option>
+            <option value="40">40 — GARANHUNS</option>
+            <option value="41">41 — FLORIANO</option>
+            <option value="42">42 — LIVRAMENTO DE NOSSA SENHORA</option>
+            <option value="43">43 — HORTOLANDIA</option>
+          </select>
+        </div>
+        <div>
+          <label>Adicionar Centro de Custo</label>
+          <div class="busca-wrap">
+            <input id="busca-cc" placeholder="🔍 Buscar CC..." oninput="buscarCC()" autocomplete="off" disabled/>
+            <div class="sugestoes" id="sugs-cc" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+      <!-- CCs selecionados + proporção -->
+      <div id="area-ccs" style="display:none">
+        <div class="cc-chips" id="chips-cc"></div>
+        <div style="margin-top:12px">
+          <div style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:6px">PROPORÇÃO DE PESSOAS POR CC</div>
+          <div class="prop-grid" id="prop-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ETAPA 3: lista de itens por curva -->
+    <div class="card" id="card-itens" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="card-titulo" style="margin:0">📦 Itens — Curva de Consumo</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="filtro-itens" placeholder="🔍 Filtrar itens..." oninput="filtrarItens()"
+            style="width:200px;margin:0;padding:7px 12px;font-size:13px"/>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap;margin:0;cursor:pointer">
+            <input type="checkbox" id="mostrar-zero" onchange="filtrarItens()" style="width:auto;margin:0"/> Mostrar sem consumo
+          </label>
+        </div>
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:10px">
+        <span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:1px 6px;font-weight:700;font-size:11px">A</span> Top 20%  
+        <span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 6px;font-weight:700;font-size:11px;margin-left:8px">B</span> 20–50%  
+        <span style="background:#f1f5f9;color:#64748b;border-radius:3px;padding:1px 6px;font-weight:700;font-size:11px;margin-left:8px">C</span> Demais
+      </div>
+      <div id="loading-itens" style="color:#64748b;font-size:13px;padding:12px 0">Carregando itens...</div>
+      <table class="tabela-itens" id="tabela-itens" style="display:none">
+        <thead>
+          <tr>
+            <th style="width:40%">Item</th>
+            <th style="width:12%">Grupo</th>
+            <th style="width:8%;text-align:center">Curva</th>
+            <th style="width:12%;text-align:right">Consumo médio<br>6m (un)</th>
+            <th style="width:10%;text-align:center">Qtd</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-itens"></tbody>
+      </table>
+
+      <!-- Adicionar item pontual -->
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0">
+        <div style="font-size:12.5px;font-weight:600;color:#64748b;margin-bottom:8px">+ ITEM PONTUAL (fora da curva)</div>
+        <div class="busca-wrap">
+          <input id="busca-item-pontual" placeholder="🔍 Buscar item por descrição ou código..." oninput="buscarItemPontual()" autocomplete="off"/>
+          <div class="sugestoes" id="sugs-pontual" style="display:none"></div>
+        </div>
+        <div id="itens-pontuais" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- BOTÃO ENVIAR -->
+    <div id="area-enviar" style="display:none;margin-top:8px">
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:#0f172a;margin-bottom:4px">Resumo da solicitação</div>
+        <div id="resumo-envio" style="font-size:12.5px;color:#64748b"></div>
+      </div>
+      <button class="btn-primary" id="btn-enviar" onclick="enviarSolicitacao()" style="width:100%;padding:14px">
+        Enviar solicitação
+      </button>
+    </div>
   </div>
 
-  <div id="sucesso" style="display:none" class="card ok">
-    <div style="font-size:32px;margin-bottom:8px">✓</div>
-    <div style="font-weight:700;font-size:16px;margin-bottom:6px">Solicitação enviada!</div>
-    <div style="color:#047857;font-size:13px;margin-bottom:14px">Recebemos seu pedido. A equipe vai avaliar em breve.</div>
-    <div style="background:#fff;border:1px solid #a7f3d0;border-radius:10px;padding:14px;margin-bottom:14px">
-      <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:4px">SEU CÓDIGO DE ACOMPANHAMENTO</div>
-      <div id="codigo-gerado" style="font-size:24px;font-weight:800;color:#0f172a;font-family:ui-monospace,monospace"></div>
-      <div style="font-size:11.5px;color:#64748b;margin-top:6px">Guarde esse número junto com sua matrícula para consultar o andamento depois.</div>
+  <!-- TELA DE SUCESSO -->
+  <div id="tela-sucesso">
+    <div class="check-circle">✓</div>
+    <h2 style="margin-bottom:8px">Solicitação enviada!</h2>
+    <p style="color:#64748b;font-size:13.5px">Recebemos seu pedido. A equipe vai avaliar em breve.</p>
+    <div class="codigo-box">
+      <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:6px">SEU CÓDIGO DE ACOMPANHAMENTO</div>
+      <div id="codigo-retorno" style="font-size:28px;font-weight:800">#—</div>
+      <div style="font-size:12px;color:#64748b;margin-top:6px">Guarde esse número junto com sua matrícula para consultar o andamento depois.</div>
     </div>
-    <a id="link-acompanhar" href="acompanhar.html" style="display:block;text-align:center;background:#0f172a;color:#fff;text-decoration:none;border-radius:9px;padding:11px;font-weight:700;font-size:13.5px">Acompanhar esta solicitação</a>
+    <button class="btn-primary" style="margin-top:16px" onclick="location.reload()">Nova solicitação</button>
   </div>
 </div>
 
 <script>
-  const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
-  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const $ = (id) => document.getElementById(id);
+const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
 
-  let contItens = 0;
+// Grupos permitidos
+const GRUPOS_PERMITIDOS = new Set([
+  "MATERIAIS DE EXPEDIENTE E CONSUMO ADM",
+  "MATERIAIS ELETRICOS",
+  "EPI / EPC E FERRAMENTAS",
+  "EQUIPAMENTOS DE INFORMATICA",
+  "FARDAMENTOS & UNIFORMES",
+  "MOVEIS & UTENSILIOS",
+  "MATERIAIS DE CONSUMO OBRA",
+  "MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA",
+  "MATERIAL P/ PERFURACAO DE ROCHAS",
+  "MATERIAL P/ LAVAGEM DE ISOLADORES",
+]);
 
-  function debounce(fn, ms) {
-    let t;
-    return function (...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
-  }
+// Estado global
+let todosCCs = [];         // [{cc, nome, pessoas}]
+let ccsSelecionados = [];  // [{cc, nome, pessoas, proporcao}]
+let consumoMap = {};       // cc|produto -> consumo_medio_6m
+let itensMap = {};         // produto -> {codigo, descricao, grupo}
+let listaItens = [];       // itens ordenados por curva
+let itensPontuais = [];    // itens adicionados manualmente
+let filialAtual = "";
 
-  const buscarSugestoes = debounce(async (inputEl) => {
-    const wrap = inputEl.closest(".item-descricao-wrap");
-    const sugEl = wrap.querySelector(".item-sugestoes");
-    const termo = inputEl.value.trim();
-    if (termo.length < 2) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
-    const pareceCode = /^\d+$/.test(termo);
-    let query = db.from("itens_publico").select("codigo,descricao,unidade").limit(12);
-    if (pareceCode) { query = query.ilike("codigo", termo + "%"); }
-    else { query = query.ilike("descricao", "%" + termo + "%"); }
-    const { data, error } = await query;
-    if (error || !data || data.length === 0) { sugEl.style.display = "none"; sugEl.innerHTML = ""; return; }
-    sugEl.innerHTML = data.map(it =>
-      `<div class="sug-item" data-codigo="${it.codigo}" data-descricao="${it.descricao.replace(/"/g, '&quot;')}">${it.descricao} <small>${it.codigo}</small></div>`
-    ).join("") + (data.length === 12 ? '<div style="padding:8px 12px;font-size:11.5px;color:#94a3b8;text-align:center">Digite mais letras para refinar</div>' : "");
-    sugEl.style.display = "block";
-  }, 300);
+// ── FILIAL ──────────────────────────────────────────────────────────────────
+async function onFilialChange() {
+  const filial = $("filial").value;
+  filialAtual = filial;
+  ccsSelecionados = [];
+  consumoMap = {};
+  listaItens = [];
+  itensPontuais = [];
+  renderChips();
+  $("card-itens").style.display = "none";
+  $("area-enviar").style.display = "none";
+  $("area-ccs").style.display = "none";
 
-  // quando digita: limpa o código guardado e abre sugestões
-  document.addEventListener("input", (e) => {
-    if (!e.target.classList.contains("item-descricao")) return;
-    const wrap = e.target.closest(".item-descricao-wrap");
-    // limpa seleção anterior
-    wrap.querySelector(".item-codigo-hidden").value = "";
-    wrap.querySelector(".item-consumo").textContent = "";
-    wrap.querySelector(".item-consumo").style.color = "#0d9488";
-    wrap.classList.remove("selecionado");
-    buscarSugestoes(e.target);
+  if (!filial) { $("busca-cc").disabled = true; return; }
+
+  // Carregar CCs e pessoas
+  $("busca-cc").disabled = false;
+  const [{ data: ccsData }, { data: pessoasData }] = await Promise.all([
+    db.from("centros_custo").select("cc,nome").eq("status","Desbloqueado").order("nome"),
+    db.from("cc_pessoas").select("cc,quantidade"),
+  ]);
+  const totalPorCC = {};
+  (pessoasData || []).forEach(p => { totalPorCC[p.cc] = (totalPorCC[p.cc] || 0) + Number(p.quantidade); });
+  todosCCs = (ccsData || []).filter(c => c.cc && c.cc.length > 5).map(c => ({
+    cc: c.cc, nome: c.nome, pessoas: totalPorCC[c.cc] || 0
+  }));
+}
+
+// ── BUSCA CC ────────────────────────────────────────────────────────────────
+let debTimer = null;
+function buscarCC() {
+  clearTimeout(debTimer);
+  debTimer = setTimeout(() => {
+    const termo = ($("busca-cc").value || "").toLowerCase().trim();
+    const sugsEl = $("sugs-cc");
+    if (!termo) { sugsEl.style.display = "none"; return; }
+    const filtrados = todosCCs.filter(c =>
+      c.nome.toLowerCase().includes(termo) || c.cc.includes(termo)
+    ).slice(0, 12);
+    if (!filtrados.length) { sugsEl.style.display = "none"; return; }
+    sugsEl.innerHTML = filtrados.map(c =>
+      `<div class="sug-item" onclick="selecionarCC('${c.cc}')">
+        <span style="font-weight:600">${c.nome}</span>
+        <span style="color:#94a3b8;font-size:11px;margin-left:6px">${c.cc}</span>
+        <span style="color:#64748b;font-size:11px;margin-left:6px">👥 ${c.pessoas}</span>
+      </div>`
+    ).join("");
+    sugsEl.style.display = "block";
+  }, 200);
+}
+
+async function selecionarCC(cc) {
+  $("sugs-cc").style.display = "none";
+  $("busca-cc").value = "";
+  if (ccsSelecionados.find(c => c.cc === cc)) return; // já selecionado
+  const base = todosCCs.find(c => c.cc === cc);
+  if (!base) return;
+  ccsSelecionados.push({ ...base });
+  calcularProporcao();
+  renderChips();
+  await carregarConsumo();
+}
+
+function removerCC(cc) {
+  ccsSelecionados = ccsSelecionados.filter(c => c.cc !== cc);
+  calcularProporcao();
+  renderChips();
+  carregarConsumo();
+}
+
+function calcularProporcao() {
+  const totalPessoas = ccsSelecionados.reduce((s, c) => s + c.pessoas, 0);
+  ccsSelecionados.forEach(c => {
+    c.proporcao = totalPessoas > 0 ? c.pessoas / totalPessoas : 1 / ccsSelecionados.length;
   });
+}
 
-  // quando clica numa sugestão: guarda código no input hidden (não no dataset!)
-  document.addEventListener("click", async (e) => {
-    const sug = e.target.closest(".sug-item");
-    if (sug) {
-      const wrap = sug.closest(".item-descricao-wrap");
-      const input = wrap.querySelector(".item-descricao");
-      const hidden = wrap.querySelector(".item-codigo-hidden");
-      const badge  = wrap.querySelector(".item-codigo-badge");
-      input.value  = sug.dataset.descricao;
-      hidden.value = sug.dataset.codigo;
-      badge.textContent = "✓ " + sug.dataset.codigo;
-      wrap.classList.add("selecionado");
-      wrap.querySelector(".item-sugestoes").style.display = "none";
-      // buscar consumo médio da filial selecionada
-      const filialSel = $("filial").value;
-      const consumoEl = wrap.querySelector(".item-consumo");
-      if (filialSel && sug.dataset.codigo) {
-        const { data: cons } = await db.from("consumo_filial")
-          .select("consumo_medio_6m")
-          .eq("filial", filialSel)
-          .eq("produto", sug.dataset.codigo)
-          .maybeSingle();
-        if (cons && cons.consumo_medio_6m > 0) {
-          consumoEl.textContent = "📊 Consumo médio 6m: " + cons.consumo_medio_6m.toLocaleString("pt-BR", {maximumFractionDigits:2}) + " un.";
-        } else {
-          consumoEl.textContent = "📊 Sem consumo registrado nos últimos 6 meses";
-          consumoEl.style.color = "#94a3b8";
-        }
-      }
-      return;
-    }
-    if (!e.target.closest(".item-descricao-wrap")) {
-      document.querySelectorAll(".item-sugestoes").forEach(el => el.style.display = "none");
-    }
-  });
+function renderChips() {
+  const area = $("area-ccs");
+  const chips = $("chips-cc");
+  const propGrid = $("prop-grid");
 
-  function adicionarItem() {
-    contItens++;
-    const id = "item-" + contItens;
-    const div = document.createElement("div");
-    div.className = "item";
-    div.id = id;
-    div.innerHTML = `
-      <div class="item-descricao-wrap">
-        <input class="item-descricao" type="text" placeholder="Nome do material (digite para buscar)"/>
-        <input class="item-codigo-hidden" type="hidden" value=""/>
-        <div class="item-codigo-badge"></div>
-        <div class="item-consumo"></div>
-        <div class="item-sugestoes"></div>
+  if (!ccsSelecionados.length) { area.style.display = "none"; return; }
+  area.style.display = "block";
+
+  chips.innerHTML = ccsSelecionados.map(c =>
+    `<span class="cc-chip">${c.nome} <span style="font-size:10.5px;opacity:.7">${c.cc}</span>
+      <button onclick="removerCC('${c.cc}')">✕</button>
+    </span>`
+  ).join("");
+
+  propGrid.innerHTML = ccsSelecionados.map(c => {
+    const pct = Math.round(c.proporcao * 100);
+    return `<div class="prop-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:600;color:#0f172a">${c.nome}</div>
+        <div style="font-size:11px;color:#64748b">${c.cc}</div>
       </div>
-      <input class="item-qtd" type="number" min="1" placeholder="Qtd"/>
-      <button class="item-remover" onclick="document.getElementById('${id}').remove()">✕</button>
-    `;
-    $("itens-lista").appendChild(div);
-  }
-  $("btn-add-item").addEventListener("click", adicionarItem);
-  adicionarItem(); // já começa com 1 item
+      <div class="prop-pessoas">👥 ${c.pessoas}</div>
+      <div class="prop-bar"><div class="prop-bar-fill" style="width:${pct}%"></div></div>
+      <div class="prop-pct">${pct}%</div>
+      <input type="number" min="0" max="100" value="${pct}"
+        style="width:60px;text-align:right;padding:4px 6px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;margin:0"
+        oninput="ajustarProporcao('${c.cc}', Number(this.value))"
+        title="Ajustar proporção manualmente"/>
+    </div>`;
+  }).join("");
+}
 
-  // filiais disponíveis — buscadas dos pedidos_compra
-  const FILIAIS_LISTA = [
-    {c:"01",n:"MATRIZ"}, {c:"03",n:"PAU DOS FERROS"}, {c:"04",n:"ITAPIPOCA"}, {c:"06",n:"CURRAIS NOVOS"}, {c:"07",n:"SOBRAL"}, {c:"08",n:"APARECIDA DE GOIANIA"}, {c:"09",n:"MARACANAU"}, {c:"10",n:"MOSSORO"}, {c:"11",n:"ANAPOLIS"}, {c:"13",n:"ALAGOINHAS"}, {c:"14",n:"RIBEIRA DO POMBAL"}, {c:"15",n:"PAULO AFONSO"}, {c:"22",n:"GOIANIA"}, {c:"23",n:"BATURITE"}, {c:"24",n:"MORRINHOS"}, {c:"25",n:"CASCAVEL"}, {c:"27",n:"CAUCAIA"}, {c:"29",n:"HORIZONTE"}, {c:"34",n:"SENHOR DO BONFIM"}, {c:"36",n:"LUZIANIA"}, {c:"37",n:"DIVINOPOLIS"}, {c:"40",n:"GARANHUNS"}, {c:"41",n:"FLORIANO"}, {c:"42",n:"LIVRAMENTO DE NOSSA SENHORA"}, {c:"43",n:"HORTOLANDIA"}
+function ajustarProporcao(cc, novoPct) {
+  // Ajusta manualmente a proporção de um CC
+  const idx = ccsSelecionados.findIndex(c => c.cc === cc);
+  if (idx < 0) return;
+  const novaP = Math.max(0, Math.min(100, novoPct)) / 100;
+  ccsSelecionados[idx].proporcao = novaP;
+  // normalizar os outros proporcionalmente
+  const resto = 1 - novaP;
+  const outros = ccsSelecionados.filter((_, i) => i !== idx);
+  const somaOutros = outros.reduce((s, c) => s + c.proporcao, 0);
+  if (somaOutros > 0) {
+    outros.forEach(c => { c.proporcao = c.proporcao / somaOutros * resto; });
+  } else if (outros.length) {
+    outros.forEach(c => { c.proporcao = resto / outros.length; });
+  }
+  renderChips();
+  renderTabelaItens();
+}
+window.ajustarProporcao = ajustarProporcao;
+
+// ── CONSUMO + ITENS ─────────────────────────────────────────────────────────
+async function carregarConsumo() {
+  if (!ccsSelecionados.length || !filialAtual) {
+    $("card-itens").style.display = "none";
+    $("area-enviar").style.display = "none";
+    return;
+  }
+
+  $("card-itens").style.display = "block";
+  $("loading-itens").style.display = "block";
+  $("tabela-itens").style.display = "none";
+
+  const ccs = ccsSelecionados.map(c => c.cc);
+
+  // Buscar consumo mensal dos CCs selecionados (últimos 6 meses)
+  const { data: consumoData } = await db.from("consumo_mensal")
+    .select("cc,produto,descricao,quantidade,mes")
+    .in("cc", ccs);
+
+  // Agregar: somar consumo de todos os CCs por produto, dividir por 6
+  const agg = {};
+  (consumoData || []).forEach(r => {
+    const k = r.produto;
+    if (!agg[k]) agg[k] = { produto: r.produto, descricao: r.descricao, total: 0 };
+    agg[k].total += Number(r.quantidade) || 0;
+  });
+
+  consumoMap = {};
+  Object.values(agg).forEach(v => {
+    consumoMap[v.produto] = { media: Math.floor(v.total / 6), descricao: v.descricao };
+  });
+
+  // Buscar itens dos grupos permitidos
+  let todosItens = [];
+  let off = 0;
+  while (true) {
+    const { data: lote } = await db.from("itens").select("codigo,descricao,grupo").range(off, off + 999);
+    if (!lote || !lote.length) break;
+    todosItens = todosItens.concat(lote);
+    if (lote.length < 1000) break;
+    off += 1000;
+  }
+
+  // Filtrar grupos permitidos
+  const itensFiltrados = todosItens.filter(it => GRUPOS_PERMITIDOS.has((it.grupo || "").trim().toUpperCase()));
+  itensMap = {};
+  itensFiltrados.forEach(it => { itensMap[it.codigo] = it; });
+
+  // Montar lista: itens com consumo primeiro, depois sem consumo
+  const comConsumo = [];
+  const semConsumo = [];
+
+  itensFiltrados.forEach(it => {
+    const cons = consumoMap[it.codigo];
+    if (cons && cons.media > 0) comConsumo.push({ ...it, media: cons.media });
+    else semConsumo.push({ ...it, media: 0 });
+  });
+
+  // Ordenar por consumo desc
+  comConsumo.sort((a, b) => b.media - a.media);
+
+  // Calcular curva ABC
+  const totalConsumo = comConsumo.reduce((s, it) => s + it.media, 0);
+  let acumulado = 0;
+  comConsumo.forEach(it => {
+    acumulado += it.media;
+    const pct = totalConsumo > 0 ? acumulado / totalConsumo : 1;
+    it.curva = pct <= 0.2 ? "A" : pct <= 0.5 ? "B" : "C";
+  });
+  semConsumo.forEach(it => { it.curva = "C"; });
+
+  listaItens = [...comConsumo, ...semConsumo];
+
+  $("loading-itens").style.display = "none";
+  $("tabela-itens").style.display = "table";
+  renderTabelaItens();
+  $("area-enviar").style.display = "block";
+  atualizarResumo();
+}
+
+function renderTabelaItens() {
+  const tbody = $("tbody-itens");
+  const filtro = ($("filtro-itens")?.value || "").toLowerCase().trim();
+  const mostrarZero = $("mostrar-zero")?.checked;
+
+  const visiveis = listaItens.filter(it => {
+    if (!mostrarZero && it.media === 0) return false;
+    if (filtro && !it.descricao.toLowerCase().includes(filtro) && !it.codigo.includes(filtro)) return false;
+    return true;
+  });
+
+  tbody.innerHTML = visiveis.map(it => {
+    const qtdAtual = Number(document.getElementById("qtd-" + it.codigo)?.value) || 0;
+    return `<tr id="row-${it.codigo}">
+      <td>
+        <div style="font-size:13px;font-weight:500">${it.descricao}</div>
+        <div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>
+      </td>
+      <td><span class="grupo-badge">${abreviarGrupo(it.grupo)}</span></td>
+      <td style="text-align:center"><span class="curva-badge curva-${it.curva}">${it.curva}</span></td>
+      <td style="text-align:right">
+        ${it.media > 0
+          ? `<span class="consumo-badge">${it.media}</span>`
+          : `<span class="consumo-zero">—</span>`}
+      </td>
+      <td style="text-align:center">
+        <input type="number" min="0" id="qtd-${it.codigo}"
+          class="qtd-input${qtdAtual > 0 ? ' preenchida' : ''}"
+          value="${qtdAtual || ''}"
+          placeholder="0"
+          oninput="onQtdChange('${it.codigo}', '${it.descricao.replace(/'/g,"\\'")}', Number(this.value))"/>
+      </td>
+    </tr>`;
+  }).join("");
+
+  if (!visiveis.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Nenhum item encontrado.</td></tr>`;
+  }
+}
+
+function abreviarGrupo(grupo) {
+  const map = {
+    "MATERIAIS DE EXPEDIENTE E CONSUMO ADM": "Expediente",
+    "MATERIAIS ELETRICOS": "Elétrico",
+    "EPI / EPC E FERRAMENTAS": "EPI/EPC",
+    "EQUIPAMENTOS DE INFORMATICA": "TI",
+    "FARDAMENTOS & UNIFORMES": "Fardamento",
+    "MOVEIS & UTENSILIOS": "Móveis",
+    "MATERIAIS DE CONSUMO OBRA": "Obra",
+    "MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA": "Fotovoltaica",
+    "MATERIAL P/ PERFURACAO DE ROCHAS": "Perfuração",
+    "MATERIAL P/ LAVAGEM DE ISOLADORES": "Isoladores",
+  };
+  return map[(grupo || "").trim().toUpperCase()] || grupo || "Outros";
+}
+
+// Mapa de quantidades: codigo -> qtd total
+const qtdMap = {};
+
+function onQtdChange(codigo, descricao, qtd) {
+  if (qtd > 0) qtdMap[codigo] = { codigo, descricao, qtd };
+  else delete qtdMap[codigo];
+  const input = $("qtd-" + codigo);
+  if (input) input.classList.toggle("preenchida", qtd > 0);
+  atualizarResumo();
+}
+window.onQtdChange = onQtdChange;
+
+function filtrarItens() {
+  renderTabelaItens();
+}
+window.filtrarItens = filtrarItens;
+
+function atualizarResumo() {
+  const totalItens = Object.keys(qtdMap).length + itensPontuais.length;
+  const totalCCs = ccsSelecionados.length;
+  $("resumo-envio").innerHTML =
+    `<strong>${totalItens}</strong> iten(s) selecionado(s) · <strong>${totalCCs}</strong> centro(s) de custo · <strong>${totalCCs}</strong> solicitação(ões) gerada(s)`;
+}
+
+// ── ITEM PONTUAL ─────────────────────────────────────────────────────────────
+let debPontual = null;
+async function buscarItemPontual() {
+  clearTimeout(debPontual);
+  debPontual = setTimeout(async () => {
+    const termo = ($("busca-item-pontual").value || "").toLowerCase().trim();
+    const sugsEl = $("sugs-pontual");
+    if (termo.length < 2) { sugsEl.style.display = "none"; return; }
+
+    const { data } = await db.from("itens").select("codigo,descricao,grupo")
+      .or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%`)
+      .limit(12);
+
+    if (!data || !data.length) { sugsEl.style.display = "none"; return; }
+    sugsEl.innerHTML = data.map(it =>
+      `<div class="sug-item" onclick="adicionarPontual('${it.codigo}','${it.descricao.replace(/'/g,"\\'")}','${(it.grupo||"").replace(/'/g,"\\'")}')">
+        <span style="font-weight:600">${it.descricao}</span>
+        <span style="color:#94a3b8;font-size:11px;margin-left:6px">${it.codigo}</span>
+      </div>`
+    ).join("");
+    sugsEl.style.display = "block";
+  }, 250);
+}
+
+function adicionarPontual(codigo, descricao, grupo) {
+  $("sugs-pontual").style.display = "none";
+  $("busca-item-pontual").value = "";
+  if (itensPontuais.find(i => i.codigo === codigo)) return;
+  if (qtdMap[codigo]) return; // já está na tabela principal
+  const id = "pont-" + codigo;
+  itensPontuais.push({ codigo, descricao, grupo, qtd: 0 });
+  renderPontuais();
+  atualizarResumo();
+}
+window.adicionarPontual = adicionarPontual;
+
+function onQtdPontual(codigo, qtd) {
+  const item = itensPontuais.find(i => i.codigo === codigo);
+  if (item) item.qtd = qtd;
+  atualizarResumo();
+}
+window.onQtdPontual = onQtdPontual;
+
+function removerPontual(codigo) {
+  itensPontuais = itensPontuais.filter(i => i.codigo !== codigo);
+  renderPontuais();
+  atualizarResumo();
+}
+window.removerPontual = removerPontual;
+
+function renderPontuais() {
+  $("itens-pontuais").innerHTML = itensPontuais.map(it =>
+    `<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:8px 12px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${it.descricao}</div>
+        <div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>
+      </div>
+      <input type="number" min="0" value="${it.qtd || ''}" placeholder="Qtd"
+        class="qtd-input" style="width:80px"
+        oninput="onQtdPontual('${it.codigo}', Number(this.value))"/>
+      <button onclick="removerPontual('${it.codigo}')"
+        style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:0">✕</button>
+    </div>`
+  ).join("");
+}
+
+// ── ENVIAR ───────────────────────────────────────────────────────────────────
+async function enviarSolicitacao() {
+  const nome = $("nome").value.trim();
+  const matricula = $("matricula").value.trim();
+  const justificativa = $("justificativa").value.trim();
+  const filial = $("filial").value;
+  const msgEl = $("form-msg");
+
+  if (!nome || !matricula) { msgEl.innerHTML = '<div class="msg erro">Preencha nome e matrícula.</div>'; return; }
+  if (!filial) { msgEl.innerHTML = '<div class="msg erro">Selecione a filial.</div>'; return; }
+  if (!ccsSelecionados.length) { msgEl.innerHTML = '<div class="msg erro">Selecione pelo menos um centro de custo.</div>'; return; }
+
+  // Montar lista de itens selecionados
+  const itensSelecionados = [
+    ...Object.values(qtdMap).filter(it => it.qtd > 0),
+    ...itensPontuais.filter(it => it.qtd > 0)
   ];
 
-  async function carregarFiliais() {
-    const sel = $("filial");
-    sel.innerHTML = '<option value="">Selecione a filial...</option>' +
-      FILIAIS_LISTA.map(f => `<option value="${f.c}">${f.c} — ${f.n}</option>`).join("");
-  }
-  carregarFiliais();
+  if (!itensSelecionados.length) { msgEl.innerHTML = '<div class="msg erro">Selecione pelo menos um item com quantidade.</div>'; return; }
 
-  let todosCCs = [];
+  $("btn-enviar").disabled = true;
+  $("btn-enviar").textContent = "Enviando...";
+  msgEl.innerHTML = "";
 
-  async function carregarBases() {
-    const { data, error } = await db.from("ccs_publico").select("*");
-    const select = $("cc");
-    if (error) {
-      select.innerHTML = `<option value="">Erro ao carregar bases</option>`;
-      mostrarMsg("Não foi possível carregar as bases: " + error.message, "erro");
-      return;
-    }
-    todosCCs = (data || []).filter(c => {
-      if (!c.nome || !c.nome.trim()) return false;
-      if (!c.cc || c.cc.length <= 5) return false;
-      if ((c.status || "Desbloqueado") !== "Desbloqueado") return false;
-      return true;
-    });
-    popularSelectCC();
-  }
+  let ultimoId = null;
+  let erros = [];
 
-  function popularSelectCC() {
-    const select = $("cc");
-    const nomesVistos = new Set();
-    const filtrado = todosCCs.filter(c => {
-      if (nomesVistos.has(c.nome.trim())) return false;
-      nomesVistos.add(c.nome.trim());
-      return true;
-    });
-    select.innerHTML = '<option value="">Selecione sua base...</option>' +
-      filtrado.map(c => `<option value="${c.cc}" data-status="${c.status || 'Desbloqueado'}">${c.nome}</option>`).join("");
+  // Criar uma solicitação por CC
+  for (const cc of ccsSelecionados) {
+    const itensCC = itensSelecionados.map(it => ({
+      codigo: it.codigo,
+      descricao: it.descricao || itensMap[it.codigo]?.descricao || "",
+      quantidade: Math.max(1, Math.round(it.qtd * cc.proporcao)) // proporcional
+    })).filter(it => it.quantidade > 0);
+
+    if (!itensCC.length) continue;
+
+    const payload = {
+      p_cc: cc.cc,
+      p_nome: nome,
+      p_matricula: matricula,
+      p_justificativa: justificativa || null,
+      p_filial: filial,
+      p_itens: itensCC,
+    };
+
+    const { data, error } = await db.rpc("criar_solicitacao", payload);
+    if (error) { erros.push(cc.nome + ": " + error.message); }
+    else { ultimoId = data; }
   }
 
-  carregarBases();
+  $("btn-enviar").disabled = false;
+  $("btn-enviar").textContent = "Enviar solicitação";
 
-  function mostrarMsg(texto, tipo) {
-    $("msg-area").innerHTML = `<div class="msg ${tipo}">${texto}</div>`;
+  if (erros.length) {
+    msgEl.innerHTML = `<div class="msg erro">Erro em alguns CCs:<br>${erros.join("<br>")}</div>`;
+    return;
   }
 
-  $("btn-enviar").addEventListener("click", async () => {
-    $("msg-area").innerHTML = "";
-    const nome = $("nome").value.trim();
-    const matricula = $("matricula").value.trim();
-    const cc = $("cc").value;
-    const justificativaGeral = $("justificativa-geral").value.trim();
+  // Sucesso
+  $("tela-form").style.display = "none";
+  $("tela-sucesso").style.display = "block";
+  $("codigo-retorno").textContent = "#" + (ultimoId || "—");
+}
+window.enviarSolicitacao = enviarSolicitacao;
 
-    // lê os itens usando o input hidden para o código — nunca perde o valor
-    const itensEls = document.querySelectorAll("#itens-lista .item");
-    const itens = [];
-    for (const el of itensEls) {
-      const descricaoEl = el.querySelector(".item-descricao");
-      const hiddenEl    = el.querySelector(".item-codigo-hidden");
-      const descricao   = descricaoEl.value.trim();
-      const codigo      = hiddenEl.value.trim() || "MANUAL";
-      const qtd         = el.querySelector(".item-qtd").value;
-      if (descricao && qtd) {
-        itens.push({ codigo, descricao, quantidade: Number(qtd) || 1 });
-      }
-    }
-
-    if (!nome || !matricula) { mostrarMsg("Preencha nome e matrícula.", "erro"); return; }
-    if (!cc) { mostrarMsg("Selecione sua base.", "erro"); return; }
-    const optCC = $("cc").querySelector(`option[value="${cc}"]`);
-    if (optCC && (optCC.dataset.status || "Desbloqueado") !== "Desbloqueado") {
-      mostrarMsg("Este centro de custo está bloqueado. Não é possível abrir solicitação para ele.", "erro");
-      return;
-    }
-    if (itens.length === 0) { mostrarMsg("Adicione pelo menos um item com descrição e quantidade.", "erro"); return; }
-    for (const it of itens) {
-      if (!it.descricao || !it.quantidade) {
-        mostrarMsg("Preencha a descrição e a quantidade de todos os itens.", "erro");
-        return;
-      }
-    }
-
-    $("btn-enviar").disabled = true;
-    $("btn-enviar").textContent = "Enviando...";
-
-    const filial = $("filial").value;
-    if (!filial) { mostrarMsg("Selecione a filial.", "erro"); $("btn-enviar").disabled = false; $("btn-enviar").textContent = "Enviar solicitação"; return; }
-
-    const { data, error } = await db.rpc("criar_solicitacao", {
-      p_cc: cc, p_nome: nome, p_matricula: matricula, p_itens: itens, p_justificativa: justificativaGeral || null, p_filial: filial
-    });
-
-    if (error) {
-      mostrarMsg("Erro ao enviar: " + error.message, "erro");
-      $("btn-enviar").disabled = false;
-      $("btn-enviar").textContent = "Enviar solicitação";
-      return;
-    }
-
-    $("codigo-gerado").textContent = "#" + data;
-    $("link-acompanhar").href = "acompanhar.html?id=" + data + "&matricula=" + encodeURIComponent(matricula);
-    $("form-area").style.display = "none";
-    $("sucesso").style.display = "block";
-  });
+// Fechar sugestões ao clicar fora
+document.addEventListener("click", e => {
+  if (!e.target.closest(".busca-wrap")) {
+    document.querySelectorAll(".sugestoes").forEach(s => s.style.display = "none");
+  }
+});
 </script>
 </body>
 </html>
