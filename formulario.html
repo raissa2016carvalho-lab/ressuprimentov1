@@ -97,6 +97,21 @@
           <input id="justificativa" placeholder="Ex.: Ressuprimento trimestral"/>
         </div>
       </div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <label>Período de ressuprimento</label>
+          <select id="periodo-meses" onchange="onPeriodoChange()" style="margin:0">
+            <option value="1">1 mês</option>
+            <option value="2">2 meses</option>
+            <option value="3" selected>3 meses</option>
+            <option value="6">6 meses</option>
+            <option value="12">12 meses</option>
+          </select>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:10px 16px;font-size:13px;color:#166534;font-weight:600;flex-shrink:0">
+          📊 Qtd sugerida = consumo médio × <span id="periodo-label">3</span> meses
+        </div>
+      </div>
     </div>
 
     <!-- ETAPA 2: filial + CCs -->
@@ -249,6 +264,7 @@ let itensMap = {};         // produto -> {codigo, descricao, grupo}
 let listaItens = [];       // itens ordenados por curva
 let itensPontuais = [];    // itens adicionados manualmente
 let filialAtual = "";
+let periodoMeses = 3;
 
 // ── FILIAL ──────────────────────────────────────────────────────────────────
 async function onFilialChange() {
@@ -505,7 +521,14 @@ function renderTabelaItens() {
   });
 
   tbody.innerHTML = visiveis.map(it => {
-    const qtdAtual = Number(document.getElementById("qtd-" + it.codigo)?.value) || 0;
+    // Usar valor já editado ou sugerir consumo × período
+    const qtdExistente = Number(document.getElementById("qtd-" + it.codigo)?.value) || 0;
+    const qtdSugerida = it.media > 0 ? it.media * periodoMeses : 0;
+    const qtdAtual = qtdMap[it.codigo] ? qtdMap[it.codigo].qtd : (qtdExistente || qtdSugerida);
+    // Auto-preencher no qtdMap se ainda não foi editado manualmente
+    if (qtdSugerida > 0 && !qtdMap[it.codigo]) {
+      qtdMap[it.codigo] = { codigo: it.codigo, descricao: it.descricao, qtd: qtdSugerida };
+    }
     return `<tr id="row-${it.codigo}">
       <td>
         <div style="font-size:13px;font-weight:500">${it.descricao}</div>
@@ -522,7 +545,7 @@ function renderTabelaItens() {
         <input type="number" min="0" id="qtd-${it.codigo}"
           class="qtd-input${qtdAtual > 0 ? ' preenchida' : ''}"
           value="${qtdAtual || ''}"
-          placeholder="0"
+          placeholder="${it.media > 0 ? it.media + ' × ' + periodoMeses + ' = ' + (it.media * periodoMeses) : '0'}"
           oninput="onQtdChange('${it.codigo}', '${it.descricao.replace(/'/g,"\\'")}', Number(this.value))"/>
       </td>
     </tr>`;
