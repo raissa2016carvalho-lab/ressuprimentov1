@@ -259,15 +259,50 @@ async function onFilialChange() {
 
 async function carregarTodosCCs() {
   ccCarregado = true;
-  const [{ data: ccsData }, { data: pessoasData }] = await Promise.all([
-    db.from("centros_custo").select("cc,nome").eq("status","Desbloqueado").order("nome"),
+  // Buscar TODOS os CCs (bloqueados e desbloqueados) para somar pessoas por nome
+  const [{ data: todosData }, { data: desblData }, { data: pessoasData }] = await Promise.all([
+    db.from("centros_custo").select("cc,nome,status").order("nome"),
+    db.from("centros_custo").select("cc,nome").eq("status","Desbloqueado"),
     db.from("cc_pessoas").select("cc,quantidade"),
   ]);
-  const totalPorCC = {};
-  (pessoasData || []).forEach(p => { totalPorCC[p.cc] = (totalPorCC[p.cc] || 0) + Number(p.quantidade); });
-  todosCCs = (ccsData || [])
-    .filter(c => c.cc && c.cc.length > 5 && (totalPorCC[c.cc] || 0) > 0)
-    .map(c => ({ cc: c.cc, nome: c.nome, pessoas: totalPorCC[c.cc] || 0 }));
+
+  // Somar pessoas por nome (agrupa bloqueados + desbloqueados)
+  const pessoasPorCC = {};
+  (pessoasData || []).forEach(p => { pessoasPorCC[p.cc] = (pessoasPorCC[p.cc] || 0) + Number(p.quantidade); });
+
+  // Para cada nome, somar pessoas de todos os CCs com aquele nome
+  const pessoasPorNome = {};
+  (todosData || []).forEach(c => {
+    if (!c.nome || c.cc.length <= 5) return;
+    pessoasPorNome[c.nome] = (pessoasPorNome[c.nome] || 0) + (pessoasPorCC[c.cc] || 0);
+  });
+
+  // Mapa nome -> CC desbloqueado (para gravar solicitação)
+  const ccDesblPorNome = {};
+  (desblData || []).forEach(c => {
+    if (!c.nome || c.cc.length <= 5) return;
+    // Se já tem um, mantém o que tem mais pessoas
+    if (!ccDesblPorNome[c.nome] || (pessoasPorCC[c.cc] || 0) > (pessoasPorCC[ccDesblPorNome[c.nome]] || 0)) {
+      ccDesblPorNome[c.nome] = c.cc;
+    }
+  });
+
+  // Montar lista única por nome — só onde tem CC desbloqueado
+  const vistos = new Set();
+  todosCCs = [];
+  (desblData || []).forEach(c => {
+    if (!c.nome || c.cc.length <= 5) return;
+    if (vistos.has(c.nome)) return;
+    const totalPessoas = pessoasPorNome[c.nome] || 0;
+    if (totalPessoas === 0) return;
+    vistos.add(c.nome);
+    todosCCs.push({
+      cc: ccDesblPorNome[c.nome], // CC desbloqueado para gravar
+      nome: c.nome,
+      pessoas: totalPessoas,
+    });
+  });
+  todosCCs.sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
 // ── BUSCA CC ────────────────────────────────────────────────────────────────
@@ -386,10 +421,16 @@ async function carregarConsumo() {
 
   const ccs = ccsSelecionados.map(c => c.cc);
 
-  // Buscar consumo mensal dos CCs selecionados (últimos 6 meses)
+  // Buscar todos os CCs com o mesmo nome dos selecionados (para somar consumo)
+  const nomesSelecionados = ccsSelecionados.map(c => c.nome);
+  const { data: todosHomonimos } = await db.from("centros_custo")
+    .select("cc,nome").in("nome", nomesSelecionados);
+  const todosCodigosCC = [...new Set((todosHomonimos || []).map(c => c.cc))];
+
+  // Buscar consumo mensal de TODOS os CCs com esses nomes
   const { data: consumoData } = await db.from("consumo_mensal")
     .select("cc,produto,descricao,quantidade,mes")
-    .in("cc", ccs);
+    .in("cc", todosCodigosCC.length ? todosCodigosCC : ccs);
 
   // Agregar: somar consumo de todos os CCs por produto, dividir por 6
   const agg = {};
