@@ -445,13 +445,19 @@
       $("lista").innerHTML = '<div class="vazio">Erro ao carregar: ' + e2.message + '</div>';
       return;
     }
-    // buscar itens só das solicitações carregadas (não TUDO)
+    // buscar itens paginando para não cortar no limite de 1000
     const solIds = (sols || []).map(s => s.id);
     let itens = [];
     for (let i = 0; i < solIds.length; i += 100) {
       const lote = solIds.slice(i, i + 100);
-      const { data: loteItens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", lote);
-      itens = itens.concat(loteItens || []);
+      let off = 0;
+      while (true) {
+        const { data: loteItens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", lote).range(off, off + 999);
+        if (!loteItens || !loteItens.length) break;
+        itens = itens.concat(loteItens);
+        if (loteItens.length < 1000) break;
+        off += 1000;
+      }
     }
     ccMap = {};
     (ccs || []).forEach(c => ccMap[c.cc] = c);
@@ -459,7 +465,6 @@
     (gc || []).forEach(g => { (gerentesMapCC[g.cc] = gerentesMapCC[g.cc] || []).push(g.email); });
     const porSol = {};
     itens.forEach(i => { (porSol[i.solicitacao_id] = porSol[i.solicitacao_id] || []).push(i); });
-    console.log("DEBUG itens:", itens.length, "porSol keys:", Object.keys(porSol), "sol ids:", (sols||[]).map(s=>s.id));
     solicitacoes = (sols || []).map(s => ({ ...s, itens: porSol[s.id] || [] }));
 
     // carrega consumo 3m e pessoas por cargo para os CCs visíveis
