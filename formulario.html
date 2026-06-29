@@ -137,7 +137,7 @@
         <div>
           <label>Adicionar Centro de Custo</label>
           <div class="busca-wrap">
-            <input id="busca-cc" placeholder="🔍 Buscar CC..." oninput="buscarCC()" autocomplete="off" disabled/>
+            <input id="busca-cc" placeholder="🔍 Buscar CC..." oninput="buscarCC()" autocomplete="off"/>
             <div class="sugestoes" id="sugs-cc" style="display:none"></div>
           </div>
         </div>
@@ -242,6 +242,7 @@ const GRUPOS_PERMITIDOS = new Set([
 
 // Estado global
 let todosCCs = [];         // [{cc, nome, pessoas}]
+let ccCarregado = false;
 let ccsSelecionados = [];  // [{cc, nome, pessoas, proporcao}]
 let consumoMap = {};       // cc|produto -> consumo_medio_6m
 let itensMap = {};         // produto -> {codigo, descricao, grupo}
@@ -251,21 +252,13 @@ let filialAtual = "";
 
 // ── FILIAL ──────────────────────────────────────────────────────────────────
 async function onFilialChange() {
-  const filial = $("filial").value;
-  filialAtual = filial;
-  ccsSelecionados = [];
-  consumoMap = {};
-  listaItens = [];
-  itensPontuais = [];
-  renderChips();
-  $("card-itens").style.display = "none";
-  $("area-enviar").style.display = "none";
-  $("area-ccs").style.display = "none";
+  filialAtual = $("filial").value;
+  // Carregar CCs na primeira vez
+  if (!ccCarregado) await carregarTodosCCs();
+}
 
-  if (!filial) { $("busca-cc").disabled = true; return; }
-
-  // Carregar CCs e pessoas
-  $("busca-cc").disabled = false;
+async function carregarTodosCCs() {
+  ccCarregado = true;
   const [{ data: ccsData }, { data: pessoasData }] = await Promise.all([
     db.from("centros_custo").select("cc,nome").eq("status","Desbloqueado").order("nome"),
     db.from("cc_pessoas").select("cc,quantidade"),
@@ -281,7 +274,8 @@ async function onFilialChange() {
 let debTimer = null;
 function buscarCC() {
   clearTimeout(debTimer);
-  debTimer = setTimeout(() => {
+  debTimer = setTimeout(async () => {
+    if (!ccCarregado) await carregarTodosCCs();
     const termo = ($("busca-cc").value || "").toLowerCase().trim();
     const sugsEl = $("sugs-cc");
     if (!termo) { sugsEl.style.display = "none"; return; }
