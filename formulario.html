@@ -525,10 +525,7 @@ function renderTabelaItens() {
     const qtdExistente = Number(document.getElementById("qtd-" + it.codigo)?.value) || 0;
     const qtdSugerida = it.media > 0 ? it.media * periodoMeses : 0;
     const qtdAtual = qtdMap[it.codigo] ? qtdMap[it.codigo].qtd : (qtdExistente || qtdSugerida);
-    // Auto-preencher no qtdMap se ainda não foi editado manualmente
-    if (qtdSugerida > 0 && !qtdMap[it.codigo]) {
-      qtdMap[it.codigo] = { codigo: it.codigo, descricao: it.descricao, qtd: qtdSugerida };
-    }
+    // Não auto-preencher — almoxarife digita a quantidade manualmente
     return `<tr id="row-${it.codigo}">
       <td>
         <div style="font-size:13px;font-weight:500">${it.descricao}</div>
@@ -544,7 +541,7 @@ function renderTabelaItens() {
       <td style="text-align:center">
         <input type="number" min="0" id="qtd-${it.codigo}"
           class="qtd-input${qtdAtual > 0 ? ' preenchida' : ''}"
-          value="${qtdAtual || ''}"
+          value="${qtdMap[it.codigo] ? qtdMap[it.codigo].qtd : ''}"
           placeholder="${it.media > 0 ? it.media + ' × ' + periodoMeses + ' = ' + (it.media * periodoMeses) : '0'}"
           oninput="onQtdChange('${it.codigo}', '${it.descricao.replace(/'/g,"\\'")}', Number(this.value))"/>
       </td>
