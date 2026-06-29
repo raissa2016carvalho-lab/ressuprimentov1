@@ -265,9 +265,9 @@ async function carregarTodosCCs() {
   ]);
   const totalPorCC = {};
   (pessoasData || []).forEach(p => { totalPorCC[p.cc] = (totalPorCC[p.cc] || 0) + Number(p.quantidade); });
-  todosCCs = (ccsData || []).filter(c => c.cc && c.cc.length > 5).map(c => ({
-    cc: c.cc, nome: c.nome, pessoas: totalPorCC[c.cc] || 0
-  }));
+  todosCCs = (ccsData || [])
+    .filter(c => c.cc && c.cc.length > 5 && (totalPorCC[c.cc] || 0) > 0)
+    .map(c => ({ cc: c.cc, nome: c.nome, pessoas: totalPorCC[c.cc] || 0 }));
 }
 
 // ── BUSCA CC ────────────────────────────────────────────────────────────────
