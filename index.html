@@ -153,6 +153,19 @@
   </div>
 </div>
 
+<div id="tela-trocar-senha" class="center" style="display:none">
+  <div class="login-card">
+    <h1>Defina sua nova senha</h1>
+    <p>Por segurança, você precisa criar uma senha nova no seu primeiro acesso.</p>
+    <label>Nova senha</label>
+    <input id="nova-senha" type="password" placeholder="Mínimo 6 caracteres"/>
+    <label>Confirmar nova senha</label>
+    <input id="confirma-senha" type="password" placeholder="Repita a senha"/>
+    <div id="troca-senha-msg"></div>
+    <button class="btn" id="btn-trocar-senha">Salvar nova senha</button>
+  </div>
+</div>
+
 <div id="app" style="display:none">
   <nav>
     <div class="logo">
@@ -454,12 +467,58 @@
   $("btn-sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
 
   async function mostrarApp(email) {
+    // Verifica se precisa trocar a senha no primeiro acesso
+    const { data: { user } } = await db.auth.getUser();
+    const senhaTrocada = user?.user_metadata?.senha_trocada === true;
+
+    if (!senhaTrocada) {
+      $("tela-login").style.display = "none";
+      $("tela-trocar-senha").style.display = "grid";
+      return;
+    }
+
     $("tela-login").style.display = "none";
+    $("tela-trocar-senha").style.display = "none";
     $("app").style.display = "flex";
     $("user-email").textContent = email;
     await verificarPerfil(email);
     carregarSolicitacoes();
   }
+
+  $("btn-trocar-senha").addEventListener("click", async () => {
+    const novaSenha = $("nova-senha").value;
+    const confirma = $("confirma-senha").value;
+    const msgEl = $("troca-senha-msg");
+    msgEl.innerHTML = "";
+
+    if (!novaSenha || novaSenha.length < 6) {
+      msgEl.innerHTML = '<div class="msg erro">A senha precisa ter pelo menos 6 caracteres.</div>';
+      return;
+    }
+    if (novaSenha !== confirma) {
+      msgEl.innerHTML = '<div class="msg erro">As senhas não coincidem.</div>';
+      return;
+    }
+
+    $("btn-trocar-senha").disabled = true;
+    $("btn-trocar-senha").textContent = "Salvando...";
+
+    const { data: { user }, error } = await db.auth.updateUser({
+      password: novaSenha,
+      data: { senha_trocada: true }
+    });
+
+    $("btn-trocar-senha").disabled = false;
+    $("btn-trocar-senha").textContent = "Salvar nova senha";
+
+    if (error) {
+      msgEl.innerHTML = '<div class="msg erro">' + error.message + '</div>';
+      return;
+    }
+
+    msgEl.innerHTML = '<div class="msg ok">✓ Senha alterada! Entrando...</div>';
+    setTimeout(() => mostrarApp(user.email), 800);
+  });
 
   // ---------- NAVEGAÇÃO ENTRE ABAS ----------
   function irPara(aba) {
