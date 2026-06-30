@@ -328,6 +328,7 @@ function buscarCC() {
   debTimer = setTimeout(async () => {
     if (!ccCarregado) await carregarTodosCCs();
     const termo = ($("busca-cc").value || "").toLowerCase().trim();
+    if (!todosCCs.length) { $("sugs-cc").style.display = "none"; return; }
     const sugsEl = $("sugs-cc");
     if (!termo) { sugsEl.style.display = "none"; return; }
     const filtrados = todosCCs.filter(c =>
@@ -425,7 +426,7 @@ window.ajustarProporcao = ajustarProporcao;
 
 // ── CONSUMO + ITENS ─────────────────────────────────────────────────────────
 async function carregarConsumo() {
-  if (!ccsSelecionados.length || !filialAtual) {
+  if (!ccsSelecionados.length) {
     $("card-itens").style.display = "none";
     $("area-enviar").style.display = "none";
     return;
@@ -542,7 +543,7 @@ function renderTabelaItens() {
         <input type="number" min="0" id="qtd-${it.codigo}"
           class="qtd-input${qtdAtual > 0 ? ' preenchida' : ''}"
           value="${qtdMap[it.codigo] ? qtdMap[it.codigo].qtd : ''}"
-          placeholder="${it.media > 0 ? it.media + ' × ' + periodoMeses + ' = ' + (it.media * periodoMeses) : '0'}"
+          placeholder="0"
           oninput="onQtdChange('${it.codigo}', '${it.descricao.replace(/'/g,"\\'")}', Number(this.value))"/>
       </td>
     </tr>`;
@@ -668,7 +669,7 @@ async function enviarSolicitacao() {
   const msgEl = $("form-msg");
 
   if (!nome || !matricula) { msgEl.innerHTML = '<div class="msg erro">Preencha nome e matrícula.</div>'; return; }
-  if (!filial) { msgEl.innerHTML = '<div class="msg erro">Selecione a filial.</div>'; return; }
+  if (!filial) { msgEl.innerHTML = '<div class="msg erro">Selecione a filial.</div>'; return; } // filial obrigatória
   if (!ccsSelecionados.length) { msgEl.innerHTML = '<div class="msg erro">Selecione pelo menos um centro de custo.</div>'; return; }
 
   // Montar lista de itens selecionados
