@@ -859,6 +859,15 @@
       return "pendente";
     }
 
+    function fmtDataEntrega(data) {
+      if (!data) return "—";
+      const s = String(data).trim();
+      if (s.length === 8 && /^\d{8}$/.test(s)) {
+        return s.slice(6,8) + "/" + s.slice(4,6) + "/" + s.slice(0,4);
+      }
+      return s || "—";
+    }
+
     function fmtPcStatus(st) {
       if (!st) return "—";
       const s = st.toLowerCase();
@@ -960,19 +969,22 @@
                 <th style="text-align:right">Qtd</th>
                 <th style="text-align:right">Valor</th>
                 <th>Status</th>
+                <th>Entrega</th>
               </tr>
               ${itens.length === 0
-                ? `<tr><td colspan="5" style="color:#94a3b8;font-style:italic">Nenhum item encontrado no banco para esta SC.</td></tr>`
+                ? `<tr><td colspan="6" style="color:#94a3b8;font-style:italic">Nenhum item encontrado no banco para esta SC.</td></tr>`
                 : itens.map(it => {
                     const val = Number(it.pc_total) || 0;
                     const st = fmtPcStatus(it.pc_status);
                     const cls = statusCls(it.pc_status);
+                    const dtEntrega = fmtDataEntrega(it.pc_dt_entrega);
                     return `<tr>
                       <td>${it.c1_descri || it.c1_produto || ""}</td>
                       <td style="font-family:ui-monospace,monospace">${it.pc_numero || "sem pedido"}</td>
                       <td class="qtd">${it.c1_quant || 0}</td>
                       <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12px;color:#475569">${val > 0 ? fmtBRL(val) : "—"}</td>
                       <td class="status-pc ${cls}">${it.pc_status || "Sem pedido"}</td>
+                      <td style="font-family:ui-monospace,monospace;font-size:12px;color:#475569">${dtEntrega}</td>
                     </tr>`;
                   }).join("")
               }
