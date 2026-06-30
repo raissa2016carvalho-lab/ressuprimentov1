@@ -1524,7 +1524,7 @@
       while (true) {
         const { data: lote, error: eLote } = await db
           .from("pedidos_compra")
-          .select("c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc")
+          .select("c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega")
           .or(condicoesOr)
           .range(pcOffset, pcOffset + 999);
         if (eLote) { ePcs = eLote; break; }
@@ -1808,21 +1808,29 @@
           </tr>`;
           const detailRow = linhasPC.length > 0 ? `<tr id="${detId}" style="display:none;background:#f8fafc">
             <td colspan="5" style="padding:6px 14px 10px">
+              <!-- detalhe de pedidos -->
               <table style="width:100%;border-collapse:collapse;font-size:11.5px">
                 <tr style="background:#f1f5f9">
                   <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">Nº PC</th>
                   <th style="padding:4px 8px;text-align:right;font-weight:600;color:#64748b">Qtde</th>
                   <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">Status</th>
                   <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">SC</th>
+                  <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">Entrega</th>
                 </tr>
                 ${linhasPC.map(p => {
                   const st = (p.status_desc||"").toLowerCase();
                   const cor = st.includes("receb") ? "#16a34a" : st.includes("pend") ? "#d97706" : "#64748b";
+                  const dtEnt = (() => {
+                    const d = String(p.dt_entrega||"").trim();
+                    if (d.length === 8 && /^\d{8}$/.test(d)) return d.slice(6,8)+"/"+d.slice(4,6)+"/"+d.slice(0,4);
+                    return d || "—";
+                  })();
                   return `<tr style="border-bottom:1px solid #e2e8f0">
                     <td style="padding:4px 8px;font-family:ui-monospace,monospace">${p.c7_num||"—"}</td>
                     <td style="padding:4px 8px;text-align:right;font-family:ui-monospace,monospace">${p.c7_quant||0}</td>
                     <td style="padding:4px 8px;font-weight:600;color:${cor}">${p.status_desc||"—"}</td>
                     <td style="padding:4px 8px;font-family:ui-monospace,monospace">${p.c7_numsc||"—"}</td>
+                    <td style="padding:4px 8px;font-family:ui-monospace,monospace">${dtEnt}</td>
                   </tr>`;
                 }).join("")}
               </table>
