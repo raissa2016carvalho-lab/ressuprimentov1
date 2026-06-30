@@ -150,9 +150,9 @@ const consumoMap = {};
 const precoMap = {};
 
 async function verificarSessao() {
-  const { data } = await db.auth.getSession();
-  if (data.session) await mostrarApp(data.session.user.email);
-  else $("tela-login").style.display = "grid";
+  // Sempre exige login novo ao abrir a página do gerente
+  await db.auth.signOut();
+  $("tela-login").style.display = "grid";
 }
 
 $("btn-login").addEventListener("click", async () => {
