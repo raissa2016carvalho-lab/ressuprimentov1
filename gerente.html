@@ -13,7 +13,7 @@
   label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
   input{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
   button{font-family:inherit;cursor:pointer}
-  .btn{padding:11px;border-radius:9px;border:none;background:#0d9488;color:#fff;font-weight:700;font-size:14px;width:100%}
+  .btn{padding:11px;border-radius:9px;border:none;background:#1e40af;color:#fff;font-weight:700;font-size:14px;width:100%}
   .btn:disabled{background:#e2e8f0;cursor:not-allowed}
   .msg{font-size:13px;padding:9px 11px;border-radius:8px;margin-bottom:12px}
   .erro{background:#fee2e2;color:#991b1b}
@@ -37,14 +37,14 @@
   .btn-dec{border:none;border-radius:6px;padding:5px 9px;font-size:11.5px;font-weight:700;margin-right:5px;background:#e2e8f0;color:#64748b}
   .btn-dec.aprovado{background:#16a34a;color:#fff}
   .btn-dec.recusado{background:#e11d48;color:#fff}
-  .btn-salvar{background:#0d9488;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
+  .btn-salvar{background:#1e40af;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
   .btn-aprovar-todas{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
   .rodape-card{margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .vazio{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:36px;text-align:center;color:#64748b;font-size:13.5px}
   .btn-atualizar{border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px}
   .just-input{width:100%;margin-top:4px;padding:4px 6px;font-size:12px;border:1px solid #fbbf24;border-radius:6px;background:#fffbeb;display:none;font-family:inherit}
   .just-input.visivel{display:block}
-  .tag-consumo{font-size:10.5px;color:#0d9488;background:#f0fdf4;border-radius:4px;padding:2px 6px;font-weight:600}
+  .tag-consumo{font-size:10.5px;color:#1e40af;background:#f0fdf4;border-radius:4px;padding:2px 6px;font-weight:600}
   .tag-sem{font-size:10.5px;color:#94a3b8;background:#f1f5f9;border-radius:4px;padding:2px 6px}
   .qtd-original{font-size:12px;color:#475569;font-family:ui-monospace,monospace;font-weight:600}
   .qtd-input{width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace}
@@ -55,7 +55,7 @@
 
 <div id="tela-login" class="center">
   <div class="login-card">
-    <div style="width:36px;height:36px;border-radius:9px;background:#0d9488;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;margin-bottom:14px">R</div>
+    <div style="width:36px;height:36px;border-radius:9px;background:#1e40af;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;margin-bottom:14px">R</div>
     <h1 style="font-size:18px;margin:0 0 4px">Painel do Gerente</h1>
     <p style="color:#64748b;font-size:13px;margin:0 0 18px">Avaliação de solicitações de ressuprimento</p>
     <label>E-mail</label>
@@ -237,10 +237,10 @@ function renderCard(s) {
       </td>
       <td style="text-align:center">
         ${consumoVal != null
-          ? `<span style="font-weight:700;color:#0d9488">${consumoVal}</span>`
+          ? `<span style="font-weight:700;color:#1e40af">${consumoVal}</span>`
           : `<span style="color:#cbd5e1">—</span>`}
       </td>
-      <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:#0d9488">
+      <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:#1e40af">
         ${it.qtd_sugerida ? it.qtd_sugerida : '<span style="color:#cbd5e1">—</span>'}
       </td>
       <td style="text-align:center">
@@ -280,7 +280,7 @@ function renderCard(s) {
           <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns) · <span style="background:#f0fdf4;color:#166534;border-radius:4px;padding:1px 7px;font-weight:700">📅 ${s.periodo_meses || 3} meses</span></div>
           ${s.justificativa ? `<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>` : ""}
         </div>
-        <div style="color:#0d9488;font-weight:600;font-size:12.5px;white-space:nowrap">Avaliar ▾</div>
+        <div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap">Avaliar ▾</div>
       </div>
       <div class="card-corpo" id="corpo-${s.id}">
         <table>
