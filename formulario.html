@@ -200,11 +200,12 @@
       <table class="tabela-itens" id="tabela-itens" style="display:none">
         <thead>
           <tr>
-            <th style="width:40%">Item</th>
-            <th style="width:12%">Grupo</th>
-            <th style="width:8%;text-align:center">Curva</th>
-            <th style="width:12%;text-align:right">Consumo médio<br>6m (un)</th>
-            <th style="width:10%;text-align:center">Qtd</th>
+            <th style="width:36%">Item</th>
+            <th style="width:11%">Grupo</th>
+            <th style="width:7%;text-align:center">Curva</th>
+            <th style="width:11%;text-align:right">Consumo médio<br>6m (un)</th>
+            <th style="width:9%;text-align:center">Qtd</th>
+            <th style="width:11%;text-align:center">Total<br>(× meses)</th>
           </tr>
         </thead>
         <tbody id="tbody-itens"></tbody>
@@ -277,6 +278,17 @@ let listaItens = [];       // itens ordenados por curva
 let itensPontuais = [];    // itens adicionados manualmente
 let filialAtual = "";
 let periodoMeses = 3;
+
+function onPeriodoChange() {
+  periodoMeses = Number($("periodo-meses").value) || 3;
+  $("periodo-label").textContent = periodoMeses;
+  // Recalcular todos os totais já preenchidos sem perder os valores digitados
+  Object.values(qtdMap).forEach(it => {
+    const totalEl = $("total-" + it.codigo);
+    if (totalEl) totalEl.textContent = it.qtd * periodoMeses;
+  });
+}
+window.onPeriodoChange = onPeriodoChange;
 
 // ── FILIAL ──────────────────────────────────────────────────────────────────
 async function onFilialChange() {
@@ -558,11 +570,14 @@ function renderTabelaItens() {
           placeholder="0"
           oninput="onQtdChange('${it.codigo}', '${it.descricao.replace(/'/g,"\\'")}', Number(this.value))"/>
       </td>
+      <td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;color:#0d9488" id="total-${it.codigo}">
+        ${qtdAtual > 0 ? qtdAtual * periodoMeses : '—'}
+      </td>
     </tr>`;
   }).join("");
 
   if (!visiveis.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Nenhum item encontrado.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Nenhum item encontrado.</td></tr>`;
   }
 }
 
@@ -590,6 +605,8 @@ function onQtdChange(codigo, descricao, qtd) {
   else delete qtdMap[codigo];
   const input = $("qtd-" + codigo);
   if (input) input.classList.toggle("preenchida", qtd > 0);
+  const totalEl = $("total-" + codigo);
+  if (totalEl) totalEl.textContent = qtd > 0 ? (qtd * periodoMeses) : "—";
   atualizarResumo();
 }
 window.onQtdChange = onQtdChange;
