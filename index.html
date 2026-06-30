@@ -100,7 +100,7 @@
   table.tbl-mob th:nth-child(3){width:70px;text-align:right}
   .chips-wrap{display:flex;flex-wrap:wrap;gap:2px}
 
-  /* ---- MODO VIEWER: só permite editar datas de entrega ---- */
+  /* ---- MODO VIEWER: navega e filtra livremente, mas não cria/edita/exclui nada (exceto data de entrega) ---- */
   body.modo-viewer .btn-novo,
   body.modo-viewer .btn-salvar,
   body.modo-viewer .btn-dec,
@@ -109,36 +109,21 @@
   body.modo-viewer .somente-admin{
     display:none !important;
   }
-  body.modo-viewer input:not(.dt-entrega-manual),
-  body.modo-viewer select,
-  body.modo-viewer textarea{
+  /* Trava por padrão apenas inputs de edição de dados (rotuladas explicitamente) */
+  body.modo-viewer input.editavel-admin,
+  body.modo-viewer select.editavel-admin,
+  body.modo-viewer textarea.editavel-admin{
     pointer-events:none;
     opacity:0.6;
     background:#f8fafc;
   }
+  /* Filtros, buscas e selects de navegação continuam 100% liberados */
+  body.modo-viewer input.filtro,
+  body.modo-viewer select.filtro,
   body.modo-viewer .dt-entrega-manual{
     pointer-events:auto;
     opacity:1;
     background:#fff;
-  }
-  body.modo-viewer .card-topo,
-  body.modo-viewer [onclick*="toggleCard"],
-  body.modo-viewer [onclick*="toggleMob"],
-  body.modo-viewer [onclick*="toggleConsolidado"]{
-    pointer-events:auto;
-  }
-  body.modo-viewer button:not(.dt-entrega-confirma){
-    cursor:default;
-  }
-  /* exceções: toggles de abrir/fechar continuam clicáveis */
-  body.modo-viewer [onclick^="toggleCard"],
-  body.modo-viewer [onclick^="toggleMob"],
-  body.modo-viewer [onclick^="toggleConsolidado"],
-  body.modo-viewer [onclick^="irPara"],
-  body.modo-viewer .btn-sair{
-    pointer-events:auto !important;
-    opacity:1 !important;
-    cursor:pointer !important;
   }
   body.modo-viewer .tag-viewer{
     display:inline-block;
@@ -570,6 +555,7 @@
   $("btn-atualizar").addEventListener("click", carregarSolicitacoes);
 
   async function aprovarTodas() {
+    if (!isAdmin) { alert("Apenas administradores podem aprovar."); return; }
     const aguardando = solicitacoes.filter(s => s.status === "aguardando_master");
     if (aguardando.length === 0) { alert("Nenhuma solicitação aguardando revisão do master."); return; }
     if (!confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)) return;
@@ -724,6 +710,7 @@
   window.toggleCard = toggleCard;
 
   async function salvar(solId) {
+    if (!isAdmin) { alert("Apenas administradores podem salvar."); return; }
     const sol = solicitacoes.find(s => s.id === solId);
     if (!sol) return;
     const scNumero = $("sc-" + solId).value.trim();
@@ -1482,6 +1469,7 @@
   window.lerArquivoMob = lerArquivoMob;
 
   async function salvarMobilizacao() {
+    if (!isAdmin) { alert("Apenas administradores podem salvar."); return; }
     const nome = $("mob-nome").value.trim();
     const numEquipes = Number($("mob-num-equipes").value) || 0;
     if (!nome) { $("mob-msg").innerHTML = '<div class="msg erro">Dê um nome para a mobilização.</div>'; return; }
@@ -1980,6 +1968,7 @@
   window.excluirItemMob = excluirItemMob;
 
   async function salvarTodoEstoque(mobId) {
+    if (!isAdmin) { alert("Apenas administradores podem editar estoque."); return; }
     const inputs = document.querySelectorAll(`.mob-est-input[data-mob="${mobId}"]`);
     if (!inputs.length) return;
     const msgEl = document.getElementById("msg-estoque-" + mobId);
@@ -2011,6 +2000,7 @@
   window.salvarTodoEstoque = salvarTodoEstoque;
 
   async function adicionarScMob(mobId) {
+    if (!isAdmin) { alert("Apenas administradores podem adicionar SC."); return; }
     const input = document.getElementById("novo-sc-mob-" + mobId);
     const sc = input.value.trim();
     if (!sc) return;
@@ -2023,6 +2013,7 @@
   window.adicionarScMob = adicionarScMob;
 
   async function removerScMob(mobId, scId) {
+    if (!isAdmin) { alert("Apenas administradores podem remover SC."); return; }
     await db.from("mobilizacao_scs").delete().eq("id", scId);
     const container = document.getElementById("corpo-mob-" + mobId);
     container.dataset.carregado = "0";
@@ -2251,6 +2242,7 @@
   window.baixarExcelAcomp = baixarExcelAcomp;
 
   async function excluirAcomp(solId, scNumero) {
+    if (!isAdmin) { alert("Apenas administradores podem excluir."); return; }
     const confirmado = prompt(`Para excluir a SC ${scNumero}, digite o número da SC para confirmar:`);
     if (confirmado === null) return;
     if (confirmado.trim() !== String(scNumero).trim()) {
@@ -2392,6 +2384,7 @@
   window.associarEmailLote = associarEmailLote;
 
   async function adicionarGerente(cc) {
+    if (!isAdmin) { alert("Apenas administradores podem gerenciar gerentes."); return; }
     const input = document.getElementById("ng-" + cc);
     const email = (input.value || "").trim().toLowerCase();
     const msgEl = document.getElementById("mg-" + cc);
@@ -2408,6 +2401,7 @@
   window.adicionarGerente = adicionarGerente;
 
   async function removerGerente(id) {
+    if (!isAdmin) { alert("Apenas administradores podem remover gerentes."); return; }
     if (!confirm("Remover este gerente?")) return;
     await db.from("gerentes_cc").delete().eq("id", id);
     carregarGerentes();
@@ -2452,6 +2446,7 @@
   window.consolidarSelecionadas = consolidarSelecionadas;
 
   async function novoConsolidado() {
+    if (!isAdmin) { alert("Apenas administradores podem criar consolidados."); return; }
     const nome = prompt("Nome do consolidado:");
     if (!nome || !nome.trim()) return;
     const { error } = await db.from("consolidados").insert({ nome: nome.trim() });
@@ -2461,6 +2456,7 @@
   window.novoConsolidado = novoConsolidado;
 
   async function excluirConsolidado(id, nome) {
+    if (!isAdmin) { alert("Apenas administradores podem excluir consolidados."); return; }
     if (!confirm("Excluir o consolidado '" + nome + "'?\nAs SCs continuam no Acompanhamento.")) return;
     await db.from("consolidados").delete().eq("id", id);
     await carregarConsolidados();
