@@ -64,6 +64,32 @@
     <input id="senha" type="password"/>
     <div id="login-msg"></div>
     <button class="btn" id="btn-login">Entrar</button>
+    <button onclick="abrirEsqueciSenha()" style="background:none;border:none;color:#1e40af;font-size:12.5px;font-weight:600;width:100%;margin-top:12px;padding:6px;cursor:pointer">Esqueci minha senha</button>
+  </div>
+</div>
+
+<div id="tela-esqueci-senha" class="center" style="display:none">
+  <div class="login-card">
+    <h1 style="font-size:18px;margin:0 0 4px">Esqueci minha senha</h1>
+    <p style="color:#64748b;font-size:13px;margin:0 0 18px">Informe seu e-mail. Um administrador vai aprovar a redefinição.</p>
+    <label>E-mail</label>
+    <input id="email-esqueci" type="email" placeholder="seu@beq.com.br"/>
+    <div id="esqueci-msg"></div>
+    <button class="btn" id="btn-esqueci-enviar">Solicitar redefinição</button>
+    <button onclick="fecharEsqueciSenha()" style="background:none;border:none;color:#64748b;font-size:12.5px;font-weight:600;width:100%;margin-top:12px;padding:6px;cursor:pointer">← Voltar ao login</button>
+  </div>
+</div>
+
+<div id="tela-trocar-senha" class="center" style="display:none">
+  <div class="login-card">
+    <h1 style="font-size:18px;margin:0 0 4px">Defina sua nova senha</h1>
+    <p style="color:#64748b;font-size:13px;margin:0 0 18px">Por segurança, você precisa criar uma senha nova no seu primeiro acesso.</p>
+    <label>Nova senha</label>
+    <input id="nova-senha" type="password" placeholder="Mínimo 6 caracteres"/>
+    <label>Confirmar nova senha</label>
+    <input id="confirma-senha" type="password" placeholder="Repita a senha"/>
+    <div id="troca-senha-msg"></div>
+    <button class="btn" id="btn-trocar-senha">Salvar nova senha</button>
   </div>
 </div>
 
@@ -76,11 +102,32 @@
     <button class="btn-sair" id="btn-sair">Sair</button>
   </div>
   <div class="corpo">
-    <div class="topo">
-      <div style="font-size:13px;color:#64748b" id="subtitulo">Carregando...</div>
-      <button class="btn-atualizar" onclick="carregarSolicitacoes()">↻ Atualizar</button>
+    <div style="display:flex;gap:4px;background:#f1f5f9;border-radius:8px;padding:3px;margin-bottom:16px;width:fit-content">
+      <button id="tab-btn-avaliar" onclick="irParaTab('avaliar')"
+        style="border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;background:#fff;color:#0f172a;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+        Avaliar Solicitações
+      </button>
+      <button id="tab-btn-acompanhar" onclick="irParaTab('acompanhar')"
+        style="border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:500;background:transparent;color:#64748b;cursor:pointer">
+        Acompanhar SCs
+      </button>
     </div>
-    <div id="lista"></div>
+
+    <div id="tab-avaliar">
+      <div class="topo">
+        <div style="font-size:13px;color:#64748b" id="subtitulo">Carregando...</div>
+        <button class="btn-atualizar" onclick="carregarSolicitacoes()">↻ Atualizar</button>
+      </div>
+      <div id="lista"></div>
+    </div>
+
+    <div id="tab-acompanhar" style="display:none">
+      <div class="topo">
+        <div style="font-size:13px;color:#64748b" id="subtitulo-acomp">Carregando...</div>
+        <button class="btn-atualizar" onclick="carregarAcompanhamentoGerente()">↻ Atualizar</button>
+      </div>
+      <div id="lista-acomp-gerente"></div>
+    </div>
   </div>
 </div>
 
@@ -126,7 +173,64 @@ $("btn-login").addEventListener("click", async () => {
 $("senha").addEventListener("keydown", e => { if (e.key === "Enter") $("btn-login").click(); });
 $("btn-sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
 
+function abrirEsqueciSenha() {
+  $("tela-login").style.display = "none";
+  $("tela-esqueci-senha").style.display = "grid";
+  $("email-esqueci").value = $("email").value || "";
+  $("esqueci-msg").innerHTML = "";
+}
+window.abrirEsqueciSenha = abrirEsqueciSenha;
+
+function fecharEsqueciSenha() {
+  $("tela-esqueci-senha").style.display = "none";
+  $("tela-login").style.display = "grid";
+}
+window.fecharEsqueciSenha = fecharEsqueciSenha;
+
+$("btn-esqueci-enviar").addEventListener("click", async () => {
+  const email = ($("email-esqueci").value || "").trim().toLowerCase();
+  const msgEl = $("esqueci-msg");
+  if (!email) { msgEl.innerHTML = '<div class="msg erro">Informe o e-mail.</div>'; return; }
+  $("btn-esqueci-enviar").disabled = true;
+  $("btn-esqueci-enviar").textContent = "Enviando...";
+  const { error } = await db.from("pedidos_redefinicao").insert({ email, status: "pendente" });
+  $("btn-esqueci-enviar").disabled = false;
+  $("btn-esqueci-enviar").textContent = "Solicitar redefinição";
+  if (error) { msgEl.innerHTML = '<div class="msg erro">Erro: ' + error.message + '</div>'; return; }
+  msgEl.innerHTML = '<div class="msg ok">✓ Pedido enviado! Aguarde o administrador aprovar e te informar a senha temporária.</div>';
+});
+
+$("btn-trocar-senha").addEventListener("click", async () => {
+  const novaSenha = $("nova-senha").value;
+  const confirma = $("confirma-senha").value;
+  const msgEl = $("troca-senha-msg");
+  msgEl.innerHTML = "";
+  if (!novaSenha || novaSenha.length < 6) {
+    msgEl.innerHTML = '<div class="msg erro">A senha precisa ter pelo menos 6 caracteres.</div>'; return;
+  }
+  if (novaSenha !== confirma) {
+    msgEl.innerHTML = '<div class="msg erro">As senhas não coincidem.</div>'; return;
+  }
+  $("btn-trocar-senha").disabled = true;
+  $("btn-trocar-senha").textContent = "Salvando...";
+  const { data: { user }, error } = await db.auth.updateUser({ password: novaSenha, data: { senha_trocada: true } });
+  $("btn-trocar-senha").disabled = false;
+  $("btn-trocar-senha").textContent = "Salvar nova senha";
+  if (error) { msgEl.innerHTML = '<div class="msg erro">' + error.message + '</div>'; return; }
+  msgEl.innerHTML = '<div class="msg ok">✓ Senha alterada! Entrando...</div>';
+  setTimeout(() => mostrarApp(user.email), 800);
+});
+
 async function mostrarApp(email) {
+  const { data: { user } } = await db.auth.getUser();
+  const senhaTrocada = user?.user_metadata?.senha_trocada === true;
+  if (!senhaTrocada) {
+    $("tela-login").style.display = "none";
+    $("tela-esqueci-senha").style.display = "none";
+    $("tela-trocar-senha").style.display = "grid";
+    return;
+  }
+  $("tela-trocar-senha").style.display = "none";
   userEmail = email.toLowerCase().trim();
   const { data: gc, error: gcErr } = await db.from("gerentes_cc").select("cc").eq("email", userEmail);
   if (gcErr) { $("tela-login").innerHTML = '<div class="vazio">Erro: ' + gcErr.message + '</div>'; return; }
@@ -414,6 +518,153 @@ async function salvar(solId) {
   }
 }
 window.salvar = salvar;
+
+// ---------- ABAS ----------
+function irParaTab(tab) {
+  $("tab-avaliar").style.display = tab === "avaliar" ? "block" : "none";
+  $("tab-acompanhar").style.display = tab === "acompanhar" ? "block" : "none";
+  $("tab-btn-avaliar").style.background = tab === "avaliar" ? "#fff" : "transparent";
+  $("tab-btn-avaliar").style.color = tab === "avaliar" ? "#0f172a" : "#64748b";
+  $("tab-btn-avaliar").style.fontWeight = tab === "avaliar" ? "600" : "500";
+  $("tab-btn-avaliar").style.boxShadow = tab === "avaliar" ? "0 1px 3px rgba(0,0,0,.08)" : "none";
+  $("tab-btn-acompanhar").style.background = tab === "acompanhar" ? "#fff" : "transparent";
+  $("tab-btn-acompanhar").style.color = tab === "acompanhar" ? "#0f172a" : "#64748b";
+  $("tab-btn-acompanhar").style.fontWeight = tab === "acompanhar" ? "600" : "500";
+  $("tab-btn-acompanhar").style.boxShadow = tab === "acompanhar" ? "0 1px 3px rgba(0,0,0,.08)" : "none";
+  if (tab === "acompanhar" && !window._acompGerenteCarregado) {
+    window._acompGerenteCarregado = true;
+    carregarAcompanhamentoGerente();
+  }
+}
+window.irParaTab = irParaTab;
+
+// ---------- ACOMPANHAMENTO DO GERENTE (SCs já aprovadas, com pedido em aberto) ----------
+function fmtBRLGer(v) {
+  return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+async function carregarAcompanhamentoGerente() {
+  if (meusCC.length === 0) return;
+  $("lista-acomp-gerente").innerHTML = '<div class="vazio">Carregando...</div>';
+
+  // Buscar solicitações com SC associada, nos CCs do gerente
+  const { data: sols } = await db.from("solicitacoes")
+    .select("*")
+    .in("cc", meusCC)
+    .not("sc_numero", "is", null);
+
+  const associadas = (sols || []).filter(s => s.sc_numero && s.sc_numero.trim());
+  if (!associadas.length) {
+    $("subtitulo-acomp").textContent = "Nenhuma SC associada nos seus CCs ainda.";
+    $("lista-acomp-gerente").innerHTML = '<div class="vazio">Nenhuma SC para acompanhar.</div>';
+    return;
+  }
+
+  // Buscar sc_pedidos por filial+SC
+  const porSc = {};
+  const scsComFilial = associadas.filter(s => s.filial && s.sc_numero);
+  const scsSemFilial = associadas.filter(s => !s.filial && s.sc_numero);
+  let scPedidos = [];
+
+  if (scsComFilial.length > 0) {
+    const porFilial = {};
+    scsComFilial.forEach(s => { (porFilial[s.filial] = porFilial[s.filial] || []).push(s.sc_numero.trim()); });
+    for (const [filial, scs] of Object.entries(porFilial)) {
+      for (let i = 0; i < scs.length; i += 100) {
+        const lote = scs.slice(i, i + 100);
+        let off = 0;
+        while (true) {
+          const { data: rows } = await db.from("sc_pedidos").select("*").eq("c1_filial", filial).in("c1_num", lote).range(off, off + 999);
+          if (!rows || !rows.length) break;
+          scPedidos = scPedidos.concat(rows);
+          if (rows.length < 1000) break;
+          off += 1000;
+        }
+      }
+    }
+  }
+  if (scsSemFilial.length > 0) {
+    const scsNums = [...new Set(scsSemFilial.map(s => s.sc_numero.trim()))];
+    for (let i = 0; i < scsNums.length; i += 100) {
+      const lote = scsNums.slice(i, i + 100);
+      let off = 0;
+      while (true) {
+        const { data: rows } = await db.from("sc_pedidos").select("*").in("c1_num", lote).range(off, off + 999);
+        if (!rows || !rows.length) break;
+        scPedidos = scPedidos.concat(rows);
+        if (rows.length < 1000) break;
+        off += 1000;
+      }
+    }
+  }
+
+  scPedidos.forEach(r => {
+    const filial = (r.c1_filial || "").trim();
+    const sc = (r.c1_num || "").trim();
+    const chave = filial ? filial + "|" + sc : sc;
+    (porSc[chave] = porSc[chave] || []).push(r);
+  });
+
+  function getItens(sol) {
+    const sc = sol.sc_numero.trim();
+    if (sol.filial) {
+      const itens = porSc[sol.filial + "|" + sc];
+      if (itens && itens.length) return itens;
+    }
+    return porSc[sc] || [];
+  }
+
+  function isRecebido(st) {
+    if (!st) return false;
+    const s = st.toLowerCase();
+    return s === "recebido" || s === "recebido parcialmente" || s.includes("pré-nota") || s.includes("pre-nota");
+  }
+
+  $("subtitulo-acomp").textContent = associadas.length + " SC(s) associada(s) aos seus centros de custo";
+
+  const html = associadas.map(sol => {
+    const itens = getItens(sol);
+    const total = itens.length;
+    const recebidos = itens.filter(it => isRecebido(it.pc_status)).length;
+    const pct = total > 0 ? Math.round(recebidos / total * 100) : 0;
+    const valorTotal = itens.reduce((s, it) => s + (Number(it.pc_total) || 0), 0);
+    const cor = pct === 100 ? "#16a34a" : pct > 50 ? "#1e40af" : pct > 0 ? "#d97706" : "#94a3b8";
+    const nomeBase = (ccMap[sol.cc] || {}).nome || sol.cc;
+
+    return `<div class="card">
+      <div class="card-topo" onclick="toggleAcompGer(${sol.id})">
+        <div>
+          <div class="card-titulo" style="font-family:ui-monospace,monospace">
+            SC ${sol.sc_numero}
+            <span style="background:${cor}1a;color:${cor};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;margin-left:8px">${pct}% recebido</span>
+          </div>
+          <div class="card-sub">${nomeBase} · ${sol.cc} · ${total} item(ns)${valorTotal > 0 ? " · " + fmtBRLGer(valorTotal) : ""}</div>
+        </div>
+        <div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
+      </div>
+      <div class="card-corpo" id="corpo-acomp-ger-${sol.id}">
+        <table>
+          <tr><th>Item</th><th>Pedido</th><th style="text-align:right">Qtd</th><th>Status</th></tr>
+          ${itens.length === 0
+            ? '<tr><td colspan="4" style="color:#94a3b8;font-style:italic">Nenhum item encontrado.</td></tr>'
+            : itens.map(it => `<tr>
+                <td>${it.c1_descri || it.c1_produto || ""}</td>
+                <td style="font-family:ui-monospace,monospace">${it.pc_numero || "sem pedido"}</td>
+                <td style="text-align:right">${it.c1_quant || 0}</td>
+                <td style="font-weight:600;color:${isRecebido(it.pc_status) ? '#16a34a' : '#d97706'}">${it.pc_status || "Sem pedido"}</td>
+              </tr>`).join("")
+          }
+        </table>
+      </div>
+    </div>`;
+  }).join("");
+
+  $("lista-acomp-gerente").innerHTML = html;
+}
+window.carregarAcompanhamentoGerente = carregarAcompanhamentoGerente;
+
+function toggleAcompGer(id) { $("corpo-acomp-ger-" + id).classList.toggle("aberto"); }
+window.toggleAcompGer = toggleAcompGer;
 
 verificarSessao();
 </script>
