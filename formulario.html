@@ -547,10 +547,7 @@ function renderTabelaItens() {
 
   tbody.innerHTML = visiveis.map(it => {
     // Usar valor já editado ou sugerir consumo × período
-    const qtdExistente = Number(document.getElementById("qtd-" + it.codigo)?.value) || 0;
-    const qtdSugerida = it.media > 0 ? it.media * periodoMeses : 0;
-    const qtdAtual = qtdMap[it.codigo] ? qtdMap[it.codigo].qtd : (qtdExistente || qtdSugerida);
-    // Não auto-preencher — almoxarife digita a quantidade manualmente
+    const qtdAtual = qtdMap[it.codigo] ? qtdMap[it.codigo].qtd : 0;
     return `<tr id="row-${it.codigo}">
       <td>
         <div style="font-size:13px;font-weight:500">${it.descricao}</div>
