@@ -99,6 +99,58 @@
   table.tbl-mob th:nth-child(2){width:80px;text-align:right}
   table.tbl-mob th:nth-child(3){width:70px;text-align:right}
   .chips-wrap{display:flex;flex-wrap:wrap;gap:2px}
+
+  /* ---- MODO VIEWER: só permite editar datas de entrega ---- */
+  body.modo-viewer .btn-novo,
+  body.modo-viewer .btn-salvar,
+  body.modo-viewer .btn-dec,
+  body.modo-viewer .mob-est-input,
+  body.modo-viewer button.aba[id*="settings"],
+  body.modo-viewer .somente-admin{
+    display:none !important;
+  }
+  body.modo-viewer input:not(.dt-entrega-manual),
+  body.modo-viewer select,
+  body.modo-viewer textarea{
+    pointer-events:none;
+    opacity:0.6;
+    background:#f8fafc;
+  }
+  body.modo-viewer .dt-entrega-manual{
+    pointer-events:auto;
+    opacity:1;
+    background:#fff;
+  }
+  body.modo-viewer .card-topo,
+  body.modo-viewer [onclick*="toggleCard"],
+  body.modo-viewer [onclick*="toggleMob"],
+  body.modo-viewer [onclick*="toggleConsolidado"]{
+    pointer-events:auto;
+  }
+  body.modo-viewer button:not(.dt-entrega-confirma){
+    cursor:default;
+  }
+  /* exceções: toggles de abrir/fechar continuam clicáveis */
+  body.modo-viewer [onclick^="toggleCard"],
+  body.modo-viewer [onclick^="toggleMob"],
+  body.modo-viewer [onclick^="toggleConsolidado"],
+  body.modo-viewer [onclick^="irPara"],
+  body.modo-viewer .btn-sair{
+    pointer-events:auto !important;
+    opacity:1 !important;
+    cursor:pointer !important;
+  }
+  body.modo-viewer .tag-viewer{
+    display:inline-block;
+    background:#fef3c7;
+    color:#92400e;
+    font-size:10.5px;
+    font-weight:700;
+    border-radius:4px;
+    padding:2px 7px;
+    margin-left:8px;
+  }
+  .tag-viewer{display:none}
 </style>
 </head>
 <body>
@@ -138,6 +190,7 @@
     </button>
     <div class="rodape">
       <div class="email" id="user-email"></div>
+      <div id="badge-perfil" style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;margin:4px 8px;display:none"></div>
       <button class="btn-sair" id="btn-sair">Sair</button>
     </div>
   </nav>
@@ -367,6 +420,26 @@
   let consumoMap = {}; // "cc|codigo" -> consumo 3 meses
   let pessoasMap = {}; // "cc" -> [{cargo, quantidade}]
   const abaCarregada = { acompanhamento: false, mobilizacao: false, consolidados: false };
+  let userRole = "viewer"; // 'admin' ou 'viewer' — definido após login
+  let isAdmin = false;
+
+  async function verificarPerfil(email) {
+    const { data } = await db.from("perfis_usuario").select("role").eq("email", email.toLowerCase().trim()).maybeSingle();
+    userRole = data?.role || "viewer";
+    isAdmin = userRole === "admin";
+    document.body.classList.toggle("modo-viewer", !isAdmin);
+    const badge = document.getElementById("badge-perfil");
+    if (badge) {
+      if (isAdmin) {
+        badge.style.display = "none";
+      } else {
+        badge.style.display = "inline-block";
+        badge.textContent = "👁 Somente visualização";
+        badge.style.background = "#fef3c7";
+        badge.style.color = "#92400e";
+      }
+    }
+  }
   let _consolidadoScMap = {}; // consolidado_id -> Set de solicitacao_id
 
   // formatação global de moeda — usada em acompanhamento e consolidados
@@ -395,10 +468,11 @@
   $("senha").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-login").click(); });
   $("btn-sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
 
-  function mostrarApp(email) {
+  async function mostrarApp(email) {
     $("tela-login").style.display = "none";
     $("app").style.display = "flex";
     $("user-email").textContent = email;
+    await verificarPerfil(email);
     carregarSolicitacoes();
   }
 
@@ -1492,10 +1566,11 @@
     (itens || []).forEach(it => {
       const chave = (it.codigo && it.codigo.trim()) ? "cod:" + it.codigo.trim() : "desc:" + (it.descricao || "").trim();
       if (!grupos[chave]) {
-        grupos[chave] = { descricao: it.descricao, codigo: it.codigo, total_mob: 0, ids: [] };
+        grupos[chave] = { descricao: it.descricao, codigo: it.codigo, total_mob: 0, ids: [], dt_entrega_manual: it.dt_entrega_manual || null };
       }
       grupos[chave].total_mob += Number(it.total_mob) || 0;
       grupos[chave].ids.push(it.id);
+      if (it.dt_entrega_manual) grupos[chave].dt_entrega_manual = it.dt_entrega_manual;
     });
     const itensConsolidados = Object.values(grupos);
 
@@ -1761,8 +1836,9 @@
           <th style="text-align:right;width:75px">Total mob.</th>
           <th style="text-align:right;width:85px">Estoque</th>
           <th style="width:175px">Pedidos</th>
-          <th style="width:90px">Entrega</th>
+          <th style="width:110px">Entrega</th>
           <th>Equipes atendidas</th>
+          <th style="width:36px"></th>
         </tr>
         ${itensConsolidados.flatMap((it, idx) => {
           const codTrim = (it.codigo || "").trim();
@@ -1815,8 +1891,21 @@
                 : '<span style="color:#cbd5e1">—</span>'}
             </td>
             <td ${toggle}>${pedResume}</td>
-            <td ${toggle} style="font-family:ui-monospace,monospace;font-size:11.5px;color:#475569;white-space:nowrap">${dtEntregaMaisRecente || '<span style="color:#cbd5e1">—</span>'}</td>
+            <td onclick="event.stopPropagation()">
+              <input type="text" placeholder="DD/MM/AAAA"
+                class="dt-entrega-manual"
+                value="${it.dt_entrega_manual || dtEntregaMaisRecente || ''}"
+                data-ids="${it.ids.join(',')}"
+                data-sistema="${dtEntregaMaisRecente || ''}"
+                style="width:96px;text-align:center;padding:3px 6px;font-size:11.5px;border:1px solid #e2e8f0;border-radius:5px;font-family:ui-monospace,monospace"
+                onblur="salvarDtEntregaManual(this)"/>
+            </td>
             <td ${toggle}><div class="chips-wrap">${chips}</div></td>
+            <td onclick="event.stopPropagation()" class="somente-admin">
+              <button onclick="excluirItemMob(${mobId},'${it.ids.join(',')}','${(it.descricao||'').replace(/'/g,"\\'")}')"
+                style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:15px;padding:2px"
+                onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
+            </td>
           </tr>`;
           const detailRow = linhasPC.length > 0 ? `<tr id="${detId}" style="display:none;background:#f8fafc">
             <td colspan="5" style="padding:6px 14px 10px">
@@ -1859,6 +1948,36 @@
       </div>
     `;
   }
+
+  async function salvarDtEntregaManual(input) {
+    const ids = input.dataset.ids.split(",").map(Number).filter(Boolean);
+    const valor = input.value.trim();
+    if (!ids.length) return;
+    input.style.borderColor = "#0d9488";
+    try {
+      await db.from("mobilizacao_itens").update({ dt_entrega_manual: valor || null }).in("id", ids);
+      input.style.background = "#f0fdf4";
+      setTimeout(() => { input.style.background = "#fff"; input.style.borderColor = "#e2e8f0"; }, 1200);
+    } catch (e) {
+      input.style.borderColor = "#ef4444";
+    }
+  }
+  window.salvarDtEntregaManual = salvarDtEntregaManual;
+
+  async function excluirItemMob(mobId, idsStr, descricao) {
+    if (!isAdmin) { alert("Apenas administradores podem excluir itens."); return; }
+    const nomeConfirma = prompt(`Para excluir "${descricao}" da mobilização, digite seu nome para confirmar:`);
+    if (nomeConfirma === null) return;
+    if (!nomeConfirma.trim()) { alert("Nome obrigatório para confirmar exclusão."); return; }
+    const ids = idsStr.split(",").map(Number).filter(Boolean);
+    if (!ids.length) return;
+    await db.from("mobilizacao_itens").delete().in("id", ids);
+    const container = document.getElementById("corpo-mob-" + mobId);
+    container.dataset.carregado = "0";
+    await renderDetalheMob(mobId, container);
+    container.classList.add("aberto");
+  }
+  window.excluirItemMob = excluirItemMob;
 
   async function salvarTodoEstoque(mobId) {
     const inputs = document.querySelectorAll(`.mob-est-input[data-mob="${mobId}"]`);
