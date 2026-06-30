@@ -150,6 +150,19 @@
     <input id="senha" type="password"/>
     <div id="login-msg"></div>
     <button class="btn" id="btn-login">Entrar</button>
+    <button onclick="abrirEsqueciSenha()" style="background:none;border:none;color:#1e40af;font-size:12.5px;font-weight:600;width:100%;margin-top:12px;padding:6px">Esqueci minha senha</button>
+  </div>
+</div>
+
+<div id="tela-esqueci-senha" class="center" style="display:none">
+  <div class="login-card">
+    <h1>Esqueci minha senha</h1>
+    <p>Informe seu e-mail. Um administrador vai aprovar a redefinição.</p>
+    <label>E-mail</label>
+    <input id="email-esqueci" type="email" placeholder="seu@beq.com.br"/>
+    <div id="esqueci-msg"></div>
+    <button class="btn" id="btn-esqueci-enviar">Solicitar redefinição</button>
+    <button onclick="fecharEsqueciSenha()" style="background:none;border:none;color:#64748b;font-size:12.5px;font-weight:600;width:100%;margin-top:12px;padding:6px">← Voltar ao login</button>
   </div>
 </div>
 
@@ -320,6 +333,10 @@
             style="border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:500;background:transparent;color:#64748b;cursor:pointer">
             Gerentes
           </button>
+          <button id="sub-btn-senhas" onclick="irSubSettings('senhas')"
+            style="border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:500;background:transparent;color:#64748b;cursor:pointer">
+            Redefinir Senhas
+          </button>
         </div>
       </div>
       <div class="corpo-aba">
@@ -394,6 +411,14 @@
             <div id="msg-lote" style="margin-top:8px;font-size:12.5px"></div>
           </div>
           <div id="lista-gerentes"><div class="vazio">Carregando...</div></div>
+        </div>
+
+        <!-- SUB: SENHAS -->
+        <div id="sub-senhas" style="display:none">
+          <p style="color:#64748b;font-size:13px;max-width:700px;margin-top:0;margin-bottom:14px">
+            Pedidos de redefinição de senha enviados pelos gerentes. Aprove e defina uma senha temporária — ela vale por 10 minutos.
+          </p>
+          <div id="lista-pedidos-senha"><div class="vazio">Carregando...</div></div>
         </div>
 
       </div>
@@ -542,10 +567,18 @@
   function irSubSettings(sub) {
     $("sub-bases").style.display = sub === "bases" ? "block" : "none";
     $("sub-gerentes").style.display = sub === "gerentes" ? "block" : "none";
-    const btnB = $("sub-btn-bases"); const btnG = $("sub-btn-gerentes");
-    if (btnB) { btnB.style.background = sub==="bases"?"#fff":"transparent"; btnB.style.color = sub==="bases"?"#0f172a":"#64748b"; btnB.style.fontWeight = sub==="bases"?"600":"500"; btnB.style.boxShadow = sub==="bases"?"0 1px 3px rgba(0,0,0,.08)":"none"; }
-    if (btnG) { btnG.style.background = sub==="gerentes"?"#fff":"transparent"; btnG.style.color = sub==="gerentes"?"#0f172a":"#64748b"; btnG.style.fontWeight = sub==="gerentes"?"600":"500"; btnG.style.boxShadow = sub==="gerentes"?"0 1px 3px rgba(0,0,0,.08)":"none"; }
+    $("sub-senhas").style.display = sub === "senhas" ? "block" : "none";
+    const btnB = $("sub-btn-bases"); const btnG = $("sub-btn-gerentes"); const btnS = $("sub-btn-senhas");
+    [["bases",btnB],["gerentes",btnG],["senhas",btnS]].forEach(([k,btn]) => {
+      if (!btn) return;
+      const ativo = sub === k;
+      btn.style.background = ativo ? "#fff" : "transparent";
+      btn.style.color = ativo ? "#0f172a" : "#64748b";
+      btn.style.fontWeight = ativo ? "600" : "500";
+      btn.style.boxShadow = ativo ? "0 1px 3px rgba(0,0,0,.08)" : "none";
+    });
     if (sub === "gerentes") carregarGerentes();
+    if (sub === "senhas") carregarPedidosSenha();
   }
   window.irSubSettings = irSubSettings;
 
@@ -2347,6 +2380,72 @@
 
   // ---------- ABA GERENTES ----------
   let todosCC = [];
+
+  // ---------- REDEFINIÇÃO DE SENHA ----------
+  function fmtDataHoraSenha(iso) {
+    return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" });
+  }
+
+  async function carregarPedidosSenha() {
+    const el = $("lista-pedidos-senha");
+    el.innerHTML = '<div class="vazio">Carregando...</div>';
+    const { data, error } = await db.from("pedidos_redefinicao").select("*").order("solicitado_em", { ascending: false }).limit(100);
+    if (error) { el.innerHTML = '<div class="vazio">Erro: ' + error.message + '</div>'; return; }
+    if (!data || !data.length) {
+      el.innerHTML = '<div class="vazio">Nenhum pedido de redefinição ainda.</div>';
+      return;
+    }
+    el.innerHTML = data.map(p => {
+      const agora = new Date();
+      const expirado = p.expira_em && new Date(p.expira_em) < agora;
+      let statusLabel = p.status;
+      let statusCor = "#64748b";
+      if (p.status === "pendente") { statusLabel = "Pendente"; statusCor = "#d97706"; }
+      else if (p.status === "aprovado" && !expirado) { statusLabel = "Aprovado (ativo)"; statusCor = "#16a34a"; }
+      else if (p.status === "aprovado" && expirado) { statusLabel = "Expirado"; statusCor = "#ef4444"; }
+      else if (p.status === "usado") { statusLabel = "Já utilizado"; statusCor = "#64748b"; }
+
+      return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:8px;max-width:700px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:600;font-size:13.5px;color:#0f172a">${p.email}</div>
+            <div style="font-size:11.5px;color:#94a3b8;margin-top:2px">Solicitado em ${fmtDataHoraSenha(p.solicitado_em)}</div>
+          </div>
+          <span style="background:${statusCor}1a;color:${statusCor};border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700">${statusLabel}</span>
+        </div>
+        ${p.status === "pendente" ? `
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="senha-temp-${p.id}" placeholder="Senha temporária (mín. 6 caract.)" style="flex:1;min-width:200px;margin:0;padding:8px 10px;font-size:13px"/>
+            <button onclick="aprovarPedidoSenha(${p.id},'${p.email}')" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">✓ Aprovar</button>
+          </div>` : ""}
+        ${p.status === "aprovado" && !expirado ? `
+          <div style="margin-top:8px;font-size:12.5px;color:#475569">
+            Senha temporária: <code style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-weight:700">${p.senha_temporaria}</code>
+            · expira às ${fmtDataHoraSenha(p.expira_em)}
+          </div>` : ""}
+      </div>`;
+    }).join("");
+  }
+  window.carregarPedidosSenha = carregarPedidosSenha;
+
+  async function aprovarPedidoSenha(id, email) {
+    const senha = ($("senha-temp-" + id)?.value || "").trim();
+    if (!senha || senha.length < 6) { alert("Digite uma senha temporária com pelo menos 6 caracteres."); return; }
+    const agora = new Date();
+    const expira = new Date(agora.getTime() + 10 * 60000); // +10 minutos
+
+    const { error } = await db.from("pedidos_redefinicao").update({
+      status: "aprovado",
+      senha_temporaria: senha,
+      aprovado_em: agora.toISOString(),
+      expira_em: expira.toISOString(),
+    }).eq("id", id);
+
+    if (error) { alert("Erro: " + error.message); return; }
+    alert(`Senha temporária definida para ${email}. Válida até ${fmtDataHoraSenha(expira.toISOString())}.\n\nPasse essa senha para o usuário: ${senha}`);
+    await carregarPedidosSenha();
+  }
+  window.aprovarPedidoSenha = aprovarPedidoSenha;
 
   async function carregarGerentes() {
     const el = $("lista-gerentes");
