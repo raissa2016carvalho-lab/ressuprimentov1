@@ -55,6 +55,15 @@
   .curva-B{background:#dbeafe;color:#1e40af}
   .curva-C{background:#f1f5f9;color:#64748b}
 
+  /* Loading bar */
+  .loading-bar-wrap{margin:12px 0;padding:12px 0}
+  .loading-bar-track{width:100%;height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden}
+  .loading-bar-fill{width:30%;height:100%;background:linear-gradient(90deg,#0d9488,#5eead4,#0d9488);background-size:200% 100%;border-radius:999px;animation:loadingSlide 1.2s ease-in-out infinite}
+  @keyframes loadingSlide{
+    0%{transform:translateX(-100%)}
+    100%{transform:translateX(400%)}
+  }
+
   /* Busca item pontual */
   .busca-wrap{position:relative}
   .sugestoes{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;z-index:50;max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.08)}
@@ -184,7 +193,10 @@
         <span style="background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 6px;font-weight:700;font-size:11px;margin-left:8px">B</span> 20–50%  
         <span style="background:#f1f5f9;color:#64748b;border-radius:3px;padding:1px 6px;font-weight:700;font-size:11px;margin-left:8px">C</span> Demais
       </div>
-      <div id="loading-itens" style="color:#64748b;font-size:13px;padding:12px 0">Carregando itens...</div>
+      <div id="loading-itens" class="loading-bar-wrap">
+        <div style="color:#64748b;font-size:13px;margin-bottom:8px">Carregando itens e calculando curva de consumo...</div>
+        <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
+      </div>
       <table class="tabela-itens" id="tabela-itens" style="display:none">
         <thead>
           <tr>
