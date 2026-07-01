@@ -150,7 +150,7 @@
     <input id="senha" type="password"/>
     <div id="login-msg"></div>
     <button class="btn" id="btn-login">Entrar</button>
-    <button onclick="abrirEsqueciSenha()" style="background:none;border:none;color:#1e40af;font-size:12.5px;font-weight:600;width:100%;margin-top:12px;padding:6px">Esqueci minha senha</button>
+
   </div>
 </div>
 
@@ -871,7 +871,7 @@
                   <input type="number" min="0" value="${qtdGerente}"
                     style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
                     oninput="masterQtd[${it.id}]=Number(this.value)||0"/>
-                  ${isAdmin ? '<button onclick="removerItemSol(' + s.id + ',' + it.id + ')" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;padding:2px;margin-left:4px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>' : ''}
+                  ${isAdmin ? `<button onclick="removerItemSol(${s.id},${it.id})" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;padding:2px;margin-left:4px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>` : ''}
                 </td>
               </tr>`;
             }).join("")}
