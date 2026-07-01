@@ -695,7 +695,7 @@
     const ccsSols = [...new Set(solicitacoes.map(s => s.cc).filter(Boolean))];
 
     // Buscar pedidos anteriores em aberto por CC (para alertar na tabela de itens)
-    let pedidosAnterioresMap = {}; // "cc|produto" -> [{pc_numero, pc_status, c1_num}]
+    pedidosAnterioresMap = {}; // resetar
     if (ccsSols.length > 0) {
       for (let i = 0; i < ccsSols.length; i += 50) {
         const lote = ccsSols.slice(i, i + 50);
