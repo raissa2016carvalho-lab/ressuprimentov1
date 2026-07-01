@@ -716,7 +716,7 @@ async function enviarSolicitacao() {
   // Criar uma solicitação por CC
   for (const cc of ccsSelecionados) {
     const itensCC = itensSelecionados.map(it => {
-      const qtdProporcional = Math.max(1, Math.round(it.qtd * cc.proporcao));
+      const qtdProporcional = Math.max(1, Math.round(it.qtd * periodoMeses * cc.proporcao));
       const media = consumoMap[it.codigo]?.media || 0;
       const qtdSugerida = Math.max(1, Math.round(media * periodoMeses * cc.proporcao));
       return {
