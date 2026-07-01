@@ -701,18 +701,25 @@
         const lote = ccsSols.slice(i, i + 50);
         // Calcula data 6 meses atrás no formato YYYYMMDD
         const dt6m = (() => { const d = new Date(); d.setMonth(d.getMonth()-6); return d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0"); })();
-        const { data: rows } = await db.from("sc_pedidos")
-          .select("c1_cc,c1_produto,c1_num,pc_numero,pc_status")
-          .in("c1_cc", lote)
-          .gte("c1_emissao", dt6m);
-        (rows || []).forEach(r => {
-          const st = (r.pc_status||"").toLowerCase();
-          const recebido = st === "recebido" || st.includes("pré-nota") || st.includes("pre-nota");
-          if (recebido) return; // ignora já recebidos
-          const k = (r.c1_cc||"").trim() + "|" + (r.c1_produto||"").trim();
-          if (!pedidosAnterioresMap[k]) pedidosAnterioresMap[k] = [];
-          pedidosAnterioresMap[k].push(r);
-        });
+        let offPed = 0;
+        while (true) {
+          const { data: rows } = await db.from("sc_pedidos")
+            .select("c1_cc,c1_produto,c1_num,pc_numero,pc_status")
+            .in("c1_cc", lote)
+            .gte("c1_emissao", dt6m)
+            .range(offPed, offPed + 999);
+          if (!rows || !rows.length) break;
+          rows.forEach(r => {
+            const st = (r.pc_status||"").toLowerCase();
+            const recebido = st === "recebido" || st.includes("pré-nota") || st.includes("pre-nota");
+            if (recebido) return;
+            const k = (r.c1_cc||"").trim() + "|" + (r.c1_produto||"").trim();
+            if (!pedidosAnterioresMap[k]) pedidosAnterioresMap[k] = [];
+            pedidosAnterioresMap[k].push(r);
+          });
+          if (rows.length < 1000) break;
+          offPed += 1000;
+        }
       }
     }
 
