@@ -725,7 +725,17 @@
 
     if (ccsSols.length > 0) {
       const [{ data: consumoData }, { data: pessoasData }] = await Promise.all([
-        db.from("consumo_mensal").select("cc,produto,quantidade").in("cc", ccsSols),
+        (async () => {
+          let rows = [], off = 0;
+          while (true) {
+            const { data: lote } = await db.from("consumo_mensal").select("cc,produto,quantidade").in("cc", ccsSols).range(off, off + 999);
+            if (!lote || !lote.length) break;
+            rows = rows.concat(lote);
+            if (lote.length < 1000) break;
+            off += 1000;
+          }
+          return { data: rows };
+        })(),
         db.from("cc_pessoas").select("cc,cargo,quantidade").in("cc", ccsSols),
       ]);
       // Agregar consumo_mensal por CC+produto e calcular média ÷ 6
