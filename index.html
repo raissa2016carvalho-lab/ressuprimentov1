@@ -511,6 +511,7 @@
   let ccMap = {};
   let consumoMap = {}; // "cc|codigo" -> consumo 3 meses
   let pessoasMap = {}; // "cc" -> [{cargo, quantidade}]
+  let pedidosAnterioresMap = {}; // "cc|produto" -> [{pc_numero, pc_status, c1_num}]
   const abaCarregada = { acompanhamento: false, mobilizacao: false, consolidados: false };
   let userRole = "viewer"; // 'admin' ou 'viewer' — definido após login
   let isAdmin = false;
@@ -692,6 +693,24 @@
 
     // carrega consumo 3m e pessoas por cargo para os CCs visíveis
     const ccsSols = [...new Set(solicitacoes.map(s => s.cc).filter(Boolean))];
+
+    // Buscar pedidos anteriores em aberto por CC (para alertar na tabela de itens)
+    let pedidosAnterioresMap = {}; // "cc|produto" -> [{pc_numero, pc_status, c1_num}]
+    if (ccsSols.length > 0) {
+      for (let i = 0; i < ccsSols.length; i += 50) {
+        const lote = ccsSols.slice(i, i + 50);
+        const { data: rows } = await db.from("sc_pedidos")
+          .select("c1_cc,c1_produto,c1_num,pc_numero,pc_status")
+          .in("c1_cc", lote)
+          .not("pc_numero", "is", null);
+        (rows || []).forEach(r => {
+          const k = (r.c1_cc||"").trim() + "|" + (r.c1_produto||"").trim();
+          if (!pedidosAnterioresMap[k]) pedidosAnterioresMap[k] = [];
+          pedidosAnterioresMap[k].push(r);
+        });
+      }
+    }
+
     if (ccsSols.length > 0) {
       const [{ data: consumoData }, { data: pessoasData }] = await Promise.all([
         db.from("consumo").select("cc,codigo,consumo_medio").in("cc", ccsSols),
@@ -808,6 +827,7 @@
               <th style="text-align:center;width:70px">Qtd<br>almoxarife</th>
               <th style="text-align:center;width:70px">Qtd<br>gerente</th>
               <th style="text-align:left;width:200px">Justificativa<br>gerente</th>
+              <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
             ${s.itens.map(it => {
@@ -830,10 +850,28 @@
                 <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;color:#475569">${qtdAlmox}</td>
                 <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:${alterada ? '#b45309' : '#0f172a'}">${qtdGerente}${alterada ? ' ✎' : ''}</td>
                 <td style="font-size:11.5px;color:#64748b;font-style:${justGer ? 'italic' : 'normal'}">${justGer || '—'}</td>
+                <td style="font-size:11.5px">
+                  ${(() => {
+                    const k = s.cc + "|" + it.codigo;
+                    const peds = pedidosAnterioresMap[k] || [];
+                    if (!peds.length) return '<span style="color:#cbd5e1">—</span>';
+                    return peds.slice(0,2).map(p => {
+                      const st = (p.pc_status||"").toLowerCase();
+                      const recebido = st.includes("receb") || st.includes("pré-nota");
+                      const cor = recebido ? "#16a34a" : "#d97706";
+                      const icone = recebido ? "✅" : "⚠️";
+                      return '<div style="margin-bottom:2px">'
+                        + icone + ' <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC ' + (p.c1_num||"") + '</span>'
+                        + ' <span style="font-weight:700;color:' + cor + ';font-size:10.5px">' + (p.pc_status||"Sem pedido") + '</span>'
+                        + '</div>';
+                    }).join("") + (peds.length > 2 ? '<div style="color:#94a3b8;font-size:10px">+' + (peds.length-2) + ' mais</div>' : '');
+                  })()}
+                </td>
                 <td style="text-align:center">
                   <input type="number" min="0" value="${qtdGerente}"
                     style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
                     oninput="masterQtd[${it.id}]=Number(this.value)||0"/>
+                  ${isAdmin ? '<button onclick="removerItemSol(' + s.id + ',' + it.id + ')" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;padding:2px;margin-left:4px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>' : ''}
                 </td>
               </tr>`;
             }).join("")}
@@ -2276,6 +2314,15 @@
     container.classList.add("aberto");
   }
   window.removerScMob = removerScMob;
+
+  async function removerItemSol(solId, itemId) {
+    if (!isAdmin) { alert("Apenas administradores podem remover itens."); return; }
+    if (!confirm("Remover este item da solicitação?")) return;
+    const { error } = await db.from("solicitacao_itens").delete().eq("id", itemId);
+    if (error) { alert("Erro: " + error.message); return; }
+    await carregarSolicitacoes();
+  }
+  window.removerItemSol = removerItemSol;
 
   function aprovarTodosItens(solId) {
     const sol = solicitacoes.find(s => s.id === solId);
