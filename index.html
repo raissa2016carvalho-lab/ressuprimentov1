@@ -463,42 +463,23 @@
 
         <!-- SUB: CCs -->
         <div id="sub-ccs" style="display:none">
-          <p style="color:#64748b;font-size:13px;max-width:700px;margin-top:0;margin-bottom:14px">
-            Defina quais CCs são equivalentes (mesmo grupo). O formulário vai somar o consumo e as pessoas dos dois ao calcular a curva.
+          <p style="color:#64748b;font-size:13px;max-width:900px;margin-top:0;margin-bottom:14px">
+            Lista de todos os centros de custo. Quando dois CCs têm o mesmo nome, você pode consolidá-los para somar consumo e pessoas no formulário.
           </p>
-          <div style="max-width:700px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px">
-            <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:#0f172a">Adicionar equivalência</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-              <div style="flex:1;min-width:150px">
-                <label style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;display:block">CC Principal</label>
-                <div style="position:relative">
-                  <input id="eq-cc-principal" placeholder="🔍 Buscar CC..." oninput="buscarCCEq('principal')" autocomplete="off"
-                    style="margin:0;width:100%;padding:8px 10px;font-size:13px"/>
-                  <div id="sugs-eq-principal" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;z-index:50;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.08)"></div>
-                </div>
-                <div id="eq-principal-selecionado" style="font-size:11px;color:#1e40af;margin-top:4px;font-weight:600"></div>
-              </div>
-              <div style="flex:1;min-width:150px">
-                <label style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;display:block">CC Secundário</label>
-                <div style="position:relative">
-                  <input id="eq-cc-secundario" placeholder="🔍 Buscar CC..." oninput="buscarCCEq('secundario')" autocomplete="off"
-                    style="margin:0;width:100%;padding:8px 10px;font-size:13px"/>
-                  <div id="sugs-eq-secundario" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;z-index:50;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.08)"></div>
-                </div>
-                <div id="eq-secundario-selecionado" style="font-size:11px;color:#1e40af;margin-top:4px;font-weight:600"></div>
-              </div>
-              <div style="flex:1;min-width:150px">
-                <label style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;display:block">Observação</label>
-                <input id="eq-obs" placeholder="Ex.: OBRAS NORTE" style="margin:0;width:100%;padding:8px 10px;font-size:13px"/>
-              </div>
-            </div>
-            <button onclick="adicionarEquivalencia()"
-              style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">
-              + Adicionar
-            </button>
-            <div id="eq-msg" style="margin-top:8px;font-size:12.5px"></div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;max-width:900px">
+            <input id="busca-cc-lista" placeholder="🔍 Filtrar por nome ou código..." oninput="filtrarListaCC()"
+              style="flex:1;margin:0;padding:8px 12px;font-size:13px"/>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap">
+              <input type="checkbox" id="mostrar-duplicados" onchange="filtrarListaCC()" style="width:auto;margin:0"/>
+              Só duplicados
+            </label>
           </div>
-          <div id="lista-equivalencias" style="max-width:700px"><div class="vazio">Carregando...</div></div>
+          <div id="eq-msg" style="margin-bottom:8px;font-size:12.5px"></div>
+          <div id="lista-ccs-eq" style="max-width:900px"><div class="vazio">Carregando...</div></div>
+          <div style="margin-top:16px;max-width:900px">
+            <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px">Equivalências cadastradas</div>
+            <div id="lista-equivalencias"><div class="vazio">Carregando...</div></div>
+          </div>
         </div>
 
         <!-- SUB: SENHAS -->
@@ -2564,94 +2545,126 @@
   let todosCC = [];
 
   // ---------- CONSOLIDAR CCs ----------
-  let _todosCC = []; // cache para busca de CC nas equivalências
-  let _eqPrincipal = null, _eqSecundario = null;
+  let _todosCC = [];
+  let _eqData = [];
+  let _todosCCRaw = []; // todos incluindo duplicados de nome
 
   async function carregarEquivalencias() {
-    if (!_todosCC.length) {
-      const { data } = await db.from("centros_custo").select("cc,nome").eq("status","Desbloqueado").order("nome");
-      _todosCC = (data || []).filter(c => c.cc && c.cc.length > 5);
-    }
-    const el = $("lista-equivalencias");
-    el.innerHTML = '<div class="vazio">Carregando...</div>';
-    const { data, error } = await db.from("cc_equivalencias").select("*").order("criado_em", { ascending: false });
-    if (error) { el.innerHTML = '<div class="vazio">Erro: ' + error.message + '</div>'; return; }
-    if (!data || !data.length) {
-      el.innerHTML = '<div class="vazio">Nenhuma equivalência cadastrada ainda.</div>'; return;
-    }
-    const ccNomes = {};
-    _todosCC.forEach(c => ccNomes[c.cc] = c.nome);
-    el.innerHTML = data.map(eq => `
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:#0f172a">
-            ${ccNomes[eq.cc_principal] || eq.cc_principal}
-            <span style="font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin-left:4px">${eq.cc_principal}</span>
-          </div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px">
-            ↔ ${ccNomes[eq.cc_secundario] || eq.cc_secundario}
-            <span style="font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin-left:4px">${eq.cc_secundario}</span>
-          </div>
-          ${eq.observacao ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;font-style:italic">${eq.observacao}</div>` : ''}
-        </div>
-        <button onclick="removerEquivalencia(${eq.id})"
-          style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:16px;padding:0"
-          onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
-      </div>`).join("");
+    const [{ data: ccsData }, { data: eqData }] = await Promise.all([
+      db.from("centros_custo").select("cc,nome,pessoas").eq("status","Desbloqueado").order("nome"),
+      db.from("cc_equivalencias").select("*").order("criado_em", { ascending: false }),
+    ]);
+    _todosCC = (ccsData || []).filter(c => c.cc && c.cc.length > 5);
+    _todosCC.sort((a, b) => a.nome.localeCompare(b.nome));
+    _eqData = eqData || [];
+
+    renderListaCC();
+    renderEquivalencias();
   }
   window.carregarEquivalencias = carregarEquivalencias;
 
-  function buscarCCEq(tipo) {
-    const inputId = "eq-cc-" + tipo;
-    const sugsId  = "sugs-eq-" + tipo;
-    const termo   = ($( inputId)?.value || "").toLowerCase().trim();
-    const sugsEl  = $(sugsId);
-    if (!termo) { sugsEl.style.display = "none"; return; }
-    const filtrados = _todosCC.filter(c =>
-      c.nome.toLowerCase().includes(termo) || c.cc.includes(termo)
-    ).slice(0, 10);
-    if (!filtrados.length) { sugsEl.style.display = "none"; return; }
-    sugsEl.innerHTML = filtrados.map(c =>
-      `<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9"
-        onclick="selecionarCCEq('${tipo}','${c.cc}','${c.nome.replace(/'/g,"\'")}')">
-        <span style="font-weight:600">${c.nome}</span>
-        <span style="color:#94a3b8;font-size:11px;margin-left:6px">${c.cc}</span>
-      </div>`
-    ).join("");
-    sugsEl.style.display = "block";
-  }
-  window.buscarCCEq = buscarCCEq;
+  function filtrarListaCC() { renderListaCC(); }
+  window.filtrarListaCC = filtrarListaCC;
 
-  function selecionarCCEq(tipo, cc, nome) {
-    $("sugs-eq-" + tipo).style.display = "none";
-    $("eq-cc-" + tipo).value = nome + " (" + cc + ")";
-    $("eq-" + tipo + "-selecionado").textContent = cc;
-    if (tipo === "principal") _eqPrincipal = cc;
-    else _eqSecundario = cc;
-  }
-  window.selecionarCCEq = selecionarCCEq;
+  function renderListaCC() {
+    const el = $("lista-ccs-eq");
+    const termo = ($("busca-cc-lista")?.value || "").toLowerCase().trim();
+    const soDupl = $("mostrar-duplicados")?.checked;
 
-  async function adicionarEquivalencia() {
+    // Agrupar por nome
+    const porNome = {};
+    _todosCC.forEach(c => {
+      if (!porNome[c.nome]) porNome[c.nome] = [];
+      porNome[c.nome].push(c);
+    });
+
+    // CCs já consolidados
+    const jaConsolidados = new Set();
+    _eqData.forEach(eq => { jaConsolidados.add(eq.cc_principal + "|" + eq.cc_secundario); });
+
+    let grupos = Object.entries(porNome);
+
+    // Filtrar
+    if (termo) grupos = grupos.filter(([nome]) => nome.toLowerCase().includes(termo));
+    if (soDupl) grupos = grupos.filter(([, ccs]) => ccs.length > 1);
+
+    if (!grupos.length) {
+      el.innerHTML = '<div class="vazio">Nenhum centro de custo encontrado.</div>';
+      return;
+    }
+
+    el.innerHTML = grupos.map(([nome, ccs]) => {
+      const duplicado = ccs.length > 1;
+      const linhas = ccs.map(c => {
+        // Verificar se já tem equivalência com outro CC do mesmo grupo
+        const jaEq = _eqData.some(eq =>
+          (eq.cc_principal === c.cc || eq.cc_secundario === c.cc)
+        );
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px">
+          <span style="font-family:ui-monospace,monospace;font-size:12px;color:#1e40af;font-weight:600;min-width:90px">${c.cc}</span>
+          <span style="font-size:12px;color:#475569;flex:1">${c.nome}</span>
+          <span style="font-size:11px;color:#64748b">👥 ${c.pessoas || 0}</span>
+          ${jaEq ? '<span style="font-size:10.5px;background:#d1fae5;color:#065f46;border-radius:4px;padding:1px 6px;font-weight:600">✓ consolidado</span>' : ''}
+        </div>`;
+      }).join("");
+
+      const podeConsolidar = duplicado && ccs.length === 2;
+      const jaEqPar = podeConsolidar && _eqData.some(eq =>
+        (eq.cc_principal === ccs[0].cc && eq.cc_secundario === ccs[1].cc) ||
+        (eq.cc_principal === ccs[1].cc && eq.cc_secundario === ccs[0].cc)
+      );
+
+      return `<div style="background:#fff;border:1px solid ${duplicado ? '#fbbf24' : '#e2e8f0'};border-radius:10px;padding:12px 14px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:13px;font-weight:700;color:#0f172a">
+            ${nome}
+            ${duplicado ? `<span style="background:#fef3c7;color:#b45309;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700;margin-left:6px">⚠ ${ccs.length} CCs com mesmo nome</span>` : ''}
+          </div>
+          ${podeConsolidar && !jaEqPar ? `
+            <button onclick="consolidarPar('${ccs[0].cc}','${ccs[1].cc}','${nome.replace(/'/g,"\'")}')"
+              style="background:#1e40af;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">
+              🔗 Consolidar
+            </button>` : ''}
+          ${jaEqPar ? '<span style="font-size:11.5px;color:#065f46;font-weight:600">✓ Já consolidado</span>' : ''}
+        </div>
+        ${linhas}
+      </div>`;
+    }).join("");
+  }
+
+  async function consolidarPar(cc1, cc2, nome) {
     const msgEl = $("eq-msg");
-    if (!_eqPrincipal || !_eqSecundario) {
-      msgEl.innerHTML = '<div class="msg erro">Selecione os dois CCs.</div>'; return;
-    }
-    if (_eqPrincipal === _eqSecundario) {
-      msgEl.innerHTML = '<div class="msg erro">Os CCs precisam ser diferentes.</div>'; return;
-    }
-    const obs = ($("eq-obs")?.value || "").trim();
     const { error } = await db.from("cc_equivalencias").insert({
-      cc_principal: _eqPrincipal, cc_secundario: _eqSecundario, observacao: obs || null
+      cc_principal: cc1, cc_secundario: cc2, observacao: nome
     });
     if (error) { msgEl.innerHTML = '<div class="msg erro">Erro: ' + error.message + '</div>'; return; }
-    msgEl.innerHTML = '<div class="msg ok">✓ Equivalência adicionada!</div>';
-    $("eq-cc-principal").value = ""; $("eq-cc-secundario").value = "";
-    $("eq-obs").value = ""; $("eq-principal-selecionado").textContent = "";
-    $("eq-secundario-selecionado").textContent = "";
-    _eqPrincipal = null; _eqSecundario = null;
-    setTimeout(() => { msgEl.innerHTML = ""; carregarEquivalencias(); }, 800);
+    msgEl.innerHTML = '<div class="msg ok">✓ ' + nome + ' consolidado!</div>';
+    setTimeout(() => { msgEl.innerHTML = ""; carregarEquivalencias(); }, 1000);
   }
-  window.adicionarEquivalencia = adicionarEquivalencia;
+  window.consolidarPar = consolidarPar;
+
+  function renderEquivalencias() {
+    const el = $("lista-equivalencias");
+    if (!_eqData.length) {
+      el.innerHTML = '<div class="vazio" style="font-size:12.5px">Nenhuma equivalência cadastrada ainda.</div>';
+      return;
+    }
+    const ccNomes = {};
+    _todosCC.forEach(c => ccNomes[c.cc] = c.nome);
+    el.innerHTML = _eqData.map(eq => `
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0;font-size:13px">
+          <span style="font-weight:600">${ccNomes[eq.cc_principal] || eq.cc_principal}</span>
+          <span style="font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin:0 4px">${eq.cc_principal}</span>
+          <span style="color:#64748b">↔</span>
+          <span style="font-weight:600;margin-left:4px">${ccNomes[eq.cc_secundario] || eq.cc_secundario}</span>
+          <span style="font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin-left:4px">${eq.cc_secundario}</span>
+        </div>
+        <button onclick="removerEquivalencia(${eq.id})"
+          style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:15px;padding:0"
+          onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
+      </div>`).join("");
+  }
 
   async function removerEquivalencia(id) {
     if (!confirm("Remover esta equivalência?")) return;
