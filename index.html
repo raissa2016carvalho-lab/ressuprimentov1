@@ -276,6 +276,11 @@
             <option value="42">42 — LIVRAMENTO DE NOSSA SENHORA</option>
             <option value="43">43 — HORTOLANDIA</option>
           </select>
+          <!-- filtro comprador -->
+          <select id="filtro-acomp-comprador" onchange="filtrarAcomp()"
+            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;flex-shrink:0">
+            <option value="">Todos os compradores</option>
+          </select>
           <!-- filtro data de emissão -->
           <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
             <span style="font-size:12px;color:#64748b;white-space:nowrap">Emissão:</span>
@@ -1110,7 +1115,7 @@
       const pctCard = pct;
 
       return `
-        <div class="card" data-cc="${nomeCC_low}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-solid="${sol.id}" data-filial="${filialSol}" data-emissao="${itens.length > 0 ? (itens[0].c1_emissao || '') : ''}">
+        <div class="card" data-cc="${nomeCC_low}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-solid="${sol.id}" data-filial="${filialSol}" data-emissao="${itens.length > 0 ? (itens[0].c1_emissao || '') : ''}" data-comprador="${[...new Set(itens.map(it => (it.pc_comprador||'').trim()).filter(Boolean))].join(',').toLowerCase()}">
           <div class="card-topo" onclick="toggleCard('ac-${sol.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1235,6 +1240,14 @@
       }
     }
 
+    // Popular select de compradores
+    const selComp = $("filtro-acomp-comprador");
+    if (selComp) {
+      const compradores = [...new Set(scPedidos.map(r => (r.pc_comprador || "").trim()).filter(Boolean))].sort();
+      selComp.innerHTML = '<option value="">Todos os compradores</option>' +
+        compradores.map(c => `<option value="${c.toLowerCase()}">${c}</option>`).join("");
+    }
+
     // Popular select de CC
     const selCC = $("filtro-acomp-cc");
     if (selCC) {
@@ -1273,6 +1286,7 @@
     const termCC     = ($("filtro-acomp-cc")?.value    || "").toLowerCase().trim();
     const termObs    = ($("filtro-acomp-obs")?.value   || "").toLowerCase().trim();
     const filialFilt = $("filtro-acomp-filial")?.value || "";
+    const compradorFilt = ($("filtro-acomp-comprador")?.value || "").toLowerCase().trim();
     const dtIni      = $("filtro-acomp-dt-ini")?.value || ""; // YYYY-MM-DD
     const dtFim      = $("filtro-acomp-dt-fim")?.value || "";
     const consIds    = consFiltro ? _consolidadoScMap[Number(consFiltro)] : null;
@@ -1292,12 +1306,14 @@
         ? emissao.slice(0,4) + "-" + emissao.slice(4,6) + "-" + emissao.slice(6,8)
         : emissao;
 
-      const ok = (!consFiltro  || (consIds && consIds.has(solId)))
-              && (!termCC      || cc.includes(termCC))
-              && (!termObs     || obs.includes(termObs))
-              && (!filialFilt  || filial === filialFilt)
-              && (!dtIni       || emissaoFmt >= dtIni)
-              && (!dtFim       || emissaoFmt <= dtFim)
+      const comprador = card.dataset.comprador || "";
+      const ok = (!consFiltro     || (consIds && consIds.has(solId)))
+              && (!termCC         || cc.includes(termCC))
+              && (!termObs        || obs.includes(termObs))
+              && (!filialFilt     || filial === filialFilt)
+              && (!compradorFilt  || comprador.includes(compradorFilt))
+              && (!dtIni          || emissaoFmt >= dtIni)
+              && (!dtFim          || emissaoFmt <= dtFim)
               && (_filtroStatusAcomp === "todos" || pg === _filtroStatusAcomp);
       card.style.display = ok ? "" : "none";
       if (ok) visiveis++;
