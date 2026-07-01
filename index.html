@@ -246,6 +246,45 @@
           <!-- busca por observação -->
           <input id="filtro-acomp-obs" placeholder="🔎 Buscar por observação..." oninput="filtrarAcomp()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;min-width:200px;flex:1"/>
+          <!-- filtro filial -->
+          <select id="filtro-acomp-filial" onchange="filtrarAcomp()"
+            style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;flex-shrink:0">
+            <option value="">Todas as filiais</option>
+            <option value="01">01 — MATRIZ</option>
+            <option value="03">03 — PAU DOS FERROS</option>
+            <option value="04">04 — ITAPIPOCA</option>
+            <option value="06">06 — CURRAIS NOVOS</option>
+            <option value="07">07 — SOBRAL</option>
+            <option value="08">08 — APARECIDA DE GOIANIA</option>
+            <option value="09">09 — MARACANAU</option>
+            <option value="10">10 — MOSSORO</option>
+            <option value="11">11 — ANAPOLIS</option>
+            <option value="13">13 — ALAGOINHAS</option>
+            <option value="14">14 — RIBEIRA DO POMBAL</option>
+            <option value="15">15 — PAULO AFONSO</option>
+            <option value="22">22 — GOIANIA</option>
+            <option value="23">23 — BATURITE</option>
+            <option value="24">24 — MORRINHOS</option>
+            <option value="25">25 — CASCAVEL</option>
+            <option value="27">27 — CAUCAIA</option>
+            <option value="29">29 — HORIZONTE</option>
+            <option value="34">34 — SENHOR DO BONFIM</option>
+            <option value="36">36 — LUZIANIA</option>
+            <option value="37">37 — DIVINOPOLIS</option>
+            <option value="40">40 — GARANHUNS</option>
+            <option value="41">41 — FLORIANO</option>
+            <option value="42">42 — LIVRAMENTO DE NOSSA SENHORA</option>
+            <option value="43">43 — HORTOLANDIA</option>
+          </select>
+          <!-- filtro data de emissão -->
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <span style="font-size:12px;color:#64748b;white-space:nowrap">Emissão:</span>
+            <input type="date" id="filtro-acomp-dt-ini" onchange="filtrarAcomp()"
+              style="margin:0;padding:6px 8px;font-size:12px;border-radius:8px;border:1px solid #e2e8f0;width:130px"/>
+            <span style="font-size:12px;color:#64748b">até</span>
+            <input type="date" id="filtro-acomp-dt-fim" onchange="filtrarAcomp()"
+              style="margin:0;padding:6px 8px;font-size:12px;border-radius:8px;border:1px solid #e2e8f0;width:130px"/>
+          </div>
           <!-- ordenação por % -->
           <select id="ordem-acomp" onchange="ordenarAcomp()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;flex-shrink:0">
@@ -1071,7 +1110,7 @@
       const pctCard = pct;
 
       return `
-        <div class="card" data-cc="${nomeCC_low}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-solid="${sol.id}">
+        <div class="card" data-cc="${nomeCC_low}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pctCard}" data-solid="${sol.id}" data-filial="${filialSol}" data-emissao="${itens.length > 0 ? (itens[0].c1_emissao || '') : ''}">
           <div class="card-topo" onclick="toggleCard('ac-${sol.id}')">
             <div>
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1094,7 +1133,7 @@
             </div>
           </div>
           <div class="card-corpo" id="corpo-ac-${sol.id}">
-            <!-- pizza -->
+            <!-- pizza + linha do tempo -->
             <div style="display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;flex-wrap:wrap">
               <div style="width:60px;height:60px;border-radius:50%;flex-shrink:0;background:conic-gradient(#16a34a 0% ${pct}%, #e2e8f0 ${pct}% 100%)"></div>
               <div style="flex:1;min-width:160px">
@@ -1107,6 +1146,33 @@
                 <div style="font-size:16px;font-weight:700;color:#0f172a">${fmtBRL(valorTotal)}</div>
               </div>` : ""}
             </div>
+            <!-- linha do tempo -->
+            ${(() => {
+              const emissao = itens.length > 0 ? (itens[0].c1_emissao || "") : "";
+              const pcs = itens.filter(it => it.pc_numero);
+              const recebidosItens = itens.filter(it => { const s = (it.pc_status||"").toLowerCase(); return s.includes("receb") || s.includes("pré-nota"); });
+              const dtEntrega = itens.map(it => it.pc_dt_entrega).filter(Boolean).sort().pop();
+              function fmtData8(d) {
+                if (!d || d.length !== 8) return "—";
+                return d.slice(6,8)+"/"+d.slice(4,6)+"/"+d.slice(0,4);
+              }
+              const steps = [
+                { label: "SC emitida", data: fmtData8(emissao), feito: !!emissao, cor: "#1e40af" },
+                { label: "Pedido gerado", data: pcs.length > 0 ? pcs.length + " PC(s)" : "—", feito: pcs.length > 0, cor: "#d97706" },
+                { label: "Entrega prevista", data: fmtData8(dtEntrega), feito: !!dtEntrega, cor: "#6366f1" },
+                { label: "Recebido", data: recebidosItens.length + "/" + total + " SKUs", feito: recebidosItens.length === total && total > 0, cor: "#16a34a" },
+              ];
+              return \`<div style="display:flex;align-items:flex-start;gap:0;margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;overflow-x:auto">
+                \${steps.map((st, i) => \`
+                  <div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:80px;position:relative">
+                    \${i > 0 ? \`<div style="position:absolute;top:10px;left:-50%;width:100%;height:2px;background:\${steps[i-1].feito ? steps[i-1].cor : '#e2e8f0'};z-index:0"></div>\` : ""}
+                    <div style="width:20px;height:20px;border-radius:50%;background:\${st.feito ? st.cor : '#e2e8f0'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700;z-index:1;flex-shrink:0">\${st.feito ? "✓" : (i+1)}</div>
+                    <div style="font-size:10.5px;font-weight:600;color:\${st.feito ? st.cor : '#94a3b8'};margin-top:4px;text-align:center;line-height:1.3">\${st.label}</div>
+                    <div style="font-size:10px;color:#64748b;text-align:center;margin-top:2px">\${st.data}</div>
+                  </div>
+                \`).join("")}
+              </div>\`;
+            })()}
             <!-- exportar -->
             <div style="display:flex;justify-content:flex-end;margin:10px 0 6px">
               <button onclick="baixarExcelAcomp(${sol.id},'${sc}')"
@@ -1204,19 +1270,32 @@
     const consFiltro = $("filtro-acomp-consolidado")?.value || "";
     const termCC     = ($("filtro-acomp-cc")?.value    || "").toLowerCase().trim();
     const termObs    = ($("filtro-acomp-obs")?.value   || "").toLowerCase().trim();
+    const filialFilt = $("filtro-acomp-filial")?.value || "";
+    const dtIni      = $("filtro-acomp-dt-ini")?.value || ""; // YYYY-MM-DD
+    const dtFim      = $("filtro-acomp-dt-fim")?.value || "";
     const consIds    = consFiltro ? _consolidadoScMap[Number(consFiltro)] : null;
 
     const cards = document.querySelectorAll("#lista-acomp .card[data-cc]");
     let visiveis = 0;
     cards.forEach(card => {
-      const cc    = card.dataset.cc    || "";
-      const obs   = card.dataset.obs   || "";
-      const pg    = card.dataset.pg    || "";
-      const grupo = card.dataset.grupo || "";
-      const solId = Number(card.dataset.solid || 0);
-      const ok = (!consFiltro || (consIds && consIds.has(solId)))
-              && (!termCC    || cc.includes(termCC))
-              && (!termObs   || obs.includes(termObs))
+      const cc      = card.dataset.cc      || "";
+      const obs     = card.dataset.obs     || "";
+      const pg      = card.dataset.pg      || "";
+      const solId   = Number(card.dataset.solid   || 0);
+      const filial  = card.dataset.filial  || "";
+      const emissao = card.dataset.emissao || ""; // YYYYMMDD
+
+      // Converter data emissao YYYYMMDD para comparação com filtro YYYY-MM-DD
+      const emissaoFmt = emissao.length === 8
+        ? emissao.slice(0,4) + "-" + emissao.slice(4,6) + "-" + emissao.slice(6,8)
+        : emissao;
+
+      const ok = (!consFiltro  || (consIds && consIds.has(solId)))
+              && (!termCC      || cc.includes(termCC))
+              && (!termObs     || obs.includes(termObs))
+              && (!filialFilt  || filial === filialFilt)
+              && (!dtIni       || emissaoFmt >= dtIni)
+              && (!dtFim       || emissaoFmt <= dtFim)
               && (_filtroStatusAcomp === "todos" || pg === _filtroStatusAcomp);
       card.style.display = ok ? "" : "none";
       if (ok) visiveis++;
@@ -1823,13 +1902,28 @@
         const label = mapLabels[catKey];
         const uid   = "cat-" + mobId + "-" + catKey;
         const linhasHtml = itens.map(it => {
+          function corStatus(st) {
+            if (!st) return "#94a3b8";
+            const s = st.toLowerCase();
+            if (s.includes("receb")) return "#16a34a";
+            if (s.includes("pré-nota") || s.includes("pre-nota")) return "#0d9488";
+            if (s.includes("pend") || s.includes("aprova")) return "#d97706";
+            if (s.includes("elimin") || s.includes("rejeita")) return "#ef4444";
+            return "#64748b";
+          }
           const scsDoItem = (it.linhas && it.linhas.length)
-            ? it.linhas.map(l => `<span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;border-radius:4px;padding:1px 5px;margin-right:4px">SC ${l.c7_numsc}</span><span style="font-size:11px;color:#64748b">${l.status_desc}</span>`).join(" ")
+            ? it.linhas.map(l => {
+                const cor = corStatus(l.status_desc);
+                return `<span style="display:inline-flex;align-items:center;gap:3px;margin:1px 3px 1px 0">
+                  <span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;color:#334155;border-radius:3px;padding:1px 5px;font-weight:600">SC ${l.c7_numsc}</span>
+                  <span style="font-size:10.5px;font-weight:700;color:${cor}">${l.status_desc || '—'}</span>
+                </span>`;
+              }).join("")
             : `<span style="font-size:11px;color:#94a3b8">Sem PC gerado</span>`;
           return `<tr style="border-bottom:1px solid #f1f5f9">
             <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>`:""}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap">${it.total_mob}</td>
-            <td style="padding:6px 10px;font-size:12px">${scsDoItem}</td>
+            <td style="padding:6px 10px;font-size:12px;flex-wrap:wrap">${scsDoItem}</td>
           </tr>`;
         }).join("");
         return `<div id="${uid}" style="display:none;border:1px solid ${cor}40;border-radius:10px;overflow:hidden;margin-bottom:8px">
