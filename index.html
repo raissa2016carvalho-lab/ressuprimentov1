@@ -277,7 +277,7 @@
             <option value="43">43 — HORTOLANDIA</option>
           </select>
           <!-- filtro comprador -->
-          <select id="filtro-acomp-comprador" onchange="filtrarAcomp()"
+          <select id="filtro-acomp-comprador" onchange="onFiltroCompradorChange()"
             style="margin:0;padding:8px 12px;font-size:13px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;flex-shrink:0">
             <option value="">Todos os compradores</option>
           </select>
@@ -1197,23 +1197,30 @@
                 <th>Status</th>
                 <th>Entrega</th>
               </tr>
-              ${itens.length === 0
-                ? `<tr><td colspan="6" style="color:#94a3b8;font-style:italic">Nenhum item encontrado no banco para esta SC.</td></tr>`
-                : itens.map(it => {
-                    const val = Number(it.pc_total) || 0;
-                    const st = fmtPcStatus(it.pc_status);
-                    const cls = statusCls(it.pc_status);
-                    const dtEntrega = fmtDataEntrega(it.pc_dt_entrega);
-                    return `<tr>
-                      <td>${it.c1_descri || it.c1_produto || ""}</td>
-                      <td style="font-family:ui-monospace,monospace">${it.pc_numero || "sem pedido"}</td>
-                      <td class="qtd">${it.c1_quant || 0}</td>
-                      <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12px;color:#475569">${val > 0 ? fmtBRL(val) : "—"}</td>
-                      <td class="status-pc ${cls}">${it.pc_status || "Sem pedido"}</td>
-                      <td style="font-family:ui-monospace,monospace;font-size:12px;color:#475569">${dtEntrega}</td>
-                    </tr>`;
-                  }).join("")
-              }
+              ${(() => {
+                const _compFilt = ($("filtro-acomp-comprador")?.value || "").toLowerCase().trim();
+                const itensFiltrados = _compFilt
+                  ? itens.filter(it => (it.pc_comprador || "").toLowerCase().includes(_compFilt))
+                  : itens;
+                if (itensFiltrados.length === 0) {
+                  return `<tr><td colspan="6" style="color:#94a3b8;font-style:italic">${_compFilt ? "Nenhum item deste comprador nesta SC." : "Nenhum item encontrado no banco para esta SC."}</td></tr>`;
+                }
+                return itensFiltrados.map(it => {
+                  const val = Number(it.pc_total) || 0;
+                  const st = fmtPcStatus(it.pc_status);
+                  const cls = statusCls(it.pc_status);
+                  const dtEntrega = fmtDataEntrega(it.pc_dt_entrega);
+                  const comprador = (it.pc_comprador || "").trim();
+                  return "<tr>"
+                    + "<td>" + (it.c1_descri || it.c1_produto || "") + "</td>"
+                    + "<td style='font-family:ui-monospace,monospace'>" + (it.pc_numero || "sem pedido") + "</td>"
+                    + "<td class='qtd'>" + (it.c1_quant || 0) + "</td>"
+                    + "<td style='text-align:right;font-family:ui-monospace,monospace;font-size:12px;color:#475569'>" + (val > 0 ? fmtBRL(val) : "—") + "</td>"
+                    + "<td class='status-pc " + cls + "'>" + (it.pc_status || "Sem pedido") + "</td>"
+                    + "<td style='font-family:ui-monospace,monospace;font-size:12px;color:#475569'>" + dtEntrega + "</td>"
+                    + "</tr>";
+                }).join("");
+              })()}
             </table>
           </div>
         </div>
@@ -1280,6 +1287,14 @@
     filtrarAcomp();
   }
   window.setFiltroStatusAcomp = setFiltroStatusAcomp;
+
+  async function onFiltroCompradorChange() {
+    // Recarrega para re-renderizar os itens filtrados por comprador
+    abaCarregada.acompanhamento = false;
+    await carregarAcompanhamento();
+    filtrarAcomp();
+  }
+  window.onFiltroCompradorChange = onFiltroCompradorChange;
 
   function filtrarAcomp() {
     const consFiltro = $("filtro-acomp-consolidado")?.value || "";
