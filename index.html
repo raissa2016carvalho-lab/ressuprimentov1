@@ -725,11 +725,19 @@
 
     if (ccsSols.length > 0) {
       const [{ data: consumoData }, { data: pessoasData }] = await Promise.all([
-        db.from("consumo").select("cc,codigo,consumo_medio").in("cc", ccsSols),
+        db.from("consumo_mensal").select("cc,produto,quantidade").in("cc", ccsSols),
         db.from("cc_pessoas").select("cc,cargo,quantidade").in("cc", ccsSols),
       ]);
+      // Agregar consumo_mensal por CC+produto e calcular média ÷ 6
+      const consumoAgg = {};
+      (consumoData || []).forEach(r => {
+        const k = r.cc + "|" + r.produto;
+        consumoAgg[k] = (consumoAgg[k] || 0) + (Number(r.quantidade) || 0);
+      });
       consumoMap = {};
-      (consumoData || []).forEach(r => { consumoMap[r.cc + "|" + r.codigo] = Number(r.consumo_medio) || 0; });
+      Object.entries(consumoAgg).forEach(([k, total]) => {
+        consumoMap[k] = Math.floor(total / 6);
+      });
       pessoasMap = {};
       (pessoasData || []).forEach(r => {
         (pessoasMap[r.cc] = pessoasMap[r.cc] || []).push({ cargo: r.cargo, qtd: r.quantidade });
