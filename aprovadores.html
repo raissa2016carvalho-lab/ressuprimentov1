@@ -12,65 +12,79 @@ body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;
 .header-title{font-size:15px;font-weight:700}
 .header-sub{font-size:12px;color:#94a3b8;margin-top:2px}
 .btn-sair{border:1px solid #334155;background:#1e293b;color:#cbd5e1;border-radius:8px;padding:7px 14px;font-size:12.5px;cursor:pointer;font-family:inherit}
-.corpo{padding:20px 24px;max-width:1400px;margin:0 auto}
-.filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;align-items:center}
-select,input{padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;background:#fff;font-family:inherit;outline:none}
+.corpo{padding:20px 24px}
+.filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center}
+select,input{padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:13px;background:#fff;font-family:inherit;outline:none;margin:0}
 select:focus,input:focus{border-color:#1e40af}
-.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px}
-.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
-.card-header{padding:14px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.card-nome{font-size:14px;font-weight:700;color:#0f172a}
-.card-nivel{font-size:11px;font-weight:700;border-radius:999px;padding:3px 10px}
-.nivel-N1{background:#dbeafe;color:#1e40af}
-.nivel-N2{background:#fef3c7;color:#b45309}
-.nivel-N3{background:#fce7f3;color:#9d174d}
-.nivel-Misto{background:#f1f5f9;color:#475569}
-.badge-qtd{background:#1e40af1a;color:#1e40af;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 8px}
-.badge-sla{font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 8px}
+.kpi-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;min-width:110px}
+.kpi-val{font-size:22px;font-weight:800;color:#0f172a}
+.kpi-label{font-size:11px;color:#64748b;font-weight:600;margin-top:2px}
+/* Card do aprovador */
+.aprov-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:10px;overflow:hidden}
+.aprov-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;gap:10px;flex-wrap:wrap}
+.aprov-header:hover{background:#fafafa}
+.aprov-nome{font-size:14px;font-weight:700;color:#0f172a}
+.aprov-sub{font-size:11.5px;color:#64748b;margin-top:2px}
+.aprov-badges{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.nivel-badge{font-size:11px;font-weight:700;border-radius:999px;padding:3px 10px}
+.N1{background:#dbeafe;color:#1e40af}
+.N2{background:#fef3c7;color:#b45309}
+.N3{background:#fce7f3;color:#9d174d}
+.qtd-badge{background:#1e40af1a;color:#1e40af;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 8px}
+.sla-badge{font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 8px}
 .sla-ok{background:#dcfce7;color:#166534}
-.sla-alerta{background:#fef3c7;color:#b45309}
-.sla-critico{background:#fee2e2;color:#991b1b}
-.card-body{padding:0}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;color:#64748b;font-weight:600;font-size:11px;padding:8px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0}
-td{padding:7px 14px;border-bottom:1px solid #f8fafc;vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:#fafafa}
-.mono{font-family:ui-monospace,monospace;font-size:11.5px}
-.status-badge{font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 6px}
-.status-aprovado{background:#dcfce7;color:#166534}
-.status-pendente{background:#fef3c7;color:#b45309}
-.status-reprovado{background:#fee2e2;color:#991b1b}
+.sla-med{background:#fef3c7;color:#b45309}
+.sla-crit{background:#fee2e2;color:#991b1b}
+/* PCs dentro do card */
+.aprov-body{display:none;border-top:1px solid #f1f5f9}
+.aprov-body.aberto{display:block}
+.pc-card{border-bottom:1px solid #f1f5f9;padding:10px 16px}
+.pc-card:last-child{border-bottom:none}
+.pc-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer}
+.pc-header:hover .pc-num{text-decoration:underline}
+.pc-num{font-family:ui-monospace,monospace;font-size:12.5px;font-weight:700;color:#1e40af}
+.pc-sc{font-family:ui-monospace,monospace;font-size:11.5px;color:#64748b}
+.pc-obs{font-size:11.5px;color:#475569;font-style:italic;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-valor{font-size:12px;font-weight:700;color:#0f172a;white-space:nowrap}
+.status-badge{font-size:10.5px;font-weight:700;border-radius:4px;padding:2px 6px}
+.st-aprov{background:#dcfce7;color:#166534}
+.st-pend{background:#fef3c7;color:#b45309}
+.st-reprov{background:#fee2e2;color:#991b1b}
+/* Itens expandidos do PC */
+.pc-itens{display:none;margin-top:8px;padding:8px;background:#f8fafc;border-radius:8px}
+.pc-itens.aberto{display:block}
+.pc-itens table{width:100%;border-collapse:collapse;font-size:11.5px}
+.pc-itens th{text-align:left;color:#64748b;font-weight:600;padding:5px 8px;border-bottom:1px solid #e2e8f0}
+.pc-itens td{padding:5px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.pc-itens tr:last-child td{border-bottom:none}
+.mono{font-family:ui-monospace,monospace}
 .vazio{text-align:center;color:#94a3b8;padding:40px;font-size:13.5px}
 .loading{text-align:center;padding:60px;color:#64748b;font-size:14px}
-.kpi-bar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 18px;min-width:120px}
-.kpi-val{font-size:24px;font-weight:800;color:#0f172a}
-.kpi-label{font-size:11px;color:#64748b;font-weight:600;margin-top:2px}
 </style>
 </head>
 <body>
 <div class="header">
   <div>
     <div class="header-title">📋 Aprovadores — Pedidos em Aberto</div>
-    <div class="header-sub" id="user-info">Carregando...</div>
+    <div class="header-sub" id="user-info"></div>
   </div>
-  <button class="btn-sair" id="btn-sair">Sair</button>
+  <div style="display:flex;gap:8px">
+    <a href="index.html" style="border:1px solid #334155;background:#1e293b;color:#cbd5e1;border-radius:8px;padding:7px 14px;font-size:12.5px;text-decoration:none;display:flex;align-items:center">← Voltar</a>
+    <button class="btn-sair" id="btn-sair">Sair</button>
+  </div>
 </div>
 
 <div class="corpo">
-  <!-- KPIs -->
   <div class="kpi-bar" id="kpi-bar"></div>
-
-  <!-- Filtros -->
   <div class="filtros">
-    <select id="filtro-nivel" onchange="renderCards()">
+    <select id="filtro-nivel" onchange="renderAprovadores()">
       <option value="">Todos os níveis</option>
       <option value="N1">N1</option>
       <option value="N2">N2</option>
       <option value="N3">N3</option>
     </select>
-    <select id="filtro-filial" onchange="renderCards()">
+    <select id="filtro-filial" onchange="renderAprovadores()">
       <option value="">Todas as filiais</option>
       <option value="01">01 — MATRIZ</option>
       <option value="03">03 — PAU DOS FERROS</option>
@@ -98,11 +112,10 @@ tr:hover td{background:#fafafa}
       <option value="42">42 — LIVRAMENTO DE NOSSA SENHORA</option>
       <option value="43">43 — HORTOLANDIA</option>
     </select>
-    <input id="filtro-aprovador" placeholder="🔍 Buscar aprovador..." oninput="renderCards()" style="min-width:220px"/>
+    <input id="filtro-aprovador" placeholder="🔍 Buscar aprovador..." oninput="renderAprovadores()" style="min-width:220px"/>
     <button onclick="carregar()" style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">↻ Atualizar</button>
   </div>
-
-  <div id="conteudo"><div class="loading">⏳ Carregando dados...</div></div>
+  <div id="conteudo"><div class="loading">⏳ Carregando...</div></div>
 </div>
 
 <script>
@@ -111,157 +124,197 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
 
-let todosRegistros = [];
-let hoje = new Date();
+let aprovData = [];
+let scPedidosMap = {}; // "filial|num" -> [{...}]
+const hoje = new Date();
 
 function diasDesde(dataStr) {
   if (!dataStr) return null;
-  const d = new Date(dataStr);
-  return Math.floor((hoje - d) / 86400000);
+  return Math.floor((hoje - new Date(dataStr)) / 86400000);
 }
 
-function fmtData(dataStr) {
-  if (!dataStr) return '—';
-  const d = new Date(dataStr);
-  return d.toLocaleDateString('pt-BR');
+function slaCls(dias) {
+  if (dias === null) return '';
+  return dias <= 3 ? 'sla-ok' : dias <= 7 ? 'sla-med' : 'sla-crit';
 }
 
-function slaBadge(dias) {
-  if (dias === null) return '<span style="color:#cbd5e1">—</span>';
-  const cls = dias <= 3 ? 'sla-ok' : dias <= 7 ? 'sla-alerta' : 'sla-critico';
-  return `<span class="badge-sla ${cls}">${dias}d</span>`;
+function fmtBRL(v) {
+  return (Number(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 }
 
-function statusBadge(st) {
+function stBadge(st) {
   if (!st) return '<span style="color:#cbd5e1">—</span>';
   const s = st.toLowerCase();
-  const cls = s.includes('aprov') ? 'status-aprovado' : s.includes('reprov') || s.includes('rejeit') ? 'status-reprovado' : 'status-pendente';
+  const cls = s.includes('aprov') ? 'st-aprov' : s.includes('reprov')||s.includes('rejeit') ? 'st-reprov' : 'st-pend';
   return `<span class="status-badge ${cls}">${st}</span>`;
 }
 
 async function carregar() {
-  $('conteudo').innerHTML = '<div class="loading">⏳ Carregando...</div>';
-  
+  $('conteudo').innerHTML = '<div class="loading">⏳ Carregando aprovadores...</div>';
+
+  // Buscar aprovadores pendentes
   let rows = [], off = 0;
   while (true) {
-    const { data } = await db.from('aprovadores_pcs').select('*').range(off, off + 999);
+    const { data } = await db.from('aprovadores_pcs').select('*').range(off, off+999);
     if (!data || !data.length) break;
     rows = rows.concat(data);
     if (data.length < 1000) break;
     off += 1000;
   }
+  aprovData = rows.filter(r => r.nivel_atual && r.nivel_atual !== 'Concluído');
 
-  // Filtrar só pendentes (nivel_atual != Concluído)
-  todosRegistros = rows.filter(r => r.nivel_atual && r.nivel_atual !== 'Concluído');
-  renderCards();
+  // Buscar sc_pedidos para os PCs pendentes
+  const nums = [...new Set(aprovData.map(r => (r.c7_num||'').trim()).filter(Boolean))];
+  scPedidosMap = {};
+  for (let i = 0; i < nums.length; i += 100) {
+    const lote = nums.slice(i, i+100);
+    let off2 = 0;
+    while (true) {
+      const { data } = await db.from('sc_pedidos')
+        .select('c1_filial,c1_num,c1_descri,c1_obs,c1_quant,pc_total,pc_status,pc_numero')
+        .in('pc_numero', lote)
+        .range(off2, off2+999);
+      if (!data || !data.length) break;
+      data.forEach(r => {
+        const k = (r.c1_filial||'').trim()+'|'+(r.pc_numero||'').trim();
+        if (!scPedidosMap[k]) scPedidosMap[k] = [];
+        scPedidosMap[k].push(r);
+      });
+      if (data.length < 1000) break;
+      off2 += 1000;
+    }
+  }
+
+  renderAprovadores();
 }
 
-function renderCards() {
-  const filtroNivel    = $('filtro-nivel').value;
-  const filtroFilial   = $('filtro-filial').value;
-  const filtroAprov    = ($('filtro-aprovador').value || '').toLowerCase().trim();
+function renderAprovadores() {
+  const filtroNivel  = $('filtro-nivel').value;
+  const filtroFilial = $('filtro-filial').value;
+  const filtroAprov  = ($('filtro-aprovador').value||'').toLowerCase().trim();
 
-  // Filtrar registros
-  let filtrados = todosRegistros.filter(r => {
+  const filtrados = aprovData.filter(r => {
     if (filtroNivel && r.nivel_atual !== filtroNivel) return false;
-    if (filtroFilial && (r.c7_filial || '').trim() !== filtroFilial) return false;
+    if (filtroFilial && (r.c7_filial||'').trim() !== filtroFilial) return false;
     if (filtroAprov) {
-      const aprov = [r.aprovador_n1, r.aprovador_n2, r.aprovador_n3].filter(Boolean).join(' ').toLowerCase();
-      if (!aprov.includes(filtroAprov)) return false;
+      const ap = [r.aprovador_n1,r.aprovador_n2,r.aprovador_n3].filter(Boolean).join(' ').toLowerCase();
+      if (!ap.includes(filtroAprov)) return false;
     }
     return true;
   });
 
-  // Agrupar por aprovador atual
-  const porAprovador = {};
-  filtrados.forEach(r => {
-    let aprovAtual = null;
-    if (r.nivel_atual === 'N1') aprovAtual = r.aprovador_n1 || 'N1 — Sem aprovador';
-    else if (r.nivel_atual === 'N2') aprovAtual = r.aprovador_n2 || 'N2 — Sem aprovador';
-    else if (r.nivel_atual === 'N3') aprovAtual = r.aprovador_n3 || 'N3 — Sem aprovador';
-    else aprovAtual = r.nivel_atual || 'Desconhecido';
-
-    if (!porAprovador[aprovAtual]) porAprovador[aprovAtual] = { nivel: r.nivel_atual, rows: [] };
-    porAprovador[aprovAtual].rows.push(r);
-  });
-
   // KPIs
   const totalPCs = filtrados.length;
-  const totalAprovadores = Object.keys(porAprovador).length;
-  const slaMedio = filtrados.reduce((s, r) => {
-    const d = diasDesde(r.data_aprovacao_n1);
-    return d !== null ? s + d : s;
-  }, 0) / (filtrados.length || 1);
+  const porAprov = agruparPorAprovador(filtrados);
+  const totalAprovs = Object.keys(porAprov).length;
+  const criticos = filtrados.filter(r => diasDesde(r.data_aprovacao_n1) > 7).length;
+  const valorTotal = filtrados.reduce((s,r) => {
+    const itens = scPedidosMap[(r.c7_filial||'').trim()+'|'+(r.c7_num||'').trim()] || [];
+    return s + itens.reduce((s2,it) => s2+(Number(it.pc_total)||0), 0);
+  }, 0);
 
   $('kpi-bar').innerHTML = `
     <div class="kpi"><div class="kpi-val">${totalPCs}</div><div class="kpi-label">PCs em aberto</div></div>
-    <div class="kpi"><div class="kpi-val">${totalAprovadores}</div><div class="kpi-label">Aprovadores ativos</div></div>
-    <div class="kpi"><div class="kpi-val" style="color:${slaMedio>7?'#ef4444':slaMedio>3?'#d97706':'#16a34a'}">${Math.round(slaMedio)}d</div><div class="kpi-label">SLA médio</div></div>
-    <div class="kpi"><div class="kpi-val" style="color:#ef4444">${filtrados.filter(r=>diasDesde(r.data_aprovacao_n1)>7).length}</div><div class="kpi-label">Acima de 7 dias</div></div>
+    <div class="kpi"><div class="kpi-val">${totalAprovs}</div><div class="kpi-label">Aprovadores</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:#ef4444">${criticos}</div><div class="kpi-label">Acima de 7 dias</div></div>
+    <div class="kpi"><div class="kpi-val" style="font-size:16px">${fmtBRL(valorTotal)}</div><div class="kpi-label">Valor total em aberto</div></div>
   `;
 
-  if (!Object.keys(porAprovador).length) {
+  if (!Object.keys(porAprov).length) {
     $('conteudo').innerHTML = '<div class="vazio">Nenhum pedido pendente encontrado.</div>';
     return;
   }
 
-  // Ordenar por qtd desc
-  const aprovList = Object.entries(porAprovador).sort((a, b) => b[1].rows.length - a[1].rows.length);
+  const lista = Object.entries(porAprov).sort((a,b) => b[1].rows.length - a[1].rows.length);
 
-  $('conteudo').innerHTML = `<div class="cards-grid">${aprovList.map(([aprovador, info]) => {
-    const rows = info.rows.sort((a, b) => {
-      const da = diasDesde(a.data_aprovacao_n1) || 0;
-      const db2 = diasDesde(b.data_aprovacao_n1) || 0;
-      return db2 - da;
-    });
-    const slaMax = Math.max(...rows.map(r => diasDesde(r.data_aprovacao_n1) || 0));
-    const slaCls = slaMax > 7 ? 'sla-critico' : slaMax > 3 ? 'sla-alerta' : 'sla-ok';
-    const nivelCls = `nivel-${info.nivel || 'Misto'}`;
+  $('conteudo').innerHTML = lista.map(([aprovador, info], idx) => {
+    const rows = info.rows;
+    const slaMax = Math.max(...rows.map(r => diasDesde(r.data_aprovacao_n1)||0));
+    const valorAprov = rows.reduce((s,r) => {
+      const itens = scPedidosMap[(r.c7_filial||'').trim()+'|'+(r.c7_num||'').trim()] || [];
+      return s + itens.reduce((s2,it) => s2+(Number(it.pc_total)||0), 0);
+    }, 0);
 
-    const linhas = rows.map(r => {
+    const pcs = rows.sort((a,b) => (diasDesde(b.data_aprovacao_n1)||0)-(diasDesde(a.data_aprovacao_n1)||0)).map((r, pidx) => {
+      const filial = (r.c7_filial||'').trim();
+      const num = (r.c7_num||'').trim();
+      const sc = (r.c7_numsc||'').trim();
       const nivel = r.nivel_atual;
-      const dtInicio = nivel === 'N1' ? r.data_aprovacao_n1 : nivel === 'N2' ? (r.data_aprovacao_n1 || r.data_aprovacao_n2) : (r.data_aprovacao_n2 || r.data_aprovacao_n1);
-      const dias = diasDesde(dtInicio);
-      const situacaoAtual = nivel === 'N1' ? r.situacao_n1 : nivel === 'N2' ? r.situacao_n2 : r.situacao_n3;
-      return `<tr>
-        <td class="mono">${(r.c7_filial||'').trim()}</td>
-        <td class="mono">${(r.c7_num||'').trim()}</td>
-        <td class="mono">${(r.c7_numsc||'').trim() || '—'}</td>
-        <td><span class="card-nivel ${nivelCls}">${nivel}</span></td>
-        <td>${statusBadge(situacaoAtual)}</td>
-        <td>${slaBadge(dias)}</td>
-      </tr>`;
+      const dias = diasDesde(r.data_aprovacao_n1);
+      const situAtual = nivel==='N1'?r.situacao_n1:nivel==='N2'?r.situacao_n2:r.situacao_n3;
+      const itens = scPedidosMap[filial+'|'+num] || [];
+      const valorPC = itens.reduce((s,it) => s+(Number(it.pc_total)||0), 0);
+      const obs = itens.length > 0 ? (itens[0].c1_obs||'').trim() : '';
+
+      const linhasItens = itens.map(it => `<tr>
+        <td>${it.c1_descri||''}</td>
+        <td class="mono" style="text-align:right">${it.c1_quant||0}</td>
+        <td style="text-align:right">${(Number(it.pc_total)||0)>0?fmtBRL(it.pc_total):'—'}</td>
+        <td>${stBadge(it.pc_status)}</td>
+      </tr>`).join('');
+
+      return `<div class="pc-card">
+        <div class="pc-header" onclick="togglePC('pc-${idx}-${pidx}')">
+          <span class="pc-num">PC ${num}</span>
+          ${sc ? `<span class="pc-sc">SC ${sc}</span>` : ''}
+          <span class="nivel-badge ${nivel}">${nivel}</span>
+          ${stBadge(situAtual)}
+          <span class="pc-obs">${obs || '—'}</span>
+          ${valorPC>0?`<span class="pc-valor">${fmtBRL(valorPC)}</span>`:''}
+          ${dias!==null?`<span class="sla-badge ${slaCls(dias)}">${dias}d</span>`:''}
+          <span style="color:#94a3b8;font-size:11px">▾</span>
+        </div>
+        <div class="pc-itens" id="pc-${idx}-${pidx}">
+          ${itens.length > 0 ? `
+          <table>
+            <tr><th>Item</th><th style="text-align:right">Qtd</th><th style="text-align:right">Valor</th><th>Status</th></tr>
+            ${linhasItens}
+          </table>` : '<div style="color:#94a3b8;font-size:12px;padding:4px">Sem itens encontrados no sc_pedidos.</div>'}
+        </div>
+      </div>`;
     }).join('');
 
-    return `<div class="card">
-      <div class="card-header">
+    return `<div class="aprov-card">
+      <div class="aprov-header" onclick="toggleCard('aprov-${idx}')">
         <div>
-          <div class="card-nome">${aprovador}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px">Nível atual: <strong>${info.nivel}</strong></div>
+          <div class="aprov-nome">${aprovador}</div>
+          <div class="aprov-sub">Nível atual: <strong>${info.nivel}</strong>${valorAprov>0?' · '+fmtBRL(valorAprov):''}</div>
         </div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <span class="badge-qtd">${rows.length} PC(s)</span>
-          <span class="badge-sla ${slaCls}">máx ${slaMax}d</span>
+        <div class="aprov-badges">
+          <span class="nivel-badge ${info.nivel}">${info.nivel}</span>
+          <span class="qtd-badge">${rows.length} PC(s)</span>
+          <span class="sla-badge ${slaCls(slaMax)}">máx ${slaMax}d</span>
+          <span style="color:#94a3b8;font-size:12px">▾</span>
         </div>
       </div>
-      <div class="card-body">
-        <table>
-          <tr>
-            <th>Filial</th>
-            <th>Nº PC</th>
-            <th>Nº SC</th>
-            <th>Nível</th>
-            <th>Situação</th>
-            <th>SLA</th>
-          </tr>
-          ${linhas}
-        </table>
-      </div>
+      <div class="aprov-body" id="aprov-${idx}">${pcs}</div>
     </div>`;
-  }).join('')}</div>`;
+  }).join('');
 }
 
-// Login
+function agruparPorAprovador(rows) {
+  const map = {};
+  rows.forEach(r => {
+    let ap = r.nivel_atual==='N1'?r.aprovador_n1:r.nivel_atual==='N2'?r.aprovador_n2:r.aprovador_n3;
+    ap = ap || r.nivel_atual || 'Desconhecido';
+    if (!map[ap]) map[ap] = { nivel: r.nivel_atual, rows: [] };
+    map[ap].rows.push(r);
+  });
+  return map;
+}
+
+function toggleCard(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('aberto');
+}
+window.toggleCard = toggleCard;
+
+function togglePC(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('aberto');
+}
+window.togglePC = togglePC;
+
 async function verificarSessao() {
   const { data } = await db.auth.getSession();
   if (data.session) {
@@ -273,7 +326,6 @@ async function verificarSessao() {
 }
 
 $('btn-sair').addEventListener('click', async () => { await db.auth.signOut(); location.href = 'index.html'; });
-
 verificarSessao();
 </script>
 </body>
