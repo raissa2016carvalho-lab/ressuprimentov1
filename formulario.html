@@ -278,6 +278,7 @@ let listaItens = [];       // itens ordenados por curva
 let itensPontuais = [];    // itens adicionados manualmente
 let filialAtual = "";
 let periodoMeses = 3;
+let consumoMapCC = {}; // "cc|produto" -> media individual por CC
 
 function onPeriodoChange() {
   periodoMeses = Number($("periodo-meses").value) || 3;
@@ -482,6 +483,17 @@ async function carregarConsumo() {
   });
 
   consumoMap = {};
+  // Consumo individual por CC+produto
+  consumoMapCC = {}; // "cc|produto" -> media
+  const aggCC = {};
+  (consumoData || []).forEach(r => {
+    const k = r.cc + "|" + r.produto;
+    aggCC[k] = (aggCC[k] || 0) + (Number(r.quantidade) || 0);
+  });
+  Object.entries(aggCC).forEach(([k, total]) => {
+    consumoMapCC[k] = Math.floor(total / 6);
+  });
+
   Object.values(agg).forEach(v => {
     consumoMap[v.produto] = { media: Math.floor(v.total / 6), descricao: v.descricao };
   });
@@ -559,6 +571,16 @@ function renderTabelaItens() {
         ${it.media > 0
           ? `<span class="consumo-badge">${it.media}</span>`
           : `<span class="consumo-zero">—</span>`}
+        ${ccsSelecionados.length > 1 ? `
+        <div style="margin-top:4px">
+          ${ccsSelecionados.map(cc => {
+            const cons = consumoMapCC[cc.cc + '|' + it.codigo] || 0;
+            return '<div style="font-size:10px;color:#94a3b8;white-space:nowrap">'
+              + '<span style="color:#64748b;font-weight:600">' + cc.nome.split(' ').slice(-1)[0] + ':</span> '
+              + (cons > 0 ? '<span style="color:#1e40af;font-weight:600">' + cons + '</span>' : '<span>0</span>')
+              + '</div>';
+          }).join('')}
+        </div>` : ''}
       </td>
       <td style="text-align:center">
         <input type="number" min="0" id="qtd-${it.codigo}"
