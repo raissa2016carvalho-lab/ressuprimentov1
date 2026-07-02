@@ -185,6 +185,20 @@ async function carregar() {
     }
   }
 
+  // Buscar SCs pendentes (sem PC gerado)
+  let scPendentes = [], off3 = 0;
+  while (true) {
+    const { data } = await db.from('sc_pedidos')
+      .select('c1_filial,c1_num,c1_descri,c1_obs,c1_cc,c1_emissao,c1_solicit,status_desc,pc_numero')
+      .in('status_desc', ['Solicitação Pendente','Solicitação em Processo de Cotação'])
+      .range(off3, off3+999);
+    if (!data || !data.length) break;
+    scPendentes = scPendentes.concat(data);
+    if (data.length < 1000) break;
+    off3 += 1000;
+  }
+  window._scPendentes = scPendentes;
+
   renderAprovadores();
 }
 
@@ -227,7 +241,69 @@ function renderAprovadores() {
 
   const lista = Object.entries(porAprov).sort((a,b) => b[1].rows.length - a[1].rows.length);
 
-  $('conteudo').innerHTML = lista.map(([aprovador, info], idx) => {
+  // ── Seção SCs Pendentes ───────────────────────────────────────────
+  const scPend = (window._scPendentes || []).filter(r => {
+    if (filtroFilial && (r.c1_filial||'').trim() !== filtroFilial) return false;
+    return true;
+  });
+
+  // Agrupar SCs por SC número (c1_num) único
+  const porSC = {};
+  scPend.forEach(r => {
+    const sc = (r.c1_num||'').trim();
+    if (!porSC[sc]) porSC[sc] = { filial: (r.c1_filial||'').trim(), sc, obs: (r.c1_obs||'').trim(), solicit: (r.c1_solicit||'').trim(), emissao: r.c1_emissao, status: r.status_desc, itens: [] };
+    porSC[sc].itens.push(r);
+  });
+
+  const scList = Object.values(porSC).sort((a,b) => (a.emissao||'').localeCompare(b.emissao||''));
+
+  const secaoSCs = scList.length > 0 ? `
+    <div style="font-size:13px;font-weight:700;color:#0f172a;margin:20px 0 10px;display:flex;align-items:center;gap:8px">
+      📄 SCs Pendentes de Aprovação
+      <span style="background:#fef3c7;color:#b45309;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${scList.length} SCs</span>
+    </div>
+    ${scList.map((sc, sidx) => {
+      const emissao = sc.emissao ? sc.emissao.slice(6,8)+'/'+sc.emissao.slice(4,6)+'/'+sc.emissao.slice(0,4) : '—';
+      const dias = sc.emissao && sc.emissao.length===8
+        ? Math.floor((hoje - new Date(sc.emissao.slice(0,4)+'-'+sc.emissao.slice(4,6)+'-'+sc.emissao.slice(6,8))) / 86400000)
+        : null;
+      const linhasItens = sc.itens.map(it => `<tr>
+        <td>${it.c1_descri||''}</td>
+        <td class="mono">${it.c1_cc||''}</td>
+        <td style="font-size:10.5px;color:#64748b;font-style:italic">${(it.c1_obs||'').trim()||'—'}</td>
+        <td><span class="status-badge st-pend">${it.status_desc||sc.status}</span></td>
+      </tr>`).join('');
+      return `<div class="aprov-card" style="border-color:#fbbf24">
+        <div class="aprov-header" onclick="toggleCard('sc-pend-${sidx}')">
+          <div>
+            <div class="aprov-nome">SC ${sc.sc} <span style="font-family:ui-monospace,monospace;font-size:12px;color:#94a3b8">· Filial ${sc.filial}</span></div>
+            <div class="aprov-sub">${sc.obs||'—'} · Emitida em ${emissao} · Solicitante: ${sc.solicit||'—'}</div>
+          </div>
+          <div class="aprov-badges">
+            <span class="status-badge st-pend">${sc.status}</span>
+            <span class="qtd-badge">${sc.itens.length} item(s)</span>
+            ${dias!==null?`<span class="sla-badge ${slaCls(dias)}">${dias}d</span>`:''}
+            <span style="color:#94a3b8;font-size:12px">▾</span>
+          </div>
+        </div>
+        <div class="aprov-body" id="sc-pend-${sidx}">
+          <div style="padding:10px 16px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <tr style="background:#f8fafc"><th style="padding:6px 10px;text-align:left;color:#64748b;font-size:11px">Item</th><th style="padding:6px 10px;text-align:left;color:#64748b;font-size:11px">CC</th><th style="padding:6px 10px;text-align:left;color:#64748b;font-size:11px">Observação</th><th style="padding:6px 10px;text-align:left;color:#64748b;font-size:11px">Status</th></tr>
+              ${linhasItens}
+            </table>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}` : '';
+
+  // ── Seção PCs em Aprovação ─────────────────────────────────────────
+  const tituloPCs = `<div style="font-size:13px;font-weight:700;color:#0f172a;margin:20px 0 10px;display:flex;align-items:center;gap:8px">
+    📋 PCs em Aprovação (por aprovador)
+    <span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filtrados.length} PCs</span>
+  </div>`;
+
+  $('conteudo').innerHTML = secaoSCs + tituloPCs + `<div class="cards-grid" style="grid-template-columns:1fr">${lista.map(([aprovador, info], idx) => {
     const rows = info.rows;
     const slaMax = Math.max(...rows.map(r => diasDesde(r.data_aprovacao_n1)||0));
     const valorAprov = rows.reduce((s,r) => {
@@ -289,7 +365,7 @@ function renderAprovadores() {
       </div>
       <div class="aprov-body" id="aprov-${idx}">${pcs}</div>
     </div>`;
-  }).join('');
+  }).join('')}</div>\`;
 }
 
 function agruparPorAprovador(rows) {
