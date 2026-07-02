@@ -319,8 +319,16 @@ function renderTudo() {
 
         html += '<div class="pc-row" onclick="toggle(\'pc-'+aidx+'-'+pidx+'\')">';
         html += '<div class="pc-top">';
+        // SCs associadas
+        const scsDoPC = [...new Set(itens.map(function(it){ return (it.c1_num||'').trim(); }).filter(Boolean))];
+        if (scsDoPC.length > 0) {
+          scsDoPC.forEach(function(scNum) {
+            html += '<span style="font-family:ui-monospace,monospace;font-size:11.5px;background:#f1f5f9;color:#334155;border-radius:3px;padding:1px 6px;font-weight:600;margin-right:3px">SC '+scNum+'</span>';
+          });
+        } else if (sc) {
+          html += '<span style="font-family:ui-monospace,monospace;font-size:11.5px;background:#f1f5f9;color:#334155;border-radius:3px;padding:1px 6px;font-weight:600;margin-right:3px">SC '+sc+'</span>';
+        }
         html += '<span class="pc-num">PC '+num+'</span>';
-        if (sc) html += '<span class="pc-sc">SC '+sc+'</span>';
         html += '<span class="nivel-badge '+nivel+'">'+nivel+'</span>';
         html += stBadge(situAtual);
         html += '<span class="pc-obs">'+(obs||'—')+'</span>';
@@ -330,9 +338,9 @@ function renderTudo() {
 
         html += '<div class="pc-itens" id="pc-'+aidx+'-'+pidx+'">';
         if (itens.length > 0) {
-          html += '<table><tr><th>Item</th><th>Qtd</th><th>Valor</th><th>Status</th></tr>';
+          html += '<table><tr><th>SC</th><th>Item</th><th>Qtd</th><th>Valor</th><th>Status</th></tr>';
           itens.forEach(function(it) {
-            html += '<tr><td>'+it.c1_descri+'</td><td class="mono">'+it.c1_quant+'</td><td>'+(Number(it.pc_total)>0?fmtBRL(it.pc_total):'—')+'</td><td>'+stBadge(it.pc_status)+'</td></tr>';
+            html += '<tr><td class="mono" style="font-size:11px;color:#64748b">'+(it.c1_num||'—')+'</td><td>'+it.c1_descri+'</td><td class="mono">'+it.c1_quant+'</td><td>'+(Number(it.pc_total)>0?fmtBRL(it.pc_total):'—')+'</td><td>'+stBadge(it.pc_status)+'</td></tr>';
           });
           html += '</table>';
         } else {
