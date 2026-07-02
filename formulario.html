@@ -80,7 +80,78 @@ let qtdAtual=qtdMap[it.codigo]?qtdMap[it.codigo].qtd:0;return`<tr id="row-${it.c
       </td>
     </tr>`}).join(``),visiveis.length||(tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Nenhum item encontrado.</td></tr>`)}function abreviarGrupo(grupo){return{"MATERIAIS DE EXPEDIENTE E CONSUMO ADM":`Expediente`,"MATERIAIS ELETRICOS":`Elétrico`,"EPI / EPC E FERRAMENTAS":`EPI/EPC`,"EQUIPAMENTOS DE INFORMATICA":`TI`,"FARDAMENTOS & UNIFORMES":`Fardamento`,"MOVEIS & UTENSILIOS":`Móveis`,"MATERIAIS DE CONSUMO OBRA":`Obra`,"MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA":`Fotovoltaica`,"MATERIAL P/ PERFURACAO DE ROCHAS":`Perfuração`,"MATERIAL P/ LAVAGEM DE ISOLADORES":`Isoladores`}[(grupo||``).trim().toUpperCase()]||grupo||`Outros`}
 // Mapa de quantidades: codigo -> qtd total
-const qtdMap={};function onQtdChange(codigo,descricao,qtd){qtd>0?qtdMap[codigo]={codigo,descricao,qtd}:delete qtdMap[codigo];let input=$(`qtd-`+codigo);input&&input.classList.toggle(`preenchida`,qtd>0);let totalEl=$(`total-`+codigo);totalEl&&(totalEl.textContent=qtd>0?qtd*periodoMeses:`—`),atualizarResumo()}window.onQtdChange=onQtdChange;function filtrarItens(){renderTabelaItens()}window.filtrarItens=filtrarItens;function atualizarResumo(){let totalItens=Object.keys(qtdMap).length+itensPontuais.length,totalCCs=ccsSelecionados.length;$(`resumo-envio`).innerHTML=`<strong>${totalItens}</strong> iten(s) selecionado(s) · <strong>${totalCCs}</strong> centro(s) de custo · <strong>${totalCCs}</strong> solicitação(ões) gerada(s)`}
+const qtdMap={};function onQtdChange(codigo,descricao,qtd){qtd>0?qtdMap[codigo]={codigo,descricao,qtd}:delete qtdMap[codigo];let input=$(`qtd-`+codigo);input&&input.classList.toggle(`preenchida`,qtd>0);let totalEl=$(`total-`+codigo);totalEl&&(totalEl.textContent=qtd>0?qtd*periodoMeses:`—`),atualizarResumo()}window.onQtdChange=onQtdChange;
+
+// ── RASCUNHO (localStorage) ──────────────────────────────────────────────────
+function salvarRascunho() {
+  try {
+    const rascunho = {
+      nome: document.getElementById('nome')?.value || '',
+      matricula: document.getElementById('matricula')?.value || '',
+      justificativa: document.getElementById('justificativa')?.value || '',
+      filial: document.getElementById('filial')?.value || '',
+      periodo: document.getElementById('periodo-meses')?.value || '3',
+      ccs: ccsSelecionados.map(c => ({cc:c.cc, nome:c.nome, pessoas:c.pessoas, proporcao:c.proporcao})),
+      qtdMap: Object.entries(qtdMap).reduce((obj,[k,v]) => { obj[k] = v; return obj; }, {}),
+      itensPontuais: itensPontuais,
+    };
+    localStorage.setItem('ressuprimento_rascunho', JSON.stringify(rascunho));
+  } catch(e) {}
+}
+
+function limparRascunho() {
+  try { localStorage.removeItem('ressuprimento_rascunho'); } catch(e) {}
+}
+
+async function restaurarRascunho() {
+  try {
+    const raw = localStorage.getItem('ressuprimento_rascunho');
+    if (!raw) return;
+    const r = JSON.parse(raw);
+    if (r.nome) document.getElementById('nome').value = r.nome;
+    if (r.matricula) document.getElementById('matricula').value = r.matricula;
+    if (r.justificativa) document.getElementById('justificativa').value = r.justificativa;
+    if (r.filial) {
+      document.getElementById('filial').value = r.filial;
+      await onFilialChange();
+    }
+    if (r.periodo) {
+      document.getElementById('periodo-meses').value = r.periodo;
+      periodoMeses = Number(r.periodo) || 3;
+      const label = document.getElementById('periodo-label');
+      if (label) label.textContent = periodoMeses;
+    }
+    if (r.ccs && r.ccs.length > 0) {
+      if (!ccCarregado) await carregarTodosCCs();
+      for (const c of r.ccs) {
+        if (!ccsSelecionados.find(x => x.cc === c.cc)) {
+          ccsSelecionados.push(c);
+        }
+      }
+      calcularProporcao();
+      renderChips();
+      await carregarConsumo();
+    }
+    if (r.qtdMap) {
+      Object.entries(r.qtdMap).forEach(([k,v]) => { qtdMap[k] = v; });
+    }
+    if (r.itensPontuais && r.itensPontuais.length > 0) {
+      itensPontuais = r.itensPontuais;
+      renderPontuais();
+    }
+    renderTabelaItens();
+    atualizarResumo();
+    // Mostrar aviso de rascunho restaurado
+    const msgEl = document.getElementById('form-msg');
+    if (msgEl) msgEl.innerHTML = '<div class="msg ok" style="display:flex;align-items:center;justify-content:space-between">📋 Rascunho restaurado! <button onclick="limparRascunho();document.getElementById('form-msg').innerHTML=''" style="border:none;background:none;color:#065f46;font-size:12px;cursor:pointer;font-weight:600">Descartar</button></div>';
+  } catch(e) {}
+}
+
+// Auto-salvar ao digitar
+document.addEventListener('input', salvarRascunho);
+document.addEventListener('change', salvarRascunho);
+
+function filtrarItens(){renderTabelaItens()}window.filtrarItens=filtrarItens;function atualizarResumo(){let totalItens=Object.keys(qtdMap).length+itensPontuais.length,totalCCs=ccsSelecionados.length;$(`resumo-envio`).innerHTML=`<strong>${totalItens}</strong> iten(s) selecionado(s) · <strong>${totalCCs}</strong> centro(s) de custo · <strong>${totalCCs}</strong> solicitação(ões) gerada(s)`}
 // ── ITEM PONTUAL ─────────────────────────────────────────────────────────────
 let debPontual=null;async function buscarItemPontual(){clearTimeout(debPontual),debPontual=setTimeout(async()=>{let termo=($(`busca-item-pontual`).value||``).toLowerCase().trim(),sugsEl=$(`sugs-pontual`);if(termo.length<2){sugsEl.style.display=`none`;return}let{data}=await db.from(`itens`).select(`codigo,descricao,grupo`).or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%`).limit(12);if(!data||!data.length){sugsEl.style.display=`none`;return}sugsEl.innerHTML=data.map(it=>`<div class="sug-item" onclick="adicionarPontual('${it.codigo}','${it.descricao.replace(/'/g,`\\'`)}','${(it.grupo||``).replace(/'/g,`\\'`)}')">
         <span style="font-weight:600">${it.descricao}</span>
@@ -105,6 +176,6 @@ for(let cc of ccsSelecionados){let itensCC=itensSelecionados.map(it=>{
 // Quantidade = consumo individual do CC × período (não proporcional por pessoas)
 let consIndividual=consumoMapCC[cc.cc+`|`+it.codigo]||0,qtdProporcional=consIndividual>0?Math.round(consIndividual*periodoMeses):0,media=consumoMap[it.codigo]?.media||0,qtdSugerida=Math.max(1,Math.round(media*periodoMeses*cc.proporcao));return{codigo:it.codigo,descricao:it.descricao||itensMap[it.codigo]?.descricao||``,quantidade:qtdProporcional,qtd_sugerida:qtdSugerida>0?qtdSugerida:qtdProporcional}});
 // Inclui itens com qtd 0 para aparecer zerado no card do gerente
-if(!itensCC.length)continue;let payload={p_cc:cc.cc,p_nome:nome,p_matricula:matricula,p_justificativa:justificativa||null,p_filial:filial,p_periodo_meses:periodoMeses,p_itens:itensCC},{data,error}=await db.rpc(`criar_solicitacao`,payload);error?erros.push(cc.nome+`: `+error.message):ultimoId=data}if($(`btn-enviar`).disabled=!1,$(`btn-enviar`).textContent=`Enviar solicitação`,erros.length){msgEl.innerHTML=`<div class="msg erro">Erro em alguns CCs:<br>${erros.join(`<br>`)}</div>`;return}$(`tela-form`).style.display=`none`,$(`tela-sucesso`).style.display=`block`,$(`codigo-retorno`).textContent=`#`+(ultimoId||`—`)}
+if(!itensCC.length)continue;let payload={p_cc:cc.cc,p_nome:nome,p_matricula:matricula,p_justificativa:justificativa||null,p_filial:filial,p_periodo_meses:periodoMeses,p_itens:itensCC},{data,error}=await db.rpc(`criar_solicitacao`,payload);error?erros.push(cc.nome+`: `+error.message):ultimoId=data}if($(`btn-enviar`).disabled=!1,$(`btn-enviar`).textContent=`Enviar solicitação`,erros.length){msgEl.innerHTML=`<div class="msg erro">Erro em alguns CCs:<br>${erros.join(`<br>`)}</div>`;return}limparRascunho(),$(`tela-form`).style.display=`none`,$(`tela-sucesso`).style.display=`block`,$(`codigo-retorno`).textContent=`#`+(ultimoId||`—`)}
 // Fechar sugestões ao clicar fora
-window.enviarSolicitacao=enviarSolicitacao,document.addEventListener(`click`,e=>{e.target.closest(`.busca-wrap`)||document.querySelectorAll(`.sugestoes`).forEach(s=>s.style.display=`none`)});</script>
+window.enviarSolicitacao=enviarSolicitacao,document.addEventListener(`click`,e=>{e.target.closest(`.busca-wrap`)||document.querySelectorAll(`.sugestoes`).forEach(s=>s.style.display=`none`)});restaurarRascunho();</script>
