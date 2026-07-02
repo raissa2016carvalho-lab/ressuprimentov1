@@ -1,388 +1,51 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Painel do Gerente — Ressuprimento</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a}
-  .center{display:grid;place-items:center;min-height:100vh;padding:20px}
-  .login-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;width:100%;max-width:360px}
-  label{font-size:12px;font-weight:600;color:#64748b;display:block;margin:0 0 5px}
-  input{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #e2e8f0;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:14px;font-family:inherit}
-  button{font-family:inherit;cursor:pointer}
-  .btn{padding:11px;border-radius:9px;border:none;background:#1e40af;color:#fff;font-weight:700;font-size:14px;width:100%}
-  .btn:disabled{background:#e2e8f0;cursor:not-allowed}
-  .msg{font-size:13px;padding:9px 11px;border-radius:8px;margin-bottom:12px}
-  .erro{background:#fee2e2;color:#991b1b}
-  .ok{background:#d1fae5;color:#065f46}
-  #app{min-height:100vh;display:flex;flex-direction:column}
-  .header{background:#0f172a;color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-  .header-title{font-size:16px;font-weight:700}
-  .header-sub{font-size:12px;color:#64748b;margin-top:2px}
-  .btn-sair{border:1px solid #334155;background:#1e293b;color:#cbd5e1;border-radius:7px;padding:7px 14px;font-size:12.5px}
-  .corpo{flex:1;padding:24px;max-width:1100px;margin:0 auto;width:100%}
-  .topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
-  .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden}
-  .card-topo{padding:16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
-  .card-titulo{font-weight:700;font-size:14px}
-  .card-sub{font-size:12px;color:#64748b;margin-top:3px}
-  .card-corpo{border-top:1px solid #e2e8f0;background:#f8fafc;padding:16px;display:none}
-  .card-corpo.aberto{display:block}
-  table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
-  th{text-align:left;color:#64748b;font-weight:600;font-size:11.5px;padding:8px 10px;border-bottom:1px solid #e2e8f0}
-  td{padding:9px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  .btn-dec{border:none;border-radius:6px;padding:5px 9px;font-size:11.5px;font-weight:700;margin-right:5px;background:#e2e8f0;color:#64748b}
-  .btn-dec.aprovado{background:#16a34a;color:#fff}
-  .btn-dec.recusado{background:#e11d48;color:#fff}
-  .btn-salvar{background:#1e40af;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
-  .btn-aprovar-todas{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
-  .rodape-card{margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .vazio{background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:36px;text-align:center;color:#64748b;font-size:13.5px}
-  .btn-atualizar{border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 14px;font-size:13px}
-  .just-input{width:100%;margin-top:4px;padding:4px 6px;font-size:12px;border:1px solid #fbbf24;border-radius:6px;background:#fffbeb;display:none;font-family:inherit}
-  .just-input.visivel{display:block}
-  .tag-consumo{font-size:10.5px;color:#1e40af;background:#f0fdf4;border-radius:4px;padding:2px 6px;font-weight:600}
-  .tag-sem{font-size:10.5px;color:#94a3b8;background:#f1f5f9;border-radius:4px;padding:2px 6px}
-  .qtd-original{font-size:12px;color:#475569;font-family:ui-monospace,monospace;font-weight:600}
-  .qtd-input{width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace}
-  .qtd-input.aumentada{border-color:#f59e0b;background:#fffbeb}
-</style>
-</head>
-<body>
-
-<div id="tela-login" class="center">
-  <div class="login-card">
-    <div style="width:36px;height:36px;border-radius:9px;background:#1e40af;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;margin-bottom:14px">R</div>
-    <h1 style="font-size:18px;margin:0 0 4px">Painel do Gerente</h1>
-    <p style="color:#64748b;font-size:13px;margin:0 0 18px">Avaliação de solicitações de ressuprimento</p>
-    <label>E-mail</label>
-    <input id="email" type="email" placeholder="seu@email.com"/>
-    <label>Senha</label>
-    <input id="senha" type="password"/>
-    <div id="login-msg"></div>
-    <button class="btn" id="btn-login">Entrar</button>
-    <button onclick="abrirEsqueciSenha()" style="background:none;border:none;color:#1e40af;font-size:12.5px;font-weight:600;width:100%;margin-top:12px;padding:6px;cursor:pointer">Esqueci minha senha</button>
-  </div>
-</div>
-
-<div id="tela-esqueci-senha" class="center" style="display:none">
-  <div class="login-card">
-    <h1 style="font-size:18px;margin:0 0 4px">Esqueci minha senha</h1>
-    <p style="color:#64748b;font-size:13px;margin:0 0 18px">Informe seu e-mail. Um administrador vai aprovar a redefinição.</p>
-    <label>E-mail</label>
-    <input id="email-esqueci" type="email" placeholder="seu@beq.com.br"/>
-    <div id="esqueci-msg"></div>
-    <button class="btn" id="btn-esqueci-enviar">Solicitar redefinição</button>
-    <button onclick="fecharEsqueciSenha()" style="background:none;border:none;color:#64748b;font-size:12.5px;font-weight:600;width:100%;margin-top:12px;padding:6px;cursor:pointer">← Voltar ao login</button>
-  </div>
-</div>
-
-<div id="tela-trocar-senha" class="center" style="display:none">
-  <div class="login-card">
-    <h1 style="font-size:18px;margin:0 0 4px">Defina sua nova senha</h1>
-    <p style="color:#64748b;font-size:13px;margin:0 0 18px">Por segurança, você precisa criar uma senha nova no seu primeiro acesso.</p>
-    <label>Nova senha</label>
-    <input id="nova-senha" type="password" placeholder="Mínimo 6 caracteres"/>
-    <label>Confirmar nova senha</label>
-    <input id="confirma-senha" type="password" placeholder="Repita a senha"/>
-    <div id="troca-senha-msg"></div>
-    <button class="btn" id="btn-trocar-senha">Salvar nova senha</button>
-  </div>
-</div>
-
-<div id="app" style="display:none">
-  <div class="header">
-    <div>
-      <div class="header-title">Painel do Gerente — Ressuprimento</div>
-      <div class="header-sub" id="user-info"></div>
-    </div>
-    <button class="btn-sair" id="btn-sair">Sair</button>
-  </div>
-  <div class="corpo">
-    <div style="display:flex;gap:4px;background:#f1f5f9;border-radius:8px;padding:3px;margin-bottom:16px;width:fit-content">
-      <button id="tab-btn-avaliar" onclick="irParaTab('avaliar')"
-        style="border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;background:#fff;color:#0f172a;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08)">
-        Avaliar Solicitações
-      </button>
-      <button id="tab-btn-acompanhar" onclick="irParaTab('acompanhar')"
-        style="border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:500;background:transparent;color:#64748b;cursor:pointer">
-        Acompanhar SCs
-      </button>
-    </div>
-
-    <div id="tab-avaliar">
-      <div class="topo">
-        <div style="font-size:13px;color:#64748b" id="subtitulo">Carregando...</div>
-        <button class="btn-atualizar" onclick="carregarSolicitacoes()">↻ Atualizar</button>
-      </div>
-      <div id="lista"></div>
-    </div>
-
-    <div id="tab-acompanhar" style="display:none">
-      <div class="topo">
-        <div style="font-size:13px;color:#64748b" id="subtitulo-acomp">Carregando...</div>
-        <button class="btn-atualizar" onclick="carregarAcompanhamentoGerente()">↻ Atualizar</button>
-      </div>
-      <div id="lista-acomp-gerente"></div>
-    </div>
-  </div>
-</div>
-
-<script>
-const SUPABASE_URL = "https://vvwtqbehfwrgcmbjdniu.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis";
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const $ = id => document.getElementById(id);
-
-let userEmail = "";
-let meusCC = [];
-let solicitacoes = [];
-let ccMap = {};
-const decisoes = {};
-const qtdEditadas = {};
-const justificativas = {};
-// consumo por filial+produto: consumoMap["filial|produto"] = media
-const consumoMap = {};
-// preço por código: precoMap["codigo"] = preco
-const precoMap = {};
-
-async function verificarSessao() {
-  // Sempre exige login novo ao abrir a página do gerente
-  await db.auth.signOut();
-  $("tela-login").style.display = "grid";
-}
-
-$("btn-login").addEventListener("click", async () => {
-  $("login-msg").innerHTML = "";
-  const email = $("email").value.trim();
-  const senha = $("senha").value;
-  if (!email || !senha) {
-    $("login-msg").innerHTML = '<div class="msg erro">Preencha e-mail e senha.</div>'; return;
-  }
-  $("btn-login").disabled = true; $("btn-login").textContent = "Entrando...";
-  const { error } = await db.auth.signInWithPassword({ email, password: senha });
-  $("btn-login").disabled = false; $("btn-login").textContent = "Entrar";
-  if (error) {
-    $("login-msg").innerHTML = '<div class="msg erro">' + error.message + '</div>'; return;
-  }
-  await mostrarApp(email);
-});
-$("senha").addEventListener("keydown", e => { if (e.key === "Enter") $("btn-login").click(); });
-$("btn-sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
-
-function abrirEsqueciSenha() {
-  $("tela-login").style.display = "none";
-  $("tela-esqueci-senha").style.display = "grid";
-  $("email-esqueci").value = $("email").value || "";
-  $("esqueci-msg").innerHTML = "";
-}
-window.abrirEsqueciSenha = abrirEsqueciSenha;
-
-function fecharEsqueciSenha() {
-  $("tela-esqueci-senha").style.display = "none";
-  $("tela-login").style.display = "grid";
-}
-window.fecharEsqueciSenha = fecharEsqueciSenha;
-
-$("btn-esqueci-enviar").addEventListener("click", async () => {
-  const email = ($("email-esqueci").value || "").trim().toLowerCase();
-  const msgEl = $("esqueci-msg");
-  if (!email) { msgEl.innerHTML = '<div class="msg erro">Informe o e-mail.</div>'; return; }
-  $("btn-esqueci-enviar").disabled = true;
-  $("btn-esqueci-enviar").textContent = "Enviando...";
-  const { error } = await db.from("pedidos_redefinicao").insert({ email, status: "pendente" });
-  $("btn-esqueci-enviar").disabled = false;
-  $("btn-esqueci-enviar").textContent = "Solicitar redefinição";
-  if (error) { msgEl.innerHTML = '<div class="msg erro">Erro: ' + error.message + '</div>'; return; }
-  msgEl.innerHTML = '<div class="msg ok">✓ Pedido enviado! Aguarde o administrador aprovar e te informar a senha temporária.</div>';
-});
-
-$("btn-trocar-senha").addEventListener("click", async () => {
-  const novaSenha = $("nova-senha").value;
-  const confirma = $("confirma-senha").value;
-  const msgEl = $("troca-senha-msg");
-  msgEl.innerHTML = "";
-  if (!novaSenha || novaSenha.length < 6) {
-    msgEl.innerHTML = '<div class="msg erro">A senha precisa ter pelo menos 6 caracteres.</div>'; return;
-  }
-  if (novaSenha !== confirma) {
-    msgEl.innerHTML = '<div class="msg erro">As senhas não coincidem.</div>'; return;
-  }
-  $("btn-trocar-senha").disabled = true;
-  $("btn-trocar-senha").textContent = "Salvando...";
-  const { data: { user }, error } = await db.auth.updateUser({ password: novaSenha, data: { senha_trocada: true } });
-  $("btn-trocar-senha").disabled = false;
-  $("btn-trocar-senha").textContent = "Salvar nova senha";
-  if (error) { msgEl.innerHTML = '<div class="msg erro">' + error.message + '</div>'; return; }
-  msgEl.innerHTML = '<div class="msg ok">✓ Senha alterada! Entrando...</div>';
-  setTimeout(() => mostrarApp(user.email), 800);
-});
-
-async function mostrarApp(email) {
-  const { data: { user } } = await db.auth.getUser();
-  const senhaTrocada = user?.user_metadata?.senha_trocada === true;
-  if (!senhaTrocada) {
-    $("tela-login").style.display = "none";
-    $("tela-esqueci-senha").style.display = "none";
-    $("tela-trocar-senha").style.display = "grid";
-    return;
-  }
-  $("tela-trocar-senha").style.display = "none";
-  userEmail = email.toLowerCase().trim();
-  const { data: gc, error: gcErr } = await db.from("gerentes_cc").select("cc").eq("email", userEmail);
-  if (gcErr) { $("tela-login").innerHTML = '<div class="vazio">Erro: ' + gcErr.message + '</div>'; return; }
-  meusCC = (gc || []).map(g => g.cc);
-  const { data: ccs } = await db.from("centros_custo").select("*");
-  (ccs || []).forEach(c => ccMap[c.cc] = c);
-  $("user-info").textContent = userEmail + (meusCC.length ? " · " + meusCC.length + " CC(s)" : " · sem CCs");
-  $("tela-login").style.display = "none";
-  $("app").style.display = "flex";
-  if (meusCC.length === 0) {
-    $("subtitulo").textContent = "Nenhum centro de custo associado";
-    $("lista").innerHTML = '<div class="vazio">Você não tem centros de custo associados.</div>';
-    return;
-  }
-  await carregarSolicitacoes();
-}
-
-async function carregarSolicitacoes() {
-  if (meusCC.length === 0) return;
-  $("lista").innerHTML = '<div class="vazio">Carregando...</div>';
-
-  const { data: sols } = await db.from("solicitacoes").select("*")
-    .in("cc", meusCC).eq("status", "pendente")
-    .order("criado_em", { ascending: false });
-
-  const ids = (sols || []).map(s => s.id);
-  let itensMap = {};
-  if (ids.length > 0) {
-    const { data: itens } = await db.from("solicitacao_itens").select("*").in("solicitacao_id", ids);
-    (itens || []).forEach(i => { (itensMap[i.solicitacao_id] = itensMap[i.solicitacao_id] || []).push(i); });
-  }
-
-  solicitacoes = (sols || []).map(s => ({ ...s, itens: itensMap[s.id] || [] }));
-
-  // Buscar consumo médio para todos os produtos das solicitações
-  const filiais = [...new Set(solicitacoes.map(s => s.filial).filter(Boolean))];
-  const codigos = [...new Set(solicitacoes.flatMap(s => (itensMap[s.id]||[]).map(i => i.codigo).filter(c => c && c !== "MANUAL")))];
-
-  if (filiais.length > 0 && codigos.length > 0) {
-    for (let i = 0; i < filiais.length; i += 10) {
-      const loteFiliais = filiais.slice(i, i + 10);
-      const { data: cons } = await db.from("consumo_filial")
-        .select("filial,produto,consumo_medio_6m")
-        .in("filial", loteFiliais)
-        .in("produto", codigos.slice(0, 500));
-      (cons || []).forEach(c => { consumoMap[c.filial + "|" + c.produto] = c.consumo_medio_6m; });
-    }
-  }
-  // Buscar preços da tabela itens (SB1)
-  if (codigos.length > 0) {
-    for (let i = 0; i < codigos.length; i += 500) {
-      const { data: precos } = await db.from("itens")
-        .select("codigo,preco")
-        .in("codigo", codigos.slice(i, i + 500));
-      (precos || []).forEach(p => { if (p.preco > 0) precoMap[p.codigo] = p.preco; });
-    }
-  }
-
-  $("subtitulo").textContent = solicitacoes.length > 0
-    ? solicitacoes.length + " solicitação(ões) aguardando sua avaliação"
-    : "Nenhuma solicitação pendente";
-
-  if (solicitacoes.length === 0) {
-    $("lista").innerHTML = '<div class="vazio">✓ Nenhuma solicitação pendente.</div>';
-    return;
-  }
-  $("lista").innerHTML = solicitacoes.map(renderCard).join("");
-}
-window.carregarSolicitacoes = carregarSolicitacoes;
-
-function fmtData(iso) {
-  return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" });
-}
-
-function fmtNum(n) {
-  return Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-}
-
-function renderCard(s) {
-  const base = ccMap[s.cc];
-  const nomeBase = base ? base.nome : s.cc;
-  const filial = s.filial || "";
-
-  // calcular valor total estimado inicial
-  let valorTotalInicial = 0;
-  s.itens.forEach(it => {
-    const qtd = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : it.quantidade;
-    const preco = (it.codigo && it.codigo !== "MANUAL") ? (precoMap[it.codigo] || 0) : 0;
-    valorTotalInicial += qtd * preco;
-  });
-
-  const linhasItens = s.itens.map(it => {
-    const qtdOrig = it.quantidade;
-    const qtdAtual = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : qtdOrig;
-    const consumo = (filial && it.codigo && it.codigo !== "MANUAL")
-      ? consumoMap[filial + "|" + it.codigo]
-      : undefined;
-    const consumoVal = consumo != null ? Math.floor(consumo) : null;
-    const preco = (it.codigo && it.codigo !== "MANUAL") ? (precoMap[it.codigo] || 0) : 0;
-    const valorEstimado = qtdAtual * preco;
-    const justVal = justificativas[it.id] || "";
-    const aumentada = qtdAtual > qtdOrig;
-
-    return `<tr id="row-${it.id}">
+<!doctype html><html lang=pt-BR><meta charset=utf-8><meta content="width=device-width,initial-scale=1" name=viewport><title>Painel do Gerente — Ressuprimento</title><script src=https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2></script><style>*{box-sizing:border-box}body{color:#0f172a;background:#f1f5f9;margin:0;font-family:system-ui,-apple-system,sans-serif}.center{place-items:center;min-height:100vh;padding:20px;display:grid}.login-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;width:100%;max-width:360px;padding:28px}label{color:#64748b;margin:0 0 5px;font-size:12px;font-weight:600;display:block}input{box-sizing:border-box;border:1px solid #e2e8f0;border-radius:9px;outline:none;width:100%;margin-bottom:14px;padding:10px 12px;font-family:inherit;font-size:14px}button{cursor:pointer;font-family:inherit}.btn{color:#fff;background:#1e40af;border:none;border-radius:9px;width:100%;padding:11px;font-size:14px;font-weight:700}.btn:disabled{cursor:not-allowed;background:#e2e8f0}.msg{border-radius:8px;margin-bottom:12px;padding:9px 11px;font-size:13px}.erro{color:#991b1b;background:#fee2e2}.ok{color:#065f46;background:#d1fae5}#app{flex-direction:column;min-height:100vh;display:flex}.header{color:#fff;background:#0f172a;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;padding:14px 24px;display:flex}.header-title{font-size:16px;font-weight:700}.header-sub{color:#64748b;margin-top:2px;font-size:12px}.btn-sair{color:#cbd5e1;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:7px 14px;font-size:12.5px}.corpo{flex:1;width:100%;max-width:1100px;margin:0 auto;padding:24px}.topo{flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px;display:flex}.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden}.card-topo{cursor:pointer;justify-content:space-between;align-items:center;gap:12px;padding:16px;display:flex}.card-titulo{font-size:14px;font-weight:700}.card-sub{color:#64748b;margin-top:3px;font-size:12px}.card-corpo{background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px;display:none}.card-corpo.aberto{display:block}table{border-collapse:collapse;background:#fff;border-radius:8px;width:100%;font-size:13px;overflow:hidden}th{text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;padding:8px 10px;font-size:11.5px;font-weight:600}td{vertical-align:middle;border-bottom:1px solid #f1f5f9;padding:9px 10px}.btn-dec{color:#64748b;background:#e2e8f0;border:none;border-radius:6px;margin-right:5px;padding:5px 9px;font-size:11.5px;font-weight:700}.btn-dec.aprovado{color:#fff;background:#16a34a}.btn-dec.recusado{color:#fff;background:#e11d48}.btn-salvar{color:#fff;white-space:nowrap;background:#1e40af;border:none;border-radius:8px;padding:10px 20px;font-size:13.5px;font-weight:700}.btn-aprovar-todas{color:#fff;white-space:nowrap;background:#16a34a;border:none;border-radius:8px;padding:10px 20px;font-size:13.5px;font-weight:700}.rodape-card{border-top:1px solid #e2e8f0;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px;padding-top:14px;display:flex}.vazio{text-align:center;color:#64748b;background:#fff;border:1px dashed #e2e8f0;border-radius:12px;padding:36px;font-size:13.5px}.btn-atualizar{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:13px}.just-input{background:#fffbeb;border:1px solid #fbbf24;border-radius:6px;width:100%;margin-top:4px;padding:4px 6px;font-family:inherit;font-size:12px;display:none}.just-input.visivel{display:block}.tag-consumo{color:#1e40af;background:#f0fdf4;border-radius:4px;padding:2px 6px;font-size:10.5px;font-weight:600}.tag-sem{color:#94a3b8;background:#f1f5f9;border-radius:4px;padding:2px 6px;font-size:10.5px}.qtd-original{color:#475569;font-family:ui-monospace,monospace;font-size:12px;font-weight:600}.qtd-input{text-align:right;border:1px solid #e2e8f0;border-radius:6px;width:72px;padding:4px 6px;font-family:ui-monospace,monospace;font-size:13px}.qtd-input.aumentada{background:#fffbeb;border-color:#f59e0b}</style><body><div class=center id=tela-login><div class=login-card><div style=color:#fff;background:#1e40af;border-radius:9px;justify-content:center;align-items:center;width:36px;height:36px;margin-bottom:14px;font-size:16px;font-weight:800;display:flex>R</div><h1 style="margin:0 0 4px;font-size:18px">Painel do Gerente</h1><p style="color:#64748b;margin:0 0 18px;font-size:13px">Avaliação de solicitações de ressuprimento</p><label>E-mail</label><input id=email placeholder=seu@email.com type=email><label>Senha</label><input id=senha type=password><div id=login-msg></div><button class=btn id=btn-login>Entrar</button><button style="color:#1e40af;cursor:pointer;background:0 0;border:none;width:100%;margin-top:12px;padding:6px;font-size:12.5px;font-weight:600" onclick=abrirEsqueciSenha()>Esqueci minha senha</button></div></div><div class=center id=tela-esqueci-senha style=display:none><div class=login-card><h1 style="margin:0 0 4px;font-size:18px">Esqueci minha senha</h1><p style="color:#64748b;margin:0 0 18px;font-size:13px">Informe seu e-mail. Um administrador vai aprovar a redefinição.</p><label>E-mail</label><input id=email-esqueci placeholder=seu@beq.com.br type=email><div id=esqueci-msg></div><button class=btn id=btn-esqueci-enviar>Solicitar redefinição</button><button style="color:#64748b;cursor:pointer;background:0 0;border:none;width:100%;margin-top:12px;padding:6px;font-size:12.5px;font-weight:600" onclick=fecharEsqueciSenha()>← Voltar ao login</button></div></div><div class=center id=tela-trocar-senha style=display:none><div class=login-card><h1 style="margin:0 0 4px;font-size:18px">Defina sua nova senha</h1><p style="color:#64748b;margin:0 0 18px;font-size:13px">Por segurança, você precisa criar uma senha nova no seu primeiro acesso.</p><label>Nova senha</label><input placeholder="Mínimo 6 caracteres" id=nova-senha type=password><label>Confirmar nova senha</label><input placeholder="Repita a senha" id=confirma-senha type=password><div id=troca-senha-msg></div><button class=btn id=btn-trocar-senha>Salvar nova senha</button></div></div><div id=app style=display:none><div class=header><div><div class=header-title>Painel do Gerente — Ressuprimento</div><div class=header-sub id=user-info></div></div><button class=btn-sair id=btn-sair>Sair</button></div><div class=corpo><div style=background:#f1f5f9;border-radius:8px;gap:4px;width:fit-content;margin-bottom:16px;padding:3px;display:flex><button onclick="irParaTab('avaliar')" style="color:#0f172a;cursor:pointer;background:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;box-shadow:0 1px 3px #00000014" id=tab-btn-avaliar>Avaliar Solicitações</button><button onclick="irParaTab('acompanhar')" style="color:#64748b;cursor:pointer;background:0 0;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:500" id=tab-btn-acompanhar>Acompanhar SCs</button></div><div id=tab-avaliar><div class=topo><div id=subtitulo style=color:#64748b;font-size:13px>Carregando...</div><button class=btn-atualizar onclick=carregarSolicitacoes()>↻ Atualizar</button></div><div id=lista></div></div><div id=tab-acompanhar style=display:none><div class=topo><div id=subtitulo-acomp style=color:#64748b;font-size:13px>Carregando...</div><button class=btn-atualizar onclick=carregarAcompanhamentoGerente()>↻ Atualizar</button></div><div id=lista-acomp-gerente></div></div></div></div><script>const SUPABASE_URL=`https://vvwtqbehfwrgcmbjdniu.supabase.co`,SUPABASE_ANON_KEY=`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis`,db=window.supabase.createClient(`https://vvwtqbehfwrgcmbjdniu.supabase.co`,`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis`),$=id=>document.getElementById(id);let userEmail=``,meusCC=[],solicitacoes=[],ccMap={};const decisoes={},qtdEditadas={},justificativas={},consumoMap={},precoMap={};async function verificarSessao(){await db.auth.signOut(),$(`tela-login`).style.display=`grid`}$(`btn-login`).addEventListener(`click`,async()=>{$(`login-msg`).innerHTML=``;let email=$(`email`).value.trim(),senha=$(`senha`).value;if(!email||!senha){$(`login-msg`).innerHTML=`<div class="msg erro">Preencha e-mail e senha.</div>`;return}$(`btn-login`).disabled=!0,$(`btn-login`).textContent=`Entrando...`;let{error}=await db.auth.signInWithPassword({email,password:senha});if($(`btn-login`).disabled=!1,$(`btn-login`).textContent=`Entrar`,error){$(`login-msg`).innerHTML=`<div class="msg erro">`+error.message+`</div>`;return}await mostrarApp(email)}),$(`senha`).addEventListener(`keydown`,e=>{e.key===`Enter`&&$(`btn-login`).click()}),$(`btn-sair`).addEventListener(`click`,async()=>{await db.auth.signOut(),location.reload()});function abrirEsqueciSenha(){$(`tela-login`).style.display=`none`,$(`tela-esqueci-senha`).style.display=`grid`,$(`email-esqueci`).value=$(`email`).value||``,$(`esqueci-msg`).innerHTML=``}window.abrirEsqueciSenha=abrirEsqueciSenha;function fecharEsqueciSenha(){$(`tela-esqueci-senha`).style.display=`none`,$(`tela-login`).style.display=`grid`}window.fecharEsqueciSenha=fecharEsqueciSenha,$(`btn-esqueci-enviar`).addEventListener(`click`,async()=>{let email=($(`email-esqueci`).value||``).trim().toLowerCase(),msgEl=$(`esqueci-msg`);if(!email){msgEl.innerHTML=`<div class="msg erro">Informe o e-mail.</div>`;return}$(`btn-esqueci-enviar`).disabled=!0,$(`btn-esqueci-enviar`).textContent=`Enviando...`;let{error}=await db.from(`pedidos_redefinicao`).insert({email,status:`pendente`});if($(`btn-esqueci-enviar`).disabled=!1,$(`btn-esqueci-enviar`).textContent=`Solicitar redefinição`,error){msgEl.innerHTML=`<div class="msg erro">Erro: `+error.message+`</div>`;return}msgEl.innerHTML=`<div class="msg ok">✓ Pedido enviado! Aguarde o administrador aprovar e te informar a senha temporária.</div>`}),$(`btn-trocar-senha`).addEventListener(`click`,async()=>{let novaSenha=$(`nova-senha`).value,confirma=$(`confirma-senha`).value,msgEl=$(`troca-senha-msg`);if(msgEl.innerHTML=``,!novaSenha||novaSenha.length<6){msgEl.innerHTML=`<div class="msg erro">A senha precisa ter pelo menos 6 caracteres.</div>`;return}if(novaSenha!==confirma){msgEl.innerHTML=`<div class="msg erro">As senhas não coincidem.</div>`;return}$(`btn-trocar-senha`).disabled=!0,$(`btn-trocar-senha`).textContent=`Salvando...`;let{data:{user},error}=await db.auth.updateUser({password:novaSenha,data:{senha_trocada:!0}});if($(`btn-trocar-senha`).disabled=!1,$(`btn-trocar-senha`).textContent=`Salvar nova senha`,error){msgEl.innerHTML=`<div class="msg erro">`+error.message+`</div>`;return}msgEl.innerHTML=`<div class="msg ok">✓ Senha alterada! Entrando...</div>`,setTimeout(()=>mostrarApp(user.email),800)});async function mostrarApp(email){let{data:{user}}=await db.auth.getUser();if(user?.user_metadata?.senha_trocada!==!0){$(`tela-login`).style.display=`none`,$(`tela-esqueci-senha`).style.display=`none`,$(`tela-trocar-senha`).style.display=`grid`;return}$(`tela-trocar-senha`).style.display=`none`,userEmail=email.toLowerCase().trim();let{data:gc,error:gcErr}=await db.from(`gerentes_cc`).select(`cc`).eq(`email`,userEmail);if(gcErr){$(`tela-login`).innerHTML=`<div class="vazio">Erro: `+gcErr.message+`</div>`;return}meusCC=(gc||[]).map(g=>g.cc);let{data:ccs}=await db.from(`centros_custo`).select(`*`);if((ccs||[]).forEach(c=>ccMap[c.cc]=c),$(`user-info`).textContent=userEmail+(meusCC.length?` · `+meusCC.length+` CC(s)`:` · sem CCs`),$(`tela-login`).style.display=`none`,$(`app`).style.display=`flex`,meusCC.length===0){$(`subtitulo`).textContent=`Nenhum centro de custo associado`,$(`lista`).innerHTML=`<div class="vazio">Você não tem centros de custo associados.</div>`;return}await carregarSolicitacoes()}async function carregarSolicitacoes(){if(meusCC.length===0)return;$(`lista`).innerHTML=`<div class="vazio">Carregando...</div>`;let{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`cc`,meusCC).eq(`status`,`pendente`).order(`criado_em`,{ascending:!1}),ids=(sols||[]).map(s=>s.id),itensMap={};if(ids.length>0){let{data:itens}=await db.from(`solicitacao_itens`).select(`*`).in(`solicitacao_id`,ids);(itens||[]).forEach(i=>{(itensMap[i.solicitacao_id]=itensMap[i.solicitacao_id]||[]).push(i)})}solicitacoes=(sols||[]).map(s=>({...s,itens:itensMap[s.id]||[]}));
+// Buscar consumo médio para todos os produtos das solicitações
+let filiais=[...new Set(solicitacoes.map(s=>s.filial).filter(Boolean))],codigos=[...new Set(solicitacoes.flatMap(s=>(itensMap[s.id]||[]).map(i=>i.codigo).filter(c=>c&&c!==`MANUAL`)))];if(filiais.length>0&&codigos.length>0)for(let i=0;i<filiais.length;i+=10){let loteFiliais=filiais.slice(i,i+10),{data:cons}=await db.from(`consumo_filial`).select(`filial,produto,consumo_medio_6m`).in(`filial`,loteFiliais).in(`produto`,codigos.slice(0,500));(cons||[]).forEach(c=>{consumoMap[c.filial+`|`+c.produto]=c.consumo_medio_6m})}
+// Buscar preços da tabela itens (SB1)
+if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await db.from(`itens`).select(`codigo,preco`).in(`codigo`,codigos.slice(i,i+500));(precos||[]).forEach(p=>{p.preco>0&&(precoMap[p.codigo]=p.preco)})}if($(`subtitulo`).textContent=solicitacoes.length>0?solicitacoes.length+` solicitação(ões) aguardando sua avaliação`:`Nenhuma solicitação pendente`,solicitacoes.length===0){$(`lista`).innerHTML=`<div class="vazio">✓ Nenhuma solicitação pendente.</div>`;return}$(`lista`).innerHTML=solicitacoes.map(renderCard).join(``)}window.carregarSolicitacoes=carregarSolicitacoes;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}function fmtNum(n){return Number(n).toLocaleString(`pt-BR`,{maximumFractionDigits:1})}function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,filial=s.filial||``,valorTotalInicial=0;s.itens.forEach(it=>{let qtd=qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id],preco=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0;valorTotalInicial+=qtd*preco});let linhasItens=s.itens.map(it=>{let qtdOrig=it.quantidade,qtdAtual=qtdEditadas[it.id]===void 0?qtdOrig:qtdEditadas[it.id],consumo=filial&&it.codigo&&it.codigo!==`MANUAL`?consumoMap[filial+`|`+it.codigo]:void 0,consumoVal=consumo==null?null:Math.floor(consumo),preco=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0,valorEstimado=qtdAtual*preco,justVal=justificativas[it.id]||``,aumentada=qtdAtual>qtdOrig;return`<tr id="row-${it.id}">
       <td>
-        <div>${it.descricao || it.codigo || "—"}</div>
-        ${it.codigo && it.codigo !== "MANUAL" ? `<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>` : ""}
+        <div>${it.descricao||it.codigo||`—`}</div>
+        ${it.codigo&&it.codigo!==`MANUAL`?`<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>`:``}
       </td>
       <td style="text-align:center">
-        ${consumoVal != null
-          ? `<span style="font-weight:700;color:#1e40af">${consumoVal}</span>`
-          : `<span style="color:#cbd5e1">—</span>`}
+        ${consumoVal==null?`<span style="color:#cbd5e1">—</span>`:`<span style="font-weight:700;color:#1e40af">${consumoVal}</span>`}
       </td>
       <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:#1e40af">
-        ${it.qtd_sugerida ? it.qtd_sugerida : '<span style="color:#cbd5e1">—</span>'}
+        ${it.qtd_sugerida?it.qtd_sugerida:`<span style="color:#cbd5e1">—</span>`}
       </td>
       <td style="text-align:center">
         <span class="qtd-original">${qtdOrig}</span>
       </td>
       <td style="text-align:center">
         <input type="number" min="0" value="${qtdAtual}"
-          class="qtd-input${aumentada ? " aumentada" : ""}"
+          class="qtd-input${aumentada?` aumentada`:``}"
           id="qtd-${it.id}"
           oninput="onQtdChange(${s.id},${it.id},${qtdOrig},${preco},this.value)"/>
         <input type="text" placeholder="Justificativa obrigatória ⚠"
-          class="just-input${aumentada ? " visivel" : ""}"
+          class="just-input${aumentada?` visivel`:``}"
           id="just-${it.id}"
           value="${justVal}"
           oninput="justificativas[${it.id}]=this.value"/>
       </td>
       <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12px;color:#475569" id="val-${it.id}">
-        ${preco > 0 ? "R$ " + valorEstimado.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2}) : "—"}
+        ${preco>0?`R$ `+valorEstimado.toLocaleString(`pt-BR`,{minimumFractionDigits:2,maximumFractionDigits:2}):`—`}
       </td>
       <td style="text-align:center;white-space:nowrap">
-        <button class="btn-dec ${decisoes[it.id] === "aprovado" || it.situacao === "aprovado" ? "aprovado" : ""}"
+        <button class="btn-dec ${decisoes[it.id]===`aprovado`||it.situacao===`aprovado`?`aprovado`:``}"
           id="ap-${it.id}" onclick="decidir(${s.id},${it.id},'aprovado')">Aprovar</button>
-        <button class="btn-dec ${decisoes[it.id] === "recusado" || it.situacao === "recusado" ? "recusado" : ""}"
+        <button class="btn-dec ${decisoes[it.id]===`recusado`||it.situacao===`recusado`?`recusado`:``}"
           id="re-${it.id}" onclick="decidir(${s.id},${it.id},'recusado')">Recusar</button>
       </td>
-    </tr>`;
-  }).join("");
-
-  return `
+    </tr>`}).join(``);return`
     <div class="card">
       <div class="card-topo" onclick="toggleCard(${s.id})">
         <div>
           <div class="card-titulo">${nomeBase}
             <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
-            ${filial ? `<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px">${filial}</span>` : ""}
+            ${filial?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px">${filial}</span>`:``}
           </div>
-          <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns) · <span style="background:#f0fdf4;color:#166534;border-radius:4px;padding:1px 7px;font-weight:700">📅 ${s.periodo_meses || 3} meses</span></div>
-          ${s.justificativa ? `<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>` : ""}
+          <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns) · <span style="background:#f0fdf4;color:#166534;border-radius:4px;padding:1px 7px;font-weight:700">📅 ${s.periodo_meses||3} meses</span></div>
+          ${s.justificativa?`<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>`:``}
         </div>
         <div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap">Avaliar ▾</div>
       </div>
@@ -391,7 +54,7 @@ function renderCard(s) {
           <tr>
             <th>Item</th>
             <th style="text-align:center;width:70px">Consumo<br>6m (un)</th>
-            <th style="text-align:center;width:80px">Qtd sugerida<br>(${s.periodo_meses || 3}m)</th>
+            <th style="text-align:center;width:80px">Qtd sugerida<br>(${s.periodo_meses||3}m)</th>
             <th style="text-align:center;width:80px">Qtd<br>almoxarife</th>
             <th style="text-align:center;width:180px">Qtd gerente</th>
             <th style="text-align:right;width:110px">Valor est.</th>
@@ -405,268 +68,46 @@ function renderCard(s) {
           <div style="margin-left:auto;text-align:right;flex-shrink:0">
             <div style="font-size:10.5px;color:#94a3b8;font-weight:600">VALOR TOTAL ESTIMADO</div>
             <div style="font-size:16px;font-weight:700;color:#0f172a" id="total-${s.id}">
-              ${valorTotalInicial > 0 ? "R$ " + valorTotalInicial.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2}) : "—"}
+              ${valorTotalInicial>0?`R$ `+valorTotalInicial.toLocaleString(`pt-BR`,{minimumFractionDigits:2,maximumFractionDigits:2}):`—`}
             </div>
           </div>
           <div id="msg-${s.id}" style="font-size:12.5px"></div>
         </div>
       </div>
-    </div>`;
-}
-
-function onQtdChange(solId, itemId, qtdOrig, preco, valor) {
-  const nova = Number(valor) || 0;
-  qtdEditadas[itemId] = nova;
-  const input = $("qtd-" + itemId);
-  const just = $("just-" + itemId);
-  if (nova > qtdOrig) {
-    input.classList.add("aumentada");
-    just.classList.add("visivel");
-  } else {
-    input.classList.remove("aumentada");
-    just.classList.remove("visivel");
-  }
-  // atualizar valor estimado do item
-  const valEl = $("val-" + itemId);
-  if (valEl && preco > 0) {
-    const v = nova * preco;
-    valEl.textContent = "R$ " + v.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2});
-  }
-  // recalcular total da solicitação
-  const sol = solicitacoes.find(s => s.id === solId);
-  if (!sol) return;
-  let total = 0;
-  sol.itens.forEach(it => {
-    const q = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : it.quantidade;
-    const p = (it.codigo && it.codigo !== "MANUAL") ? (precoMap[it.codigo] || 0) : 0;
-    total += q * p;
-  });
-  const totalEl = $("total-" + solId);
-  if (totalEl) {
-    totalEl.textContent = total > 0
-      ? "R$ " + total.toLocaleString("pt-BR", {minimumFractionDigits:2, maximumFractionDigits:2})
-      : "—";
-  }
-}
-window.onQtdChange = onQtdChange;
-
-function aprovarTodas(solId) {
-  const sol = solicitacoes.find(s => s.id === solId);
-  if (!sol) return;
-  sol.itens.forEach(it => {
-    decisoes[it.id] = "aprovado";
-    const ap = $("ap-" + it.id);
-    const re = $("re-" + it.id);
-    if (ap) ap.className = "btn-dec aprovado";
-    if (re) re.className = "btn-dec";
-  });
-}
-window.aprovarTodas = aprovarTodas;
-
-function decidir(solId, itemId, valor) {
-  decisoes[itemId] = decisoes[itemId] === valor ? "pendente" : valor;
-  $("ap-" + itemId).className = "btn-dec" + (decisoes[itemId] === "aprovado" ? " aprovado" : "");
-  $("re-" + itemId).className = "btn-dec" + (decisoes[itemId] === "recusado" ? " recusado" : "");
-}
-window.decidir = decidir;
-
-function toggleCard(id) { $("corpo-" + id).classList.toggle("aberto"); }
-window.toggleCard = toggleCard;
-
-async function salvar(solId) {
-  const sol = solicitacoes.find(s => s.id === solId);
-  if (!sol) return;
-  const msgEl = $("msg-" + solId);
-
-  // Validar justificativas para itens aumentados
-  for (const it of sol.itens) {
-    const novaQtd = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : it.quantidade;
-    if (novaQtd > it.quantidade) {
-      const just = (justificativas[it.id] || "").trim();
-      if (!just) {
-        msgEl.innerHTML = `<span style="color:#991b1b">⚠ Justificativa obrigatória para "${it.descricao || it.codigo}" (quantidade aumentada).</span>`;
-        $("just-" + it.id).focus();
-        return;
-      }
-    }
-  }
-
-  msgEl.innerHTML = '<span style="color:#64748b">Salvando...</span>';
-
-  for (const it of sol.itens) {
-    const valor = decisoes[it.id] !== undefined ? decisoes[it.id] : (it.situacao || "pendente");
-    const novaQtd = qtdEditadas[it.id] !== undefined ? qtdEditadas[it.id] : null;
-    const just = (justificativas[it.id] || "").trim();
-    const upd = { situacao: valor };
-    // salva qtd_almoxarife (original) se ainda não foi salvo
-    upd.qtd_almoxarife = it.quantidade; // quantidade original do almoxarife
-    if (novaQtd !== null) upd.quantidade = novaQtd; // qtd do gerente
-    if (just) upd.justificativa_gerente = just;
-    await db.from("solicitacao_itens").update(upd).eq("id", it.id);
-  }
-
-  const { error } = await db.from("solicitacoes").update({
-    status: "aguardando_master",
-    atualizado_em: new Date().toISOString()
-  }).eq("id", solId);
-
-  if (error) {
-    msgEl.innerHTML = '<span style="color:#991b1b">Erro: ' + error.message + '</span>';
-  } else {
-    msgEl.innerHTML = '<span style="color:#065f46">✓ Encaminhado para aprovação final!</span>';
-    setTimeout(carregarSolicitacoes, 1800);
-  }
-}
-window.salvar = salvar;
-
+    </div>`}function onQtdChange(solId,itemId,qtdOrig,preco,valor){let nova=Number(valor)||0;qtdEditadas[itemId]=nova;let input=$(`qtd-`+itemId),just=$(`just-`+itemId);nova>qtdOrig?(input.classList.add(`aumentada`),just.classList.add(`visivel`)):(input.classList.remove(`aumentada`),just.classList.remove(`visivel`));
+// atualizar valor estimado do item
+let valEl=$(`val-`+itemId);valEl&&preco>0&&(valEl.textContent=`R$ `+(nova*preco).toLocaleString(`pt-BR`,{minimumFractionDigits:2,maximumFractionDigits:2}));
+// recalcular total da solicitação
+let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let total=0;sol.itens.forEach(it=>{let q=qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id],p=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0;total+=q*p});let totalEl=$(`total-`+solId);totalEl&&(totalEl.textContent=total>0?`R$ `+total.toLocaleString(`pt-BR`,{minimumFractionDigits:2,maximumFractionDigits:2}):`—`)}window.onQtdChange=onQtdChange;function aprovarTodas(solId){let sol=solicitacoes.find(s=>s.id===solId);sol&&sol.itens.forEach(it=>{decisoes[it.id]=`aprovado`;let ap=$(`ap-`+it.id),re=$(`re-`+it.id);ap&&(ap.className=`btn-dec aprovado`),re&&(re.className=`btn-dec`)})}window.aprovarTodas=aprovarTodas;function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor,$(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``),$(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)}window.decidir=decidir;function toggleCard(id){$(`corpo-`+id).classList.toggle(`aberto`)}window.toggleCard=toggleCard;async function salvar(solId){let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let msgEl=$(`msg-`+solId);
+// Validar justificativas para itens aumentados
+for(let it of sol.itens)if((qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id])>it.quantidade&&!(justificativas[it.id]||``).trim()){msgEl.innerHTML=`<span style="color:#991b1b">⚠ Justificativa obrigatória para "${it.descricao||it.codigo}" (quantidade aumentada).</span>`,$(`just-`+it.id).focus();return}msgEl.innerHTML=`<span style="color:#64748b">Salvando...</span>`;for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id],novaQtd=qtdEditadas[it.id]===void 0?null:qtdEditadas[it.id],just=(justificativas[it.id]||``).trim(),upd={situacao:valor};upd.qtd_almoxarife=it.quantidade,novaQtd!==null&&(upd.quantidade=novaQtd),just&&(upd.justificativa_gerente=just),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id)}let{error}=await db.from(`solicitacoes`).update({status:`aguardando_master`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId);error?msgEl.innerHTML=`<span style="color:#991b1b">Erro: `+error.message+`</span>`:(msgEl.innerHTML=`<span style="color:#065f46">✓ Encaminhado para aprovação final!</span>`,setTimeout(carregarSolicitacoes,1800))}window.salvar=salvar;
 // ---------- ABAS ----------
-function irParaTab(tab) {
-  $("tab-avaliar").style.display = tab === "avaliar" ? "block" : "none";
-  $("tab-acompanhar").style.display = tab === "acompanhar" ? "block" : "none";
-  $("tab-btn-avaliar").style.background = tab === "avaliar" ? "#fff" : "transparent";
-  $("tab-btn-avaliar").style.color = tab === "avaliar" ? "#0f172a" : "#64748b";
-  $("tab-btn-avaliar").style.fontWeight = tab === "avaliar" ? "600" : "500";
-  $("tab-btn-avaliar").style.boxShadow = tab === "avaliar" ? "0 1px 3px rgba(0,0,0,.08)" : "none";
-  $("tab-btn-acompanhar").style.background = tab === "acompanhar" ? "#fff" : "transparent";
-  $("tab-btn-acompanhar").style.color = tab === "acompanhar" ? "#0f172a" : "#64748b";
-  $("tab-btn-acompanhar").style.fontWeight = tab === "acompanhar" ? "600" : "500";
-  $("tab-btn-acompanhar").style.boxShadow = tab === "acompanhar" ? "0 1px 3px rgba(0,0,0,.08)" : "none";
-  if (tab === "acompanhar" && !window._acompGerenteCarregado) {
-    window._acompGerenteCarregado = true;
-    carregarAcompanhamentoGerente();
-  }
-}
-window.irParaTab = irParaTab;
-
+function irParaTab(tab){$(`tab-avaliar`).style.display=tab===`avaliar`?`block`:`none`,$(`tab-acompanhar`).style.display=tab===`acompanhar`?`block`:`none`,$(`tab-btn-avaliar`).style.background=tab===`avaliar`?`#fff`:`transparent`,$(`tab-btn-avaliar`).style.color=tab===`avaliar`?`#0f172a`:`#64748b`,$(`tab-btn-avaliar`).style.fontWeight=tab===`avaliar`?`600`:`500`,$(`tab-btn-avaliar`).style.boxShadow=tab===`avaliar`?`0 1px 3px rgba(0,0,0,.08)`:`none`,$(`tab-btn-acompanhar`).style.background=tab===`acompanhar`?`#fff`:`transparent`,$(`tab-btn-acompanhar`).style.color=tab===`acompanhar`?`#0f172a`:`#64748b`,$(`tab-btn-acompanhar`).style.fontWeight=tab===`acompanhar`?`600`:`500`,$(`tab-btn-acompanhar`).style.boxShadow=tab===`acompanhar`?`0 1px 3px rgba(0,0,0,.08)`:`none`,tab===`acompanhar`&&!window._acompGerenteCarregado&&(window._acompGerenteCarregado=!0,carregarAcompanhamentoGerente())}window.irParaTab=irParaTab;
 // ---------- ACOMPANHAMENTO DO GERENTE (SCs já aprovadas, com pedido em aberto) ----------
-function fmtBRLGer(v) {
-  return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-async function carregarAcompanhamentoGerente() {
-  if (meusCC.length === 0) return;
-  $("lista-acomp-gerente").innerHTML = '<div class="vazio">Carregando...</div>';
-
-  // Buscar solicitações com SC associada, nos CCs do gerente
-  const { data: sols } = await db.from("solicitacoes")
-    .select("*")
-    .in("cc", meusCC)
-    .not("sc_numero", "is", null);
-
-  const associadas = (sols || []).filter(s => s.sc_numero && s.sc_numero.trim());
-  if (!associadas.length) {
-    $("subtitulo-acomp").textContent = "Nenhuma SC associada nos seus CCs ainda.";
-    $("lista-acomp-gerente").innerHTML = '<div class="vazio">Nenhuma SC para acompanhar.</div>';
-    return;
-  }
-
-  // Buscar sc_pedidos por filial+SC
-  const porSc = {};
-  const scsComFilial = associadas.filter(s => s.filial && s.sc_numero);
-  const scsSemFilial = associadas.filter(s => !s.filial && s.sc_numero);
-  let scPedidos = [];
-
-  if (scsComFilial.length > 0) {
-    const porFilial = {};
-    scsComFilial.forEach(s => { (porFilial[s.filial] = porFilial[s.filial] || []).push(s.sc_numero.trim()); });
-    for (const [filial, scs] of Object.entries(porFilial)) {
-      for (let i = 0; i < scs.length; i += 100) {
-        const lote = scs.slice(i, i + 100);
-        let off = 0;
-        while (true) {
-          const { data: rows } = await db.from("sc_pedidos").select("*").eq("c1_filial", filial).in("c1_num", lote).range(off, off + 999);
-          if (!rows || !rows.length) break;
-          scPedidos = scPedidos.concat(rows);
-          if (rows.length < 1000) break;
-          off += 1000;
-        }
-      }
-    }
-  }
-  if (scsSemFilial.length > 0) {
-    const scsNums = [...new Set(scsSemFilial.map(s => s.sc_numero.trim()))];
-    for (let i = 0; i < scsNums.length; i += 100) {
-      const lote = scsNums.slice(i, i + 100);
-      let off = 0;
-      while (true) {
-        const { data: rows } = await db.from("sc_pedidos").select("*").in("c1_num", lote).range(off, off + 999);
-        if (!rows || !rows.length) break;
-        scPedidos = scPedidos.concat(rows);
-        if (rows.length < 1000) break;
-        off += 1000;
-      }
-    }
-  }
-
-  scPedidos.forEach(r => {
-    const filial = (r.c1_filial || "").trim();
-    const sc = (r.c1_num || "").trim();
-    const chave = filial ? filial + "|" + sc : sc;
-    (porSc[chave] = porSc[chave] || []).push(r);
-  });
-
-  function getItens(sol) {
-    const sc = sol.sc_numero.trim();
-    if (sol.filial) {
-      const itens = porSc[sol.filial + "|" + sc];
-      if (itens && itens.length) return itens;
-    }
-    return porSc[sc] || [];
-  }
-
-  function isRecebido(st) {
-    if (!st) return false;
-    const s = st.toLowerCase();
-    return s === "recebido" || s === "recebido parcialmente" || s.includes("pré-nota") || s.includes("pre-nota");
-  }
-
-  $("subtitulo-acomp").textContent = associadas.length + " SC(s) associada(s) aos seus centros de custo";
-
-  const html = associadas.map(sol => {
-    const itens = getItens(sol);
-    const total = itens.length;
-    const recebidos = itens.filter(it => isRecebido(it.pc_status)).length;
-    const pct = total > 0 ? Math.round(recebidos / total * 100) : 0;
-    const valorTotal = itens.reduce((s, it) => s + (Number(it.pc_total) || 0), 0);
-    const cor = pct === 100 ? "#16a34a" : pct > 50 ? "#1e40af" : pct > 0 ? "#d97706" : "#94a3b8";
-    const nomeBase = (ccMap[sol.cc] || {}).nome || sol.cc;
-
-    return `<div class="card">
+function fmtBRLGer(v){return(Number(v)||0).toLocaleString(`pt-BR`,{style:`currency`,currency:`BRL`})}async function carregarAcompanhamentoGerente(){if(meusCC.length===0)return;$(`lista-acomp-gerente`).innerHTML=`<div class="vazio">Carregando...</div>`;
+// Buscar solicitações com SC associada, nos CCs do gerente
+let{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`cc`,meusCC).not(`sc_numero`,`is`,null),associadas=(sols||[]).filter(s=>s.sc_numero&&s.sc_numero.trim());if(!associadas.length){$(`subtitulo-acomp`).textContent=`Nenhuma SC associada nos seus CCs ainda.`,$(`lista-acomp-gerente`).innerHTML=`<div class="vazio">Nenhuma SC para acompanhar.</div>`;return}
+// Buscar sc_pedidos por filial+SC
+let porSc={},scsComFilial=associadas.filter(s=>s.filial&&s.sc_numero),scsSemFilial=associadas.filter(s=>!s.filial&&s.sc_numero),scPedidos=[];if(scsComFilial.length>0){let porFilial={};scsComFilial.forEach(s=>{(porFilial[s.filial]=porFilial[s.filial]||[]).push(s.sc_numero.trim())});for(let[filial,scs]of Object.entries(porFilial))for(let i=0;i<scs.length;i+=100){let lote=scs.slice(i,i+100),off=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`*`).eq(`c1_filial`,filial).in(`c1_num`,lote).range(off,off+999);if(!rows||!rows.length||(scPedidos=scPedidos.concat(rows),rows.length<1e3))break;off+=1e3}}}if(scsSemFilial.length>0){let scsNums=[...new Set(scsSemFilial.map(s=>s.sc_numero.trim()))];for(let i=0;i<scsNums.length;i+=100){let lote=scsNums.slice(i,i+100),off=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`*`).in(`c1_num`,lote).range(off,off+999);if(!rows||!rows.length||(scPedidos=scPedidos.concat(rows),rows.length<1e3))break;off+=1e3}}}scPedidos.forEach(r=>{let filial=(r.c1_filial||``).trim(),sc=(r.c1_num||``).trim(),chave=filial?filial+`|`+sc:sc;(porSc[chave]=porSc[chave]||[]).push(r)});function getItens(sol){let sc=sol.sc_numero.trim();if(sol.filial){let itens=porSc[sol.filial+`|`+sc];if(itens&&itens.length)return itens}return porSc[sc]||[]}function isRecebido(st){if(!st)return!1;let s=st.toLowerCase();return s===`recebido`||s===`recebido parcialmente`||s.includes(`pré-nota`)||s.includes(`pre-nota`)}$(`subtitulo-acomp`).textContent=associadas.length+` SC(s) associada(s) aos seus centros de custo`;let html=associadas.map(sol=>{let itens=getItens(sol),total=itens.length,recebidos=itens.filter(it=>isRecebido(it.pc_status)).length,pct=total>0?Math.round(recebidos/total*100):0,valorTotal=itens.reduce((s,it)=>s+(Number(it.pc_total)||0),0),cor=pct===100?`#16a34a`:pct>50?`#1e40af`:pct>0?`#d97706`:`#94a3b8`,nomeBase=(ccMap[sol.cc]||{}).nome||sol.cc;return`<div class="card">
       <div class="card-topo" onclick="toggleAcompGer(${sol.id})">
         <div>
           <div class="card-titulo" style="font-family:ui-monospace,monospace">
             SC ${sol.sc_numero}
             <span style="background:${cor}1a;color:${cor};border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;margin-left:8px">${pct}% recebido</span>
           </div>
-          <div class="card-sub">${nomeBase} · ${sol.cc} · ${total} item(ns)${valorTotal > 0 ? " · " + fmtBRLGer(valorTotal) : ""}</div>
+          <div class="card-sub">${nomeBase} · ${sol.cc} · ${total} item(ns)${valorTotal>0?` · `+fmtBRLGer(valorTotal):``}</div>
         </div>
         <div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap">Ver ▾</div>
       </div>
       <div class="card-corpo" id="corpo-acomp-ger-${sol.id}">
         <table>
           <tr><th>Item</th><th>Pedido</th><th style="text-align:right">Qtd</th><th>Status</th></tr>
-          ${itens.length === 0
-            ? '<tr><td colspan="4" style="color:#94a3b8;font-style:italic">Nenhum item encontrado.</td></tr>'
-            : itens.map(it => `<tr>
-                <td>${it.c1_descri || it.c1_produto || ""}</td>
-                <td style="font-family:ui-monospace,monospace">${it.pc_numero || "sem pedido"}</td>
-                <td style="text-align:right">${it.c1_quant || 0}</td>
-                <td style="font-weight:600;color:${isRecebido(it.pc_status) ? '#16a34a' : '#d97706'}">${it.pc_status || "Sem pedido"}</td>
-              </tr>`).join("")
-          }
+          ${itens.length===0?`<tr><td colspan="4" style="color:#94a3b8;font-style:italic">Nenhum item encontrado.</td></tr>`:itens.map(it=>`<tr>
+                <td>${it.c1_descri||it.c1_produto||``}</td>
+                <td style="font-family:ui-monospace,monospace">${it.pc_numero||`sem pedido`}</td>
+                <td style="text-align:right">${it.c1_quant||0}</td>
+                <td style="font-weight:600;color:${isRecebido(it.pc_status)?`#16a34a`:`#d97706`}">${it.pc_status||`Sem pedido`}</td>
+              </tr>`).join(``)}
         </table>
       </div>
-    </div>`;
-  }).join("");
-
-  $("lista-acomp-gerente").innerHTML = html;
-}
-window.carregarAcompanhamentoGerente = carregarAcompanhamentoGerente;
-
-function toggleAcompGer(id) { $("corpo-acomp-ger-" + id).classList.toggle("aberto"); }
-window.toggleAcompGer = toggleAcompGer;
-
-verificarSessao();
-</script>
-</body>
-</html>
+    </div>`}).join(``);$(`lista-acomp-gerente`).innerHTML=html}window.carregarAcompanhamentoGerente=carregarAcompanhamentoGerente;function toggleAcompGer(id){$(`corpo-acomp-ger-`+id).classList.toggle(`aberto`)}window.toggleAcompGer=toggleAcompGer,verificarSessao();</script>
