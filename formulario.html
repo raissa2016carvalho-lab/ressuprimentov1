@@ -233,4 +233,4 @@ async function carregarMinhasSols() {
   }).join('');
 }
 window.carregarMinhasSols = carregarMinhasSols;
-window.enviarSolicitacao=enviarSolicitacao,document.addEventListener(`click`,e=>{e.target.closest(`.busca-wrap`)||document.querySelectorAll(`.sugestoes`).forEach(s=>s.style.display=`none`)});restaurarRascunho();</script></body></html>
+window.enviarSolicitacao=enviarSolicitacao,document.addEventListener(`click`,e=>{e.target.closest(`.busca-wrap`)||document.querySelectorAll(`.sugestoes`).forEach(s=>s.style.display=`none`)});document.addEventListener("DOMContentLoaded", function() { restaurarRascunho(); });</script></body></html>
