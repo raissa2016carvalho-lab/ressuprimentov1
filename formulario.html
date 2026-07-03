@@ -148,7 +148,11 @@ async function restaurarRascunho() {
     atualizarResumo();
     // Mostrar aviso de rascunho restaurado
     const msgEl = document.getElementById('form-msg');
-    if (msgEl) msgEl.innerHTML = '<div class="msg ok" style="display:flex;align-items:center;justify-content:space-between">📋 Rascunho restaurado! <button onclick="limparRascunho();document.getElementById('form-msg').innerHTML=''" style="border:none;background:none;color:#065f46;font-size:12px;cursor:pointer;font-weight:600">Descartar</button></div>';
+    if (msgEl) {
+      msgEl.innerHTML = '<div class="msg ok" style="display:flex;align-items:center;justify-content:space-between">\u{1F4CB} Rascunho restaurado! <button id="btn-descartar" style="border:none;background:none;color:#065f46;font-size:12px;cursor:pointer;font-weight:600">Descartar</button></div>';
+      const btn = document.getElementById('btn-descartar');
+      if (btn) btn.onclick = function() { limparRascunho(); msgEl.innerHTML = ''; };
+    }
   } catch(e) {}
 }
 
