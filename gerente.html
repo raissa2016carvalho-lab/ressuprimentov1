@@ -10,9 +10,6 @@ if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await 
       <td style="text-align:center">
         ${consumoVal==null?`<span style="color:#cbd5e1">—</span>`:`<span style="font-weight:700;color:#1e40af">${consumoVal}</span>`}
       </td>
-      <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:#1e40af">
-        ${it.qtd_sugerida?it.qtd_sugerida:`<span style="color:#cbd5e1">—</span>`}
-      </td>
       <td style="text-align:center">
         <span class="qtd-original">${qtdOrig}</span>
       </td>
@@ -54,7 +51,6 @@ if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await 
           <tr>
             <th>Item</th>
             <th style="text-align:center;width:70px">Consumo<br>6m (un)</th>
-            <th style="text-align:center;width:80px">Qtd sugerida<br>(${s.periodo_meses||3}m)</th>
             <th style="text-align:center;width:80px">Qtd<br>almoxarife</th>
             <th style="text-align:center;width:180px">Qtd gerente</th>
             <th style="text-align:right;width:110px">Valor est.</th>
