@@ -67,8 +67,8 @@ tr:last-child td{border-bottom:none}
   <div class="card">
     <div class="grid2">
       <div>
-        <label>Nome completo</label>
-        <input id="nome" placeholder="Seu nome completo"/>
+        <label>Código da solicitação</label>
+        <input id="codigo" placeholder="Ex.: 335" type="number"/>
       </div>
       <div>
         <label>Matrícula</label>
@@ -144,22 +144,37 @@ function toggle(id) {
 window.toggle = toggle;
 
 async function buscar() {
-  const nome = (document.getElementById('nome').value || '').trim();
-  const mat  = (document.getElementById('matricula').value || '').trim();
-  const msgEl = document.getElementById('msg');
-  const resEl = document.getElementById('resultado');
+  const codigo = (document.getElementById('codigo').value || '').trim();
+  const mat    = (document.getElementById('matricula').value || '').trim();
+  const msgEl  = document.getElementById('msg');
+  const resEl  = document.getElementById('resultado');
 
-  if (!nome && !mat) {
-    msgEl.innerHTML = '<div class="msg erro">Preencha nome ou matrícula.</div>';
+  if (!codigo || !mat) {
+    msgEl.innerHTML = '<div class="msg erro">Preencha o código da solicitação e a matrícula.</div>';
     return;
   }
   msgEl.innerHTML = '';
   resEl.innerHTML = '<div class="vazio">⏳ Buscando...</div>';
 
-  // Buscar solicitações
-  let query = db.from('solicitacoes').select('*').order('criado_em', {ascending: false}).limit(50);
-  if (mat) query = query.eq('solicitante_matricula', mat);
-  else query = query.ilike('solicitante_nome', '%'+nome+'%');
+  // Buscar todas as solicitações com a mesma matrícula e mesmo envio
+  // O código é o ID de uma das solicitações — buscar pelo criado_em dela para pegar todas do mesmo envio
+  const { data: solRef } = await db.from('solicitacoes').select('criado_em,solicitante_matricula').eq('id', Number(codigo)).maybeSingle();
+
+  if (!solRef || solRef.solicitante_matricula !== mat) {
+    resEl.innerHTML = '<div class="vazio">Código ou matrícula incorretos.</div>';
+    return;
+  }
+
+  // Buscar todas solicitações enviadas no mesmo momento (±5 segundos) com a mesma matrícula
+  const dtRef = new Date(solRef.criado_em);
+  const dtIni = new Date(dtRef.getTime() - 5000).toISOString();
+  const dtFim = new Date(dtRef.getTime() + 5000).toISOString();
+
+  let query = db.from('solicitacoes').select('*')
+    .eq('solicitante_matricula', mat)
+    .gte('criado_em', dtIni)
+    .lte('criado_em', dtFim)
+    .order('criado_em', {ascending: false});
 
   const { data: sols, error } = await query;
   if (error || !sols || !sols.length) {
@@ -271,18 +286,17 @@ async function buscar() {
 // Restaurar última busca
 window.addEventListener('load', function() {
   const mat = localStorage.getItem('ressuprimento_matricula');
-  const nome = localStorage.getItem('ressuprimento_nome');
-  if (mat) { document.getElementById('matricula').value = mat; }
-  if (nome) { document.getElementById('nome').value = nome; }
-  if (mat || nome) buscar();
+  const cod = localStorage.getItem('ressuprimento_codigo');
+  if (mat) document.getElementById('matricula').value = mat;
+  if (cod) document.getElementById('codigo').value = cod;
 });
 
 // Salvar última busca
 document.getElementById('matricula').addEventListener('change', function() {
   localStorage.setItem('ressuprimento_matricula', this.value);
 });
-document.getElementById('nome').addEventListener('change', function() {
-  localStorage.setItem('ressuprimento_nome', this.value);
+document.getElementById('codigo').addEventListener('change', function() {
+  localStorage.setItem('ressuprimento_codigo', this.value);
 });
 </script>
 </body>
