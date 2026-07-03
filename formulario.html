@@ -112,7 +112,9 @@ async function restaurarRascunho() {
   try {
     const raw = localStorage.getItem('ressuprimento_rascunho');
     if (!raw) return;
-    const r = JSON.parse(raw);
+    let r;
+    try { r = JSON.parse(raw); } catch(e) { localStorage.removeItem('ressuprimento_rascunho'); return; }
+    if (!r || typeof r !== 'object') { localStorage.removeItem('ressuprimento_rascunho'); return; }
     if (r.nome) document.getElementById('nome').value = r.nome;
     if (r.matricula) document.getElementById('matricula').value = r.matricula;
     if (r.justificativa) document.getElementById('justificativa').value = r.justificativa;
