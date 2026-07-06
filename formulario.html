@@ -65,7 +65,7 @@ let qtdAtual=qtdMap[it.codigo]?qtdMap[it.codigo].qtd:0;return`<tr id="row-${it.c
       <td><span class="grupo-badge">${abreviarGrupo(it.grupo)}</span></td>
       <td style="text-align:center"><span class="curva-badge curva-${it.curva}">${it.curva}</span></td>
       <td style="text-align:right">
-        ${it.media>0?`<span class="consumo-badge" onclick="mostrarPopupConsumo(event,'${it.codigo}','${it.descricao.replace(/'/g,\"'\")}'  )" title="Ver histórico mensal">${it.media} 📊</span>`:`<span class="consumo-zero">—</span>`}
+        ${it.media>0?`<span class="consumo-badge" onclick="mostrarPopupConsumo(event,this)" data-codigo="${it.codigo}" data-desc="${it.descricao}" title="Ver histórico mensal">${it.media} 📊</span>`:`<span class="consumo-zero">—</span>`}
         ${ccsSelecionados.length>1?`
         <div style="margin-top:4px">
           ${ccsSelecionados.map(cc=>{let cons=consumoMapCC[cc.nome+`|`+it.codigo]||0;return`<div style="font-size:10px;color:#94a3b8;white-space:nowrap"><span style="color:#64748b;font-weight:600">`+cc.nome.split(` `).slice(-1)[0]+`:</span> `+(cons>0?`<span style="color:#1e40af;font-weight:600">`+cons+`</span>`:`<span>0</span>`)+`</div>`}).join(``)}
@@ -186,27 +186,8 @@ let consIndividual=consumoMapCC[cc.nome+`|`+it.codigo]||0,media=consumoMap[it.co
 // Inclui itens com qtd 0 para aparecer zerado no card do gerente
 if(!itensCC.length)continue;let payload={p_cc:cc.cc,p_nome:nome,p_matricula:matricula,p_justificativa:justificativa||null,p_filial:filial,p_periodo_meses:periodoMeses,p_itens:itensCC},{data,error}=await db.rpc(`criar_solicitacao`,payload);error?erros.push(cc.nome+`: `+error.message):ultimoId=data}if($(`btn-enviar`).disabled=!1,$(`btn-enviar`).textContent=`Enviar solicitação`,erros.length){msgEl.innerHTML=`<div class="msg erro">Erro em alguns CCs:<br>${erros.join(`<br>`)}</div>`;return}localStorage.setItem(`ressuprimento_codigo`,String(ultimoId||``)),localStorage.setItem(`ressuprimento_matricula`,($(`matricula`)?.value||``).trim()),$(`tela-form`).style.display=`none`,$(`tela-sucesso`).style.display=`block`,$(`codigo-retorno`).textContent=`#`+(ultimoId||`—`)}
 // Fechar sugestões ao clicar fora
-// ── POPUP HISTÓRICO MENSAL ──────────────────────────────────────────────────
-function mostrarPopupConsumo(event,codigo,descricao){
-  event.stopPropagation();
-  const pop=document.getElementById(`popup-consumo`);
-  const mensal=consumoMapMensal[codigo]||{};
-  const meses=Object.keys(mensal).sort().reverse().slice(0,6);
-  function fmtMes(m){const a=m.slice(0,4),mo=m.slice(4,6);const n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
-  if(!meses.length){
-    pop.innerHTML=`<span class="pop-close" onclick="fecharPopup()">✕</span><h4>${descricao.slice(0,32)}</h4><div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem histórico mensal disponível.</div>`;
-  } else {
-    pop.innerHTML=`<span class="pop-close" onclick="fecharPopup()">✕</span><h4>📊 ${descricao.slice(0,28)}</h4><table>`+meses.map(m=>`<tr><td>${fmtMes(m)}</td><td>${mensal[m]}</td></tr>`).join('')+`</table>`;
-  }
-  pop.style.display=`block`;
-  const r=event.target.getBoundingClientRect();
-  const pw=pop.offsetWidth,ph=pop.offsetHeight;
-  let top=r.bottom+6,left=r.left;
-  if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
-  if(top+ph>window.innerHeight-8)top=r.top-ph-6;
-  pop.style.top=top+`px`;pop.style.left=left+`px`;
-}
+function mostrarPopupConsumo(event,el){event.stopPropagation();const codigo=el.dataset.codigo,descricao=el.dataset.desc,pop=document.getElementById('popup-consumo'),mensal=consumoMapMensal[codigo]||{},meses=Object.keys(mensal).sort().reverse().slice(0,6);function fmtMes(m){const a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}if(!meses.length){pop.innerHTML='<span class="pop-close" onclick="fecharPopup()">✕</span><h4>'+descricao.slice(0,32)+'</h4><div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem histórico mensal disponível.</div>'}else{pop.innerHTML='<span class="pop-close" onclick="fecharPopup()">✕</span><h4>📊 '+descricao.slice(0,28)+'</h4><table>'+meses.map(m=>'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>').join('')+'</table>'}pop.style.display='block';const r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;let top=r.bottom+6,left=r.left;if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;if(top+ph>window.innerHeight-8)top=r.top-ph-6;pop.style.top=top+'px';pop.style.left=left+'px'}
 window.mostrarPopupConsumo=mostrarPopupConsumo;
-function fecharPopup(){document.getElementById(`popup-consumo`).style.display=`none`}
+function fecharPopup(){document.getElementById('popup-consumo').style.display='none'}
 window.fecharPopup=fecharPopup;
-window.enviarSolicitacao=enviarSolicitacao,document.addEventListener(`click`,e=>{if(!e.target.closest(`#popup-consumo`)&&!e.target.classList.contains(`consumo-badge`)){fecharPopup()}e.target.closest(`.busca-wrap`)||document.querySelectorAll(`.sugestoes`).forEach(s=>s.style.display=`none`)});</script>
+window.enviarSolicitacao=enviarSolicitacao,document.addEventListener(`click`,e=>{if(!e.target.closest('#popup-consumo')&&!e.target.classList.contains('consumo-badge'))fecharPopup();e.target.closest(`.busca-wrap`)||document.querySelectorAll(`.sugestoes`).forEach(s=>s.style.display=`none`)});</script>
