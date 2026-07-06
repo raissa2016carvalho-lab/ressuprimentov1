@@ -44,7 +44,8 @@ let resto=1-novaP,outros=ccsSelecionados.filter((_,i)=>i!==idx),somaOutros=outro
 // ── CONSUMO + ITENS ─────────────────────────────────────────────────────────
 async function carregarConsumo(){if(!ccsSelecionados.length){$(`card-itens`).style.display=`none`,$(`area-enviar`).style.display=`none`;return}$(`card-itens`).style.display=`block`,$(`loading-itens`).style.display=`block`,$(`tabela-itens`).style.display=`none`;let ccs=ccsSelecionados.map(c=>c.cc),nomesSelecionados=ccsSelecionados.map(c=>c.nome),{data:todosHomonimos}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSelecionados),todosCodigosCC=[...new Set((todosHomonimos||[]).map(c=>c.cc))],{data:consumoData}=await db.from(`consumo_mensal`).select(`cc,produto,descricao,quantidade,mes`).in(`cc`,todosCodigosCC.length?todosCodigosCC:ccs),agg={};
 // Consumo individual por CC+produto
-(consumoData||[]).forEach(r=>{let k=r.produto;agg[k]||(agg[k]={produto:r.produto,descricao:r.descricao,total:0}),agg[k].total+=Number(r.quantidade)||0}),consumoMap={},consumoMapCC={};let aggCC={};(consumoData||[]).forEach(r=>{let k=r.cc+`|`+r.produto;aggCC[k]=(aggCC[k]||0)+(Number(r.quantidade)||0)}),Object.entries(aggCC).forEach(([k,total])=>{consumoMapCC[k]=Math.floor(total/6)}),Object.values(agg).forEach(v=>{consumoMap[v.produto]={media:Math.floor(v.total/6),descricao:v.descricao}});
+let mapCcNome={};(todosHomonimos||[]).forEach(c=>{mapCcNome[c.cc]=c.nome});
+(consumoData||[]).forEach(r=>{let k=r.produto;agg[k]||(agg[k]={produto:r.produto,descricao:r.descricao,total:0}),agg[k].total+=Number(r.quantidade)||0}),consumoMap={},consumoMapCC={};let aggCC={};(consumoData||[]).forEach(r=>{let nome=mapCcNome[r.cc]||r.cc,k=nome+`|`+r.produto;aggCC[k]=(aggCC[k]||0)+(Number(r.quantidade)||0)}),Object.entries(aggCC).forEach(([k,total])=>{consumoMapCC[k]=Math.floor(total/6)}),Object.values(agg).forEach(v=>{consumoMap[v.produto]={media:Math.floor(v.total/6),descricao:v.descricao}});
 // Buscar itens dos grupos permitidos
 let todosItens=[],off=0;for(;;){let{data:lote}=await db.from(`itens`).select(`codigo,descricao,grupo`).range(off,off+999);if(!lote||!lote.length||(todosItens=todosItens.concat(lote),lote.length<1e3))break;off+=1e3}
 // Filtrar grupos permitidos
@@ -67,7 +68,7 @@ let qtdAtual=qtdMap[it.codigo]?qtdMap[it.codigo].qtd:0;return`<tr id="row-${it.c
         ${it.media>0?`<span class="consumo-badge">${it.media}</span>`:`<span class="consumo-zero">—</span>`}
         ${ccsSelecionados.length>1?`
         <div style="margin-top:4px">
-          ${ccsSelecionados.map(cc=>{let cons=consumoMapCC[cc.cc+`|`+it.codigo]||0;return`<div style="font-size:10px;color:#94a3b8;white-space:nowrap"><span style="color:#64748b;font-weight:600">`+cc.nome.split(` `).slice(-1)[0]+`:</span> `+(cons>0?`<span style="color:#1e40af;font-weight:600">`+cons+`</span>`:`<span>0</span>`)+`</div>`}).join(``)}
+          ${ccsSelecionados.map(cc=>{let cons=consumoMapCC[cc.nome+`|`+it.codigo]||0;return`<div style="font-size:10px;color:#94a3b8;white-space:nowrap"><span style="color:#64748b;font-weight:600">`+cc.nome.split(` `).slice(-1)[0]+`:</span> `+(cons>0?`<span style="color:#1e40af;font-weight:600">`+cons+`</span>`:`<span>0</span>`)+`</div>`}).join(``)}
         </div>`:``}
       </td>
       <td style="text-align:center">
@@ -180,7 +181,7 @@ let itensSelecionados=[...Object.values(qtdMap).filter(it=>it.qtd>0),...itensPon
 // Criar uma solicitação por CC
 for(let cc of ccsSelecionados){let itensCC=itensSelecionados.map(it=>{
 // Quantidade = consumo individual do CC × período (não proporcional por pessoas)
-let consIndividual=consumoMapCC[cc.cc+`|`+it.codigo]||0,qtdProporcional=consIndividual>0?Math.round(consIndividual*periodoMeses):0,media=consumoMap[it.codigo]?.media||0,qtdSugerida=Math.max(1,Math.round(media*periodoMeses*cc.proporcao));return{codigo:it.codigo,descricao:it.descricao||itensMap[it.codigo]?.descricao||``,quantidade:qtdProporcional,qtd_sugerida:qtdSugerida>0?qtdSugerida:qtdProporcional}});
+let consIndividual=consumoMapCC[cc.nome+`|`+it.codigo]||0,qtdProporcional=consIndividual>0?Math.round(consIndividual*periodoMeses):0,media=consumoMap[it.codigo]?.media||0,qtdSugerida=Math.max(1,Math.round(media*periodoMeses*cc.proporcao));return{codigo:it.codigo,descricao:it.descricao||itensMap[it.codigo]?.descricao||``,quantidade:qtdProporcional,qtd_sugerida:qtdSugerida>0?qtdSugerida:qtdProporcional}});
 // Inclui itens com qtd 0 para aparecer zerado no card do gerente
 if(!itensCC.length)continue;let payload={p_cc:cc.cc,p_nome:nome,p_matricula:matricula,p_justificativa:justificativa||null,p_filial:filial,p_periodo_meses:periodoMeses,p_itens:itensCC},{data,error}=await db.rpc(`criar_solicitacao`,payload);error?erros.push(cc.nome+`: `+error.message):ultimoId=data}if($(`btn-enviar`).disabled=!1,$(`btn-enviar`).textContent=`Enviar solicitação`,erros.length){msgEl.innerHTML=`<div class="msg erro">Erro em alguns CCs:<br>${erros.join(`<br>`)}</div>`;return}localStorage.setItem(`ressuprimento_codigo`,String(ultimoId||``)),localStorage.setItem(`ressuprimento_matricula`,($(`matricula`)?.value||``).trim()),$(`tela-form`).style.display=`none`,$(`tela-sucesso`).style.display=`block`,$(`codigo-retorno`).textContent=`#`+(ultimoId||`—`)}
 // Fechar sugestões ao clicar fora
