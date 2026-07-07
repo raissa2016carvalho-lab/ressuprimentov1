@@ -42,12 +42,22 @@ let idx=ccsSelecionados.findIndex(c=>c.cc===cc);if(idx<0)return;let novaP=Math.m
 // normalizar os outros proporcionalmente
 let resto=1-novaP,outros=ccsSelecionados.filter((_,i)=>i!==idx),somaOutros=outros.reduce((s,c)=>s+c.proporcao,0);somaOutros>0?outros.forEach(c=>{c.proporcao=c.proporcao/somaOutros*resto}):outros.length&&outros.forEach(c=>{c.proporcao=resto/outros.length}),renderChips(),renderTabelaItens()}window.ajustarProporcao=ajustarProporcao;
 // ── CONSUMO + ITENS ─────────────────────────────────────────────────────────
-async function carregarConsumo(){if(!ccsSelecionados.length){$(`card-itens`).style.display=`none`,$(`area-enviar`).style.display=`none`;return}$(`card-itens`).style.display=`block`,$(`loading-itens`).style.display=`block`,$(`tabela-itens`).style.display=`none`;let ccs=ccsSelecionados.map(c=>c.cc),nomesSelecionados=ccsSelecionados.map(c=>c.nome),{data:todosHomonimos}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSelecionados),todosCodigosCC=[...new Set((todosHomonimos||[]).map(c=>c.cc))],{data:consumoData}=await db.from(`consumo_mensal`).select(`cc,produto,descricao,quantidade,mes`).in(`cc`,todosCodigosCC.length?todosCodigosCC:ccs),agg={};
+async function carregarConsumo(){if(!ccsSelecionados.length){$(`card-itens`).style.display=`none`,$(`area-enviar`).style.display=`none`;return}$(`card-itens`).style.display=`block`,$(`loading-itens`).style.display=`block`,$(`tabela-itens`).style.display=`none`;let ccs=ccsSelecionados.map(c=>c.cc),nomesSelecionados=ccsSelecionados.map(c=>c.nome),{data:todosHomonimos}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSelecionados),todosCodigosCC=[...new Set((todosHomonimos||[]).map(c=>c.cc))];
+// ── Cache de consumo (sessionStorage, válido 4h) ──────────────────────────
+let consumoData=null;
+const cacheKey=`consumo_cache_`+todosCodigosCC.slice().sort().join(`_`);
+const cacheTTL=4*60*60*1e3;
+try{const raw=sessionStorage.getItem(cacheKey);if(raw){const{ts,data}=JSON.parse(raw);if(Date.now()-ts<cacheTTL){consumoData=data;console.log(`[consumo] cache hit (${data.length} linhas)`)}}}catch(e){}
+if(!consumoData){let rows=[],off2=0;for(;;){const{data:lote}=await db.from(`consumo_mensal`).select(`cc,produto,descricao,quantidade,mes`).in(`cc`,todosCodigosCC.length?todosCodigosCC:ccs).range(off2,off2+999);if(!lote||!lote.length){break}rows=rows.concat(lote);if(lote.length<1e3)break;off2+=1e3}consumoData=rows;try{sessionStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),data:rows}));console.log(`[consumo] cache salvo (${rows.length} linhas)`)}catch(e){}}
+let agg={};
 // Consumo individual por CC+produto
 let mapCcNome={};(todosHomonimos||[]).forEach(c=>{mapCcNome[c.cc]=c.nome});
 (consumoData||[]).forEach(r=>{let k=r.produto;agg[k]||(agg[k]={produto:r.produto,descricao:r.descricao,total:0}),agg[k].total+=Number(r.quantidade)||0}),consumoMap={},consumoMapCC={};consumoMapMensal={};let aggCC={};(consumoData||[]).forEach(r=>{let nome=mapCcNome[r.cc]||r.cc,k=nome+`|`+r.produto;aggCC[k]=(aggCC[k]||0)+(Number(r.quantidade)||0);if(r.mes&&r.produto){if(!consumoMapMensal[r.produto])consumoMapMensal[r.produto]={};consumoMapMensal[r.produto][r.mes]=(consumoMapMensal[r.produto][r.mes]||0)+(Number(r.quantidade)||0)}}),Object.entries(aggCC).forEach(([k,total])=>{consumoMapCC[k]=Math.floor(total/6)}),Object.values(agg).forEach(v=>{consumoMap[v.produto]={media:Math.floor(v.total/6),descricao:v.descricao}});
-// Buscar itens dos grupos permitidos
-let todosItens=[],off=0;for(;;){let{data:lote}=await db.from(`itens`).select(`codigo,descricao,grupo`).range(off,off+999);if(!lote||!lote.length||(todosItens=todosItens.concat(lote),lote.length<1e3))break;off+=1e3}
+// Buscar itens dos grupos permitidos (cache sessionStorage 4h)
+let todosItens=[];
+const itensKey=`itens_cache`;
+try{const raw=sessionStorage.getItem(itensKey);if(raw){const{ts,data}=JSON.parse(raw);if(Date.now()-ts<cacheTTL){todosItens=data;console.log(`[itens] cache hit (${data.length} itens)`)}}}catch(e){}
+if(!todosItens.length){let off=0;for(;;){let{data:lote}=await db.from(`itens`).select(`codigo,descricao,grupo`).range(off,off+999);if(!lote||!lote.length||(todosItens=todosItens.concat(lote),lote.length<1e3))break;off+=1e3}try{sessionStorage.setItem(itensKey,JSON.stringify({ts:Date.now(),data:todosItens}))}catch(e){}}
 // Filtrar grupos permitidos
 let itensFiltrados=todosItens.filter(it=>GRUPOS_PERMITIDOS.has((it.grupo||``).trim().toUpperCase())&&!(it.descricao||``).toUpperCase().includes(`BOTA`));itensMap={},itensFiltrados.forEach(it=>{itensMap[it.codigo]=it});
 // Montar lista: itens com consumo primeiro, depois sem consumo
