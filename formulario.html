@@ -200,16 +200,21 @@ let qtdSugerida=Math.max(1,Math.round(media*periodoMeses*cc.proporcao));
 let qtdTotal=it.qtd>0?Math.round(it.qtd*periodoMeses):media>0?Math.round(media*periodoMeses):0;
 let qtdFinal;
 if(totalConsIndividual>0){
-  // Algum CC tem consumo: ratear pelo consumo individual
+  // Pelo menos um CC selecionado tem consumo: ratear pelo consumo individual
   if(consIndividual>0){
-    qtdFinal=Math.round(qtdTotal*(consIndividual/totalConsIndividual));
+    // Este CC tem consumo — proporcional ao seu consumo
+    qtdFinal=Math.max(1,Math.round(qtdTotal*(consIndividual/totalConsIndividual)));
   } else {
-    // Este CC não consumiu — não recebe nada
+    // Este CC não consumiu este item — não recebe nada
     qtdFinal=0;
   }
-} else {
-  // Nenhum CC tem histórico: dividir pela proporção de pessoas
+} else if(media===0){
+  // Nenhum CC tem histórico E item sem consumo geral: item pontual, divide por pessoas
   qtdFinal=Math.round(qtdTotal*cc.proporcao);
+} else {
+  // Item tem consumo geral mas nenhum CC selecionado tem histórico individual
+  // Não ratear — cada CC recebe a quantidade total (item provavelmente de um único CC)
+  qtdFinal=it.qtd>0?Math.round(it.qtd*periodoMeses):Math.round(media*periodoMeses);
 }
 return{codigo:it.codigo,descricao:it.descricao||itensMap[it.codigo]?.descricao||``,quantidade:qtdFinal,qtd_sugerida:qtdSugerida>0?qtdSugerida:qtdFinal,consumo_medio:consumoMap[it.codigo]?.media||0,consumo_historico:consumoMapMensal[it.codigo]||{}}});
 // Inclui itens com qtd 0 para aparecer zerado no card do gerente
