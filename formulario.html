@@ -210,6 +210,7 @@ if(totalConsIndividual>0){
 } else {
   // Nenhum CC tem histórico: dividir pela proporção de pessoas
   qtdFinal=Math.round(qtdTotal*cc.proporcao);
+}
 return{codigo:it.codigo,descricao:it.descricao||itensMap[it.codigo]?.descricao||``,quantidade:qtdFinal,qtd_sugerida:qtdSugerida>0?qtdSugerida:qtdFinal,consumo_medio:consumoMap[it.codigo]?.media||0,consumo_historico:consumoMapMensal[it.codigo]||{}}});
 // Inclui itens com qtd 0 para aparecer zerado no card do gerente
 if(!itensCC.length)continue;let payload={p_cc:cc.cc,p_nome:nome,p_matricula:matricula,p_justificativa:justificativa||null,p_filial:filial,p_periodo_meses:periodoMeses,p_itens:itensCC},{data,error}=await db.rpc(`criar_solicitacao`,payload);error?erros.push(cc.nome+`: `+error.message):ultimoId=data}if($(`btn-enviar`).disabled=!1,$(`btn-enviar`).textContent=`Enviar solicitação`,erros.length){msgEl.innerHTML=`<div class="msg erro">Erro em alguns CCs:<br>${erros.join(`<br>`)}</div>`;return}localStorage.setItem(`ressuprimento_codigo`,String(ultimoId||``)),localStorage.setItem(`ressuprimento_matricula`,($(`matricula`)?.value||``).trim()),$(`tela-form`).style.display=`none`,$(`tela-sucesso`).style.display=`block`,$(`codigo-retorno`).textContent=`#`+(ultimoId||`—`)}
