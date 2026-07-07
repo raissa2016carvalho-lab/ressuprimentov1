@@ -8,7 +8,7 @@ document.addEventListener('click',function(e){
     var codigo=el.dataset.codigo,descricao=el.dataset.desc,nomeCC=el.dataset.nome;
     var pop=document.getElementById('popup-consumo-master');
     var histRaw=el.dataset.hist||'',mensal={};try{if(histRaw)mensal=JSON.parse(histRaw.replace(/'/g,'"'))}catch(e){}if(!Object.keys(mensal).length){var chave=nomeCC+'|'+codigo;mensal=consumoMensalMap[chave]||{}}
-    var meses=Object.keys(mensal).sort().reverse().slice(0,6);
+    var mesesFixos=['202601','202602','202603','202604','202605','202606'];var meses=mesesFixos.filter(m=>mensal[m]>0).reverse();
     function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
     var html='<span class="pop-close" onclick="fecharPopupMaster()">×</span><h4>'+(descricao||codigo).slice(0,32)+'</h4>';
     if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem histórico mensal.</div>'}
@@ -58,7 +58,34 @@ try{
   consumoData=rows;
   let{data:pd}=await db.from(`cc_pessoas`).select(`cc,cargo,quantidade`).in(`cc`,ccsSols);
   pessoasData=pd||[];
-}catch(e){console.warn('[master consumo] erro:',e);consumoData=[];pessoasData=[];}let consumoAggNome={};consumoMensalMap={};(consumoData||[]).forEach(r=>{let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;let k=nome+`|`+r.produto;consumoAggNome[k]=(consumoAggNome[k]||0)+(Number(r.quantidade)||0);if(r.mes&&r.produto){let km=k;if(!consumoMensalMap[km])consumoMensalMap[km]={};consumoMensalMap[km][r.mes]=(consumoMensalMap[km][r.mes]||0)+(Number(r.quantidade)||0)}}),consumoMap={},Object.entries(consumoAggNome).forEach(([k,total])=>{consumoMap[k]=Math.floor(total/6)}),pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)})}let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
+}catch(e){console.warn('[master consumo] erro:',e);consumoData=[];pessoasData=[];}let consumoAggNome={};let consumoAggNomeFix={};consumoMensalMap={};
+// Meses fixos: Janeiro a Junho 2026
+const MESES_FIXOS=['202601','202602','202603','202604','202605','202606'];
+(consumoData||[]).forEach(r=>{
+  let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
+  let k=nome+`|`+r.produto;
+  // Consumo total (todos os meses) para média geral
+  consumoAggNome[k]=(consumoAggNome[k]||0)+(Number(r.quantidade)||0);
+  // Consumo fixo Jan-Jun para exibição
+  if(r.mes&&MESES_FIXOS.includes(r.mes)){
+    consumoAggNomeFix[k]=(consumoAggNomeFix[k]||0)+(Number(r.quantidade)||0);
+  }
+  // Histórico mensal completo para popup
+  if(r.mes&&r.produto){
+    let km=k;
+    if(!consumoMensalMap[km])consumoMensalMap[km]={};
+    consumoMensalMap[km][r.mes]=(consumoMensalMap[km][r.mes]||0)+(Number(r.quantidade)||0);
+  }
+});
+// consumoMap usa Jan-Jun fixo (6 meses) — se não tiver dados fixos, usa total/nMeses
+consumoMap={};
+let todosKeys=new Set([...Object.keys(consumoAggNome),...Object.keys(consumoAggNomeFix)]);
+todosKeys.forEach(k=>{
+  let fixo=consumoAggNomeFix[k]||0;
+  let total=consumoAggNome[k]||0;
+  let nMeses=new Set((consumoData||[]).filter(r=>{let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;return nome+'|'+r.produto===k}).map(r=>r.mes)).size||6;
+  consumoMap[k]=fixo>0?Math.floor(fixo/6):Math.floor(total/Math.max(nMeses,1));
+}),pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)})}let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
 // mostra tudo que precisa de ação do master:
 // pendente (com ou sem SC) + aguardando_master
 let visiveis=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`||s.status===`em_analise`);if(visiveis.length===0){$(`lista`).innerHTML=`<div class="vazio">Nenhuma solicitação pendente. Tudo aprovado ou recusado.</div>`;return}visiveis.sort((a,b)=>(b.status===`aguardando_master`)-(a.status===`aguardando_master`)||new Date(b.criado_em)-new Date(a.criado_em)),$(`lista`).innerHTML=visiveis.map(s=>renderCard(s)).join(``)}function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
@@ -100,7 +127,7 @@ let visiveis=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardand
               <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
-            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0).map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let cons=it.consumo_medio>0?it.consumo_medio:(it.codigo&&it.codigo!==`MANUAL`?consumoMap[nomeCC+`|`+it.codigo]||0:0);let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';consHtml=cons>0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+Math.floor(cons)+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,alterada=qtdAlmox!==qtdGerente;return`
+            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0).map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let consLive=it.codigo&&it.codigo!==`MANUAL`?(consumoMap[nomeCC+`|`+it.codigo]||consumoMap[s.cc+`|`+it.codigo]||0):0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';consHtml=cons>0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+Math.floor(cons)+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,alterada=qtdAlmox!==qtdGerente;return`
               <tr>
                 <td>
                   ${it.descricao||it.codigo}
