@@ -188,7 +188,11 @@ async function salvarGrupo(solIds,msgElId){
 window.salvarGrupo=salvarGrupo;
 
 function renderCardMatricial_END(){}
-function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,filial=s.filial||``,valorTotalInicial=0;s.itens.forEach(it=>{let qtd=qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id],preco=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0;valorTotalInicial+=qtd*preco});let linhasItens=s.itens.filter(it=>(it.quantidade||0)>0).map(it=>{let qtdOrig=it.quantidade,qtdAtual=qtdEditadas[it.id]===void 0?qtdOrig:qtdEditadas[it.id];let nomeGer=ccMap[s.cc]?.nome||s.cc;let consumo=s.cc&&it.codigo&&it.codigo!==`MANUAL`?consumoMap[nomeGer+`|`+it.codigo]:undefined;let consumoVal=consumo==null||consumo===undefined?null:consumo===-1?`<1`:Math.floor(consumo);let preco=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0,valorEstimado=qtdAtual*preco,justVal=justificativas[it.id]||``,aumentada=qtdAtual>qtdOrig;return`<tr id="row-${it.id}">
+function renderCard(s){
+  // Usar sempre o visual matricial — mesmo com 1 CC
+  return renderCardMatricial([s]);
+}
+function renderCard_ORIGINAL(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,filial=s.filial||``,valorTotalInicial=0;s.itens.forEach(it=>{let qtd=qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id],preco=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0;valorTotalInicial+=qtd*preco});let linhasItens=s.itens.filter(it=>(it.quantidade||0)>0).map(it=>{let qtdOrig=it.quantidade,qtdAtual=qtdEditadas[it.id]===void 0?qtdOrig:qtdEditadas[it.id];let nomeGer=ccMap[s.cc]?.nome||s.cc;let consumo=s.cc&&it.codigo&&it.codigo!==`MANUAL`?consumoMap[nomeGer+`|`+it.codigo]:undefined;let consumoVal=consumo==null||consumo===undefined?null:consumo===-1?`<1`:Math.floor(consumo);let preco=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0,valorEstimado=qtdAtual*preco,justVal=justificativas[it.id]||``,aumentada=qtdAtual>qtdOrig;return`<tr id="row-${it.id}">
       <td>
         <div>${it.descricao||it.codigo||`—`}${consumo===0&&qtdOrig>0?`<span style="background:#fef3c7;color:#b45309;border-radius:4px;padding:1px 6px;font-size:10.5px;font-weight:600;margin-left:6px">⚠ Sem histórico</span>`:``}</div>
         ${it.codigo&&it.codigo!==`MANUAL`?`<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>`:``}
