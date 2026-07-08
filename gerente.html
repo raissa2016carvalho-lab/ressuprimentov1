@@ -30,6 +30,159 @@ if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await 
 solicitacoes.forEach(function(s){var ch=s.solicitante_matricula+'|'+s.criado_em.slice(0,16);if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);});
 $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``)
 }window.carregarSolicitacoes=carregarSolicitacoes;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}function fmtNum(n){return Number(n).toLocaleString(`pt-BR`,{maximumFractionDigits:1})}function renderCardMatricial(grupo){
+  grupo.sort(function(a,b){return(b.pessoas||0)-(a.pessoas||0)});
+  var s0=grupo[0];
+  var nomeEnvio=s0.solicitante_nome||s0.solicitante_matricula;
+  var mat=s0.solicitante_matricula;
+  var dt=fmtData(s0.criado_em);
+  var periodo=s0.periodo_meses||3;
+  var just=s0.justificativa||'';
+  var cardId='mat-'+s0.criado_em.slice(0,16).replace(/[^0-9]/g,'');
+
+  var itensMap2={};
+  grupo.forEach(function(s){
+    s.itens.forEach(function(it){
+      if((it.quantidade||0)>0){
+        if(!itensMap2[it.codigo])itensMap2[it.codigo]={codigo:it.codigo,descricao:it.descricao,porCC:{}};
+        itensMap2[it.codigo].porCC[s.cc]=it;
+      }
+    });
+  });
+  var itensList=Object.values(itensMap2);
+  if(!itensList.length)return'';
+
+  var cabecalhos=grupo.map(function(s){
+    var nome=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
+    var nomeShort=nome.split(' ').slice(-2).join(' ');
+    return'<th style="min-width:70px">'+nomeShort+'<br><span style="font-size:10px;color:#94a3b8">'+s.cc+'</span></th>';
+  }).join('');
+
+  var linhas=itensList.map(function(item){
+    var total=Object.values(item.porCC).reduce(function(acc,it){return acc+(it.quantidade||0)},0);
+    var preco=precoMap[item.codigo]||0;
+    var valorEst=total*preco;
+    var consTotal=0;
+    grupo.forEach(function(s){
+      var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
+      consTotal+=(consumoMap[n+'|'+item.codigo]||0);
+    });
+    var consDisp=consTotal===-1?'<1':consTotal>0?Math.round(consTotal):'—';
+    var colunas=grupo.map(function(s){
+      var it=item.porCC[s.cc];
+      var qtd=it?it.quantidade||0:0;
+      if(!qtd)return'<td style="text-align:center;color:#cbd5e1;font-size:11px">—</td>';
+      return'<td style="text-align:center;font-size:12px;font-family:ui-monospace,monospace;color:#475569">'+qtd+'</td>';
+    }).join('');
+    var semHist=consTotal===0&&total>0;
+    var badgeSH=semHist?'<span style="background:#fef3c7;color:#b45309;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">⚠ Sem hist.</span>':'';
+    var idsCC=grupo.map(function(s){var it=item.porCC[s.cc];return it?it.id:''}).filter(Boolean).join(',');
+    var decAtual=Object.values(item.porCC).map(function(it){return decisoes[it.id]}).find(function(d){return d})||'';
+    var aprCls='btn-dec'+(decAtual==='aprovado'?' aprovado':'');
+    var recCls='btn-dec'+(decAtual==='recusado'?' recusado':'');
+    return'<tr id="mrow-'+item.codigo+'">'
+      +'<td class="item-desc"><div>'+(item.descricao||item.codigo||'')+badgeSH+'</div><div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
+      +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
+      +colunas
+      +'<td style="text-align:center"><input type="number" min="0" value="'+total+'" data-preco="'+preco+'" data-valel="mval-'+item.codigo+'" id="mtot-'+item.codigo+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
+      +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mval-'+item.codigo+'">'+fmtNum(valorEst)+'</td>'
+      +'<td style="text-align:center;white-space:nowrap">'
+      +'<button class="'+aprCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
+      +'<button class="'+recCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="recusado" onclick="decidirCC(this)">✗</button>'
+      +'</td>'
+      +'</tr>';
+  }).join('');
+
+  var solIds=grupo.map(function(s){return s.id}).join(',');
+  var nItems=itensList.length;
+  var tituloCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(' · ');
+  var camposSC=grupo.map(function(s){
+    return'<div style="flex:1;min-width:180px">'
+      +'<label style="font-size:11px;font-weight:600;color:#64748b">SC — '+(ccMap[s.cc]?ccMap[s.cc].nome:s.cc)+'</label>'
+      +'<input id="sc-'+s.id+'" value="'+(s.sc_numero||'')+'" placeholder="Ex.: 045873" style="margin:4px 0 0;padding:7px 10px;font-size:13px"/>'
+      +'</div>';
+  }).join('');
+
+  return'<div class="card" style="margin-bottom:16px">'
+    +'<div class="card-topo" onclick="toggleCardMat(this)">'
+    +'<div style="flex:1">'
+    +'<div class="card-titulo">'+tituloCCs+'<span class="pill p-pendente" style="margin-left:6px">Pendente</span></div>'
+    +'<div class="card-sub">'+nomeEnvio+' · mat. '+mat+' · '+dt+' · '+nItems+' item(ns) · 📅 '+periodo+'m'+(just?' · "'+just+'"':'')+' </div>'
+    +'</div>'
+    +'<div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>'
+    +'</div>'
+    +'<div id="'+cardId+'" style="display:none;overflow-x:auto;padding:16px">'
+    +'<table class="matriz-table"><thead><tr>'
+    +'<th class="item-col">Item</th>'
+    +'<th style="text-align:center;width:55px">Consumo<br>6m</th>'
+    +cabecalhos
+    +'<th style="background:#f0fdf4;color:#166534;width:80px">Total<br>gerente</th>'
+    +'<th style="text-align:right;width:90px">Valor est.</th>'
+    +'<th style="text-align:center;width:80px">Decisão</th>'
+    +'</tr></thead><tbody>'+linhas+'</tbody></table>'
+    +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
+    +'<div id="msg-'+cardId+'"></div>'
+    +'<button class="btn-salvar" style="margin-top:10px;width:100%" onclick="salvarGrupo(['+solIds+'],'msg-'+cardId+'')">Salvar todas</button>'
+    +'</div>'
+    +'</div>';
+}
+
+document.addEventListener('input',function(e){
+  if(e.target.classList.contains('mat-tot-input')){
+    var preco=Number(e.target.dataset.preco)||0;
+    var el=document.getElementById(e.target.dataset.valel);
+    if(el)el.textContent=fmtNum(Number(e.target.value||0)*preco);
+  }
+});
+
+function decidirCC(btn){
+  var cod=btn.dataset.cod;
+  var ids=btn.dataset.ids.split(',').map(Number);
+  var dec=btn.dataset.dec;
+  ids.forEach(function(id){decisoes[id]=dec});
+  var row=document.getElementById('mrow-'+cod);
+  if(row){
+    row.querySelectorAll('.btn-dec').forEach(function(b){b.classList.remove('aprovado','recusado')});
+    btn.classList.add(dec);
+  }
+  if(dec==='recusado'){
+    var elTot=document.getElementById('mtot-'+cod);
+    if(elTot){elTot.value=0;elTot.dispatchEvent(new Event('input'))}
+  }
+}
+window.decidirCC=decidirCC;
+
+function toggleCardMat(topo){
+  var corpo=topo.nextElementSibling;
+  if(corpo)corpo.style.display=corpo.style.display==='none'?'block':'none';
+}
+window.toggleCardMat=toggleCardMat;
+
+async function salvarGrupo(solIds,msgElId){
+  var msgEl=document.getElementById(msgElId);
+  if(msgEl)msgEl.innerHTML='<span style="color:#64748b">Salvando...</span>';
+  for(var i=0;i<solIds.length;i++){
+    var solId=solIds[i];
+    var sol=solicitacoes.find(function(s){return s.id===solId});
+    if(!sol)continue;
+    var scEl=document.getElementById('sc-'+solId);
+    var scNum=scEl?scEl.value.trim():'';
+    if(!scNum){alert('Informe o número da SC para '+(ccMap[sol.cc]?ccMap[sol.cc].nome:sol.cc));return;}
+    for(var j=0;j<sol.itens.length;j++){
+      var it=sol.itens[j];
+      var dec=decisoes[it.id]||'aprovado';
+      // Pegar qtd do input de total (distribuir proporcionalmente pelo consumo)
+      var novaQtd=dec==='recusado'?0:(qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:it.quantidade);
+      await db.from('solicitacao_itens').update({situacao:dec,quantidade:novaQtd,justificativa:justificativas[it.id]||null}).eq('id',it.id);
+    }
+    await db.from('solicitacoes').update({sc_numero:scNum,status:'aguardando_master',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
+  }
+  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a">✓ Salvo!</span>';
+  setTimeout(function(){carregarSolicitacoes()},800);
+}
+window.salvarGrupo=salvarGrupo;
+
+function renderCardMatricial_END(){}
+
   grupo.sort((a,b)=>(b.pessoas||0)-(a.pessoas||0));
   var s0=grupo[0];
   var nomeEnvio=s0.solicitante_nome||s0.solicitante_matricula;
@@ -62,37 +215,25 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
   // Linhas dos itens
   var linhas=itensList.map(function(item){
     var total=Object.values(item.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);
-    var preco=precoMap[item.codigo]||0;
-    var valorEst=total*preco;
-    // Consumo consolidado de todos os CCs do grupo
-    var consTotal=0;
-    grupo.forEach(function(s){var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;consTotal+=(consumoMap[n+'|'+item.codigo]||0);});
-    var consDisp=consTotal===-1?'<1':consTotal>0?Math.round(consTotal):'—';
-    // Colunas por CC (somente leitura)
     var colunas=grupo.map(function(s){
       var it=item.porCC[s.cc];
       var qtd=it?it.quantidade||0:0;
-      if(!qtd)return'<td style="text-align:center;color:#cbd5e1;font-size:11px">—</td>';
-      return'<td class="qtd-cell" style="color:#475569;font-size:12px;font-family:ui-monospace,monospace;text-align:center">'+qtd+'</td>';
+      var id=it?it.id:null;
+      if(!qtd||!id)return'<td style="text-align:center;color:#cbd5e1;font-size:11px">—</td>';
+      var preco=precoMap[item.codigo]||0;
+      return'<td class="qtd-cell"><input type="number" min="0" value="'+qtd+'" class="qtd-mat" id="qtd-'+id+'" oninput="onQtdChange('+s.id+','+id+','+qtd+','+preco+',this.value)"/></td>';
     }).join('');
-    var semHist=consTotal===0&&total>0;
+    var nomeCC0=ccMap[grupo[0].cc]?ccMap[grupo[0].cc].nome:grupo[0].cc;
+    var cons=consumoMap[nomeCC0+'|'+item.codigo]||0;
+    var semHist=cons===0&&total>0;
     var badgeSH=semHist?'<span style="background:#fef3c7;color:#b45309;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">⚠ Sem hist.</span>':'';
-    // ID do primeiro item encontrado para decisão
-    var itRef=Object.values(item.porCC)[0];
-    var idRef=itRef?itRef.id:null;
-    var decAtual=idRef?decisoes[idRef]:undefined;
-    var btnApr='<button class="btn-dec'+(decAtual==='aprovado'?' aprovado':'')+'" onclick="decidirTodosCC(''+item.codigo+'','aprovado',['+grupo.map(function(s){var it=item.porCC[s.cc];return it?it.id:''}).filter(Boolean).join(',')+'],'+total+','+preco+','mat-total-'+item.codigo+'','mat-val-'+item.codigo+'')">✓</button>';
-    var btnRec='<button class="btn-dec'+(decAtual==='recusado'?' recusado':'')+'" onclick="decidirTodosCC(''+item.codigo+'','recusado',['+grupo.map(function(s){var it=item.porCC[s.cc];return it?it.id:''}).filter(Boolean).join(',')+'],0,'+preco+','mat-total-'+item.codigo+'','mat-val-'+item.codigo+'')">✗</button>';
-    return'<tr id="mat-row-'+item.codigo+'">'
+    return'<tr>'
       +'<td class="item-desc">'
       +'<div>'+(item.descricao||item.codigo)+badgeSH+'</div>'
       +'<div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div>'
       +'</td>'
-      +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
       +colunas
-      +'<td class="total-cell"><input type="number" min="0" value="'+total+'" id="mat-total-'+item.codigo+'" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700" oninput="atualizarValorMat(this.value,'+preco+','mat-val-'+item.codigo+'')"/></td>'
-      +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mat-val-'+item.codigo+'">'+fmtNum(valorEst)+'</td>'
-      +'<td style="text-align:center;white-space:nowrap">'+btnApr+btnRec+'</td>'
+      +'<td class="total-cell">'+total+'</td>'
       +'</tr>';
   }).join('');
 
@@ -117,11 +258,8 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
     +'<div id="'+cardId+'" style="display:none;overflow-x:auto;padding:16px">'
     +'<table class="matriz-table"><thead><tr>'
     +'<th class="item-col">Item</th>'
-    +'<th style="text-align:center;width:60px">Consumo<br>6m</th>'
     +cabecalhos
-    +'<th style="background:#f0fdf4;color:#166534;width:80px">Total<br>gerente</th>'
-    +'<th style="text-align:right;width:90px">Valor est.</th>'
-    +'<th style="text-align:center;width:80px">Decisão</th>'
+    +'<th style="background:#f0fdf4;color:#166534">Total</th>'
     +'</tr></thead><tbody>'+linhas+'</tbody></table>'
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-mat-'+cardId+'"></div>'
@@ -130,56 +268,9 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
     +'</div>';
 }
 
-function atualizarValorMat(qtd,preco,elId){
-  var el=document.getElementById(elId);
-  if(el)el.textContent=fmtNum(Number(qtd)*preco);
-}
-window.atualizarValorMat=atualizarValorMat;
 
-function decidirTodosCC(codigo,decisao,ids,qtdTotal,preco,elTotalId,elValId){
-  ids.forEach(function(id){
-    decisoes[id]=decisao;
-    var btn=document.querySelector('#mat-row-'+codigo+' .btn-dec.aprovado, #mat-row-'+codigo+' .btn-dec.recusado');
-  });
-  // Atualizar visual dos botões
-  var row=document.getElementById('mat-row-'+codigo);
-  if(row){
-    row.querySelectorAll('.btn-dec').forEach(function(b){b.classList.remove('aprovado','recusado')});
-    row.querySelectorAll('.btn-dec').forEach(function(b,i){if((i===0&&decisao==='aprovado')||(i===1&&decisao==='recusado'))b.classList.add(decisao)});
-  }
-  if(decisao==='recusado'){
-    var elTotal=document.getElementById(elTotalId);
-    if(elTotal)elTotal.value=0;
-    var elVal=document.getElementById(elValId);
-    if(elVal)elVal.textContent=fmtNum(0);
-  }
-}
-window.decidirTodosCC=decidirTodosCC;
-
-function toggleCardMat(id){
-  var el=document.getElementById(id);
-  if(el)el.style.display=el.style.display==='none'?'block':'none';
-}
 window.toggleCardMat=toggleCardMat;
 
-async function salvarGrupo(solIds){
-  for(var i=0;i<solIds.length;i++){
-    var solId=solIds[i];
-    var sol=solicitacoes.find(function(s){return s.id===solId});
-    if(!sol)continue;
-    var scNum=document.getElementById('sc-'+solId)?document.getElementById('sc-'+solId).value.trim():'';
-    if(!scNum){alert('Informe o número da SC para '+((ccMap[sol.cc]?ccMap[sol.cc].nome:sol.cc)));continue;}
-    for(var j=0;j<sol.itens.length;j++){
-      var it=sol.itens[j];
-      var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:it.quantidade;
-      var dec=decisoes[it.id]||'aprovado';
-      await db.from('solicitacao_itens').update({situacao:dec,quantidade:dec==='recusado'?0:novaQtd,justificativa:justificativas[it.id]||null}).eq('id',it.id);
-    }
-    await db.from('solicitacoes').update({sc_numero:scNum,status:'aguardando_master',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
-  }
-  await carregarSolicitacoes();
-}
-window.salvarGrupo=salvarGrupo;
 
 function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,filial=s.filial||``,valorTotalInicial=0;s.itens.forEach(it=>{let qtd=qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id],preco=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0;valorTotalInicial+=qtd*preco});let linhasItens=s.itens.filter(it=>(it.quantidade||0)>0).map(it=>{let qtdOrig=it.quantidade,qtdAtual=qtdEditadas[it.id]===void 0?qtdOrig:qtdEditadas[it.id];let nomeGer=ccMap[s.cc]?.nome||s.cc;let consumo=s.cc&&it.codigo&&it.codigo!==`MANUAL`?consumoMap[nomeGer+`|`+it.codigo]:undefined;let consumoVal=consumo==null||consumo===undefined?null:consumo===-1?`<1`:Math.floor(consumo);let preco=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0,valorEstimado=qtdAtual*preco,justVal=justificativas[it.id]||``,aumentada=qtdAtual>qtdOrig;return`<tr id="row-${it.id}">
       <td>
