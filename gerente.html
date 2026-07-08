@@ -95,7 +95,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
   }).join('');
 
   return'<div class="card" style="margin-bottom:16px">'
-    +'<div class="card-topo" onclick="toggleCardMat(''+cardId+'')">'
+    +'<div class="card-topo" onclick="toggleCardMat(&quot;'+cardId+'&quot;)">'
     +'<div style="flex:1">'
     +'<div class="card-titulo">'+tituloCCs+'<span class="pill p-pendente" style="margin-left:6px">Pendente</span></div>'
     +'<div class="card-sub">'+nomeEnvio+' · mat. '+mat+' · '+dt+' · '+nItems+' item(ns) · 📅 '+periodo+'m'+(just?' · "'+just+'"':'')+' </div>'
