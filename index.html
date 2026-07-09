@@ -88,9 +88,132 @@ todosKeys.forEach(k=>{
   let nMeses=new Set((consumoData||[]).filter(r=>{let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;return nome+'|'+r.produto===k}).map(r=>r.mes)).size||6;
   let mediaFixo=fixo>0?fixo/6:total/Math.max(nMeses,1);consumoMap[k]=mediaFixo>=1?Math.round(mediaFixo):mediaFixo>0?-1:0;
 }),pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)})}let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
-// mostra tudo que precisa de ação do master:
-// pendente (com ou sem SC) + aguardando_master
-let visiveis=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`||s.status===`em_analise`);if(visiveis.length===0){$(`lista`).innerHTML=`<div class="vazio">Nenhuma solicitação pendente. Tudo aprovado ou recusado.</div>`;return}visiveis.sort((a,b)=>(b.status===`aguardando_master`)-(a.status===`aguardando_master`)||new Date(b.criado_em)-new Date(a.criado_em)),$(`lista`).innerHTML=visiveis.map(s=>renderCard(s)).join(``)}function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
+let visiveis=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`||s.status===`em_analise`);
+if(visiveis.length===0){$(`lista`).innerHTML=`<div class="vazio">Nenhuma solicitação pendente. Tudo aprovado ou recusado.</div>`;return}
+visiveis.sort((a,b)=>(b.status===`aguardando_master`)-(a.status===`aguardando_master`)||new Date(b.criado_em)-new Date(a.criado_em));
+// Agrupar por envio (mesma matrícula + mesmo minuto)
+let grupos={};
+visiveis.forEach(s=>{let ch=s.solicitante_matricula+'|'+s.criado_em.slice(0,16);if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
+$(`lista`).innerHTML=Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
+}
+
+function renderCardMatricial(grupo){
+  grupo.sort((a,b)=>(b.itens||[]).reduce((s,i)=>s+(i.quantidade||0),0)-(a.itens||[]).reduce((s,i)=>s+(i.quantidade||0),0));
+  var s0=grupo[0];
+  var cardId='mat-'+s0.id;
+  var periodo=s0.periodo_meses||3;
+  var solIds=grupo.map(s=>s.id);
+
+  // Coletar itens únicos
+  var itensMap2={};
+  grupo.forEach(function(s){
+    (s.itens||[]).forEach(function(it){
+      if((it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade)>0||it.quantidade>0){
+        if(!itensMap2[it.codigo])itensMap2[it.codigo]={codigo:it.codigo,descricao:it.descricao,porCC:{}};
+        itensMap2[it.codigo].porCC[s.cc]=it;
+      }
+    });
+  });
+  var itensList=Object.values(itensMap2);
+  if(!itensList.length)return'';
+
+  // Calcular qtd digitada (total / periodo / proporção)
+  var totalPessoasTodos=grupo.reduce((s,g)=>s+(ccMap[g.cc]?.pessoas||0),0);
+
+  // Cabeçalhos CCs
+  var cabecalhos=grupo.map(function(s){
+    var nome=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
+    var nomeShort=nome.split(' ').slice(-2).join(' ');
+    return'<th style="min-width:80px;text-align:center">'+nomeShort+'<br><span style="font-size:10px;color:#94a3b8">'+s.cc+'</span></th>';
+  }).join('');
+
+  // Linhas
+  var linhas=itensList.map(function(item){
+    // Qtd total (soma de todos CCs)
+    var qtdTotal=Object.values(item.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);
+    // Qtd digitada pelo almoxarife (total / periodo)
+    var qtdDigitada=periodo>0?Math.round(qtdTotal/periodo):qtdTotal;
+
+    var colunas=grupo.map(function(s){
+      var it=item.porCC[s.cc];
+      var qtd=it?(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0):0;
+      if(!qtd)return'<td style="text-align:center;color:#cbd5e1">—</td>';
+      return'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;color:#1e40af">'+qtd+'</td>';
+    }).join('');
+
+    var nomeCC0=ccMap[grupo[0].cc]?ccMap[grupo[0].cc].nome:grupo[0].cc;
+    var cons=consumoMap[nomeCC0+'|'+item.codigo]||0;
+    var consDisp=cons===-1?'<1':cons>0?Math.round(cons):'—';
+    var semHist=cons===0&&qtdTotal>0;
+    var badgeSH=semHist?'<span style="background:#fef3c7;color:#b45309;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">⚠ Sem hist.</span>':'';
+
+    return'<tr>'
+      +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(item.descricao||item.codigo)+badgeSH
+      +'<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
+      +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
+      +'<td style="text-align:center;font-family:ui-monospace,monospace;color:#475569">'+qtdDigitada+'</td>'
+      +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#f0fdf4;color:#166534">'+qtdTotal+'</td>'
+      +colunas
+      +'</tr>';
+  }).join('');
+
+  var tituloCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(' · ');
+  var status0=s0.status;
+  var badgeSt=status0==='aguardando_master'?'<span class="pill p-aguardando_master">⚡ Aguardando revisão</span>':status0==='em_analise'?'<span class="pill p-em_analise">Em análise</span>':'<span class="pill p-pendente">Pendente</span>';
+
+  // Campo SC por CC + botão salvar
+  var camposSC=grupo.map(function(s){
+    return'<div style="flex:1;min-width:160px">'
+      +'<label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px">SC — '+(ccMap[s.cc]?ccMap[s.cc].nome:s.cc)+'</label>'
+      +'<input id="sc-'+s.id+'" value="'+(s.sc_numero||'')+'" placeholder="Ex.: 045873" style="padding:7px 10px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;width:100%"/>'
+      +'</div>';
+  }).join('');
+
+  return'<div class="card" style="margin-bottom:14px">'
+    +'<div class="card-topo" onclick="toggleCardMat(this)">'
+    +'<div style="flex:1"><div class="card-titulo">'+tituloCCs+' '+badgeSt+'</div>'
+    +'<div class="card-sub">'+s0.solicitante_nome+' · mat. '+s0.solicitante_matricula+' · '+fmtData(s0.criado_em)+' · '+itensList.length+' item(ns) · 📅 '+periodo+'m'+(s0.justificativa?' · "'+s0.justificativa+'"':'')+' </div></div>'
+    +'<div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>'
+    +'</div>'
+    +'<div id="'+cardId+'" style="display:none;padding:16px;overflow-x:auto">'
+    +'<table style="border-collapse:collapse;width:100%;font-size:12.5px"><thead><tr>'
+    +'<th style="text-align:left;min-width:200px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b">Item</th>'
+    +'<th style="text-align:center;width:60px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b">Consumo<br>6m</th>'
+    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b">Qtd<br>digitada</th>'
+    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f0fdf4;border-bottom:2px solid #e2e8f0;font-size:11px;color:#166534">Total<br>(×'+periodo+'m)</th>'
+    +cabecalhos
+    +'</tr></thead><tbody>'+linhas+'</tbody></table>'
+    +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
+    +'<div id="msg-mat-'+cardId+'"></div>'
+    +'<button class="btn-salvar" style="margin-top:10px;width:100%" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'
+    +'</div>'
+    +'</div>';
+}
+
+function toggleCardMat(topo){var c=topo.nextElementSibling;if(c)c.style.display=c.style.display==='none'?'block':'none'}
+window.toggleCardMat=toggleCardMat;
+
+async function salvarGrupoMaster(btn){
+  var ids=btn.dataset.ids.split(',').map(Number);
+  var msgEl=document.getElementById(btn.dataset.msg);
+  if(msgEl)msgEl.innerHTML='<span style="color:#64748b;font-size:13px">Salvando...</span>';
+  for(var i=0;i<ids.length;i++){
+    var solId=ids[i];
+    var sol=solicitacoes.find(function(s){return s.id===solId});
+    if(!sol)continue;
+    var scEl=document.getElementById('sc-'+solId);
+    var scNum=scEl?scEl.value.trim():'';
+    if(!scNum){alert('Informe a SC para '+(ccMap[sol.cc]?ccMap[sol.cc].nome:sol.cc));return;}
+    for(var j=0;j<(sol.itens||[]).length;j++){
+      var it=sol.itens[j];
+      await db.from('solicitacao_itens').update({situacao:'aprovado',quantidade:masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade}).eq('id',it.id);
+    }
+    await db.from('solicitacoes').update({sc_numero:scNum,status:'aprovada',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
+  }
+  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:13px">✓ Aprovado!</span>';
+  setTimeout(function(){carregarSolicitacoes()},800);
+}
+window.salvarGrupoMaster=salvarGrupoMaster;function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
       <span onclick="event.stopPropagation();var el=document.getElementById('${badgePessoasId}');el.style.display=el.style.display==='none'?'block':'none';"
         style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;cursor:pointer;margin-left:8px">
         👥 ${totalPessoas} ▾
