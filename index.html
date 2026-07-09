@@ -176,7 +176,7 @@ function renderCardMatricial(grupo){
       +'<label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px">Nº SC</label>'
       +'<input id="sc-'+s.id+'" value="'+(s.sc_numero||'')+'" placeholder="Ex.: 045873" style="padding:7px 10px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;width:100%;margin-bottom:8px"/>'
       +'<label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px">Observação</label>'
-      +'<input id="obs-mat-'+s.id+'" value="'+(s.observacao||'')+'" placeholder="Motivo da compra..." style="padding:7px 10px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;width:100%"/>'
+      +'<input id="obs-mat-'+s.id+'" value="'+(s.observacao||'')+'" placeholder="Motivo da compra..." style="padding:7px 10px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;width:100%" class=\"obs-mat-input\"/>'
       +'</div>';
   }).join('');
 
@@ -198,7 +198,7 @@ function renderCardMatricial(grupo){
     +'</tr></thead><tbody>'+linhas+'</tbody></table>'
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-mat-'+cardId+'"></div>'
-    +'<button class="btn-salvar" style="margin-top:10px;width:100%" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'
+    +'<button id="btn-excel-mat-'+cardId+'" disabled style="margin-top:10px;width:100%;background:#0f172a;color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.4" data-ids="'+solIds.join(',')+'" onclick="gerarExcelMatricial(this.dataset.ids.split(\',\').map(Number))">⬇ Baixar Excel p/ Protheus</button>'+'<button class="btn-salvar" style="margin-top:8px;width:100%" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'
     +'</div>'
     +'</div>';
 }
@@ -241,6 +241,38 @@ async function salvarGrupoMaster(btn){
   setTimeout(function(){carregarSolicitacoes()},1200);
 }
 window.salvarGrupoMaster=salvarGrupoMaster;
+
+// Monitorar todos os inputs de obs via event delegation
+document.addEventListener('input', function(e){
+  if(e.target.classList.contains('obs-mat-input')){
+    // Encontrar o card pai e verificar todas as obs
+    var card=e.target.closest('.card');
+    if(!card)return;
+    var inputs=card.querySelectorAll('.obs-mat-input');
+    var todos=Array.from(inputs).every(function(inp){return inp.value.trim().length>0});
+    var btnExcel=card.querySelector('[id^="btn-excel-mat-"]');
+    if(btnExcel){
+      btnExcel.disabled=!todos;
+      btnExcel.style.opacity=todos?'1':'0.4';
+      btnExcel.style.cursor=todos?'pointer':'not-allowed';
+    }
+  }
+});
+
+function verificarObsMat(cardId, ids){
+  // Verifica se todos os campos de observação estão preenchidos
+  var todos=ids.every(function(id){
+    var el=document.getElementById('obs-mat-'+id);
+    return el&&el.value.trim().length>0;
+  });
+  var btn=document.getElementById('btn-excel-mat-'+cardId);
+  if(btn){
+    btn.disabled=!todos;
+    btn.style.opacity=todos?'1':'0.4';
+    btn.style.cursor=todos?'pointer':'not-allowed';
+  }
+}
+window.verificarObsMat=verificarObsMat;
 
 function gerarExcelMatricial(ids){
   var linhas=[];
