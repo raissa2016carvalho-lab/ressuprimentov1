@@ -539,7 +539,7 @@ window.removerItemManualMob=removerItemManualMob;
 function renderItensManualMob(){
   let el=$(`mob-itens-manuais`);
   if(!mobItensManual.length){el.innerHTML=``;return}
-  el.innerHTML=`<div style="font-size:12px;font-weight:600;color:#64748b;mar`<div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">Itens adicionados manualmente:</div>`+
+  el.innerHTML=`<div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">Itens adicionados manualmente:</div>`+
     mobItensManual.map((it,i)=>`<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:7px 12px;margin-bottom:4px;font-size:13px">
       <div style="flex:1">${it.descricao} <span style="color:#94a3b8;font-size:11px">${it.codigo}</span></div>
       <div style="font-family:ui-monospace,monospace;font-weight:700;color:#1e40af;min-width:40px">${it.total_mob}</div>
