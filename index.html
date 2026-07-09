@@ -158,20 +158,29 @@ function renderCardMatricial(grupo){
   }).join('');
 
   var tituloCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(' · ');
+  var filialNomes={'01':'MATRIZ','03':'PAU DOS FERROS','04':'ITAPIPOCA','06':'CURRAIS NOVOS','07':'SOBRAL','08':'APARECIDA DE GOIANIA','09':'MARACANAU','10':'MOSSORO','11':'ANAPOLIS','13':'ALAGOINHAS','14':'RIBEIRA DO POMBAL','15':'PAULO AFONSO','22':'GOIANIA','23':'BATURITE','24':'MORRINHOS','25':'CASCAVEL','27':'CAUCAIA','29':'HORIZONTE','34':'SENHOR DO BONFIM','36':'LUZIANIA','37':'DIVINOPOLIS','40':'GARANHUNS','41':'FLORIANO','42':'LIVRAMENTO DE NOSSA SENHORA','43':'HORTOLANDIA'};
+  var filialNome=filialNomes[s0.filial]||('Filial '+s0.filial);
+  var codigosIds=grupo.map(function(s){return'#'+s.id}).join(' · ');
   var status0=s0.status;
   var badgeSt=status0==='aguardando_master'?'<span class="pill p-aguardando_master">⚡ Aguardando revisão</span>':status0==='em_analise'?'<span class="pill p-em_analise">Em análise</span>':'<span class="pill p-pendente">Pendente</span>';
 
   // Campo SC por CC + botão salvar
   var camposSC=grupo.map(function(s){
-    return'<div style="flex:1;min-width:160px">'
-      +'<label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px">SC — '+(ccMap[s.cc]?ccMap[s.cc].nome:s.cc)+'</label>'
-      +'<input id="sc-'+s.id+'" value="'+(s.sc_numero||'')+'" placeholder="Ex.: 045873" style="padding:7px 10px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;width:100%"/>'
+    var nomeCC=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
+    return'<div style="flex:1;min-width:200px;border:1px solid #e2e8f0;border-radius:10px;padding:12px">'
+      +'<div style="font-size:11.5px;font-weight:700;color:#0f172a;margin-bottom:8px">'+nomeCC+'</div>'
+      +'<label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px">Nº SC</label>'
+      +'<input id="sc-'+s.id+'" value="'+(s.sc_numero||'')+'" placeholder="Ex.: 045873" style="padding:7px 10px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;width:100%;margin-bottom:8px"/>'
+      +'<label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px">Observação</label>'
+      +'<input id="obs-mat-'+s.id+'" value="'+(s.observacao||'')+'" placeholder="Motivo da compra..." style="padding:7px 10px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;width:100%"/>'
       +'</div>';
   }).join('');
 
   return'<div class="card" style="margin-bottom:14px">'
     +'<div class="card-topo" onclick="toggleCardMat(this)">'
-    +'<div style="flex:1"><div class="card-titulo">'+tituloCCs+' '+badgeSt+'</div>'
+    +'<div style="flex:1">'
+    +'<div class="card-titulo">'+codigosIds+' <span style="color:#94a3b8;font-weight:500;font-size:12px">'+filialNome+'</span> '+badgeSt+'</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+tituloCCs+'</div>'
     +'<div class="card-sub">'+s0.solicitante_nome+' · mat. '+s0.solicitante_matricula+' · '+fmtData(s0.criado_em)+' · '+itensList.length+' item(ns) · 📅 '+periodo+'m'+(s0.justificativa?' · "'+s0.justificativa+'"':'')+' </div></div>'
     +'<div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>'
     +'</div>'
@@ -197,6 +206,7 @@ async function salvarGrupoMaster(btn){
   var ids=btn.dataset.ids.split(',').map(Number);
   var msgEl=document.getElementById(btn.dataset.msg);
   if(msgEl)msgEl.innerHTML='<span style="color:#64748b;font-size:13px">Salvando...</span>';
+  // Verificar SC e obs de todos
   for(var i=0;i<ids.length;i++){
     var solId=ids[i];
     var sol=solicitacoes.find(function(s){return s.id===solId});
@@ -204,16 +214,64 @@ async function salvarGrupoMaster(btn){
     var scEl=document.getElementById('sc-'+solId);
     var scNum=scEl?scEl.value.trim():'';
     if(!scNum){alert('Informe a SC para '+(ccMap[sol.cc]?ccMap[sol.cc].nome:sol.cc));return;}
+    var obsEl=document.getElementById('obs-mat-'+solId);
+    var obsVal=obsEl?obsEl.value.trim():'';
+    if(!obsVal){alert('Informe a observação para '+(ccMap[sol.cc]?ccMap[sol.cc].nome:sol.cc));return;}
+  }
+  // Salvar
+  for(var i=0;i<ids.length;i++){
+    var solId=ids[i];
+    var sol=solicitacoes.find(function(s){return s.id===solId});
+    if(!sol)continue;
+    var scNum=document.getElementById('sc-'+solId).value.trim();
+    var obsVal=document.getElementById('obs-mat-'+solId).value.trim();
     for(var j=0;j<(sol.itens||[]).length;j++){
       var it=sol.itens[j];
       await db.from('solicitacao_itens').update({situacao:'aprovado',quantidade:masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade}).eq('id',it.id);
     }
-    await db.from('solicitacoes').update({sc_numero:scNum,status:'aprovada',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
+    await db.from('solicitacoes').update({sc_numero:scNum,observacao:obsVal,status:'aprovada',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
   }
   if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:13px">✓ Aprovado!</span>';
-  setTimeout(function(){carregarSolicitacoes()},800);
+  // Gerar Excel matricial
+  gerarExcelMatricial(ids);
+  setTimeout(function(){carregarSolicitacoes()},1200);
 }
-window.salvarGrupoMaster=salvarGrupoMaster;function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
+window.salvarGrupoMaster=salvarGrupoMaster;
+
+function gerarExcelMatricial(ids){
+  var linhas=[];
+  ids.forEach(function(solId){
+    var sol=solicitacoes.find(function(s){return s.id===solId});
+    if(!sol)return;
+    var cc=sol.cc;
+    var obs=document.getElementById('obs-mat-'+solId)?.value||sol.observacao||'';
+    var itensAprov=(sol.itens||[]).filter(function(it){return(it.quantidade||0)>0&&it.codigo&&it.codigo!=='MANUAL'});
+    itensAprov.forEach(function(it,idx){
+      linhas.push({
+        C1_XTIPOSC:'004',
+        C1_ITEM:String(idx+1).padStart(2,'0'),
+        C1_PRODUTO:it.codigo,
+        C1_DESCRI:it.descricao||'',
+        C1_QUANT:masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade,
+        C1_CC:cc,
+        C1_OBS:obs,
+        C1_ESTOQUE:'S'
+      });
+    });
+    // Linha separadora entre CCs (linha vazia)
+    if(ids.indexOf(solId)<ids.length-1){
+      linhas.push({C1_XTIPOSC:'',C1_ITEM:'',C1_PRODUTO:'',C1_DESCRI:'',C1_QUANT:'',C1_CC:'',C1_OBS:'',C1_ESTOQUE:''});
+    }
+  });
+  if(!linhas.length){alert('Nenhum item aprovado.');return;}
+  var ws=XLSX.utils.json_to_sheet(linhas);
+  var wb=XLSX.utils.book_new();
+  var sol0=solicitacoes.find(function(s){return s.id===ids[0]});
+  var nomePlanilha='SC_'+ids.map(function(id){return'#'+id}).join('_');
+  XLSX.utils.book_append_sheet(wb,ws,'SC');
+  XLSX.writeFile(wb,nomePlanilha+'.xlsx');
+}
+window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
       <span onclick="event.stopPropagation();var el=document.getElementById('${badgePessoasId}');el.style.display=el.style.display==='none'?'block':'none';"
         style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;cursor:pointer;margin-left:8px">
         👥 ${totalPessoas} ▾
