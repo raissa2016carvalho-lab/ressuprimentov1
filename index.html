@@ -705,10 +705,72 @@ window.salvarMobilizacao=salvarMobilizacao;async function carregarMobilizacoes()
         </button>
         <span id="msg-estoque-${mobId}" style="font-size:12.5px"></span>
       </div>
+      <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px" class="somente-admin">
+        <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px">+ Adicionar item à mobilização</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:2;min-width:200px;position:relative">
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:3px">Buscar item</label>
+            <input id="mob-add-busca-${mobId}" placeholder="Buscar por código ou descrição..." autocomplete="off" oninput="buscarItemParaMob(${mobId})" style="margin:0;padding:9px 12px;font-size:13px"/>
+            <div id="mob-add-sugs-${mobId}" style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:8px;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px #00000014"></div>
+          </div>
+          <div style="width:100px">
+            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:3px">Qtd total</label>
+            <input id="mob-add-qtd-${mobId}" type="number" min="1" placeholder="0" style="margin:0;padding:9px 12px;font-size:13px"/>
+          </div>
+          <button onclick="adicionarItemNaMob(${mobId})" style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;height:40px">+ Adicionar</button>
+        </div>
+        <div id="mob-add-msg-${mobId}" style="margin-top:8px;font-size:12.5px"></div>
+      </div>
     `}async function salvarDtEntregaManual(input){let ids=input.dataset.ids.split(`,`).map(Number).filter(Boolean),valor=input.value.trim();if(ids.length){input.style.borderColor=`#0d9488`;try{await db.from(`mobilizacao_itens`).update({dt_entrega_manual:valor||null}).in(`id`,ids),input.style.background=`#f0fdf4`,setTimeout(()=>{input.style.background=`#fff`,input.style.borderColor=`#e2e8f0`},1200)}catch{input.style.borderColor=`#ef4444`}}}window.salvarDtEntregaManual=salvarDtEntregaManual;async function excluirItemMob(mobId,idsStr,descricao){if(!isAdmin){alert(`Apenas administradores podem excluir itens.`);return}let nomeConfirma=prompt(`Para excluir "${descricao}" da mobilização, digite seu nome para confirmar:`);if(nomeConfirma===null)return;if(!nomeConfirma.trim()){alert(`Nome obrigatório para confirmar exclusão.`);return}let ids=idsStr.split(`,`).map(Number).filter(Boolean);if(!ids.length)return;await db.from(`mobilizacao_itens`).delete().in(`id`,ids);let container=document.getElementById(`corpo-mob-`+mobId);container.dataset.carregado=`0`,await renderDetalheMob(mobId,container),container.classList.add(`aberto`)}async function salvarObsItem(mobId,itemId,obs){
   await db.from(`mobilizacao_itens`).update({observacao:obs||null}).eq(`id`,itemId);
 }
 window.salvarObsItem=salvarObsItem;
+// ── ADICIONAR ITEM NA MOBILIZAÇÃO JÁ SALVA ─────────────────────────────────
+let _mobAddItem={};
+let _debMobAdd=null;
+async function buscarItemParaMob(mobId){
+  clearTimeout(_debMobAdd);
+  _debMobAdd=setTimeout(async()=>{
+    let termo=(document.getElementById('mob-add-busca-'+mobId)?.value||'').trim();
+    let sugs=document.getElementById('mob-add-sugs-'+mobId);
+    if(!sugs)return;
+    if(termo.length<2){sugs.style.display='none';return}
+    let{data}=await db.from('itens').select('codigo,descricao').or('descricao.ilike.%'+termo+'%,codigo.ilike.%'+termo+'%').limit(10);
+    if(!data||!data.length){sugs.style.display='none';return}
+    sugs.innerHTML=data.map(it=>'<div onclick="selecionarItemMobAdd('+mobId+',\''+it.codigo+'\',\''+it.descricao.replace(/'/g,'')+'\')" style="padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background=\'#f0fdf4\'" onmouseout="this.style.background=\'\'">'+it.descricao+'<span style="color:#94a3b8;font-size:11px;margin-left:6px">'+it.codigo+'</span></div>').join('');
+    sugs.style.display='block';
+  },200);
+}
+window.buscarItemParaMob=buscarItemParaMob;
+
+function selecionarItemMobAdd(mobId,codigo,descricao){
+  _mobAddItem[mobId]={codigo,descricao};
+  let inp=document.getElementById('mob-add-busca-'+mobId);
+  if(inp)inp.value=descricao+' ('+codigo+')';
+  let sugs=document.getElementById('mob-add-sugs-'+mobId);
+  if(sugs)sugs.style.display='none';
+}
+window.selecionarItemMobAdd=selecionarItemMobAdd;
+
+async function adicionarItemNaMob(mobId){
+  let item=_mobAddItem[mobId];
+  let qtd=Number(document.getElementById('mob-add-qtd-'+mobId)?.value)||0;
+  let msgEl=document.getElementById('mob-add-msg-'+mobId);
+  if(!item){if(msgEl)msgEl.innerHTML='<span style="color:#ef4444">Selecione um item da lista.</span>';return}
+  if(qtd<=0){if(msgEl)msgEl.innerHTML='<span style="color:#ef4444">Informe uma quantidade maior que 0.</span>';return}
+  if(msgEl)msgEl.innerHTML='<span style="color:#64748b">Salvando...</span>';
+  let{error}=await db.from('mobilizacao_itens').upsert({mobilizacao_id:mobId,codigo:item.codigo,descricao:item.descricao,total_mob:qtd},{onConflict:'mobilizacao_id,codigo'});
+  if(error){if(msgEl)msgEl.innerHTML='<span style="color:#ef4444">Erro: '+error.message+'</span>';return}
+  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a">✓ Item adicionado!</span>';
+  delete _mobAddItem[mobId];
+  let inp=document.getElementById('mob-add-busca-'+mobId);if(inp)inp.value='';
+  let qtdEl=document.getElementById('mob-add-qtd-'+mobId);if(qtdEl)qtdEl.value='';
+  // Recarregar o card
+  let container=document.getElementById('corpo-mob-'+mobId);
+  if(container){container.dataset.carregado='0';await renderDetalheMob(mobId,container)}
+}
+window.adicionarItemNaMob=adicionarItemNaMob;
+
 window.excluirItemMob=excluirItemMob;async function salvarTodoEstoque(mobId){if(!isAdmin){alert(`Apenas administradores podem editar estoque.`);return}let inputs=document.querySelectorAll(`.mob-est-input[data-mob="${mobId}"]`);if(!inputs.length)return;let msgEl=document.getElementById(`msg-estoque-`+mobId);msgEl&&(msgEl.textContent=`Salvando...`);let registros=[...inputs].map(inp=>({mobilizacao_id:Number(mobId),codigo:inp.dataset.cod,qtd_estoque:Number(inp.value)||0})).filter(r=>r.codigo),{error}=await db.from(`mobilizacao_estoque`).upsert(registros,{onConflict:`mobilizacao_id,codigo`});if(error)msgEl&&(msgEl.textContent=`Erro: `+error.message,msgEl.style.color=`#991b1b`);else{msgEl&&(msgEl.textContent=`✓ Salvo!`,msgEl.style.color=`#065f46`,setTimeout(()=>{msgEl.textContent=``},2e3));let container=document.getElementById(`corpo-mob-`+mobId);if(container){let scrollY=window.scrollY;container.dataset.carregado=`0`,await renderDetalheMob(mobId,container),container.classList.add(`aberto`),window.scrollTo({top:scrollY,behavior:`instant`})}}}window.salvarTodoEstoque=salvarTodoEstoque;async function adicionarScMob(mobId){if(!isAdmin){alert(`Apenas administradores podem adicionar SC.`);return}let sc=document.getElementById(`novo-sc-mob-`+mobId).value.trim();if(!sc)return;await db.from(`mobilizacao_scs`).insert({mobilizacao_id:mobId,sc_numero:sc});let container=document.getElementById(`corpo-mob-`+mobId);container.dataset.carregado=`0`,await renderDetalheMob(mobId,container),container.classList.add(`aberto`)}window.adicionarScMob=adicionarScMob;async function removerScMob(mobId,scId){if(!isAdmin){alert(`Apenas administradores podem remover SC.`);return}await db.from(`mobilizacao_scs`).delete().eq(`id`,scId);let container=document.getElementById(`corpo-mob-`+mobId);container.dataset.carregado=`0`,await renderDetalheMob(mobId,container),container.classList.add(`aberto`)}window.removerScMob=removerScMob;async function removerItemSol(solId,itemId){if(!isAdmin){alert(`Apenas administradores podem remover itens.`);return}if(!confirm(`Remover este item da solicitação?`))return;let{error}=await db.from(`solicitacao_itens`).delete().eq(`id`,itemId);if(error){alert(`Erro: `+error.message);return}await carregarSolicitacoes()}window.removerItemSol=removerItemSol;function aprovarTodosItens(solId){let sol=solicitacoes.find(s=>s.id===solId);sol&&(sol.itens.forEach(it=>{decisoes[it.id]=`aprovado`;let btnAp=document.getElementById(`ap-`+it.id),btnRe=document.getElementById(`re-`+it.id);btnAp&&(btnAp.className=`btn-dec aprovado`),btnRe&&(btnRe.className=`btn-dec`)}),atualizarBotoesSol(solId))}window.aprovarTodosItens=aprovarTodosItens;function atualizarBotoesSol(solId){let sc=(document.getElementById(`sc-`+solId)?.value||``).trim(),obs=(document.getElementById(`obs-`+solId)?.value||``).trim(),btnS=document.getElementById(`btn-salvar-sol-`+solId),btnE=document.getElementById(`btn-excel-sol-`+solId);btnS&&(btnS.disabled=!sc,btnS.style.opacity=sc?`1`:`0.4`,btnS.style.cursor=sc?`pointer`:`not-allowed`),btnE&&(btnE.disabled=!obs,btnE.style.opacity=obs?`1`:`0.4`,btnE.style.cursor=obs?`pointer`:`not-allowed`)}window.atualizarBotoesSol=atualizarBotoesSol;async function importarRessuprimentosCSV(){let fileInput=document.getElementById(`arquivo-import-csv`),logEl=document.getElementById(`log-import-csv`),file=fileInput.files[0];if(!file)return;logEl.innerHTML=`<span style="color:#64748b">Lendo arquivo...</span>`;let linhas=(await file.text()).trim().split(`
 `);function parseLinha(linha){let cols=[],cur=``,inQ=!1;for(let i=0;i<linha.length;i++){let ch=linha[i];ch===`"`?inQ=!inQ:ch===`,`&&!inQ?(cols.push(cur.trim()),cur=``):cur+=ch}return cols.push(cur.trim()),cols}let headers=parseLinha(linhas[0].replace(/\r/,``)),idx=h=>headers.findIndex(c=>c.trim().toLowerCase().replace(/[^a-z_]/g,``)===h.toLowerCase()),iSC=idx(`n_sc`),iProd=idx(`produto`),iDesc=idx(`descricao`),iQtd=idx(`qtde`),iObs=idx(`obs`),iSol=idx(`solicitante`),iStat=idx(`status_sc`),iEmis=idx(`emissao_sc`),iCodCC=headers.findIndex(h=>h.trim().toLowerCase().replace(/\s/g,``)===`codcc`),iCC=headers.reduce((last,h,i)=>h.trim().toLowerCase().includes(`descri`)?i:last,-1),iFilial=headers.findIndex(h=>{let n=h.trim().toLowerCase().replace(/\s/g,``);return n===`c1_filial`||n===`filial`}),{data:ccs,error:eCCs}=await db.from(`centros_custo`).select(`cc,nome,status`);if(eCCs||!ccs||ccs.length===0){logEl.innerHTML=`<span style="color:#dc2626">❌ Erro ao carregar centros de custo do banco: ${eCCs?.message||`lista vazia — verifique sua conexão com a internet`}.</span>`;return}let nomeParaCC={},nomeNormParaCC={},norm=s=>s.toUpperCase().replace(/\s+/g,``).normalize(`NFD`).replace(/[\u0300-\u036f]/g,``);(ccs||[]).filter(c=>c.cc&&c.cc.length>5&&(c.status||`Desbloqueado`)===`Desbloqueado`).forEach(c=>{nomeParaCC[c.nome.trim().toUpperCase()]=c.cc,nomeNormParaCC[norm(c.nome)]=c.cc});let grupos={};for(let i=1;i<linhas.length;i++){let cols=parseLinha(linhas[i].replace(/\r/,``));if(cols.length<6)continue;let sc=(cols[iSC]||``).trim();sc&&(grupos[sc]||(grupos[sc]=[]),grupos[sc].push(cols))}let scList=Object.keys(grupos);logEl.innerHTML=`<span style="color:#64748b">${scList.length} SC(s) encontradas. Importando...</span>`;let ok=0,erros=0,msgErros=[];for(let sc of scList){let rows=grupos[sc],first=rows[0],codCCDireto=iCodCC>=0?(first[iCodCC]||``).trim():``,nomeCC=(first[iCC]||``).trim().toUpperCase(),ccCode=``;if(codCCDireto&&(ccCode=(ccs||[]).find(c=>c.cc===codCCDireto)?codCCDireto:``),ccCode||(ccCode=nomeParaCC[nomeCC],ccCode||=nomeNormParaCC[norm(nomeCC)]),!ccCode){let msg=`SC ${sc}: CC "${codCCDireto||nomeCC}" não encontrado no banco`;msgErros.push(msg),erros++;continue}let status=`aprovada`,emissao=(first[iEmis]||``).trim()||(/* @__PURE__ */ new Date()).toISOString(),obs=(first[iObs]||``).trim(),sol=(first[iSol]||``).trim(),{data:scExist}=await db.from(`solicitacoes`).select(`id`).eq(`sc_numero`,sc).maybeSingle();if(scExist){let msg=`SC ${sc}: já existe no banco (duplicada)`;msgErros.push(msg),erros++;continue}let filialCSV=iFilial>=0?(first[iFilial]||``).trim():null,{data:sol_data,error:e1}=await db.from(`solicitacoes`).insert({cc:ccCode,sc_numero:sc,status:`aprovada`,observacao:obs,solicitante_nome:sol,solicitante_matricula:`000`,criado_em:emissao,atualizado_em:(/* @__PURE__ */ new Date()).toISOString(),justificativa:obs,filial:filialCSV||null}).select().single();if(e1||!sol_data){let msg=`SC ${sc}: erro ao gravar — ${e1?.message||`resposta vazia`}`;msgErros.push(msg),erros++;continue}let itens=rows.map(r=>({solicitacao_id:sol_data.id,codigo:(r[iProd]||``).trim(),descricao:(r[iDesc]||``).trim(),quantidade:parseFloat((r[iQtd]||`1`).trim())||1,situacao:`aprovado`})),{error:eItens}=await db.from(`solicitacao_itens`).insert(itens);eItens&&console.error(`Erro itens SC`,sc,eItens.message),ok++,logEl.textContent=`Importando... ${ok}/${scList.length}`}let resumo=`✓ ${ok} SC(s) importadas!${erros>0?` ${erros} com erro.`:``}`;logEl.textContent=resumo,msgErros.length>0&&alert(resumo+`
 
