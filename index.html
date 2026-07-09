@@ -93,7 +93,11 @@ if(visiveis.length===0){$(`lista`).innerHTML=`<div class="vazio">Nenhuma solicit
 visiveis.sort((a,b)=>(b.status===`aguardando_master`)-(a.status===`aguardando_master`)||new Date(b.criado_em)-new Date(a.criado_em));
 // Agrupar por envio (mesma matrícula + mesmo minuto)
 let grupos={};
-visiveis.forEach(s=>{let ch=s.solicitante_matricula+'|'+s.criado_em.slice(0,16);if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
+visiveis.forEach(s=>{// Agrupar por matrícula + janela de 5 minutos
+let dt=new Date(s.criado_em);
+let minBase=Math.floor(dt.getMinutes()/5)*5;
+let ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
+if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
 $(`lista`).innerHTML=Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
 }
 
