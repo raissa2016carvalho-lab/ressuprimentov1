@@ -96,7 +96,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
       var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
       consTotal+=(consumoMap[n+'|'+item.codigo]||0);
     });
-    var var consVal=consTotal===-1?'<1':consTotal>0?Math.round(consTotal):null;
+    var consVal=consTotal===-1?'<1':consTotal>0?Math.round(consTotal):null;
     var nomeCC0=ccMap[s0.cc]?ccMap[s0.cc].nome:s0.cc;
     consDisp=consVal!==null?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+(item.descricao||'').replace(/"/g,'')+'" data-nome="'+nomeCC0+'">'+consVal+'</span>':'—';
     var colunas=grupo.map(function(s){
