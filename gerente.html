@@ -38,13 +38,15 @@ let ccsParaBuscarGer=ccsExpandidosGer.length>0?ccsExpandidosGer:loteCCs;
 let{data:cons}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsParaBuscarGer).in(`produto`,codigos.slice(0,500));
 const aggCC={};
 // Meses fixos Jan-Jun
-const MESES_FIX=['202601','202602','202603','202604','202605','202606'];
+const MESES_FIX=['202601','202602','202603','202604','202605','202606'];Object.keys(consumoMensalMap).forEach(k=>delete consumoMensalMap[k]);
 const aggFixo={};
 (cons||[]).forEach(c=>{
   const nome=mapCcNomeGer[c.cc]||ccMap[c.cc]?.nome||c.cc;
   const k=nome+`|`+c.produto;
   aggCC[k]=(aggCC[k]||0)+(Number(c.quantidade)||0);
   if(MESES_FIX.includes(c.mes)){aggFixo[k]=(aggFixo[k]||0)+(Number(c.quantidade)||0)}
+  // Histórico mensal para popup
+  if(c.mes&&c.produto){if(!consumoMensalMap[k])consumoMensalMap[k]={};consumoMensalMap[k][c.mes]=(consumoMensalMap[k][c.mes]||0)+(Number(c.quantidade)||0)}
 });
 Object.keys(aggCC).forEach(k=>{
   const fixo=aggFixo[k]||0;
@@ -115,12 +117,13 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
       +'<td class="item-desc"><div>'+(item.descricao||item.codigo||'')+badgeSH+'</div><div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
       +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
       +colunas
-      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+item.codigo+'" id="mtot-'+item.codigo+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
+      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+item.codigo+'" id="mtot-'+item.codigo+'" data-orig="'+totalGeral+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
       +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mval-'+item.codigo+'">'+fmtNum(valorEst)+'</td>'
       +'<td style="text-align:center;white-space:nowrap">'
       +'<button class="'+aprCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
       +'<button class="'+recCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="recusado" onclick="decidirCC(this)">✗</button>'
       +'</td>'
+      +'<td id="just-td-'+item.codigo+'" style="padding:4px 8px;display:none"><textarea id="just-'+item.codigo+'" rows="2" placeholder="Justificativa..." oninput="justificativas_ger[''+item.codigo+'']=this.value" style="width:150px;padding:4px 6px;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-family:inherit;resize:none"></textarea></td>'
       +'</tr>';
   }).join('');
 
@@ -145,6 +148,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
     +'<th style="background:#f0fdf4;color:#166534;width:80px">Total<br>gerente</th>'
     +'<th style="text-align:right;width:90px">Valor est.</th>'
     +'<th style="text-align:center;width:80px">Decisão</th>'
+    +'<th style="width:160px">Justificativa</th>'
     +'</tr></thead><tbody>'+linhas+'</tbody></table>'
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-'+cardId+'"></div>'
@@ -212,23 +216,18 @@ document.addEventListener('click',function(e){
 });
 
 // Observação ao alterar quantidade
+let justificativas_ger={};
 document.addEventListener('input',function(e){
   if(e.target.classList.contains('mat-tot-input')){
     var preco=Number(e.target.dataset.preco)||0;
     var el=document.getElementById(e.target.dataset.valel);
     if(el)el.textContent=fmtNum(Number(e.target.value||0)*preco);
-    // Mostrar campo de observação se quantidade alterada
-    var card=e.target.closest('.card');
-    if(!card)return;
-    var cardId=card.querySelector('[data-cardid]')?.dataset?.cardid||'';
-    if(!cardId){var btn=card.querySelector('[data-cardid]');cardId=btn?btn.dataset.cardid:'';}
-    // Encontrar o cardId do botão
-    var btnAprovar=card.querySelector('button[data-cardid]');
-    if(btnAprovar){
-      var cid=btnAprovar.dataset.cardid;
-      var obsDiv=document.getElementById('obs-grupo-'+cid);
-      if(obsDiv)obsDiv.style.display='block';
-    }
+    // Mostrar campo de justificativa por item se quantidade aumentou
+    var codigo=e.target.id.replace('mtot-','');
+    var qtdAtual=Number(e.target.value)||0;
+    var qtdOrig=Number(e.target.dataset.orig||e.target.defaultValue)||0;
+    var justTd=document.getElementById('just-td-'+codigo);
+    if(justTd)justTd.style.display=qtdAtual>qtdOrig?'':'none';
   }
 });
 
@@ -250,10 +249,11 @@ async function aprovarGerente(btn){
       var it=sol.itens[j];
       var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:it.quantidade;
       var dec=decisoes[it.id]||'aprovado';
+      var justItem=justificativas_ger[it.codigo]||obs||null;
       await db.from('solicitacao_itens').update({
         situacao:dec,
         quantidade:novaQtd,
-        justificativa_gerente:obs||null
+        justificativa_gerente:justItem
       }).eq('id',it.id);
     }
     await db.from('solicitacoes').update({
