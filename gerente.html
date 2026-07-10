@@ -198,7 +198,7 @@ document.addEventListener('click',function(e){
     var chave=nomeCC+'|'+codigo,mensal=consumoMensalMap[chave]||{};
     var meses=Object.keys(mensal).sort().reverse().slice(0,6);
     function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
-    var html='<span class="pop-close" onclick="document.getElementById('popup-consumo-ger').style.display='none'">×</span><h4>'+(descricao||codigo).slice(0,32)+'</h4>';
+    var html='<span class="pop-close" onclick="fecharPopupGer()">×</span><h4>'+(descricao||codigo).slice(0,32)+'</h4>';
     if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem histórico mensal.</div>'}
     else{html+='<table>'+meses.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>'}).join('')+'</table>'}
     pop.innerHTML=html;pop.style.display='block';
@@ -264,6 +264,8 @@ async function aprovarGerente(btn){
   alert('✓ Aprovado! O master será notificado.');
   await carregarSolicitacoes();
 }
+function fecharPopupGer(){var p=document.getElementById('popup-consumo-ger');if(p)p.style.display='none'}
+window.fecharPopupGer=fecharPopupGer;
 window.aprovarGerente=aprovarGerente;
 
 function toggleCardMat(topo){
