@@ -123,7 +123,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
       +'<button class="'+aprCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
       +'<button class="'+recCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="recusado" onclick="decidirCC(this)">✗</button>'
       +'</td>'
-      +'<td id="just-td-'+item.codigo+'" style="padding:4px 8px;display:none"><textarea id="just-'+item.codigo+'" rows="2" placeholder="Justificativa..." oninput="justificativas_ger[''+item.codigo+'']=this.value" style="width:150px;padding:4px 6px;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-family:inherit;resize:none"></textarea></td>'
+      +'<td id="just-td-'+item.codigo+'" style="padding:4px 8px;display:none"><textarea data-cod="'+item.codigo+'" rows="2" placeholder="Justificativa..." oninput="justificativas_ger[this.dataset.cod]=this.value" style="width:150px;padding:4px 6px;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-family:inherit;resize:none"></textarea></td>'
       +'</tr>';
   }).join('');
 
