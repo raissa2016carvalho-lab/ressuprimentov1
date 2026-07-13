@@ -31,7 +31,7 @@ let filiais=[...new Set(solicitacoes.map(s=>s.filial).filter(Boolean))],codigos=
 Object.keys(consumoMensalMap).forEach(k=>delete consumoMensalMap[k]);
 const aggCC={};
 const aggFixo={};
-const MESES_FIX=['202601','202602','202603','202604','202605','202606'];
+const MESES_FIX=(function(){var meses=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);meses.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return meses})();
 for(let i=0;i<meusCC.length;i+=10){let loteCCs=meusCC.slice(i,i+10);
 // Buscar homônimos (bloqueados+desbloqueados) igual ao formulário
 let nomesLote=[...new Set(loteCCs.map(cc=>ccMap[cc]?.nome).filter(Boolean))];
