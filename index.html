@@ -10,7 +10,7 @@ document.addEventListener('click',function(e){
     var codigo=el.dataset.codigo,descricao=el.dataset.desc,nomeCC=el.dataset.nome;
     var pop=document.getElementById('popup-consumo-master');
     var histRaw=el.dataset.hist||'',mensal={};try{if(histRaw)mensal=JSON.parse(histRaw.replace(/'/g,'"'))}catch(e){}if(!Object.keys(mensal).length){var chave=nomeCC+'|'+codigo;mensal=consumoMensalMap[chave]||{}}
-    var mesesFixos=['202601','202602','202603','202604','202605','202606'];var meses=mesesFixos.filter(m=>mensal[m]>0).reverse();
+    var mesesFixos=(function(){var r=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();var meses=Object.keys(mensal).filter(function(m){return mensal[m]>0}).sort().reverse().slice(0,6);
     function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
     var html='<span class="pop-close" onclick="fecharPopupMaster()">×</span><h4>'+(descricao||codigo).slice(0,32)+'</h4>';
     if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem histórico mensal.</div>'}
@@ -147,8 +147,19 @@ function renderCardMatricial(grupo){
       return'<td id="'+cellId+'" style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;color:#1e40af">'+masterVal+'</td>';
     }).join('');
 
-    var nomeCC0=ccMap[grupo[0].cc]?ccMap[grupo[0].cc].nome:grupo[0].cc;
-    var cons=consumoMap[nomeCC0+'|'+item.codigo]||0;
+    // Somar consumo de todos os CCs do grupo
+    var consTotal=0;
+    grupo.forEach(function(s){var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;consTotal+=(consumoMap[n+'|'+item.codigo]||0);});
+    var cons=consTotal;
+    // Agregar histórico mensal de todos os CCs para o popup
+    var mensalAgg={};
+    grupo.forEach(function(s){
+      var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
+      var m=consumoMensalMap[n+'|'+item.codigo]||{};
+      Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
+    });
+    var histStr=JSON.stringify(mensalAgg).replace(/"/g,"'");
+    var nomesCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(' + ');
     var consDisp=cons===-1?'<1':cons>0?Math.round(cons):'—';
     var semHist=cons===0&&qtdTotal>0;
     var badgeSH=semHist?'<span style="background:#fef3c7;color:#b45309;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">⚠ Sem hist.</span>':'';
@@ -164,7 +175,7 @@ function renderCardMatricial(grupo){
     return'<tr>'
       +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(item.descricao||item.codigo)+badgeSH
       +'<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
-      +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
+      +'<td style="text-align:center;font-size:12px">'+(cons!==0?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+(item.descricao||item.codigo||'').replace(/"/g,\'\')+'" data-nome="'+nomesCCs+'" data-hist="'+histStr+'" style="font-weight:700;color:#1e40af;cursor:pointer">'+consDisp+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;color:#475569">'+qtdDigitada+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#f0fdf4;color:#166534">'+qtdTotal+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#eff6ff;color:'+(alterada?'#1e40af':'#94a3b8')+'">'+qtdGerente+'</td>'
