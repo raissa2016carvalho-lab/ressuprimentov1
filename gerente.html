@@ -9,18 +9,18 @@ if(matriculas.length>0){
     let{data:itensIrmas}=await db.from(`solicitacao_itens`).select(`solicitacao_id,codigo,quantidade`).in(`solicitacao_id`,irmaIds);
     // Agrupar por matricula+minuto
     let irmaMap={};
-    irmas.forEach(s=>{irmaMap[s.id]={mat:s.solicitante_matricula,min:s.criado_em.slice(0,10)}});
+    irmas.forEach(s=>{irmaMap[s.id]={mat:s.solicitante_matricula,criado_em:s.criado_em}});
     (itensIrmas||[]).forEach(it=>{
       let sol=irmaMap[it.solicitacao_id];
       if(!sol)return;
-      let ch=sol.mat+'|'+sol.min+'|'+it.codigo;
+      let _dt2=new Date(sol.criado_em),_mb2=Math.floor(_dt2.getMinutes()/5)*5,_min2=_dt2.getFullYear()+'-'+_dt2.getMonth()+'-'+_dt2.getDate()+'-'+_dt2.getHours()+'-'+_mb2;let ch=sol.mat+'|'+_min2+'|'+it.codigo;
       totalGeralMap[ch]=(totalGeralMap[ch]||0)+(it.quantidade||0);
     });
   }
 }
 // Adicionar total das próprias solicitações do gerente
 solicitacoes.forEach(s=>{
-  let ch_base=s.solicitante_matricula+'|'+s.criado_em.slice(0,10);
+  let _dt3=new Date(s.criado_em),_mb3=Math.floor(_dt3.getMinutes()/5)*5,_min3=_dt3.getFullYear()+'-'+_dt3.getMonth()+'-'+_dt3.getDate()+'-'+_dt3.getHours()+'-'+_mb3;let ch_base=s.solicitante_matricula+'|'+_min3;
   (s.itens||[]).forEach(it=>{
     let ch=ch_base+'|'+it.codigo;
     totalGeralMap[ch]=(totalGeralMap[ch]||0)+(it.quantidade||0);
@@ -59,7 +59,12 @@ Object.keys(aggCC).forEach(k=>{
 })}
 // Buscar preços da tabela itens (SB1)
 if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await db.from(`itens`).select(`codigo,preco`).in(`codigo`,codigos.slice(i,i+500));(precos||[]).forEach(p=>{p.preco>0&&(precoMap[p.codigo]=p.preco)})}if($(`subtitulo`).textContent=solicitacoes.length>0?solicitacoes.length+` solicitação(ões) aguardando sua avaliação`:`Nenhuma solicitação pendente`,solicitacoes.length===0){$(`lista`).innerHTML=`<div class="vazio">✓ Nenhuma solicitação pendente.</div>`;return}var grupos2={};
-solicitacoes.forEach(function(s){var ch=s.solicitante_matricula+'|'+s.criado_em.slice(0,10);if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);});
+solicitacoes.forEach(function(s){
+  var dt=new Date(s.criado_em);
+  var minBase=Math.floor(dt.getMinutes()/5)*5;
+  var ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
+  if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);
+});
 $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``)
 }window.carregarSolicitacoes=carregarSolicitacoes;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}function fmtNum(n){return Number(n).toLocaleString(`pt-BR`,{maximumFractionDigits:1})}function renderCardMatricial(grupo){
   grupo.sort(function(a,b){return(b.pessoas||0)-(a.pessoas||0)});
