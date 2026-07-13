@@ -155,10 +155,29 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
     +'</tr></thead><tbody>'+linhas+'</tbody></table>'
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-'+cardId+'"></div>'
-    +'<button class="btn-salvar" style="margin-top:10px;width:100%" data-ids="'+solIds+'" data-msg="msg-'+cardId+'" onclick="salvarGrupoBtn(this)">Salvar todas</button>'
+    +'<div style="display:flex;gap:8px;margin-top:10px">'
+    +'<button style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="aprovarTodosMatricial(\''+cardId+'\')">✓ Aprovar todos</button>'
+    +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-msg="msg-'+cardId+'" onclick="salvarGrupoBtn(this)">Salvar todas</button>'
+    +'</div>'
     +'</div>'
     +'</div>';
 }
+
+function aprovarTodosMatricial(cardId){
+  var corpo=document.getElementById(cardId);
+  if(!corpo)return;
+  corpo.querySelectorAll('button[data-dec="aprovado"]').forEach(function(btn){
+    var cod=btn.dataset.cod;
+    var ids=(btn.dataset.ids||'').split(',').map(Number).filter(Boolean);
+    ids.forEach(function(id){decisoes[id]='aprovado'});
+    var row=document.getElementById('mrow-'+cod);
+    if(row){
+      row.querySelectorAll('.btn-dec').forEach(function(b){b.classList.remove('aprovado','recusado')});
+      btn.classList.add('aprovado');
+    }
+  });
+}
+window.aprovarTodosMatricial=aprovarTodosMatricial;
 
 document.addEventListener('input',function(e){
   if(e.target.classList.contains('mat-tot-input')){
