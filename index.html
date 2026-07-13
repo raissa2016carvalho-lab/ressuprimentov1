@@ -64,17 +64,18 @@ try{
 // Meses fixos: Janeiro a Junho 2026
 const MESES_FIXOS=['202601','202602','202603','202604','202605','202606'];
 // Deduplicar consumo: homônimos (mesmo nome, CCs diferentes) só contam uma vez por nome+produto+mes
-const _seenConsumoProd=new Set();
-const consumoDataDedup=(consumoData||[]).filter(r=>{
+// Estratégia: para cada (nome+produto+mes), somar APENAS O MAIOR valor entre os CCs homônimos
+// Isso evita duplicação sem perder dados quando só o CC secundário tem consumo
+const _consumoAggDedup={};
+(consumoData||[]).forEach(r=>{
   const nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
-  const chave=nome+'|'+r.produto+'|'+r.mes+'|'+r.cc;
-  // Manter todos os CCs que estão em ccsSols; para extras (homônimos), manter apenas se nome+produto+mes não foi visto ainda via ccsSols
-  if(ccsSols.includes(r.cc))return true;
-  const chaveSemCC=nome+'|'+r.produto+'|'+r.mes;
-  if(_seenConsumoProd.has(chaveSemCC))return false;
-  _seenConsumoProd.add(chaveSemCC);
-  return true;
+  const chave=nome+'|'+r.produto+'|'+r.mes;
+  // Guardar o CC com maior quantidade para este nome+produto+mes
+  if(!_consumoAggDedup[chave]||Number(r.quantidade)>(_consumoAggDedup[chave].quantidade||0)){
+    _consumoAggDedup[chave]={...r,_nome:nome};
+  }
 });
+const consumoDataDedup=Object.values(_consumoAggDedup).map(r=>({...r,cc:r.cc}));
 (consumoDataDedup).forEach(r=>{
   let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
   let k=nome+`|`+r.produto;
