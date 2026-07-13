@@ -175,7 +175,7 @@ function renderCardMatricial(grupo){
     return'<tr>'
       +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(item.descricao||item.codigo)+badgeSH
       +'<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
-      +'<td style="text-align:center;font-size:12px">'+(cons!==0?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+(item.descricao||item.codigo||'').replace(/"/g,\'\')+'" data-nome="'+nomesCCs+'" data-hist="'+histStr+'" style="font-weight:700;color:#1e40af;cursor:pointer">'+consDisp+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>'
+      +(function(){var _d=(item.descricao||item.codigo||'').replace(/"/g,'');return '<td style="text-align:center;font-size:12px">'+(cons!==0?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+_d+'" data-nome="'+nomesCCs+'" data-hist="'+histStr+'" style="font-weight:700;color:#1e40af;cursor:pointer">'+consDisp+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>';})()
       +'<td style="text-align:center;font-family:ui-monospace,monospace;color:#475569">'+qtdDigitada+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#f0fdf4;color:#166534">'+qtdTotal+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#eff6ff;color:'+(alterada?'#1e40af':'#94a3b8')+'">'+qtdGerente+'</td>'
