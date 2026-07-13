@@ -63,7 +63,19 @@ try{
 }catch(e){console.warn('[master consumo] erro:',e);consumoData=[];pessoasData=[];}let consumoAggNome={};let consumoAggNomeFix={};consumoMensalMap={};
 // Meses fixos: Janeiro a Junho 2026
 const MESES_FIXOS=['202601','202602','202603','202604','202605','202606'];
-(consumoData||[]).forEach(r=>{
+// Deduplicar consumo: homônimos (mesmo nome, CCs diferentes) só contam uma vez por nome+produto+mes
+const _seenConsumoProd=new Set();
+const consumoDataDedup=(consumoData||[]).filter(r=>{
+  const nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
+  const chave=nome+'|'+r.produto+'|'+r.mes+'|'+r.cc;
+  // Manter todos os CCs que estão em ccsSols; para extras (homônimos), manter apenas se nome+produto+mes não foi visto ainda via ccsSols
+  if(ccsSols.includes(r.cc))return true;
+  const chaveSemCC=nome+'|'+r.produto+'|'+r.mes;
+  if(_seenConsumoProd.has(chaveSemCC))return false;
+  _seenConsumoProd.add(chaveSemCC);
+  return true;
+});
+(consumoDataDedup).forEach(r=>{
   let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
   let k=nome+`|`+r.produto;
   // Consumo total (todos os meses) para média geral
@@ -85,7 +97,7 @@ let todosKeys=new Set([...Object.keys(consumoAggNome),...Object.keys(consumoAggN
 todosKeys.forEach(k=>{
   let fixo=consumoAggNomeFix[k]||0;
   let total=consumoAggNome[k]||0;
-  let nMeses=new Set((consumoData||[]).filter(r=>{let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;return nome+'|'+r.produto===k}).map(r=>r.mes)).size||6;
+  let nMeses=new Set(consumoDataDedup.filter(r=>{let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;return nome+'|'+r.produto===k}).map(r=>r.mes)).size||6;
   let mediaFixo=fixo>0?fixo/6:total/Math.max(nMeses,1);consumoMap[k]=mediaFixo>=1?Math.round(mediaFixo):mediaFixo>0?-1:0;
 }),pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)})}let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
 let visiveis=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`||s.status===`em_analise`);
