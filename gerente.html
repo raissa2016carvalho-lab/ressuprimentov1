@@ -157,7 +157,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
     +'<div id="msg-'+cardId+'"></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px">'
     +'<button style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="aprovarTodosMatricial(\''+cardId+'\')">✓ Aprovar todos</button>'
-    +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-msg="msg-'+cardId+'" onclick="salvarGrupoBtn(this)">Salvar todas</button>'
+    +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-cardid="'+cardId+'" onclick="aprovarGerente(this)">✔ Enviar para master</button>'
     +'</div>'
     +'</div>'
     +'</div>';
@@ -166,6 +166,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
 function aprovarTodosMatricial(cardId){
   var corpo=document.getElementById(cardId);
   if(!corpo)return;
+  // Marca todos os itens como aprovado na UI e no mapa de decisões
   corpo.querySelectorAll('button[data-dec="aprovado"]').forEach(function(btn){
     var cod=btn.dataset.cod;
     var ids=(btn.dataset.ids||'').split(',').map(Number).filter(Boolean);
@@ -176,6 +177,9 @@ function aprovarTodosMatricial(cardId){
       btn.classList.add('aprovado');
     }
   });
+  // Dispara o envio para o master automaticamente
+  var btnSalvar=corpo.querySelector('button[data-cardid="'+cardId+'"]');
+  if(btnSalvar)btnSalvar.click();
 }
 window.aprovarTodosMatricial=aprovarTodosMatricial;
 
@@ -283,8 +287,9 @@ async function aprovarGerente(btn){
       status:'aguardando_master',atualizado_em:(new Date()).toISOString()
     }).eq('id',solId);
   }
-  alert('✓ Aprovado! O master será notificado.');
-  await carregarSolicitacoes();
+  var msgEl=document.getElementById('msg-'+cardId);
+  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-weight:600">✓ Enviado para aprovação final!</span>';
+  setTimeout(function(){carregarSolicitacoes()},1200);
 }
 window.aprovarGerente=aprovarGerente;
 
