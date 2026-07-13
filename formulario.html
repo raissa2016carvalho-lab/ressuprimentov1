@@ -51,8 +51,11 @@ try{const raw=sessionStorage.getItem(cacheKey);if(raw){const{ts,data}=JSON.parse
 if(!consumoData){let rows=[],off2=0;for(;;){const{data:lote}=await db.from(`consumo_mensal`).select(`cc,produto,descricao,quantidade,mes`).in(`cc`,todosCodigosCC.length?todosCodigosCC:ccs).range(off2,off2+999);if(!lote||!lote.length){break}rows=rows.concat(lote);if(lote.length<1e3)break;off2+=1e3}consumoData=rows;try{sessionStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),data:rows}));console.log(`[consumo] cache salvo (${rows.length} linhas)`)}catch(e){}}
 let agg={};
 // Consumo individual por CC+produto
+// Meses fixos Jan-Jun 2026 — mesma janela usada no painel do gerente
+const MESES_FIXOS=[`202601`,`202602`,`202603`,`202604`,`202605`,`202606`];
 let mapCcNome={};(todosHomonimos||[]).forEach(c=>{mapCcNome[c.cc]=c.nome});
-(consumoData||[]).forEach(r=>{let k=r.produto;agg[k]||(agg[k]={produto:r.produto,descricao:r.descricao,total:0}),agg[k].total+=Number(r.quantidade)||0}),consumoMap={},consumoMapCC={};consumoMapMensal={};let aggCC={};(consumoData||[]).forEach(r=>{let nome=mapCcNome[r.cc]||r.cc,k=nome+`|`+r.produto;aggCC[k]=(aggCC[k]||0)+(Number(r.quantidade)||0);if(r.mes&&r.produto){let km=nome+`|`+r.produto;if(!consumoMapMensal[km])consumoMapMensal[km]={};consumoMapMensal[km][r.mes]=(consumoMapMensal[km][r.mes]||0)+(Number(r.quantidade)||0)}}),Object.entries(aggCC).forEach(([k,total])=>{consumoMapCC[k]=Math.floor(total/6)}),Object.values(agg).forEach(v=>{consumoMap[v.produto]={media:Math.floor(v.total/6),descricao:v.descricao}});
+// Acumula apenas os meses fixos para média; histórico mensal completo fica em consumoMapMensal
+(consumoData||[]).forEach(r=>{let k=r.produto;agg[k]||(agg[k]={produto:r.produto,descricao:r.descricao,total:0});if(MESES_FIXOS.includes(r.mes))agg[k].total+=Number(r.quantidade)||0}),consumoMap={},consumoMapCC={};consumoMapMensal={};let aggCC={};let aggCCFixo={};(consumoData||[]).forEach(r=>{let nome=mapCcNome[r.cc]||r.cc,k=nome+`|`+r.produto;aggCC[k]=(aggCC[k]||0)+(Number(r.quantidade)||0);if(MESES_FIXOS.includes(r.mes)){aggCCFixo[k]=(aggCCFixo[k]||0)+(Number(r.quantidade)||0)}if(r.mes&&r.produto){let km=nome+`|`+r.produto;if(!consumoMapMensal[km])consumoMapMensal[km]={};consumoMapMensal[km][r.mes]=(consumoMapMensal[km][r.mes]||0)+(Number(r.quantidade)||0)}}),Object.entries(aggCCFixo).forEach(([k,total])=>{consumoMapCC[k]=Math.floor(total/6)}),Object.values(agg).forEach(v=>{consumoMap[v.produto]={media:Math.floor(v.total/6),descricao:v.descricao}});
 // Buscar itens dos grupos permitidos (cache sessionStorage 4h)
 let todosItens=[];
 const itensKey=`itens_cache`;
@@ -246,7 +249,25 @@ $(`tela-form`).style.display=`none`,$(`tela-sucesso`).style.display=`block`,$(`c
 // Fechar sugestões ao clicar fora
 function renderBadgeConsumo(it){if(!it.media||it.media<=0)return'<span class="consumo-zero">\u2014</span>';var d=(it.descricao||'').replace(/"/g,'').replace(/'/g,'');return'<span class="consumo-badge" onclick="mostrarPopupConsumo(event,\''+it.codigo+'\',\''+d+'\')" title="Ver historico mensal">'+it.media+' \u{1F4CA}</span>'}
 window.renderBadgeConsumo=renderBadgeConsumo;
-function mostrarPopupConsumo(event,codigo,descricao){event.stopPropagation();var pop=document.getElementById('popup-consumo'),mensal=consumoMapMensal[(ccsSelecionados.length>0?ccsSelecionados[0].nome+'|':'')+codigo]||consumoMapMensal[codigo]||{},meses=Object.keys(mensal).sort().reverse().slice(0,6);function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}var html='<span class="pop-close" onclick="fecharPopup()">\u2715</span><h4>'+descricao.slice(0,32)+'</h4>';if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem historico disponivel.</div>'}else{html+='<table>'+meses.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>'}).join('')+'</table>'}pop.innerHTML=html;pop.style.display='block';var r=event.target.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;if(top+ph>window.innerHeight-8)top=r.top-ph-6;pop.style.top=top+'px';pop.style.left=left+'px'}
+function mostrarPopupConsumo(event,codigo,descricao){event.stopPropagation();var pop=document.getElementById('popup-consumo');
+// Agrega o histórico de todos os CCs que contenham esse produto
+var mensal={};
+if(ccsSelecionados.length>0){
+  ccsSelecionados.forEach(function(cc){
+    var m=consumoMapMensal[cc.nome+'|'+codigo]||{};
+    Object.keys(m).forEach(function(mes){mensal[mes]=(mensal[mes]||0)+m[mes]});
+  });
+}
+if(!Object.keys(mensal).length){
+  // Fallback: varre todas as chaves do mapa (usado quando o gerente visualiza sem ter selecionado CC)
+  Object.keys(consumoMapMensal).forEach(function(k){
+    if(k.endsWith('|'+codigo)){
+      var m=consumoMapMensal[k];
+      Object.keys(m).forEach(function(mes){mensal[mes]=(mensal[mes]||0)+m[mes]});
+    }
+  });
+}
+var meses=Object.keys(mensal).sort().reverse().slice(0,6);function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}var html='<span class="pop-close" onclick="fecharPopup()">\u2715</span><h4>'+descricao.slice(0,32)+'</h4>';if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem historico disponivel.</div>'}else{html+='<table>'+meses.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>'}).join('')+'</table>'}pop.innerHTML=html;pop.style.display='block';var r=event.target.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;if(top+ph>window.innerHeight-8)top=r.top-ph-6;pop.style.top=top+'px';pop.style.left=left+'px'}
 window.mostrarPopupConsumo=mostrarPopupConsumo;
 function fecharPopup(){var p=document.getElementById('popup-consumo');if(p)p.style.display='none'}
 window.fecharPopup=fecharPopup;
