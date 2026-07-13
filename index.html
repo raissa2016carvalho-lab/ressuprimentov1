@@ -165,9 +165,17 @@ function renderCardMatricial(grupo){
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#f0fdf4;color:#166534">'+qtdTotal+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#eff6ff;color:'+(alterada?'#1e40af':'#94a3b8')+'">'+qtdGerente+'</td>'
       +'<td style="font-size:11.5px;color:#475569;background:#eff6ff;max-width:160px">'+(justsGer?'<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10.5px">'+justsGer+'</span>':'—')+'</td>'
-      +'<td style="text-align:center;background:#f0fdf4;padding:4px 6px">'
-      +Object.values(item.porCC).map(function(it){return'<input type="number" min="0" value="'+(it.quantidade||0)+'" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #d1fae5;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;margin-bottom:2px;display:block" oninput="masterQtd['+it.id+']=Number(this.value)||0"/>'}).join('')
-      +'</td>'
+      +(function(){
+        var idsRateio=Object.values(item.porCC).map(function(it){return it.id}).join(',');
+        var qtdsRateio=Object.values(item.porCC).map(function(it){return it.quantidade||0}).join(',');
+        var inputId='minp-'+item.codigo;
+        return '<td style="text-align:center;background:#f0fdf4;padding:6px">'
+          +'<input type="number" min="0" id="'+inputId+'" value="'+qtdGerente+'"'
+          +' data-ids="'+idsRateio+'" data-qtds="'+qtdsRateio+'"'
+          +' style="width:72px;text-align:right;padding:4px 6px;border:1px solid #d1fae5;border-radius:6px;font-family:ui-monospace,monospace;font-size:13px;font-weight:700"'
+          +' oninput="ratearMasterQtd(this)"/>'
+          +'</td>';
+      })()
       +colunas
       +'</tr>';
   }).join('');
@@ -403,7 +411,36 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s){let base=c
           <div id="salvo-msg-${s.id}"></div>
         </div>
       </div>
-    `}const decisoes={},masterQtd={};function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor,document.getElementById(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``),document.getElementById(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)}window.decidir=decidir;function toggleCard(id){document.getElementById(`corpo-`+id).classList.toggle(`aberto`)}window.toggleCard=toggleCard;async function salvar(solId){if(!isAdmin){alert(`Apenas administradores podem salvar.`);return}let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let scNumero=$(`sc-`+solId).value.trim(),obs=$(`obs-`+solId).value.trim(),situacoesFinais=[];for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id];situacoesFinais.push(valor);let upd={situacao:valor};masterQtd[it.id]!==void 0&&masterQtd[it.id]!==it.quantidade&&(upd.quantidade=masterQtd[it.id]),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id)}let ap=situacoesFinais.filter(v=>v===`aprovado`).length,re=situacoesFinais.filter(v=>v===`recusado`).length,status=`em_analise`;ap>0&&re===0&&ap===situacoesFinais.length?status=`aprovada`:re===situacoesFinais.length?status=`recusada`:ap>0&&re>0?status=`parcial`:ap===0&&re===0&&(status=`pendente`);let{error}=await db.from(`solicitacoes`).update({status,sc_numero:scNumero||null,observacao:obs||null,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId),msgEl=document.getElementById(`salvo-msg-`+solId);error?msgEl.innerHTML=`<div class="msg erro">Erro ao salvar: `+error.message+`</div>`:(msgEl.innerHTML=`<div class="msg ok">✓ Salvo!</div>`,setTimeout(carregarSolicitacoes,800))}window.salvar=salvar;function baixarExcelProtheus(solId){let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;
+    `}const decisoes={},masterQtd={};
+
+function ratearMasterQtd(input){
+  var novoTotal=Number(input.value)||0;
+  var ids=(input.dataset.ids||'').split(',').map(Number).filter(Boolean);
+  var qtds=(input.dataset.qtds||'').split(',').map(Number);
+  var somaQtds=qtds.reduce(function(s,q){return s+q},0);
+  if(!ids.length)return;
+  if(somaQtds===0){
+    // sem histórico: divide igualmente
+    var parteIgual=Math.floor(novoTotal/ids.length);
+    var resto=novoTotal-(parteIgual*ids.length);
+    ids.forEach(function(id,i){masterQtd[id]=parteIgual+(i===0?resto:0)});
+  } else {
+    // rateia proporcional às qtds do gerente
+    var alocado=0;
+    ids.forEach(function(id,i){
+      if(i===ids.length-1){
+        masterQtd[id]=novoTotal-alocado;
+      } else {
+        var parte=Math.round(novoTotal*(qtds[i]/somaQtds));
+        masterQtd[id]=parte;
+        alocado+=parte;
+      }
+    });
+  }
+}
+window.ratearMasterQtd=ratearMasterQtd;
+
+function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor,document.getElementById(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``),document.getElementById(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)}window.decidir=decidir;function toggleCard(id){document.getElementById(`corpo-`+id).classList.toggle(`aberto`)}window.toggleCard=toggleCard;async function salvar(solId){if(!isAdmin){alert(`Apenas administradores podem salvar.`);return}let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let scNumero=$(`sc-`+solId).value.trim(),obs=$(`obs-`+solId).value.trim(),situacoesFinais=[];for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id];situacoesFinais.push(valor);let upd={situacao:valor};masterQtd[it.id]!==void 0&&masterQtd[it.id]!==it.quantidade&&(upd.quantidade=masterQtd[it.id]),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id)}let ap=situacoesFinais.filter(v=>v===`aprovado`).length,re=situacoesFinais.filter(v=>v===`recusado`).length,status=`em_analise`;ap>0&&re===0&&ap===situacoesFinais.length?status=`aprovada`:re===situacoesFinais.length?status=`recusada`:ap>0&&re>0?status=`parcial`:ap===0&&re===0&&(status=`pendente`);let{error}=await db.from(`solicitacoes`).update({status,sc_numero:scNumero||null,observacao:obs||null,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId),msgEl=document.getElementById(`salvo-msg-`+solId);error?msgEl.innerHTML=`<div class="msg erro">Erro ao salvar: `+error.message+`</div>`:(msgEl.innerHTML=`<div class="msg ok">✓ Salvo!</div>`,setTimeout(carregarSolicitacoes,800))}window.salvar=salvar;function baixarExcelProtheus(solId){let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;
 // considera decisões feitas na tela (mesmo sem salvar) + situação do banco
 let aprovados=sol.itens.filter(it=>{let dec=decisoes[it.id];return dec===`aprovado`||dec===void 0&&it.situacao===`aprovado`});if(aprovados.length===0){alert(`Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.`);return}
 // lê direto do campo (usuário pode ter digitado sem salvar ainda)
