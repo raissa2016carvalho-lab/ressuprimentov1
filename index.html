@@ -141,8 +141,10 @@ function renderCardMatricial(grupo){
     var colunas=grupo.map(function(s){
       var it=item.porCC[s.cc];
       var qtd=it?(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0):0;
-      if(!qtd)return'<td style="text-align:center;color:#cbd5e1">—</td>';
-      return'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;color:#1e40af">'+qtd+'</td>';
+      var masterVal=it?masterQtd[it.id]||it.quantidade||0:0;
+      var cellId='mcell-'+item.codigo+'-'+s.cc;
+      if(!qtd)return'<td id="'+cellId+'" style="text-align:center;color:#cbd5e1">—</td>';
+      return'<td id="'+cellId+'" style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;color:#1e40af">'+masterVal+'</td>';
     }).join('');
 
     var nomeCC0=ccMap[grupo[0].cc]?ccMap[grupo[0].cc].nome:grupo[0].cc;
@@ -154,6 +156,8 @@ function renderCardMatricial(grupo){
     // Qtd gerente = soma das quantidades após decisão do gerente (it.quantidade já foi atualizado)
     var qtdGerente=Object.values(item.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);
     var alterada=qtdGerente!==qtdTotal;
+    // Pré-popular masterQtd com qtd do gerente por item (usado no Excel se master não editar)
+    Object.values(item.porCC).forEach(function(it){if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quantidade||0;});
     // Justificativas do gerente (pode haver uma por CC)
     var justsGer=Object.values(item.porCC).map(function(it){return it.justificativa_gerente||''}).filter(Boolean).join(' / ');
 
@@ -169,10 +173,11 @@ function renderCardMatricial(grupo){
         var porCCEntries=Object.entries(item.porCC);
         var idsRateio=porCCEntries.map(function(e){return e[1].id}).join(',');
         var qtdsRateio=porCCEntries.map(function(e){return e[1].quantidade||0}).join(',');
+        var ccsRateio=porCCEntries.map(function(e){return e[0]}).join(',');
         var inputId='minp-'+item.codigo;
         return '<td style="text-align:center;background:#f0fdf4;padding:6px">'
           +'<input type="number" min="0" id="'+inputId+'" value="'+qtdGerente+'"'
-          +' data-ids="'+idsRateio+'" data-qtds="'+qtdsRateio+'"'
+          +' data-ids="'+idsRateio+'" data-qtds="'+qtdsRateio+'" data-ccs="'+ccsRateio+'" data-codigo="'+item.codigo+'"'
           +' style="width:72px;text-align:right;padding:4px 6px;border:1px solid #d1fae5;border-radius:6px;font-family:ui-monospace,monospace;font-size:13px;font-weight:700"'
           +' oninput="ratearMasterQtd(this)"/>'
           +'</td>';
@@ -316,7 +321,8 @@ function gerarExcelMatricial(ids){
         C1_QUANT:masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade,
         C1_CC:cc,
         C1_OBS:obs,
-        C1_ESTOQUE:'S'
+        C1_ESTOQUE:'S',
+        JUST_GERENTE:it.justificativa_gerente||''
       });
     });
     // Linha separadora entre CCs (linha vazia)
@@ -418,26 +424,34 @@ function ratearMasterQtd(input){
   var novoTotal=Number(input.value)||0;
   var ids=(input.dataset.ids||'').split(',').map(Number).filter(Boolean);
   var qtds=(input.dataset.qtds||'').split(',').map(Number);
+  var ccs=(input.dataset.ccs||'').split(',');
+  var codigo=input.dataset.codigo||'';
   var somaQtds=qtds.reduce(function(s,q){return s+q},0);
   if(!ids.length)return;
+  var partes=[];
   if(somaQtds===0){
-    // sem histórico: divide igualmente
     var parteIgual=Math.floor(novoTotal/ids.length);
     var resto=novoTotal-(parteIgual*ids.length);
-    ids.forEach(function(id,i){masterQtd[id]=parteIgual+(i===0?resto:0)});
+    ids.forEach(function(id,i){
+      var v=parteIgual+(i===0?resto:0);
+      masterQtd[id]=v;
+      partes.push(v);
+    });
   } else {
-    // rateia proporcional às qtds do gerente
     var alocado=0;
     ids.forEach(function(id,i){
-      if(i===ids.length-1){
-        masterQtd[id]=novoTotal-alocado;
-      } else {
-        var parte=Math.round(novoTotal*(qtds[i]/somaQtds));
-        masterQtd[id]=parte;
-        alocado+=parte;
-      }
+      var v;
+      if(i===ids.length-1){v=novoTotal-alocado;}
+      else{v=Math.round(novoTotal*(qtds[i]/somaQtds));alocado+=v;}
+      masterQtd[id]=v;
+      partes.push(v);
     });
   }
+  // Atualizar células da matriz em tempo real
+  ccs.forEach(function(cc,i){
+    var cell=document.getElementById('mcell-'+codigo+'-'+cc);
+    if(cell)cell.textContent=partes[i]||0;
+  });
 }
 window.ratearMasterQtd=ratearMasterQtd;
 
@@ -445,7 +459,7 @@ function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`
 // considera decisões feitas na tela (mesmo sem salvar) + situação do banco
 let aprovados=sol.itens.filter(it=>{let dec=decisoes[it.id];return dec===`aprovado`||dec===void 0&&it.situacao===`aprovado`});if(aprovados.length===0){alert(`Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.`);return}
 // lê direto do campo (usuário pode ter digitado sem salvar ainda)
-let obs=(document.getElementById(`obs-`+solId)?.value||sol.observacao||``).trim();if(!obs){alert(`Preencha a Observação antes de gerar o Excel.`);return}let semCodigo=aprovados.filter(it=>!it.codigo||it.codigo===`MANUAL`).length,linhas=aprovados.map((it,i)=>({C1_XTIPOSC:`004`,C1_ITEM:String(i+1).padStart(2,`0`),C1_PRODUTO:it.codigo&&it.codigo!==`MANUAL`?it.codigo:``,C1_DESCRI:it.descricao||``,C1_QUANT:it.quantidade,C1_CC:sol.cc,C1_OBS:obs,C1_ESTOQUE:`S`})),ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC`),XLSX.writeFile(wb,`SC_solicitacao_${sol.id}.xlsx`),semCodigo>0&&alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`)}window.baixarExcelProtheus=baixarExcelProtheus;
+let obs=(document.getElementById(`obs-`+solId)?.value||sol.observacao||``).trim();if(!obs){alert(`Preencha a Observação antes de gerar o Excel.`);return}let semCodigo=aprovados.filter(it=>!it.codigo||it.codigo===`MANUAL`).length,linhas=aprovados.map((it,i)=>({C1_XTIPOSC:`004`,C1_ITEM:String(i+1).padStart(2,`0`),C1_PRODUTO:it.codigo&&it.codigo!==`MANUAL`?it.codigo:``,C1_DESCRI:it.descricao||``,C1_QUANT:masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade,C1_CC:sol.cc,C1_OBS:obs,C1_ESTOQUE:`S`,JUST_GERENTE:it.justificativa_gerente||``})),ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC`),XLSX.writeFile(wb,`SC_solicitacao_${sol.id}.xlsx`),semCodigo>0&&alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`)}window.baixarExcelProtheus=baixarExcelProtheus;
 // ---------- ABA ACOMPANHAMENTO ----------
 async function carregarAcompanhamento(){$(`lista-acomp`).innerHTML=`<div class="vazio">Carregando...</div>`;
 // 1. Buscar solicitações com SC associada
