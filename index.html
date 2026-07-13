@@ -629,7 +629,7 @@ async function buscarItemMob(){
     if(termo.length<2){sugs.style.display=`none`;return}
     let{data}=await db.from(`itens`).select(`codigo,descricao,grupo`).or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%`).limit(10);
     if(!data||!data.length){sugs.style.display=`none`;return}
-    sugs.innerHTML=data.map(it=>`<div onclick="selecionarItemMob('${it.codigo}','${(it.descricao||'').replace(/'/g,'')}')" style="padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background=''">${it.descricao} <span style="color:#94a3b8;font-size:11px">${it.codigo}</span></div>`).join(``);
+    sugs.innerHTML=data.map(it=>`<div data-cod="${it.codigo}" data-desc="${(it.descricao||'').replace(/"/g,'&quot;')}" onclick="selecionarItemMobEl(this)" style="padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background=''">${it.descricao} <span style="color:#94a3b8;font-size:11px">${it.codigo}</span></div>`).join(``);
     sugs.style.display=`block`;
   },200);
 }
@@ -640,6 +640,14 @@ function selecionarItemMob(codigo,descricao){
   $(`mob-item-sugs`).style.display=`none`;
 }
 window.selecionarItemMob=selecionarItemMob;
+function selecionarItemMobEl(el){
+  selecionarItemMob(el.dataset.cod, el.dataset.desc);
+}
+window.selecionarItemMobEl=selecionarItemMobEl;
+function removerItemManualMobEl(el){
+  removerItemManualMob(el.dataset.cod);
+}
+window.removerItemManualMobEl=removerItemManualMobEl;
 function adicionarItemManualMob(){
   if(!mobItemSelecionado){alert(`Selecione um item da lista.`);return}
   let qtd=Number($(`mob-item-qtd`).value)||0;
@@ -667,7 +675,7 @@ function renderItensManualMob(){
     mobItensManual.map(it=>`<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:7px 12px;margin-bottom:4px;font-size:13px">
       <div style="flex:1">${it.descricao} <span style="color:#94a3b8;font-size:11px">${it.codigo}</span></div>
       <div style="font-family:ui-monospace,monospace;font-weight:700;color:#1e40af">${it.total_mob}</div>
-      <button onclick="removerItemManualMob('${it.codigo}')" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0">✕</button>
+      <button data-cod="${it.codigo}" onclick="removerItemManualMobEl(this)" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0">✕</button>
     </div>`).join(``);
 }
 function atualizarBtnSalvarMob(){
