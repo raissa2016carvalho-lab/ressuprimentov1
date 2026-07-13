@@ -61,7 +61,7 @@ Object.keys(aggCC).forEach(k=>{
 if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await db.from(`itens`).select(`codigo,preco`).in(`codigo`,codigos.slice(i,i+500));(precos||[]).forEach(p=>{p.preco>0&&(precoMap[p.codigo]=p.preco)})}if($(`subtitulo`).textContent=solicitacoes.length>0?solicitacoes.length+` solicitação(ões) aguardando sua avaliação`:`Nenhuma solicitação pendente`,solicitacoes.length===0){$(`lista`).innerHTML=`<div class="vazio">✓ Nenhuma solicitação pendente.</div>`;return}var grupos2={};
 solicitacoes.forEach(function(s){
   var dt=new Date(s.criado_em);
-  var minBase=Math.floor(dt.getMinutes()/5)*5;
+  var minBase=dt.getMinutes();
   var ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
   if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);
 });
@@ -202,7 +202,18 @@ document.addEventListener('input',function(e){
     if(justTd)justTd.style.display=qtdAtual>qtdOrig?'':'none';
     // Gravar nova qtd em qtdEditadas para cada item id do produto
     var ids=(e.target.dataset.ids||'').split(',').map(Number).filter(Boolean);
-    ids.forEach(function(id){qtdEditadas[id]=qtdAtual});
+    // Distribuir proporcionalmente pelas qtds originais de cada CC
+    var somaOrig=ids.reduce(function(s,id,i){return s+(Number((e.target.dataset.qtds||'').split(',')[i])||0)},0);
+    var qtdsOrig=(e.target.dataset.qtds||'').split(',').map(Number);
+    if(somaOrig===0){
+      ids.forEach(function(id){qtdEditadas[id]=Math.round(qtdAtual/ids.length)});
+    } else {
+      var alocado=0;
+      ids.forEach(function(id,i){
+        if(i===ids.length-1){qtdEditadas[id]=qtdAtual-alocado;}
+        else{var p=Math.round(qtdAtual*(qtdsOrig[i]/somaOrig));qtdEditadas[id]=p;alocado+=p;}
+      });
+    }
   }
 });
 
@@ -261,18 +272,7 @@ function fecharPopupGer(){var p=document.getElementById('popup-consumo-ger');if(
 window.fecharPopupGer=fecharPopupGer;
 
 // ── JUSTIFICATIVA POR ITEM ────────────────────────────────────────────────────
-document.addEventListener('input',function(e){
-  if(e.target.classList.contains('mat-tot-input')){
-    var preco=Number(e.target.dataset.preco)||0;
-    var valEl=document.getElementById(e.target.dataset.valel);
-    if(valEl)valEl.textContent=fmtNum(Number(e.target.value||0)*preco);
-    var codigo=e.target.id.replace('mtot-','');
-    var qtdAtual=Number(e.target.value)||0;
-    var qtdOrig=Number(e.target.dataset.orig)||0;
-    var justTd=document.getElementById('just-td-'+codigo);
-    if(justTd)justTd.style.display=qtdAtual>qtdOrig?'':'none';
-  }
-});
+
 
 // ── APROVAR GERENTE ────────────────────────────────────────────────────────────
 async function aprovarGerente(btn){
@@ -287,7 +287,7 @@ async function aprovarGerente(btn){
     for(var j=0;j<(sol.itens||[]).length;j++){
       var it=sol.itens[j];
       var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:it.quantidade;
-      var qtdOrig=it.qtd_almoxarife||it.quantidade;
+      var qtdOrig=it.quantidade;// qtd do gerente é o baseline para justificativa
       if(novaQtd>qtdOrig){
         var just=justificativas_ger[it.codigo]||'';
         if(!just.trim()){
