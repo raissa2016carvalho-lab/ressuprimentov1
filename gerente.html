@@ -9,7 +9,7 @@ if(matriculas.length>0){
     let{data:itensIrmas}=await db.from(`solicitacao_itens`).select(`solicitacao_id,codigo,quantidade`).in(`solicitacao_id`,irmaIds);
     // Agrupar por matricula+minuto
     let irmaMap={};
-    irmas.forEach(s=>{irmaMap[s.id]={mat:s.solicitante_matricula,min:s.criado_em.slice(0,16)}});
+    irmas.forEach(s=>{irmaMap[s.id]={mat:s.solicitante_matricula,min:s.criado_em.slice(0,10)}});
     (itensIrmas||[]).forEach(it=>{
       let sol=irmaMap[it.solicitacao_id];
       if(!sol)return;
@@ -20,7 +20,7 @@ if(matriculas.length>0){
 }
 // Adicionar total das próprias solicitações do gerente
 solicitacoes.forEach(s=>{
-  let ch_base=s.solicitante_matricula+'|'+s.criado_em.slice(0,16);
+  let ch_base=s.solicitante_matricula+'|'+s.criado_em.slice(0,10);
   (s.itens||[]).forEach(it=>{
     let ch=ch_base+'|'+it.codigo;
     totalGeralMap[ch]=(totalGeralMap[ch]||0)+(it.quantidade||0);
@@ -59,7 +59,7 @@ Object.keys(aggCC).forEach(k=>{
 })}
 // Buscar preços da tabela itens (SB1)
 if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await db.from(`itens`).select(`codigo,preco`).in(`codigo`,codigos.slice(i,i+500));(precos||[]).forEach(p=>{p.preco>0&&(precoMap[p.codigo]=p.preco)})}if($(`subtitulo`).textContent=solicitacoes.length>0?solicitacoes.length+` solicitação(ões) aguardando sua avaliação`:`Nenhuma solicitação pendente`,solicitacoes.length===0){$(`lista`).innerHTML=`<div class="vazio">✓ Nenhuma solicitação pendente.</div>`;return}var grupos2={};
-solicitacoes.forEach(function(s){var ch=s.solicitante_matricula+'|'+s.criado_em.slice(0,16);if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);});
+solicitacoes.forEach(function(s){var ch=s.solicitante_matricula+'|'+s.criado_em.slice(0,10);if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);});
 $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``)
 }window.carregarSolicitacoes=carregarSolicitacoes;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}function fmtNum(n){return Number(n).toLocaleString(`pt-BR`,{maximumFractionDigits:1})}function renderCardMatricial(grupo){
   grupo.sort(function(a,b){return(b.pessoas||0)-(a.pessoas||0)});
@@ -69,7 +69,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
   var dt=fmtData(s0.criado_em);
   var periodo=s0.periodo_meses||3;
   var just=s0.justificativa||'';
-  var cardId='mat-'+s0.criado_em.slice(0,16).replace(/[^0-9]/g,'');
+  var cardId='mat-'+s0.criado_em.slice(0,10).replace(/[^0-9]/g,'');
 
   var itensMap2={};
   grupo.forEach(function(s){
@@ -92,7 +92,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
   var linhas=itensList.map(function(item){
     var total=Object.values(item.porCC).reduce(function(acc,it){return acc+(it.quantidade||0)},0);
     // Total geral (todos os CCs do envio, incluindo os de outros gerentes)
-    var chGeral=s0.solicitante_matricula+'|'+s0.criado_em.slice(0,16)+'|'+item.codigo;
+    var chGeral=s0.solicitante_matricula+'|'+s0.criado_em.slice(0,10)+'|'+item.codigo;
     var totalGeral=totalGeralMap[chGeral]||total;
     var preco=precoMap[item.codigo]||0;
     var valorEst=totalGeral*preco;
