@@ -95,7 +95,7 @@ visiveis.sort((a,b)=>(b.status===`aguardando_master`)-(a.status===`aguardando_ma
 let grupos={};
 visiveis.forEach(s=>{// Agrupar por matrícula + janela de 5 minutos
 let dt=new Date(s.criado_em);
-let minBase=dt.getMinutes();
+let minBase=Math.floor(dt.getMinutes()/2)*2;
 let ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
 if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
 $(`lista`).innerHTML=Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
