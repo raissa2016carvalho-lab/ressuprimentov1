@@ -95,7 +95,7 @@ visiveis.sort((a,b)=>(b.status===`aguardando_master`)-(a.status===`aguardando_ma
 let grupos={};
 visiveis.forEach(s=>{// Agrupar por matrícula + janela de 5 minutos
 let dt=new Date(s.criado_em);
-let minBase=Math.floor(dt.getMinutes()/5)*5;
+let minBase=dt.getMinutes();
 let ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
 if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
 $(`lista`).innerHTML=Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
@@ -166,8 +166,9 @@ function renderCardMatricial(grupo){
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#eff6ff;color:'+(alterada?'#1e40af':'#94a3b8')+'">'+qtdGerente+'</td>'
       +'<td style="font-size:11.5px;color:#475569;background:#eff6ff;max-width:160px">'+(justsGer?'<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10.5px">'+justsGer+'</span>':'—')+'</td>'
       +(function(){
-        var idsRateio=Object.values(item.porCC).map(function(it){return it.id}).join(',');
-        var qtdsRateio=Object.values(item.porCC).map(function(it){return it.quantidade||0}).join(',');
+        var porCCEntries=Object.entries(item.porCC);
+        var idsRateio=porCCEntries.map(function(e){return e[1].id}).join(',');
+        var qtdsRateio=porCCEntries.map(function(e){return e[1].quantidade||0}).join(',');
         var inputId='minp-'+item.codigo;
         return '<td style="text-align:center;background:#f0fdf4;padding:6px">'
           +'<input type="number" min="0" id="'+inputId+'" value="'+qtdGerente+'"'
