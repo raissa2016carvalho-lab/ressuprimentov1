@@ -13,14 +13,14 @@ if(matriculas.length>0){
     (itensIrmas||[]).forEach(it=>{
       let sol=irmaMap[it.solicitacao_id];
       if(!sol)return;
-      let _dt2=new Date(sol.criado_em),_mb2=Math.floor(_dt2.getMinutes()/2)*2,_min2=_dt2.getFullYear()+'-'+_dt2.getMonth()+'-'+_dt2.getDate()+'-'+_dt2.getHours()+'-'+_mb2;let ch=sol.mat+'|'+_min2+'|'+it.codigo;
+      let _dt2=new Date(sol.criado_em),_mb2=Math.floor(_dt2.getMinutes()/3)*3,_min2=_dt2.getFullYear()+'-'+_dt2.getMonth()+'-'+_dt2.getDate()+'-'+_dt2.getHours()+'-'+_mb2;let ch=sol.mat+'|'+_min2+'|'+it.codigo;
       totalGeralMap[ch]=(totalGeralMap[ch]||0)+(it.quantidade||0);
     });
   }
 }
 // Adicionar total das próprias solicitações do gerente
 solicitacoes.forEach(s=>{
-  let _dt3=new Date(s.criado_em),_mb3=Math.floor(_dt3.getMinutes()/2)*2,_min3=_dt3.getFullYear()+'-'+_dt3.getMonth()+'-'+_dt3.getDate()+'-'+_dt3.getHours()+'-'+_mb3;let ch_base=s.solicitante_matricula+'|'+_min3;
+  let _dt3=new Date(s.criado_em),_mb3=Math.floor(_dt3.getMinutes()/3)*3,_min3=_dt3.getFullYear()+'-'+_dt3.getMonth()+'-'+_dt3.getDate()+'-'+_dt3.getHours()+'-'+_mb3;let ch_base=s.solicitante_matricula+'|'+_min3;
   (s.itens||[]).forEach(it=>{
     let ch=ch_base+'|'+it.codigo;
     totalGeralMap[ch]=(totalGeralMap[ch]||0)+(it.quantidade||0);
@@ -61,7 +61,7 @@ Object.keys(aggCC).forEach(k=>{
 if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await db.from(`itens`).select(`codigo,preco`).in(`codigo`,codigos.slice(i,i+500));(precos||[]).forEach(p=>{p.preco>0&&(precoMap[p.codigo]=p.preco)})}if($(`subtitulo`).textContent=solicitacoes.length>0?solicitacoes.length+` solicitação(ões) aguardando sua avaliação`:`Nenhuma solicitação pendente`,solicitacoes.length===0){$(`lista`).innerHTML=`<div class="vazio">✓ Nenhuma solicitação pendente.</div>`;return}var grupos2={};
 solicitacoes.forEach(function(s){
   var dt=new Date(s.criado_em);
-  var minBase=Math.floor(dt.getMinutes()/2)*2;
+  var minBase=Math.floor(dt.getMinutes()/3)*3;
   var ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
   if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);
 });
