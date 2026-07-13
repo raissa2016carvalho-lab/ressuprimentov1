@@ -120,7 +120,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
       +'<td class="item-desc"><div>'+(item.descricao||item.codigo||'')+badgeSH+'</div><div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
       +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
       +colunas
-      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+item.codigo+'" id="mtot-'+item.codigo+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
+      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+item.codigo+'" data-ids="'+idsCC+'" data-orig="'+totalGeral+'" id="mtot-'+item.codigo+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
       +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mval-'+item.codigo+'">'+fmtNum(valorEst)+'</td>'
       +'<td style="text-align:center;white-space:nowrap">'
       +'<button class="'+aprCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
@@ -195,6 +195,9 @@ document.addEventListener('input',function(e){
     var qtdOrig=Number(e.target.dataset.orig)||0;
     var justTd=document.getElementById('just-td-'+codigo);
     if(justTd)justTd.style.display=qtdAtual>qtdOrig?'':'none';
+    // Gravar nova qtd em qtdEditadas para cada item id do produto
+    var ids=(e.target.dataset.ids||'').split(',').map(Number).filter(Boolean);
+    ids.forEach(function(id){qtdEditadas[id]=qtdAtual});
   }
 });
 
@@ -270,6 +273,30 @@ document.addEventListener('input',function(e){
 async function aprovarGerente(btn){
   var ids=btn.dataset.ids.split(',').map(Number);
   var cardId=btn.dataset.cardid;
+  var msgEl=document.getElementById('msg-'+cardId);
+  // Validar justificativa obrigatória para itens com quantidade aumentada
+  for(var i=0;i<ids.length;i++){
+    var solId=ids[i];
+    var sol=solicitacoes.find(function(s){return s.id===solId});
+    if(!sol)continue;
+    for(var j=0;j<(sol.itens||[]).length;j++){
+      var it=sol.itens[j];
+      var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:it.quantidade;
+      var qtdOrig=it.qtd_almoxarife||it.quantidade;
+      if(novaQtd>qtdOrig){
+        var just=justificativas_ger[it.codigo]||'';
+        if(!just.trim()){
+          if(msgEl)msgEl.innerHTML='<span style="color:#991b1b;font-weight:600">⚠ Justificativa obrigatória para "'+( it.descricao||it.codigo)+'" (quantidade aumentada de '+qtdOrig+' para '+novaQtd+').</span>';
+          // Focar no textarea de justificativa
+          var justEl=document.querySelector('textarea[data-cod="'+it.codigo+'"]');
+          if(justEl){justEl.focus();var td=justEl.closest('td');if(td)td.style.display='';}
+          return;
+        }
+      }
+    }
+  }
+  // Salvar tudo
+  if(msgEl)msgEl.innerHTML='<span style="color:#64748b">Salvando...</span>';
   for(var i=0;i<ids.length;i++){
     var solId=ids[i];
     var sol=solicitacoes.find(function(s){return s.id===solId});
@@ -287,7 +314,6 @@ async function aprovarGerente(btn){
       status:'aguardando_master',atualizado_em:(new Date()).toISOString()
     }).eq('id',solId);
   }
-  var msgEl=document.getElementById('msg-'+cardId);
   if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-weight:600">✓ Enviado para aprovação final!</span>';
   setTimeout(function(){carregarSolicitacoes()},1200);
 }
