@@ -52,7 +52,7 @@ if(!consumoData){let rows=[],off2=0;for(;;){const{data:lote}=await db.from(`cons
 let agg={};
 // Consumo individual por CC+produto
 // Meses fixos Jan-Jun 2026 — mesma janela usada no painel do gerente
-const MESES_FIXOS=[`202601`,`202602`,`202603`,`202604`,`202605`,`202606`];
+const MESES_FIXOS=(function(){var meses=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);meses.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return meses})();
 let mapCcNome={};(todosHomonimos||[]).forEach(c=>{mapCcNome[c.cc]=c.nome});
 // Acumula apenas os meses fixos para média; histórico mensal completo fica em consumoMapMensal
 (consumoData||[]).forEach(r=>{let k=r.produto;agg[k]||(agg[k]={produto:r.produto,descricao:r.descricao,total:0});if(MESES_FIXOS.includes(r.mes))agg[k].total+=Number(r.quantidade)||0}),consumoMap={},consumoMapCC={};consumoMapMensal={};let aggCC={};let aggCCFixo={};(consumoData||[]).forEach(r=>{let nome=mapCcNome[r.cc]||r.cc,k=nome+`|`+r.produto;aggCC[k]=(aggCC[k]||0)+(Number(r.quantidade)||0);if(MESES_FIXOS.includes(r.mes)){aggCCFixo[k]=(aggCCFixo[k]||0)+(Number(r.quantidade)||0)}if(r.mes&&r.produto){let km=nome+`|`+r.produto;if(!consumoMapMensal[km])consumoMapMensal[km]={};consumoMapMensal[km][r.mes]=(consumoMapMensal[km][r.mes]||0)+(Number(r.quantidade)||0)}}),Object.entries(aggCCFixo).forEach(([k,total])=>{consumoMapCC[k]=Math.floor(total/6)}),Object.values(agg).forEach(v=>{consumoMap[v.produto]={media:Math.floor(v.total/6),descricao:v.descricao}});
