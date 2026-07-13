@@ -27,7 +27,12 @@ solicitacoes.forEach(s=>{
   });
 });
 // Buscar consumo médio para todos os produtos das solicitações
-let filiais=[...new Set(solicitacoes.map(s=>s.filial).filter(Boolean))],codigos=[...new Set(solicitacoes.flatMap(s=>(itensMap[s.id]||[]).map(i=>i.codigo).filter(c=>c&&c!==`MANUAL`)))];if(meusCC.length>0&&codigos.length>0)for(let i=0;i<meusCC.length;i+=10){let loteCCs=meusCC.slice(i,i+10);
+let filiais=[...new Set(solicitacoes.map(s=>s.filial).filter(Boolean))],codigos=[...new Set(solicitacoes.flatMap(s=>(itensMap[s.id]||[]).map(i=>i.codigo).filter(c=>c&&c!==`MANUAL`)))];if(meusCC.length>0&&codigos.length>0)// Limpar mapa de histórico UMA VEZ antes do loop (não dentro, para não perder lotes anteriores)
+Object.keys(consumoMensalMap).forEach(k=>delete consumoMensalMap[k]);
+const aggCC={};
+const aggFixo={};
+const MESES_FIX=['202601','202602','202603','202604','202605','202606'];
+for(let i=0;i<meusCC.length;i+=10){let loteCCs=meusCC.slice(i,i+10);
 // Buscar homônimos (bloqueados+desbloqueados) igual ao formulário
 let nomesLote=[...new Set(loteCCs.map(cc=>ccMap[cc]?.nome).filter(Boolean))];
 let todosHomGer=[];
@@ -35,11 +40,10 @@ for(let nome of nomesLote){let{data:h}=await db.from(`centros_custo`).select(`cc
 let mapCcNomeGer={};todosHomGer.forEach(c=>{mapCcNomeGer[c.cc]=c.nome});
 let ccsExpandidosGer=[...new Set(todosHomGer.map(c=>c.cc))];
 let ccsParaBuscarGer=ccsExpandidosGer.length>0?ccsExpandidosGer:loteCCs;
-let{data:cons}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsParaBuscarGer).in(`produto`,codigos.slice(0,500));
-const aggCC={};
-// Meses fixos Jan-Jun
-const MESES_FIX=['202601','202602','202603','202604','202605','202606'];Object.keys(consumoMensalMap).forEach(k=>delete consumoMensalMap[k]);
-const aggFixo={};
+// Buscar consumo paginando todos os códigos (não só os primeiros 500)
+let consLote=[];
+for(let j=0;j<codigos.length;j+=500){let{data:pg}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsParaBuscarGer).in(`produto`,codigos.slice(j,j+500));if(pg&&pg.length)consLote=consLote.concat(pg)}
+const cons=consLote;
 (cons||[]).forEach(c=>{
   const nome=mapCcNomeGer[c.cc]||ccMap[c.cc]?.nome||c.cc;
   const k=nome+`|`+c.produto;
