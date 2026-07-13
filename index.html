@@ -63,33 +63,48 @@ try{
 }catch(e){console.warn('[master consumo] erro:',e);consumoData=[];pessoasData=[];}let consumoAggNome={};let consumoAggNomeFix={};consumoMensalMap={};
 // Meses fixos: Janeiro a Junho 2026
 const MESES_FIXOS=['202601','202602','202603','202604','202605','202606'];
-// Deduplicar consumo: homônimos (mesmo nome, CCs diferentes) só contam uma vez por nome+produto+mes
-// Estratégia: para cada (nome+produto+mes), somar APENAS O MAIOR valor entre os CCs homônimos
-// Isso evita duplicação sem perder dados quando só o CC secundário tem consumo
-const _consumoAggDedup={};
-(consumoData||[]).forEach(r=>{
-  const nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
-  const chave=nome+'|'+r.produto+'|'+r.mes;
-  // Guardar o CC com maior quantidade para este nome+produto+mes
-  if(!_consumoAggDedup[chave]||Number(r.quantidade)>(_consumoAggDedup[chave].quantidade||0)){
-    _consumoAggDedup[chave]={...r,_nome:nome};
-  }
+// Deduplicar consumo: remover linhas duplicadas do mesmo CC (cc+produto+mes únicos)
+// CCs diferentes (mesmo nome ou não) somam normalmente no forEach abaixo
+const _seenCCProdMes=new Set();
+const consumoDataDedup=(consumoData||[]).filter(r=>{
+  const chave=r.cc+'|'+r.produto+'|'+r.mes;
+  if(_seenCCProdMes.has(chave))return false;
+  _seenCCProdMes.add(chave);
+  return true;
 });
-const consumoDataDedup=Object.values(_consumoAggDedup).map(r=>({...r,cc:r.cc}));
 (consumoDataDedup).forEach(r=>{
   let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
   let k=nome+`|`+r.produto;
   // Consumo total (todos os meses) para média geral
   consumoAggNome[k]=(consumoAggNome[k]||0)+(Number(r.quantidade)||0);
   // Consumo fixo Jan-Jun para exibição
-  if(r.mes&&MESES_FIXOS.includes(r.mes)){
+  let _mesNorm2=(function(m){
+    var s=String(m).trim();
+    if(/^\d{6}$/.test(s))return s;
+    if(/^\d{4}-\d{2}/.test(s))return s.replace(/-/g,'').slice(0,6);
+    var ptMap={janeiro:'01',fevereiro:'02','março':'03',marco:'03',abril:'04',maio:'05',junho:'06',julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12'};
+    var mt=s.match(/(\d{2})\s*(?:\/|de\s+)(\w+)/i);
+    if(mt){var mn=ptMap[mt[2].toLowerCase()];if(mn)return'20'+mt[1]+mn;}
+    return s;
+  })(r.mes);
+  if(r.mes&&MESES_FIXOS.includes(_mesNorm2)){
     consumoAggNomeFix[k]=(consumoAggNomeFix[k]||0)+(Number(r.quantidade)||0);
   }
   // Histórico mensal completo para popup
   if(r.mes&&r.produto){
     let km=k;
+    // Normalizar r.mes para YYYYMM independente do formato do banco
+    let mesNorm=(function(m){
+      var s=String(m).trim();
+      if(/^\d{6}$/.test(s))return s;// já YYYYMM
+      if(/^\d{4}-\d{2}/.test(s))return s.replace(/-/g,'').slice(0,6);// YYYY-MM-DD
+      var ptMap={janeiro:'01',fevereiro:'02','março':'03',marco:'03',abril:'04',maio:'05',junho:'06',julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12'};
+      var mt=s.match(/(\d{2})\s*(?:\/|de\s+)(\w+)/i);
+      if(mt){var mn=ptMap[mt[2].toLowerCase()];if(mn)return'20'+mt[1]+mn;}
+      return s;
+    })(r.mes);
     if(!consumoMensalMap[km])consumoMensalMap[km]={};
-    consumoMensalMap[km][r.mes]=(consumoMensalMap[km][r.mes]||0)+(Number(r.quantidade)||0);
+    consumoMensalMap[km][mesNorm]=(consumoMensalMap[km][mesNorm]||0)+(Number(r.quantidade)||0);
   }
 });
 // consumoMap usa Jan-Jun fixo (6 meses) — se não tiver dados fixos, usa total/nMeses
