@@ -97,7 +97,7 @@ $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?re
       var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
       consTotal+=(consumoMap[n+'|'+item.codigo]||0);
     });
-    var nomesCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join('||');
+    var nomesCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(';');
     var consVal=consTotal===-1?'<1':consTotal>0?Math.round(consTotal):null;
     var consDisp=consVal!==null?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+(item.descricao||'').replace(/"/g,'')+'" data-ccs="'+nomesCCs+'">'+consVal+'</span>':'—';
     var colunas=grupo.map(function(s){
@@ -200,7 +200,7 @@ document.addEventListener('click',function(e){
   if(el){
     e.stopPropagation();
     var codigo=el.dataset.codigo,descricao=el.dataset.desc;
-    var ccsNomes=(el.dataset.ccs||'').split('|').filter(Boolean);
+    var ccsNomes=(el.dataset.ccs||'').split(';').filter(Boolean);
     var pop=document.getElementById('popup-consumo-ger');
     // Agregar histórico de todos os CCs
     var mensal={};
