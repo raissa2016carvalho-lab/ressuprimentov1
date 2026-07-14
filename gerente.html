@@ -280,13 +280,13 @@ document.addEventListener('click',function(e){
       var m=consumoMensalMap[n+'|'+codigo]||{};
       Object.keys(m).forEach(function(mes){mensal[mes]=(mensal[mes]||0)+m[mes]});
     });
-    var mesesAtivos=mesesFixosGer.filter(function(m){return Object.keys(mensal).some(function(k){return k===m&&mensal[k]>0});});
+    var mesesAtivos=mesesFixosGer;// sempre Jan-Jun fixo, meses sem dados mostram —
     var html='<span class="pop-close" onclick="fecharPopupGer()">×</span>';
     html+='<h4 style="margin:0 0 8px;font-size:13px;color:#0f172a">'+(descricao||codigo).slice(0,40)+'</h4>';
-    if(!mesesAtivos.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico Jan-Jun.</div>';}
+    if(!Object.keys(mensal).some(function(m){return mesesAtivos.includes(m)&&mensal[m]>0;})){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico Jan-Jun.</div>';}
     else{
       var ccsComDados=Object.keys(mensalPorCC).filter(function(cc){return mesesAtivos.some(function(m){return(mensalPorCC[cc][m]||0)>0});});
-      var isPorCC=ccsComDados.length>1;
+      var isPorCC=true;// sempre tabela por CC
       if(isPorCC){
         html+='<table style="border-collapse:collapse;font-size:11.5px;width:100%">';
         html+='<thead><tr><td style="padding:3px 6px;color:#64748b;font-weight:600">CC</td>';
