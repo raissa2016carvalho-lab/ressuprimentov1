@@ -126,12 +126,21 @@ async function carregarFormularios(){
     if(lote.length<1000)break;
     off+=1000;
   }
-  // Buscar itens em lotes
+  // Buscar itens em lotes com paginação
   let solIds=sols.map(s=>s.id),itensMap={};
-  for(let i=0;i<solIds.length;i+=100){
-    let lote=solIds.slice(i,i+100);
-    let{data:its}=await db.from('solicitacao_itens').select('id,solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao,justificativa_gerente,consumo_medio').in('solicitacao_id',lote);
-    (its||[]).forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
+  for(let i=0;i<solIds.length;i+=50){
+    let lote=solIds.slice(i,i+50);
+    let off2=0;
+    for(;;){
+      let{data:its,error:eIt}=await db.from('solicitacao_itens')
+        .select('id,solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao,justificativa_gerente,consumo_medio')
+        .in('solicitacao_id',lote)
+        .range(off2,off2+999);
+      if(eIt||!its||!its.length)break;
+      its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
+      if(its.length<1000)break;
+      off2+=1000;
+    }
   }
   // Associar itens e cc names
   sols.forEach(s=>{s.itens=itensMap[s.id]||[];s.nomeCC=(ccMap[s.cc]?ccMap[s.cc].nome:null)||s.cc;});
