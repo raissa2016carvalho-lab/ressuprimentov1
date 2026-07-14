@@ -294,9 +294,10 @@ function renderCardMatricial(grupo){
 
     // Linha vermelha se o gerente recusou todos os CCs deste item
     var todosRecusados=Object.values(item.porCC).length>0&&Object.values(item.porCC).every(function(it){return it.situacao==='recusado';});
-    var trStyle=todosRecusados?'background:#fff5f5;border-left:3px solid #ef4444;':'';
+    var algumRecusado=Object.values(item.porCC).some(function(it){return it.situacao==='recusado';});
+    var trStyle=algumRecusado?'background:#fff5f5;border-left:3px solid #ef4444;':'';
     return'<tr style="'+trStyle+'">'
-      +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(todosRecusados?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+( item.descricao||item.codigo)+badgeSH
+      +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(todosRecusados?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':algumRecusado?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">⚠ PARCIALMENTE RECUSADO</span>':'')+( item.descricao||item.codigo)+badgeSH
       +'<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
       +(function(){var _d=(item.descricao||item.codigo||'').replace(/"/g,'');return '<td style="text-align:center;font-size:12px">'+(cons!==0?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+_d+'" data-nome="'+nomesCCs+'" data-hist="'+histStr+'" style="font-weight:700;color:#1e40af;cursor:pointer">'+consDisp+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>';})()
       +'<td style="text-align:center;font-family:ui-monospace,monospace;color:#475569">'+qtdDigitada+'</td>'
