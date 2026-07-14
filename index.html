@@ -201,23 +201,23 @@ function renderFormularios(lista){
     html+='<span style="color:#94a3b8;font-size:16px">▾</span></div>';
     html+='<div class="form-card-body" style="display:none;padding:0 16px 16px">';
     html+='<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:12px">';
-    html+='<thead><tr style="background:#f8fafc"><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Código</th><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Descrição</th><th style="text-align:right;padding:6px 8px;color:#166534;font-weight:600">Total almox.</th><th style="text-align:right;padding:6px 8px;color:#1e40af;font-weight:700">Qtd master</th><th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:600">Situação</th><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Just. gerente</th></tr></thead><tbody>';
+    html+='<thead><tr style="background:#f8fafc"><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Código</th><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Descrição</th><th style="text-align:right;padding:6px 8px;color:#1e40af;font-weight:600">Consumo 6m</th><th style="text-align:right;padding:6px 8px;color:#166534;font-weight:600">Qtd/mês</th><th style="text-align:right;padding:6px 8px;color:#166534;font-weight:600">Total ×período</th><th style="text-align:right;padding:6px 8px;color:#1e40af;font-weight:700">Qtd master</th><th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:600">Situação</th><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Just. gerente</th></tr></thead><tbody>';
     (s.itens||[]).forEach(function(it){
       const sitCor=it.situacao==='aprovado'?'#f0fdf4':it.situacao==='recusado'?'#fff5f5':'#fff';
       const sitTxt=it.situacao==='aprovado'?'#166534':it.situacao==='recusado'?'#dc2626':'#d97706';
       const sitLabel=it.situacao==='aprovado'?'✅ Aprovado':it.situacao==='recusado'?'❌ Recusado':'⏳ Pendente';
-      html+='<tr style="border-top:1px solid #f1f5f9;background:'+sitCor+'">';
+
       html+='<tr style="border-top:1px solid #f1f5f9;background:'+sitCor+'">';
       html+='<td style="padding:5px 8px;font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8">'+it.codigo+'</td>';
       html+='<td style="padding:5px 8px"><div style="font-weight:500;color:#374151">'+(it.descricao||it.codigo)+'</div></td>';
-      var _qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0;
-      var _qtdMaster=(it.situacao==='aprovado'||s.sc_numero!=null)?it.quantidade:null;
-      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#166534">'+_qtdAlm+'</td>';
+      var _qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0;var _per=s.periodo_meses||3;var _qtdMes=_per>0?Math.round(_qtdAlm/_per):_qtdAlm;var _totalPer=_qtdAlm;var _consumo=it.consumo_medio||0;var _qtdMaster=(it.situacao==='aprovado'||s.sc_numero!=null)?it.quantidade:null;
+      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#1e40af">'+(_consumo>0?_consumo:'—')+'</td>';
+      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#166534">'+_qtdMes+'</td>';
+      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#166534">'+_totalPer+'</td>';
       html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:#1e40af">'+(_qtdMaster!=null?_qtdMaster:'—')+'</td>';
       html+='<td style="padding:5px 8px;text-align:center"><span style="font-size:11px;font-weight:600;color:'+sitTxt+'">'+sitLabel+'</span></td>';
       html+='<td style="padding:5px 8px;font-size:11px;color:#6b7280">'+(it.justificativa_gerente||'—')+'</td>';
       html+='</tr>';
-
 
     });
     html+='</tbody></table>';
