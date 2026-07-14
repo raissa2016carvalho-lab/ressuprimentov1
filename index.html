@@ -134,7 +134,7 @@ async function carregarFormularios(){
     (its||[]).forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
   }
   // Associar itens e cc names
-  sols.forEach(s=>{s.itens=itensMap[s.id]||[];s.nomeCC=ccNomes[s.cc]||s.cc;});
+  sols.forEach(s=>{s.itens=itensMap[s.id]||[];s.nomeCC=(ccMap[s.cc]?ccMap[s.cc].nome:null)||s.cc;});
   _todosFormularios=sols;
   filtrarFormularios();
 }
