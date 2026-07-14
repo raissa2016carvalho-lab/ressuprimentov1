@@ -116,20 +116,28 @@ function normMes(m){
   if(mt&&ptM[mt[2].toLowerCase()])return'20'+mt[1]+ptM[mt[2].toLowerCase()];
   return s;
 }
-// Deduplicar consumo por NOME+produto+mes:
-// homônimos (mesmo nome, CCs diferentes) têm mesmos dados → manter apenas UM por (nome,produto,mes)
-// CCs com nomes DIFERENTES → chaves diferentes → somam corretamente no forEach
-const _seenNomeProdMes=new Set();
-const consumoDataDedup=(consumoData||[]).filter(r=>{
+// Agregar consumo por NOME+produto+mes somando todos os CCs com mesmo nome
+// Homônimos: soma seus valores (não descarta nenhum)
+// CCs com nomes diferentes: ficam em chaves separadas, somam no forEach normalmente
+const _aggNomeProdMes={};
+(consumoData||[]).forEach(r=>{
   const _m=normMes(r.mes);
   const nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
   const chave=nome+'|'+r.produto+'|'+_m;
-  if(_seenNomeProdMes.has(chave))return false;
-  _seenNomeProdMes.add(chave);
-  return true;
+  _aggNomeProdMes[chave]=(_aggNomeProdMes[chave]||0)+(Number(r.quantidade)||0);
+});
+// Converter para array de registros com nome+produto+mes+quantidade agregados
+const consumoDataDedup=Object.entries(_aggNomeProdMes).map(([chave,quantidade])=>{
+  const parts=chave.split('|');
+  const mes=parts[parts.length-1];
+  const produto=parts[parts.length-2];
+  const nome=parts.slice(0,parts.length-2).join('|');
+  // Encontrar um CC representativo para este nome (para manter compatibilidade)
+  const cc=(consumoData.find(r=>(mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc)===nome&&r.produto===produto)||{}).cc||nome;
+  return {cc,produto,mes,quantidade,_nome:nome};
 });
 (consumoDataDedup).forEach(r=>{
-  let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
+  let nome=r._nome||(mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc);
   let k=nome+`|`+r.produto;
   // Consumo total (todos os meses) para média geral
   consumoAggNome[k]=(consumoAggNome[k]||0)+(Number(r.quantidade)||0);
