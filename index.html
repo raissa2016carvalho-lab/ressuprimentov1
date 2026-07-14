@@ -165,9 +165,14 @@ todosKeys.forEach(k=>{
   let nMeses=new Set(consumoDataDedup.filter(r=>{let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;return nome+'|'+r.produto===k}).map(r=>r.mes)).size||6;
   let mediaFixo=fixo>0?fixo/6:total/Math.max(nMeses,1);consumoMap[k]=mediaFixo>=1?Math.round(mediaFixo):mediaFixo>0?-1:0;
 }),pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)})}let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
-let visiveis=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`||s.status===`em_analise`);
+let visiveis=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`||s.status===`em_analise`||s.status===`recusada`||s.status===`parcial`);
 if(visiveis.length===0){$(`lista`).innerHTML=`<div class="vazio">Nenhuma solicitação pendente. Tudo aprovado ou recusado.</div>`;return}
-visiveis.sort((a,b)=>(b.status===`aguardando_master`)-(a.status===`aguardando_master`)||new Date(b.criado_em)-new Date(a.criado_em));
+visiveis.sort((a,b)=>{
+  // Ordem: aguardando_master > pendente/em_analise > parcial > recusada
+  const ordem={aguardando_master:0,em_analise:1,pendente:2,parcial:3,recusada:4};
+  const oa=ordem[a.status]??2, ob=ordem[b.status]??2;
+  return oa!==ob ? oa-ob : new Date(b.criado_em)-new Date(a.criado_em);
+});
 // Agrupar por envio (mesma matrícula + mesmo minuto)
 let grupos={};
 visiveis.forEach(s=>{// Agrupar por matrícula + janela de 5 minutos
@@ -319,7 +324,9 @@ function renderCardMatricial(grupo){
   // Badge reflete o status mais avançado do grupo
   var temAguardando=grupo.some(function(s){return s.status==='aguardando_master'});
   var temAnalise=grupo.some(function(s){return s.status==='em_analise'});
-  var badgeSt=temAguardando?'<span class="pill p-aguardando_master">⚡ Aguardando revisão</span>':temAnalise?'<span class="pill p-em_analise">Em análise</span>':'<span class="pill p-pendente">Pendente</span>';
+  var temRecusada=grupo.every(function(s){return s.status==='recusada'});
+  var temParcial=grupo.some(function(s){return s.status==='parcial'});
+  var badgeSt=temAguardando?'<span class="pill p-aguardando_master">⚡ Aguardando revisão</span>':temAnalise?'<span class="pill p-em_analise">Em análise</span>':temRecusada?'<span class="pill" style="background:#fee2e2;color:#dc2626">❌ Recusada</span>':temParcial?'<span class="pill" style="background:#fff7ed;color:#c2410c">⚠️ Parcial</span>':'<span class="pill p-pendente">Pendente</span>';
 
   // Campo SC por CC + botão salvar
   var camposSC=grupo.map(function(s){
@@ -466,7 +473,7 @@ function gerarExcelMatricial(ids){
   XLSX.utils.book_append_sheet(wb,ws,'SC');
   XLSX.writeFile(wb,nomePlanilha+'.xlsx');
 }
-window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
+window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`recusada`?`<span class="pill" style="background:#fee2e2;color:#dc2626;margin-left:6px">❌ Recusada pelo gerente</span>`:s.status===`parcial`?`<span class="pill" style="background:#fff7ed;color:#c2410c;margin-left:6px">⚠️ Parcialmente aprovada</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
       <span onclick="event.stopPropagation();var el=document.getElementById('${badgePessoasId}');el.style.display=el.style.display==='none'?'block':'none';"
         style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;cursor:pointer;margin-left:8px">
         👥 ${totalPessoas} ▾
@@ -635,15 +642,8 @@ sol.itens.forEach(it=>{if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quant
 let semCodigo=aprovados.filter(it=>!it.codigo||it.codigo===`MANUAL`).length,linhas=aprovados.map((it,i)=>({C1_XTIPOSC:`004`,C1_ITEM:String(i+1).padStart(2,`0`),C1_PRODUTO:it.codigo&&it.codigo!==`MANUAL`?it.codigo:``,C1_DESCRI:it.descricao||``,C1_QUANT:masterQtd[it.id]||0,C1_CC:sol.cc,C1_OBS:obs,C1_ESTOQUE:`S`,JUST_GERENTE:it.justificativa_gerente||``})),ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC`),XLSX.writeFile(wb,`SC_solicitacao_${sol.id}.xlsx`),semCodigo>0&&alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`)}window.baixarExcelProtheus=baixarExcelProtheus;
 // ---------- ABA ACOMPANHAMENTO ----------
 async function carregarAcompanhamento(){$(`lista-acomp`).innerHTML=`<div class="vazio">Carregando...</div>`;
-// 1. Buscar solicitações com SC associada + recusadas
-let[{data:sols,error:e1},{data:solsRec}]=await Promise.all([
-  db.from(`solicitacoes`).select(`*,solicitacao_itens(*)`).not(`sc_numero`,`is`,null),
-  db.from(`solicitacoes`).select(`*,solicitacao_itens(*)`).eq(`status`,`recusada`)
-]);
-if(e1){$(`lista-acomp`).innerHTML=`<div class="vazio">Erro: `+e1.message+`</div>`;return}
-let associadas=(sols||[]).filter(s=>s.sc_numero&&s.sc_numero.trim());
-let recusadas=(solsRec||[]);
-if(!associadas.length&&!recusadas.length){$(`lista-acomp`).innerHTML=`<div class="vazio">Nenhuma solicitação com SC associada ainda.</div>`;return}
+// 1. Buscar solicitações com SC associada
+let{data:sols,error:e1}=await db.from(`solicitacoes`).select(`*`).not(`sc_numero`,`is`,null);if(e1){$(`lista-acomp`).innerHTML=`<div class="vazio">Erro: `+e1.message+`</div>`;return}let associadas=(sols||[]).filter(s=>s.sc_numero&&s.sc_numero.trim());if(!associadas.length){$(`lista-acomp`).innerHTML=`<div class="vazio">Nenhuma solicitação com SC associada ainda.</div>`;return}
 // 2. Buscar dados de CC
 let{data:ccs}=await db.from(`centros_custo`).select(`cc,nome`),ccNomes={};(ccs||[]).forEach(c=>ccNomes[c.cc]=c.nome);
 // 3. Buscar itens de sc_pedidos para todas as SCs associadas
@@ -723,9 +723,9 @@ function calcularMetricasSc(itens){let total=itens.length,recebidos=0,valorTotal
             </table>
           </div>
         </div>
-      `}).join(``);// Renderizar cards de recusadas no topo
+      `}).join(``);// (recusadas agora ficam na aba Solicitações)
 let recusadasHtml='';
-if(recusadas.length){
+if(false){
   recusadasHtml='<div style="margin-bottom:16px">';
   recusadasHtml+='<div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:8px;padding:8px 12px;background:#fff5f5;border-radius:8px;border:1px solid #fecaca">❌ '+recusadas.length+' solicitação(ões) recusada(s) pelo gerente</div>';
   recusadas.forEach(function(sol){
@@ -762,7 +762,7 @@ if(recusadas.length){
   });
   recusadasHtml+='</div>';
 }
-$(`lista-acomp`).innerHTML=recusadasHtml+listaHtml+`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div>`;
+$(`lista-acomp`).innerHTML=listaHtml+`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div>`;
 // Popular select de consolidados
 let selCons=$(`filtro-acomp-consolidado`);if(selCons){let{data:consData}=await db.from(`consolidados`).select(`id,nome`).order(`criado_em`,{ascending:!1});if(_consolidadoScMap={},consData&&consData.length){let consIds=consData.map(c=>c.id),{data:linksData}=await db.from(`consolidado_scs`).select(`consolidado_id,solicitacao_id`).in(`consolidado_id`,consIds);(linksData||[]).forEach(l=>{_consolidadoScMap[l.consolidado_id]||(_consolidadoScMap[l.consolidado_id]=/* @__PURE__ */ new Set),_consolidadoScMap[l.consolidado_id].add(l.solicitacao_id)}),selCons.innerHTML=`<option value="">Todos os consolidados</option>`+consData.map(c=>`<option value="${c.id}">${c.nome}</option>`).join(``)}}
 // Popular select de compradores
