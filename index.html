@@ -207,6 +207,7 @@ function renderFormularios(lista){
       const sitTxt=it.situacao==='aprovado'?'#166534':it.situacao==='recusado'?'#dc2626':'#d97706';
       const sitLabel=it.situacao==='aprovado'?'✅ Aprovado':it.situacao==='recusado'?'❌ Recusado':'⏳ Pendente';
       html+='<tr style="border-top:1px solid #f1f5f9;background:'+sitCor+'">';
+      html+='<td style="padding:5px 8px"><div style="font-weight:500;color:#374151">'+(it.descricao||it.codigo)+'</div><div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+it.codigo+'</div></td>';
       var _per=s.periodo_meses||3;var _qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0;var _qtdMes=_per>0?Math.round(_qtdAlm/_per):_qtdAlm;
       html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace">'+_qtdMes+'</td>';
       html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#166534">'+_qtdAlm+'</td>';
