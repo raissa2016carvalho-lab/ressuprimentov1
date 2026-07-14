@@ -9,12 +9,55 @@ document.addEventListener('click',function(e){
     e.stopPropagation();
     var codigo=el.dataset.codigo,descricao=el.dataset.desc,nomeCC=el.dataset.nome;
     var pop=document.getElementById('popup-consumo-master');
-    var histRaw=el.dataset.hist||'',mensal={};try{if(histRaw)mensal=JSON.parse(histRaw.replace(/'/g,'"'))}catch(e){}if(!Object.keys(mensal).length){var chave=nomeCC+'|'+codigo;mensal=consumoMensalMap[chave]||{}}
-    var mesesFixos=(function(){var r=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();var meses=Object.keys(mensal).filter(function(m){return mensal[m]>0}).sort().reverse().slice(0,6);
+    var histRaw=el.dataset.hist||'',parsed={};
+    try{if(histRaw)parsed=JSON.parse(histRaw.replace(/'/g,'"'))}catch(e){}
     function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
-    var html='<span class="pop-close" onclick="fecharPopupMaster()">×</span><h4>'+(descricao||codigo).slice(0,32)+'</h4>';
-    if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem histórico mensal.</div>'}
-    else{html+='<table>'+meses.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>'}).join('')+'</table>'}
+    var html='<span class="pop-close" onclick="fecharPopupMaster()">×</span>';
+    html+='<h4 style="margin:0 0 8px;font-size:13px;color:#0f172a">'+(descricao||codigo).slice(0,40)+'</h4>';
+    // Detecta formato por-CC (tem chave '_total') vs formato agregado simples
+    var isPorCC=parsed['_total']!==undefined;
+    if(isPorCC){
+      var total=parsed['_total']||{};
+      var meses=Object.keys(total).filter(function(m){return total[m]>0}).sort().reverse().slice(0,6);
+      if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico.</div>';}
+      else{
+        // Tabela: linhas=CCs, colunas=meses
+        var ccsNomes=Object.keys(parsed).filter(function(k){return k!=='_total'});
+        // Header
+        html+='<table style="border-collapse:collapse;font-size:11.5px;width:100%">';
+        html+='<thead><tr><td style="padding:3px 6px;color:#64748b;font-weight:600">CC</td>';
+        meses.forEach(function(m){html+='<td style="padding:3px 6px;text-align:right;color:#64748b;font-weight:600">'+fmtMes(m)+'</td>';});
+        html+='<td style="padding:3px 6px;text-align:right;color:#64748b;font-weight:600">Total</td></tr></thead><tbody>';
+        // Rows per CC
+        ccsNomes.forEach(function(cc){
+          var md=parsed[cc]||{};
+          var rowTotal=meses.reduce(function(s,m){return s+(md[m]||0);},0);
+          if(rowTotal===0)return;// skip CCs com zero no período
+          html+='<tr style="border-top:1px solid #f1f5f9">';
+          html+='<td style="padding:3px 6px;color:#334155;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="'+cc+'">'+cc.split(' ').slice(-2).join(' ')+'</td>';
+          meses.forEach(function(m){
+            var v=md[m]||0;
+            html+='<td style="padding:3px 6px;text-align:right;font-family:ui-monospace,monospace;color:'+(v>0?'#1e40af':'#cbd5e1')+'">'+( v>0?v:'—')+'</td>';
+          });
+          html+='<td style="padding:3px 6px;text-align:right;font-weight:700;color:#0f172a;font-family:ui-monospace,monospace">'+rowTotal+'</td>';
+          html+='</tr>';
+        });
+        // Total row
+        html+='<tr style="border-top:2px solid #e2e8f0;background:#f8fafc">';
+        html+='<td style="padding:3px 6px;font-weight:700;color:#0f172a">Total</td>';
+        var grandTotal=0;
+        meses.forEach(function(m){var v=total[m]||0;grandTotal+=v;html+='<td style="padding:3px 6px;text-align:right;font-weight:700;font-family:ui-monospace,monospace;color:#0f172a">'+( v>0?v:'—')+'</td>';});
+        html+='<td style="padding:3px 6px;text-align:right;font-weight:700;color:#1e40af;font-family:ui-monospace,monospace">'+grandTotal+'</td>';
+        html+='</tr></tbody></table>';
+      }
+    } else {
+      // Formato simples (card individual) — exibe como antes
+      var mensal=parsed;
+      if(!Object.keys(mensal).length){var chave=nomeCC+'|'+codigo;mensal=consumoMensalMap[chave]||{};}
+      var meses=Object.keys(mensal).filter(function(m){return mensal[m]>0}).sort().reverse().slice(0,6);
+      if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico.</div>';}
+      else{html+='<table>'+meses.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>'}).join('')+'</table>';}
+    }
     pop.innerHTML=html;pop.style.display='block';
     var r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;
     if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
@@ -177,12 +220,18 @@ function renderCardMatricial(grupo){
     var cons=consTotal;
     // Agregar histórico mensal de todos os CCs para o popup
     var mensalAgg={};
+    var mensalPorCC={};
     grupo.forEach(function(s){
       var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
       var m=consumoMensalMap[n+'|'+item.codigo]||{};
+      // Agregar total
       Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
+      // Guardar por CC para popup detalhado
+      if(Object.keys(m).length)mensalPorCC[n]=m;
     });
-    var histStr=JSON.stringify(mensalAgg).replace(/"/g,"'");
+    // histStr guarda breakdown por CC: {"CC1":{mes:qtd},"CC2":{...},"_total":{mes:qtd}}
+    mensalPorCC['_total']=mensalAgg;
+    var histStr=JSON.stringify(mensalPorCC).replace(/"/g,"'");
     var nomesCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(' + ');
     var consDisp=cons===-1?'<1':cons>0?Math.round(cons):'—';
     var semHist=cons===0&&qtdTotal>0;
