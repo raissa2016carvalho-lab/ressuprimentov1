@@ -18,7 +18,9 @@ document.addEventListener('click',function(e){
     var isPorCC=parsed['_total']!==undefined;
     if(isPorCC){
       var total=parsed['_total']||{};
-      var meses=Object.keys(total).filter(function(m){return total[m]>0}).sort().reverse().slice(0,6);
+      // Janela fixa Jan-Jun em ordem crescente
+      var mesesFixosPopup=(function(){var r=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
+      var meses=mesesFixosPopup.filter(function(m){return Object.values(parsed).some(function(v){return v&&v[m]>0;});});
       if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico.</div>';}
       else{
         // Tabela: linhas=CCs, colunas=meses
@@ -195,6 +197,35 @@ function renderCardMatricial(grupo){
   });
   var itensList=Object.values(itensMap2);
   if(!itensList.length)return'';
+  // Estado de ordenação do card
+  var cardSortKey=window._cardSort&&window._cardSort[cardId]?window._cardSort[cardId]:{col:'desc',dir:1};
+  function sortItens(col){
+    if(!window._cardSort)window._cardSort={};
+    var cur=window._cardSort[cardId]||{col:'desc',dir:1};
+    var dir=(cur.col===col)?-cur.dir:1;
+    window._cardSort[cardId]={col:col,dir:dir};
+    itensList.sort(function(a,b){
+      var va=0,vb=0;
+      if(col==='desc'){va=(a.descricao||a.codigo||'').toLowerCase();vb=(b.descricao||b.codigo||'').toLowerCase();return dir*(va<vb?-1:va>vb?1:0);}
+      if(col==='cons'){va=Object.values(a.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);}
+      if(col==='qtd'){va=Object.values(a.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);}
+      if(col==='total'){va=Object.values(a.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);}
+      if(col==='ger'){va=Object.values(a.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);}
+      if(col==='master'){va=masterQtd[Object.values(a.porCC)[0]?.id]||0;vb=masterQtd[Object.values(b.porCC)[0]?.id]||0;}
+      return dir*(va-vb);
+    });
+    // Re-render só o tbody
+    var tbody=document.getElementById('tbody-'+cardId);
+    if(tbody){
+      tbody.innerHTML=itensList.map(function(item){return renderItemRow(item,grupo,periodo,totalPessoasTodos,cardId);}).join('');
+      // Atualizar setas
+      ['desc','cons','qtd','total','ger','master'].forEach(function(c){
+        var el=document.getElementById('sort-'+cardId+'-'+c);
+        if(el)el.textContent=c===col?(dir===1?' ↑':' ↓'):'';
+      });
+    }
+  }
+  window['sortCard_'+cardId]=sortItens;
 
   // Calcular qtd digitada (total / periodo / proporção)
   var totalPessoasTodos=grupo.reduce((s,g)=>s+(ccMap[g.cc]?.pessoas||0),0);
@@ -309,15 +340,15 @@ function renderCardMatricial(grupo){
     +'</div>'
     +'<div id="'+cardId+'" style="display:none;padding:16px;overflow-x:auto">'
     +'<table style="border-collapse:collapse;width:100%;font-size:12.5px"><thead><tr>'
-    +'<th style="text-align:left;min-width:200px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b">Item</th>'
-    +'<th style="text-align:center;width:60px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b">Consumo<br>6m</th>'
-    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b">Qtd<br>digitada</th>'
-    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f0fdf4;border-bottom:2px solid #e2e8f0;font-size:11px;color:#166534">Total<br>(×'+periodo+'m)</th>'
-    +'<th style="text-align:center;width:80px;padding:7px 10px;background:#eff6ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#1e40af">Qtd<br>gerente</th>'
+    +'<th style="text-align:left;min-width:200px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="window[\'sortCard_\'+cardId]&&window[\'sortCard_\'+cardId](\'desc\')" title="Ordenar por item">Item<span id="sort-'+cardId+'-desc"></span></th>'
+    +'<th style="text-align:center;width:60px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="window[\'sortCard_\'+cardId]&&window[\'sortCard_\'+cardId](\'cons\')" title="Ordenar por consumo">Consumo<br>6m<span id="sort-'+cardId+'-cons"></span></th>'
+    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="window[\'sortCard_\'+cardId]&&window[\'sortCard_\'+cardId](\'qtd\')" title="Ordenar por qtd digitada">Qtd<br>digitada<span id="sort-'+cardId+'-qtd"></span></th>'
+    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f0fdf4;border-bottom:2px solid #e2e8f0;font-size:11px;color:#166534;cursor:pointer;user-select:none" onclick="window[\'sortCard_\'+cardId]&&window[\'sortCard_\'+cardId](\'total\')" title="Ordenar por total">Total<br>(×'+periodo+'m)<span id="sort-'+cardId+'-total"></span></th>'
+    +'<th style="text-align:center;width:80px;padding:7px 10px;background:#eff6ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#1e40af;cursor:pointer;user-select:none" onclick="window[\'sortCard_\'+cardId]&&window[\'sortCard_\'+cardId](\'ger\')" title="Ordenar por qtd gerente">Qtd<br>gerente<span id="sort-'+cardId+'-ger"></span></th>'
     +'<th style="text-align:left;width:160px;padding:7px 10px;background:#eff6ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#1e40af">Just.<br>gerente</th>'
-    +'<th style="text-align:center;width:80px;padding:7px 10px;background:#f0fdf4;border-bottom:2px solid #e2e8f0;font-size:11px;color:#166534">Qtd<br>master</th>'
+    +'<th style="text-align:center;width:80px;padding:7px 10px;background:#f0fdf4;border-bottom:2px solid #e2e8f0;font-size:11px;color:#166534;cursor:pointer;user-select:none" onclick="window[\'sortCard_\'+cardId]&&window[\'sortCard_\'+cardId](\'master\')" title="Ordenar por qtd master">Qtd<br>master<span id="sort-'+cardId+'-master"></span></th>'
     +cabecalhos
-    +'</tr></thead><tbody>'+linhas+'</tbody></table>'
+    +'</tr></thead><tbody id="tbody-'+cardId+'">'+ linhas+'</tbody></table>'
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-mat-'+cardId+'"></div>'
     +'<button id="btn-excel-mat-'+cardId+'" disabled style="margin-top:10px;width:100%;background:#0f172a;color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.4" data-ids="'+solIds.join(',')+'" onclick="gerarExcelMatricial(this.dataset.ids.split(\',\').map(Number))">⬇ Baixar Excel p/ Protheus</button>'+'<div style="display:flex;gap:8px;margin-top:8px">'+'<button data-cardid="'+cardId+'" onclick="resetarCardMat(this)" style="flex:0 0 auto;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer">↩ Resetar</button>'+'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'+'</div>'
