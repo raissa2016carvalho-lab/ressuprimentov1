@@ -210,7 +210,7 @@ function renderFormularios(lista){
       html+='<td style="padding:5px 8px"><div style="font-weight:500;color:#374151">'+(it.descricao||it.codigo)+'</div><div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+it.codigo+'</div></td>';
       html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace">'+(it.qtd_almoxarife||it.quantidade||0)+'</td>';
       html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace">'+(it.quantidade||0)+'</td>';
-      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+(s.sc_numero||it.situacao==='aprovado'?it.quantidade||0:'—')+'</td>';
+      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+((s.sc_numero||it.situacao==='aprovado')?it.quantidade||0:'—')+'</td>';
       html+='<td style="padding:5px 8px;text-align:center"><span style="font-size:11px;font-weight:600;color:'+sitTxt+'">'+sitLabel+'</span></td>';
       html+='<td style="padding:5px 8px;font-size:11px;color:#6b7280">'+(it.justificativa_gerente||'—')+'</td>';
       html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#1e40af">'+(it.consumo_medio||'—')+'</td>';
