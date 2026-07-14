@@ -199,7 +199,7 @@ document.addEventListener('input',function(e){
     var qtdAtual=Number(e.target.value)||0;
     var qtdOrig=Number(e.target.dataset.orig)||0;
     var justTd=document.getElementById('just-td-'+codigo);
-    if(justTd)justTd.style.display=qtdAtual>qtdOrig?'':'none';
+    if(justTd)justTd.style.display=qtdAtual!==qtdOrig?'':'none';// mostra para aumento E redução
     // Gravar nova qtd em qtdEditadas para cada item id do produto
     var ids=(e.target.dataset.ids||'').split(',').map(Number).filter(Boolean);
     // Distribuir proporcionalmente pelas qtds originais de cada CC
@@ -254,11 +254,53 @@ document.addEventListener('click',function(e){
       var m=consumoMensalMap[n+'|'+codigo]||{};
       Object.keys(m).forEach(function(mes){mensal[mes]=(mensal[mes]||0)+m[mes]});
     });
-    var meses=Object.keys(mensal).sort().reverse().slice(0,6);
+    // Janela Jan-Jun fixa em ordem crescente
+    var mesesFixosGer=(function(){var r=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
     function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
-    var html='<span class="pop-close" onclick="fecharPopupGer()">×</span><h4>'+(descricao||codigo).slice(0,32)+'</h4>';
-    if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem histórico mensal.</div>'}
-    else{html+='<table>'+meses.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>'}).join('')+'</table>'}
+    // Histórico por CC individual para tabela
+    var mensalPorCC={};
+    ccsNomes.forEach(function(n){
+      var m=consumoMensalMap[n+'|'+codigo]||{};
+      if(Object.keys(m).length)mensalPorCC[n]=m;
+    });
+    // Total agregado
+    var mensal={};
+    ccsNomes.forEach(function(n){
+      var m=consumoMensalMap[n+'|'+codigo]||{};
+      Object.keys(m).forEach(function(mes){mensal[mes]=(mensal[mes]||0)+m[mes]});
+    });
+    var mesesAtivos=mesesFixosGer.filter(function(m){return Object.keys(mensal).some(function(k){return k===m&&mensal[k]>0});});
+    var html='<span class="pop-close" onclick="fecharPopupGer()">×</span>';
+    html+='<h4 style="margin:0 0 8px;font-size:13px;color:#0f172a">'+(descricao||codigo).slice(0,40)+'</h4>';
+    if(!mesesAtivos.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico Jan-Jun.</div>';}
+    else{
+      var ccsComDados=Object.keys(mensalPorCC).filter(function(cc){return mesesAtivos.some(function(m){return(mensalPorCC[cc][m]||0)>0});});
+      var isPorCC=ccsComDados.length>1;
+      if(isPorCC){
+        html+='<table style="border-collapse:collapse;font-size:11.5px;width:100%">';
+        html+='<thead><tr><td style="padding:3px 6px;color:#64748b;font-weight:600">CC</td>';
+        mesesAtivos.forEach(function(m){html+='<td style="padding:3px 6px;text-align:right;color:#64748b;font-weight:600">'+fmtMes(m)+'</td>';});
+        html+='<td style="padding:3px 6px;text-align:right;color:#64748b;font-weight:600">Total</td></tr></thead><tbody>';
+        ccsComDados.forEach(function(cc){
+          var md=mensalPorCC[cc]||{};
+          var rowTotal=mesesAtivos.reduce(function(s,m){return s+(md[m]||0);},0);
+          html+='<tr style="border-top:1px solid #f1f5f9">';
+          html+='<td style="padding:3px 6px;color:#334155;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis" title="'+cc+'">'+cc.split(' ').slice(-2).join(' ')+'</td>';
+          mesesAtivos.forEach(function(m){var v=md[m]||0;html+='<td style="padding:3px 6px;text-align:right;font-family:ui-monospace,monospace;color:'+(v>0?'#1e40af':'#cbd5e1')+'">'+( v>0?v:'—')+'</td>';});
+          html+='<td style="padding:3px 6px;text-align:right;font-weight:700;color:#0f172a;font-family:ui-monospace,monospace">'+rowTotal+'</td></tr>';
+        });
+        // Linha total
+        html+='<tr style="border-top:2px solid #e2e8f0;background:#f8fafc">';
+        html+='<td style="padding:3px 6px;font-weight:700;color:#0f172a">Total</td>';
+        var grand=0;
+        mesesAtivos.forEach(function(m){var v=mensal[m]||0;grand+=v;html+='<td style="padding:3px 6px;text-align:right;font-weight:700;font-family:ui-monospace,monospace;color:#0f172a">'+( v>0?v:'—')+'</td>';});
+        html+='<td style="padding:3px 6px;text-align:right;font-weight:700;color:#1e40af;font-family:ui-monospace,monospace">'+grand+'</td></tr>';
+        html+='</tbody></table>';
+      } else {
+        // Card com 1 CC — tabela simples
+        html+='<table>'+mesesAtivos.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td style="text-align:right;font-family:ui-monospace,monospace;color:#1e40af">'+( mensal[m]||0)+'</td></tr>';}).join('')+'</table>';
+      }
+    }
     pop.innerHTML=html;pop.style.display='block';
     var r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;
     if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
@@ -287,12 +329,12 @@ async function aprovarGerente(btn){
     for(var j=0;j<(sol.itens||[]).length;j++){
       var it=sol.itens[j];
       var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:it.quantidade;
-      var qtdOrig=it.quantidade;// qtd do gerente é o baseline para justificativa
-      if(novaQtd>qtdOrig){
+      var qtdOrigAlmox=it.qtd_almoxarife||it.quantidade;// qtd original do almoxarife
+      if(novaQtd!==qtdOrigAlmox){// justificativa obrigatória para qualquer alteração (aumento OU redução)
         var just=justificativas_ger[it.codigo]||'';
         if(!just.trim()){
-          if(msgEl)msgEl.innerHTML='<span style="color:#991b1b;font-weight:600">⚠ Justificativa obrigatória para "'+( it.descricao||it.codigo)+'" (quantidade aumentada de '+qtdOrig+' para '+novaQtd+').</span>';
-          // Focar no textarea de justificativa
+          var tipo=novaQtd>qtdOrigAlmox?'aumentada':'reduzida';
+          if(msgEl)msgEl.innerHTML='<span style="color:#991b1b;font-weight:600">⚠ Justificativa obrigatória para "'+(it.descricao||it.codigo)+'" (quantidade '+tipo+' de '+qtdOrigAlmox+' para '+novaQtd+').</span>';
           var justEl=document.querySelector('textarea[data-cod="'+it.codigo+'"]');
           if(justEl){justEl.focus();var td=justEl.closest('td');if(td)td.style.display='';}
           return;
