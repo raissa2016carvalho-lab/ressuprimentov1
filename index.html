@@ -284,8 +284,11 @@ function renderCardMatricial(grupo){
     // Justificativas do gerente (pode haver uma por CC)
     var justsGer=Object.values(item.porCC).map(function(it){return it.justificativa_gerente||''}).filter(Boolean).join(' / ');
 
-    return'<tr>'
-      +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(item.descricao||item.codigo)+badgeSH
+    // Linha vermelha se o gerente recusou todos os CCs deste item
+    var todosRecusados=Object.values(item.porCC).length>0&&Object.values(item.porCC).every(function(it){return it.situacao==='recusado';});
+    var trStyle=todosRecusados?'background:#fff5f5;border-left:3px solid #ef4444;':'';
+    return'<tr style="'+trStyle+'">'
+      +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(todosRecusados?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+( item.descricao||item.codigo)+badgeSH
       +'<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
       +(function(){var _d=(item.descricao||item.codigo||'').replace(/"/g,'');return '<td style="text-align:center;font-size:12px">'+(cons!==0?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+_d+'" data-nome="'+nomesCCs+'" data-hist="'+histStr+'" style="font-weight:700;color:#1e40af;cursor:pointer">'+consDisp+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>';})()
       +'<td style="text-align:center;font-family:ui-monospace,monospace;color:#475569">'+qtdDigitada+'</td>'
@@ -435,13 +438,15 @@ function gerarExcelMatricial(ids){
     var cc=sol.cc;
     var obs=document.getElementById('obs-mat-'+solId)?.value||sol.observacao||'';
     var itensAprov=(sol.itens||[]).filter(function(it){return(it.quantidade||0)>0&&it.codigo&&it.codigo!=='MANUAL'});
+    // Garantir masterQtd populado antes de gerar Excel
+    (sol.itens||[]).forEach(function(it){if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quantidade||0;});
     itensAprov.forEach(function(it,idx){
       linhas.push({
         C1_XTIPOSC:'004',
         C1_ITEM:String(idx+1).padStart(2,'0'),
         C1_PRODUTO:it.codigo,
         C1_DESCRI:it.descricao||'',
-        C1_QUANT:masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade,
+        C1_QUANT:masterQtd[it.id]||0,
         C1_CC:cc,
         C1_OBS:obs,
         C1_ESTOQUE:'S',
@@ -500,9 +505,10 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s){let base=c
               <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
-            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0).map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let consLive=it.codigo&&it.codigo!==`MANUAL`?(consumoMap[nomeCC+`|`+it.codigo]??consumoMap[s.cc+`|`+it.codigo]??0):0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,alterada=qtdAlmox!==qtdGerente;let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;return`
-              <tr class="${semHist?'sem-historico-row':''}">
-                <td>
+            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0).map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let consLive=it.codigo&&it.codigo!==`MANUAL`?(consumoMap[nomeCC+`|`+it.codigo]??consumoMap[s.cc+`|`+it.codigo]??0):0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,alterada=qtdAlmox!==qtdGerente;let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;let isRecusadoGer=it.situacao==='recusado';
+        return`
+              <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
+                <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
                   ${it.descricao||it.codigo}${semHist?'<span class="sem-historico-badge">⚠ Sem histórico</span>':''}
                   ${it.codigo&&it.codigo!==`MANUAL`?`<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>`:``}
                 </td>
@@ -624,7 +630,9 @@ function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`
 // considera decisões feitas na tela (mesmo sem salvar) + situação do banco
 let aprovados=sol.itens.filter(it=>{let dec=decisoes[it.id];return dec===`aprovado`||dec===void 0&&it.situacao===`aprovado`});if(aprovados.length===0){alert(`Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.`);return}
 // lê direto do campo (usuário pode ter digitado sem salvar ainda)
-let obs=(document.getElementById(`obs-`+solId)?.value||sol.observacao||``).trim();if(!obs){alert(`Preencha a Observação antes de gerar o Excel.`);return}let semCodigo=aprovados.filter(it=>!it.codigo||it.codigo===`MANUAL`).length,linhas=aprovados.map((it,i)=>({C1_XTIPOSC:`004`,C1_ITEM:String(i+1).padStart(2,`0`),C1_PRODUTO:it.codigo&&it.codigo!==`MANUAL`?it.codigo:``,C1_DESCRI:it.descricao||``,C1_QUANT:masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade,C1_CC:sol.cc,C1_OBS:obs,C1_ESTOQUE:`S`,JUST_GERENTE:it.justificativa_gerente||``})),ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC`),XLSX.writeFile(wb,`SC_solicitacao_${sol.id}.xlsx`),semCodigo>0&&alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`)}window.baixarExcelProtheus=baixarExcelProtheus;
+let obs=(document.getElementById(`obs-`+solId)?.value||sol.observacao||``).trim();if(!obs){alert(`Preencha a Observação antes de gerar o Excel.`);return}// Garantir masterQtd populado
+sol.itens.forEach(it=>{if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quantidade||0;});
+let semCodigo=aprovados.filter(it=>!it.codigo||it.codigo===`MANUAL`).length,linhas=aprovados.map((it,i)=>({C1_XTIPOSC:`004`,C1_ITEM:String(i+1).padStart(2,`0`),C1_PRODUTO:it.codigo&&it.codigo!==`MANUAL`?it.codigo:``,C1_DESCRI:it.descricao||``,C1_QUANT:masterQtd[it.id]||0,C1_CC:sol.cc,C1_OBS:obs,C1_ESTOQUE:`S`,JUST_GERENTE:it.justificativa_gerente||``})),ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC`),XLSX.writeFile(wb,`SC_solicitacao_${sol.id}.xlsx`),semCodigo>0&&alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`)}window.baixarExcelProtheus=baixarExcelProtheus;
 // ---------- ABA ACOMPANHAMENTO ----------
 async function carregarAcompanhamento(){$(`lista-acomp`).innerHTML=`<div class="vazio">Carregando...</div>`;
 // 1. Buscar solicitações com SC associada
