@@ -140,6 +140,10 @@ async function carregarFormularios(){
   }
   sols.forEach(s=>{s.itens=itensMap[s.id]||[];});
   _todosFormularios=sols;
+  // Se consumoMap vazio (Solicitações não foi carregada ainda), carregar agora
+  if(!Object.keys(consumoMap).length){
+    await carregarSolicitacoes();
+  }
   filtrarFormularios();
 }
 window.carregarFormularios=carregarFormularios;
@@ -457,6 +461,14 @@ function renderCardMatricial(grupo,readonly){
         var qtdsRateio=porCCEntries.map(function(e){return e[1].quantidade||0}).join(',');
         var ccsRateio=porCCEntries.map(function(e){return e[0]}).join(',');
         var inputId='minp-'+item.codigo;
+        // Em modo somente leitura (aba Formulários): mostrar qtd salva em vez de input
+        if(readonly){
+          var qtdSalva=Object.values(item.porCC).reduce(function(s,it){return s+(it.quantidade||0);},0);
+          var temAprov=Object.values(item.porCC).some(function(it){return it.situacao==='aprovado';});
+          var hasSC=grupo.some(function(s){return s.sc_numero;});
+          var display=temAprov||hasSC?qtdSalva:'—';
+          return '<td style="text-align:center;background:#f0fdf4;padding:6px;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+display+'</td>';
+        }
         return '<td style="text-align:center;background:#f0fdf4;padding:6px">'
           +'<input type="number" min="0" id="'+inputId+'" value="'+qtdGerente+'"'
           +' data-ids="'+idsRateio+'" data-qtds="'+qtdsRateio+'" data-ccs="'+ccsRateio+'" data-codigo="'+item.codigo+'"'
