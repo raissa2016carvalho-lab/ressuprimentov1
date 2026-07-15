@@ -111,39 +111,34 @@ let{data:{user}}=await db.auth.getUser();if(user?.user_metadata?.senha_trocada!=
 // ---------- NAVEGAÇÃO ENTRE ABAS ----------
 function irPara(aba){$(`aba-solicitacoes`).style.display=aba===`solicitacoes`?`block`:`none`,$(`aba-acompanhamento`).style.display=aba===`acompanhamento`?`block`:`none`,$(`aba-mobilizacao`).style.display=aba===`mobilizacao`?`block`:`none`,$(`aba-settings`).style.display=aba===`settings`?`block`:`none`,$(`aba-consolidados`).style.display=aba===`consolidados`?`block`:`none`,$(`aba-formularios`).style.display=aba===`formularios`?`block`:`none`,$(`aba-btn-solicitacoes`).classList.toggle(`ativo`,aba===`solicitacoes`),$(`aba-btn-acompanhamento`).classList.toggle(`ativo`,aba===`acompanhamento`),$(`aba-btn-mobilizacao`).classList.toggle(`ativo`,aba===`mobilizacao`),$(`aba-btn-settings`).classList.toggle(`ativo`,aba===`settings`),$(`aba-btn-consolidados`).classList.toggle(`ativo`,aba===`consolidados`),$(`aba-btn-formularios`).classList.toggle(`ativo`,aba===`formularios`),aba===`formularios`&&(abaCarregada.formularios=!0,carregarFormularios()),aba===`acompanhamento`&&!abaCarregada.acompanhamento&&(abaCarregada.acompanhamento=!0,carregarAcompanhamento()),aba===`settings`&&(irSubSettings(`bases`),carregarCarimbos()),aba===`mobilizacao`&&!abaCarregada.mobilizacao&&(abaCarregada.mobilizacao=!0,mostrarListaMob(),carregarMobilizacoes()),aba===`consolidados`&&!abaCarregada.consolidados&&(abaCarregada.consolidados=!0,carregarConsolidados())}
 // ══════════════════════════════════════════════
-// ABA FORMULÁRIOS — histórico completo
+// ABA FORMULÁRIOS — histórico completo (somente leitura)
 // ══════════════════════════════════════════════
 let _todosFormularios=[];
 
 async function carregarFormularios(){
   $('form-lista').innerHTML='<div class="vazio">Carregando...</div>';
-  // Buscar todas as solicitações sem filtro de status
+  // Buscar TODAS as solicitações sem filtro de status
   let off=0,sols=[];
   for(;;){
-    let{data:lote}=await db.from('solicitacoes').select('*').order('criado_em',{ascending:false}).range(off,off+999);
+    let{data:lote}=await db.from(`solicitacoes`).select(`*`).order(`criado_em`,{ascending:false}).range(off,off+999);
     if(!lote||!lote.length)break;
     sols=sols.concat(lote);
     if(lote.length<1000)break;
     off+=1000;
   }
-  // Buscar itens em lotes com paginação
+  // Buscar itens em lotes
   let solIds=sols.map(s=>s.id),itensMap={};
   for(let i=0;i<solIds.length;i+=50){
-    let lote=solIds.slice(i,i+50);
-    let off2=0;
+    let lote=solIds.slice(i,i+50),off2=0;
     for(;;){
-      let{data:its,error:eIt}=await db.from('solicitacao_itens')
-        .select('id,solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao,justificativa_gerente,consumo_medio')
-        .in('solicitacao_id',lote)
-        .range(off2,off2+999);
-      if(eIt||!its||!its.length)break;
+      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico`).in(`solicitacao_id`,lote).range(off2,off2+999);
+      if(!its||!its.length)break;
       its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
       if(its.length<1000)break;
       off2+=1000;
     }
   }
-  // Associar itens e cc names
-  sols.forEach(s=>{s.itens=itensMap[s.id]||[];s.nomeCC=(ccMap[s.cc]?ccMap[s.cc].nome:null)||s.cc;});
+  sols.forEach(s=>{s.itens=itensMap[s.id]||[];});
   _todosFormularios=sols;
   filtrarFormularios();
 }
@@ -159,7 +154,8 @@ function filtrarFormularios(){
     if(de&&s.criado_em<de)return false;
     if(ate&&s.criado_em>ate+'T23:59:59')return false;
     if(busca){
-      const hay=(s.nomeCC+' '+(s.solicitante_nome||'')+' '+(s.solicitante_matricula||'')+' '+(s.observacao||'')+' '+(s.sc_numero||'')).toLowerCase();
+      const nome=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
+      const hay=(nome+' '+(s.solicitante_nome||'')+' '+(s.solicitante_matricula||'')+' '+(s.observacao||'')+' '+(s.sc_numero||'')).toLowerCase();
       if(!hay.includes(busca))return false;
     }
     return true;
@@ -171,71 +167,25 @@ window.filtrarFormularios=filtrarFormularios;
 function renderFormularios(lista){
   const el=$('form-lista');
   if(!lista.length){el.innerHTML='<div class="vazio">Nenhum formulário encontrado.</div>';return;}
-  const statusInfo={
-    pendente:{cor:'#dbeafe',txt:'#1e40af',label:'Pendente'},
-    aguardando_master:{cor:'#fef9c3',txt:'#854d0e',label:'⚡ Aguardando master'},
-    em_analise:{cor:'#f0fdf4',txt:'#166534',label:'Em análise'},
-    aprovada:{cor:'#dcfce7',txt:'#166534',label:'✅ Aprovada'},
-    parcial:{cor:'#fff7ed',txt:'#c2410c',label:'⚠️ Parcial'},
-    recusada:{cor:'#fee2e2',txt:'#dc2626',label:'❌ Recusada'},
-  };
-  el.innerHTML=lista.map(function(s){
-    const si=statusInfo[s.status]||{cor:'#f1f5f9',txt:'#64748b',label:s.status};
-    const dt=new Date(s.criado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
-    const itAprov=(s.itens||[]).filter(function(it){return it.situacao==='aprovado';}).length;
-    const itRecus=(s.itens||[]).filter(function(it){return it.situacao==='recusado';}).length;
-    const itTotal=(s.itens||[]).length;
-    let html='<div style="border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin-bottom:10px;overflow:hidden">';
-    html+='<div style="padding:10px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;background:#fafafa" onclick="toggleFormCard(this)">';
-    html+='<div style="flex:1">';
-    html+='<span style="font-weight:700;color:#0f172a;font-size:13px">'+s.nomeCC+'</span>';
-    html+='<span style="margin-left:8px;font-size:11px;color:#94a3b8">#'+s.id+'</span>';
-    if(s.sc_numero)html+='<span style="margin-left:6px;font-size:11px;background:#f0fdf4;color:#166534;border-radius:4px;padding:1px 6px">SC: '+s.sc_numero+'</span>';
-    html+='<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;background:'+si.cor+';color:'+si.txt+';font-weight:600">'+si.label+'</span>';
-    html+='</div>';
-    html+='<div style="text-align:right;font-size:11.5px;color:#64748b">';
-    html+='<div>'+(s.solicitante_nome||'')+' · mat. '+(s.solicitante_matricula||'')+'</div>';
-    html+='<div>'+dt+' · '+itTotal+' item(ns) · '+(s.periodo_meses||3)+'m</div>';
-    if(s.observacao)html+='<div style="color:#94a3b8;font-style:italic">“'+s.observacao+'”</div>';
-    html+='</div>';
-    html+='<span style="color:#94a3b8;font-size:16px">▾</span></div>';
-    html+='<div class="form-card-body" style="display:none;padding:0 16px 16px">';
-    html+='<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:12px">';
-    html+='<thead><tr style="background:#f8fafc"><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Código</th><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Descrição</th><th style="text-align:right;padding:6px 8px;color:#1e40af;font-weight:600">Consumo 6m</th><th style="text-align:right;padding:6px 8px;color:#166534;font-weight:600">Qtd/mês</th><th style="text-align:right;padding:6px 8px;color:#166534;font-weight:600">Total ×período</th><th style="text-align:right;padding:6px 8px;color:#1e40af;font-weight:700">Qtd master</th><th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:600">Situação</th><th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600">Just. gerente</th></tr></thead><tbody>';
-    (s.itens||[]).forEach(function(it){
-      const sitCor=it.situacao==='aprovado'?'#f0fdf4':it.situacao==='recusado'?'#fff5f5':'#fff';
-      const sitTxt=it.situacao==='aprovado'?'#166534':it.situacao==='recusado'?'#dc2626':'#d97706';
-      const sitLabel=it.situacao==='aprovado'?'✅ Aprovado':it.situacao==='recusado'?'❌ Recusado':'⏳ Pendente';
-
-      html+='<tr style="border-top:1px solid #f1f5f9;background:'+sitCor+'">';
-      html+='<td style="padding:5px 8px;font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8">'+it.codigo+'</td>';
-      html+='<td style="padding:5px 8px"><div style="font-weight:500;color:#374151">'+(it.descricao||it.codigo)+'</div></td>';
-      var _qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0;var _per=s.periodo_meses||3;var _qtdMes=_per>0?Math.round(_qtdAlm/_per):_qtdAlm;var _totalPer=_qtdAlm;var _consumo=it.consumo_medio||0;var _qtdMaster=(it.situacao==='aprovado'||s.sc_numero!=null)?it.quantidade:null;
-      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#1e40af">'+(_consumo>0?_consumo:'—')+'</td>';
-      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#166534">'+_qtdMes+'</td>';
-      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;color:#166534">'+_totalPer+'</td>';
-      html+='<td style="padding:5px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:#1e40af">'+(_qtdMaster!=null?_qtdMaster:'—')+'</td>';
-      html+='<td style="padding:5px 8px;text-align:center"><span style="font-size:11px;font-weight:600;color:'+sitTxt+'">'+sitLabel+'</span></td>';
-      html+='<td style="padding:5px 8px;font-size:11px;color:#6b7280">'+(it.justificativa_gerente||'—')+'</td>';
-      html+='</tr>';
-
-    });
-    html+='</tbody></table>';
-    html+='<div style="margin-top:8px;font-size:11px;color:#64748b">';
-    html+='✅ '+itAprov+' aprovado(s) · ❌ '+itRecus+' recusado(s) · Total: '+itTotal;
-    if(s.sc_numero)html+=' · <span style="color:#166534;font-weight:600">SC: '+s.sc_numero+'</span>';
-    html+='</div></div></div>';
+  // Agrupar igual à aba Solicitações (mesma matrícula + janela de 3 minutos)
+  let grupos={};
+  lista.forEach(s=>{
+    let dt=new Date(s.criado_em);
+    let minBase=Math.floor(dt.getMinutes()/3)*3;
+    let ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
+    if(!grupos[ch])grupos[ch]=[];
+    grupos[ch].push(s);
+  });
+  // Renderizar usando os mesmos renderCard/renderCardMatricial mas em modo somente leitura
+  el.innerHTML=Object.values(grupos).map(g=>{
+    // Marcar como somente leitura para suprimir botões de ação
+    g.forEach(s=>s._formularioReadOnly=true);
+    let html=g.length>1?renderCardMatricial(g,true):renderCard(g[0],true);
+    g.forEach(s=>delete s._formularioReadOnly);
     return html;
   }).join('');
 }
 window.renderFormularios=renderFormularios;
-
-function toggleFormCard(header){
-  const body=header.nextElementSibling;
-  const arrow=header.querySelector('span:last-child');
-  if(body){body.style.display=body.style.display==='none'?'block':'none';if(arrow)arrow.textContent=body.style.display==='none'?'▾':'▴';}
-}
-window.toggleFormCard=toggleFormCard;
 
 function exportarFormulariosExcel(){
   if(!_todosFormularios.length){alert('Nenhum dado para exportar.');return;}
@@ -247,19 +197,24 @@ function exportarFormulariosExcel(){
     if(status&&s.status!==status)return false;
     if(de&&s.criado_em<de)return false;
     if(ate&&s.criado_em>ate+'T23:59:59')return false;
-    if(busca){const hay=(s.nomeCC+' '+(s.solicitante_nome||'')+' '+(s.solicitante_matricula||'')+' '+(s.observacao||'')+'  '+(s.sc_numero||'')).toLowerCase();if(!hay.includes(busca))return false;}
+    if(busca){const nome=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;const hay=(nome+' '+(s.solicitante_nome||'')+' '+(s.solicitante_matricula||'')+' '+(s.observacao||'')+' '+(s.sc_numero||'')).toLowerCase();if(!hay.includes(busca))return false;}
     return true;
   });
   const linhas=[];
   lista.forEach(s=>{
+    const nome=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
     const dt=new Date(s.criado_em).toLocaleString('pt-BR');
     (s.itens||[]).forEach(it=>{
+      const qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0;
       linhas.push({
-        ID:s.id,CC:s.nomeCC,SOLICITANTE:s.solicitante_nome,MATRICULA:s.solicitante_matricula,
+        ID:s.id,CC:nome,SOLICITANTE:s.solicitante_nome,MATRICULA:s.solicitante_matricula,
         DATA:dt,STATUS:s.status,SC:s.sc_numero||'',PERIODO:s.periodo_meses,OBS:s.observacao||'',
-        PRODUTO:it.codigo,DESCRICAO:it.descricao,QTD_ALMOXARIFE:it.qtd_almoxarife||it.quantidade||0,
-        QTD_GERENTE:it.quantidade||0,SITUACAO:it.situacao,JUST_GERENTE:it.justificativa_gerente||'',
-        CONSUMO_6M:it.consumo_medio||0
+        PRODUTO:it.codigo,DESCRICAO:it.descricao,
+        CONSUMO_6M:it.consumo_medio||0,
+        QTD_MES:s.periodo_meses>0?Math.round(qtdAlm/s.periodo_meses):qtdAlm,
+        TOTAL_ALMOX:qtdAlm,
+        QTD_MASTER:(it.situacao==='aprovado'||s.sc_numero)?it.quantidade||0:'',
+        SITUACAO:it.situacao,JUST_GERENTE:it.justificativa_gerente||''
       });
     });
   });
@@ -375,7 +330,7 @@ if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
 $(`lista`).innerHTML=Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
 }
 
-function renderCardMatricial(grupo){
+function renderCardMatricial(grupo,readonly){
   grupo.sort((a,b)=>(b.itens||[]).reduce((s,i)=>s+(i.quantidade||0),0)-(a.itens||[]).reduce((s,i)=>s+(i.quantidade||0),0));
   var s0=grupo[0];
   var cardId='mat-'+s0.id;
@@ -557,7 +512,7 @@ function renderCardMatricial(grupo){
     +'</tr></thead><tbody id="tbody-'+cardId+'">'+ linhas+'</tbody></table>'
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-mat-'+cardId+'"></div>'
-    +'<button id="btn-excel-mat-'+cardId+'" disabled style="margin-top:10px;width:100%;background:#0f172a;color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.4" data-ids="'+solIds.join(',')+'" onclick="gerarExcelMatricial(this.dataset.ids.split(\',\').map(Number))">⬇ Baixar Excel p/ Protheus</button>'+'<div style="display:flex;gap:8px;margin-top:8px">'+'<button data-cardid="'+cardId+'" onclick="resetarCardMat(this)" style="flex:0 0 auto;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer">↩ Resetar</button>'+'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'+'</div>'
+    +(readonly?'':'<button id="btn-excel-mat-'+cardId+'" disabled style="margin-top:10px;width:100%;background:#0f172a;color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.4" data-ids="'+solIds.join(',')+'" onclick="gerarExcelMatricial(this.dataset.ids.split(\',\').map(Number))">⬇ Baixar Excel p/ Protheus</button>'+'<div style="display:flex;gap:8px;margin-top:8px">'+'<button data-cardid="'+cardId+'" onclick="resetarCardMat(this)" style="flex:0 0 auto;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer">↩ Resetar</button>'+'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'+'</div>')
     +'</div>'
     +'</div>';
 }
@@ -669,7 +624,7 @@ function gerarExcelMatricial(ids){
   XLSX.utils.book_append_sheet(wb,ws,'SC');
   XLSX.writeFile(wb,nomePlanilha+'.xlsx');
 }
-window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`recusada`?`<span class="pill" style="background:#fee2e2;color:#dc2626;margin-left:6px">❌ Recusada pelo gerente</span>`:s.status===`parcial`?`<span class="pill" style="background:#fff7ed;color:#c2410c;margin-left:6px">⚠️ Parcialmente aprovada</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
+window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`recusada`?`<span class="pill" style="background:#fee2e2;color:#dc2626;margin-left:6px">❌ Recusada pelo gerente</span>`:s.status===`parcial`?`<span class="pill" style="background:#fff7ed;color:#c2410c;margin-left:6px">⚠️ Parcialmente aprovada</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
       <span onclick="event.stopPropagation();var el=document.getElementById('${badgePessoasId}');el.style.display=el.style.display==='none'?'block':'none';"
         style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;cursor:pointer;margin-left:8px">
         👥 ${totalPessoas} ▾
@@ -741,9 +696,9 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s){let base=c
               <input id="obs-${s.id}" value="${s.observacao||``}" placeholder="Descreva o motivo da compra"
                 oninput="atualizarBotoesSol(${s.id})"/>
             </div>
-            <button onclick="resetarCardInd(${s.id})" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">↩ Resetar</button>
+            ${readonly?'':`<button onclick="resetarCardInd(${s.id})" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">↩ Resetar</button>
             <button class="btn-salvar" id="btn-salvar-sol-${s.id}" onclick="salvar(${s.id})"
-              ${s.sc_numero?``:`disabled style="opacity:0.4;cursor:not-allowed"`}>Salvar</button>
+              ${s.sc_numero?'':`disabled style="opacity:0.4;cursor:not-allowed"`}>Salvar</button>`}
             <button class="btn-salvar" id="btn-excel-sol-${s.id}" style="background:#0f172a${s.observacao?``:`;opacity:0.4;cursor:not-allowed`}"
               onclick="baixarExcelProtheus(${s.id})"
               ${s.observacao?``:`disabled`}>⬇ Excel p/ Protheus</button>
