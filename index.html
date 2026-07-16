@@ -246,7 +246,7 @@ if(_nomesParaPed.length>0){
 let _ccNomeMapPed={};
 [...(ccsSols)].forEach(cc=>{if(ccMap[cc]?.nome)_ccNomeMapPed[cc]=ccMap[cc].nome});
 {let{data:_extra}=await db.from(`centros_custo`).select(`cc,nome`).in(`cc`,_ccsExpandidosPed);(_extra||[]).forEach(c=>{_ccNomeMapPed[c.cc]=c.nome})}
-if(pedidosAnterioresMap={},_ccsExpandidosPed.length>0)for(let i=0;i<_ccsExpandidosPed.length;i+=50){let lote=_ccsExpandidosPed.slice(i,i+50),dt12m=(()=>{let d=new Date;return d.setMonth(d.getMonth()-12),d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,`0`)+String(d.getDate()).padStart(2,`0`)})(),offPed=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`c1_cc,c1_produto,c1_num,c1_quant,pc_numero,pc_status,c1_emissao,pc_dt_entrega,pc_comprador,c1_obs`).in(`c1_cc`,lote).gte(`c1_emissao`,dt12m).order(`c1_emissao`,{ascending:false}).range(offPed,offPed+999);if(!rows||!rows.length||(rows.forEach(r=>{
+if(pedidosAnterioresMap={},_ccsExpandidosPed.length>0)for(let i=0;i<_ccsExpandidosPed.length;i+=50){let lote=_ccsExpandidosPed.slice(i,i+50),dt12m=(()=>{let d=new Date;return d.setMonth(d.getMonth()-12),d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,`0`)+String(d.getDate()).padStart(2,`0`)})(),offPed=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`c1_cc,c1_produto,c1_num,c1_quant,pc_numero,pc_status,c1_emissao,pc_dt_entrega,pc_comprador,c1_obs`).in(`c1_cc`,lote).gte(`c1_emissao`,dt12m).ilike(`c1_obs`,`%ressuprimento trim%`).order(`c1_emissao`,{ascending:false}).range(offPed,offPed+999);if(!rows||!rows.length||(rows.forEach(r=>{
   // Indexar pelo NOME do CC (agrupa homônimos) + produto
   let _nomeCC=_ccNomeMapPed[(r.c1_cc||``).trim()]||(r.c1_cc||``).trim();
   let k=_nomeCC+`|`+(r.c1_produto||``).trim();
