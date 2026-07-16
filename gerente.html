@@ -373,7 +373,15 @@ async function aprovarGerente(btn){
     }).eq('id',solId);
   }
   if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-weight:600">✓ Enviado para aprovação final!</span>';
-  setTimeout(function(){carregarSolicitacoes()},1200);
+  // Remove o card do DOM sem recarregar tudo
+  var cardEl=msgEl?msgEl.closest('.card'):null;
+  if(cardEl){cardEl.style.transition='opacity .35s';cardEl.style.opacity='0';setTimeout(function(){cardEl.remove()},350);}
+  // Remove da memória
+  ids.forEach(function(sid){var ix=solicitacoes.findIndex(function(s){return s.id===sid});if(ix>-1)solicitacoes.splice(ix,1);});
+  // Atualiza subtitulo
+  var pendentes=solicitacoes.filter(function(s){return s.status==='pendente'||s.status==='aguardando_master';}).length;
+  var sub=document.getElementById('subtitulo');if(sub)sub.textContent=pendentes+' solicitação(ões) pendente(s)';
+  if(solicitacoes.length===0){var lista=document.getElementById('lista');if(lista)lista.innerHTML='<div class="vazio">Nenhuma solicitação pendente.</div>';}
 }
 window.aprovarGerente=aprovarGerente;
 
@@ -486,7 +494,18 @@ let valEl=$(`val-`+itemId);valEl&&preco>0&&(valEl.textContent=`R$ `+(nova*preco)
 // recalcular total da solicitação
 let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let total=0;sol.itens.forEach(it=>{let q=qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id],p=it.codigo&&it.codigo!==`MANUAL`&&precoMap[it.codigo]||0;total+=q*p});let totalEl=$(`total-`+solId);totalEl&&(totalEl.textContent=total>0?`R$ `+total.toLocaleString(`pt-BR`,{minimumFractionDigits:2,maximumFractionDigits:2}):`—`)}window.onQtdChange=onQtdChange;function aprovarTodas(solId){let sol=solicitacoes.find(s=>s.id===solId);sol&&sol.itens.forEach(it=>{decisoes[it.id]=`aprovado`;let ap=$(`ap-`+it.id),re=$(`re-`+it.id);ap&&(ap.className=`btn-dec aprovado`),re&&(re.className=`btn-dec`)})}window.aprovarTodas=aprovarTodas;function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor,$(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``),$(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)}window.decidir=decidir;function toggleCard(id){$(`corpo-`+id).classList.toggle(`aberto`)}window.toggleCard=toggleCard;async function salvar(solId){let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let msgEl=$(`msg-`+solId);
 // Validar justificativas para itens aumentados
-for(let it of sol.itens)if((qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id])>it.quantidade&&!(justificativas[it.id]||``).trim()){msgEl.innerHTML=`<span style="color:#991b1b">⚠ Justificativa obrigatória para "${it.descricao||it.codigo}" (quantidade aumentada).</span>`,$(`just-`+it.id).focus();return}msgEl.innerHTML=`<span style="color:#64748b">Salvando...</span>`;for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id],novaQtd=qtdEditadas[it.id]===void 0?null:qtdEditadas[it.id],just=(justificativas[it.id]||``).trim(),upd={situacao:valor};upd.qtd_almoxarife=it.quantidade,novaQtd!==null&&(upd.quantidade=novaQtd),just&&(upd.justificativa_gerente=just),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id)}let{error}=await db.from(`solicitacoes`).update({status:`aguardando_master`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId);error?msgEl.innerHTML=`<span style="color:#991b1b">Erro: `+error.message+`</span>`:(msgEl.innerHTML=`<span style="color:#065f46">✓ Encaminhado para aprovação final!</span>`,setTimeout(carregarSolicitacoes,1800))}window.salvar=salvar;
+for(let it of sol.itens)if((qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id])>it.quantidade&&!(justificativas[it.id]||``).trim()){msgEl.innerHTML=`<span style="color:#991b1b">⚠ Justificativa obrigatória para "${it.descricao||it.codigo}" (quantidade aumentada).</span>`,$(`just-`+it.id).focus();return}msgEl.innerHTML=`<span style="color:#64748b">Salvando...</span>`;for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id],novaQtd=qtdEditadas[it.id]===void 0?null:qtdEditadas[it.id],just=(justificativas[it.id]||``).trim(),upd={situacao:valor};upd.qtd_almoxarife=it.quantidade,novaQtd!==null&&(upd.quantidade=novaQtd),just&&(upd.justificativa_gerente=just),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id)}let{error}=await db.from(`solicitacoes`).update({status:`aguardando_master`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId);if(error){msgEl.innerHTML=`<span style="color:#991b1b">Erro: `+error.message+`</span>`;return;}
+msgEl.innerHTML=`<span style="color:#065f46">✓ Enviado para aprovação final!</span>`;
+// Remove o card do DOM sem recarregar tudo
+var cardEl=msgEl.closest('.card');
+if(cardEl){cardEl.style.transition='opacity .35s';cardEl.style.opacity='0';setTimeout(function(){cardEl.remove()},350);}
+// Remove da memória
+var idx=solicitacoes.findIndex(function(s){return s.id===solId});if(idx>-1)solicitacoes.splice(idx,1);
+// Atualiza subtitulo
+var pendentes=solicitacoes.filter(function(s){return s.status==='pendente'||s.status==='aguardando_master';}).length;
+var sub=$('subtitulo');if(sub)sub.textContent=pendentes+' solicitação(ões) pendente(s)';
+if(solicitacoes.length===0){var lista=$('lista');if(lista)lista.innerHTML='<div class="vazio">Nenhuma solicitação pendente.</div>';}
+}window.salvar=salvar;
 // ---------- ABAS ----------
 function irParaTab(tab){$(`tab-avaliar`).style.display=tab===`avaliar`?`block`:`none`,$(`tab-acompanhar`).style.display=tab===`acompanhar`?`block`:`none`,$(`tab-btn-avaliar`).style.background=tab===`avaliar`?`#fff`:`transparent`,$(`tab-btn-avaliar`).style.color=tab===`avaliar`?`#0f172a`:`#64748b`,$(`tab-btn-avaliar`).style.fontWeight=tab===`avaliar`?`600`:`500`,$(`tab-btn-avaliar`).style.boxShadow=tab===`avaliar`?`0 1px 3px rgba(0,0,0,.08)`:`none`,$(`tab-btn-acompanhar`).style.background=tab===`acompanhar`?`#fff`:`transparent`,$(`tab-btn-acompanhar`).style.color=tab===`acompanhar`?`#0f172a`:`#64748b`,$(`tab-btn-acompanhar`).style.fontWeight=tab===`acompanhar`?`600`:`500`,$(`tab-btn-acompanhar`).style.boxShadow=tab===`acompanhar`?`0 1px 3px rgba(0,0,0,.08)`:`none`,tab===`acompanhar`&&!window._acompGerenteCarregado&&(window._acompGerenteCarregado=!0,carregarAcompanhamentoGerente())}window.irParaTab=irParaTab;
 // ---------- ACOMPANHAMENTO DO GERENTE (SCs já aprovadas, com pedido em aberto) ----------
