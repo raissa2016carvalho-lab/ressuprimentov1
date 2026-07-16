@@ -234,7 +234,29 @@ let gerentesMapCC={};async function carregarSolicitacoes(){$(`lista`).innerHTML=
 // buscar itens paginando para não cortar no limite de 1000
 let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico`).in(`solicitacao_id`,lote).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>ccMap[c.cc]=c),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
 // carrega consumo 3m e pessoas por cargo para os CCs visíveis
-let ccsSols=[...new Set(solicitacoes.map(s=>s.cc).filter(Boolean))];if(pedidosAnterioresMap={},ccsSols.length>0)for(let i=0;i<ccsSols.length;i+=50){let lote=ccsSols.slice(i,i+50),dt12m=(()=>{let d=new Date;return d.setMonth(d.getMonth()-12),d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,`0`)+String(d.getDate()).padStart(2,`0`)})(),offPed=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`c1_cc,c1_produto,c1_num,c1_quant,pc_numero,pc_status,c1_emissao,pc_dt_entrega,pc_comprador,c1_obs`).in(`c1_cc`,lote).gte(`c1_emissao`,dt12m).order(`c1_emissao`,{ascending:false}).range(offPed,offPed+999);if(!rows||!rows.length||(rows.forEach(r=>{let k=(r.c1_cc||``).trim()+`|`+(r.c1_produto||``).trim();pedidosAnterioresMap[k]||(pedidosAnterioresMap[k]=[]),pedidosAnterioresMap[k].push(r)}),rows.length<1e3))break;offPed+=1e3}}scItensMap={};Object.values(pedidosAnterioresMap).forEach(arr=>arr.forEach(r=>{const sc=(r.c1_num||``).trim();const prod=(r.c1_produto||``).trim();if(sc&&prod)scItensMap[sc+`|`+prod]=(r.c1_quant||0)}));if(ccsSols.length>0){// Buscar nomes dos CCs — primeiro pelo ccMap, depois direto do banco se necessário
+let ccsSols=[...new Set(solicitacoes.map(s=>s.cc).filter(Boolean))];
+// Expandir homônimos: buscar todos os CCs com mesmo nome (igual ao consumo)
+let _nomesParaPed=[...new Set(ccsSols.map(cc=>ccMap[cc]?.nome).filter(Boolean))];
+let _ccsExpandidosPed=ccsSols.slice();
+if(_nomesParaPed.length>0){
+  let{data:_homPed}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,_nomesParaPed);
+  (_homPed||[]).forEach(c=>{if(!_ccsExpandidosPed.includes(c.cc))_ccsExpandidosPed.push(c.cc)});
+}
+// Mapa cc -> nome para indexar pedidos pelo nome (agrupa homônimos)
+let _ccNomeMapPed={};
+[...(ccsSols)].forEach(cc=>{if(ccMap[cc]?.nome)_ccNomeMapPed[cc]=ccMap[cc].nome});
+{let{data:_extra}=await db.from(`centros_custo`).select(`cc,nome`).in(`cc`,_ccsExpandidosPed);(_extra||[]).forEach(c=>{_ccNomeMapPed[c.cc]=c.nome})}
+if(pedidosAnterioresMap={},_ccsExpandidosPed.length>0)for(let i=0;i<_ccsExpandidosPed.length;i+=50){let lote=_ccsExpandidosPed.slice(i,i+50),dt12m=(()=>{let d=new Date;return d.setMonth(d.getMonth()-12),d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,`0`)+String(d.getDate()).padStart(2,`0`)})(),offPed=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`c1_cc,c1_produto,c1_num,c1_quant,pc_numero,pc_status,c1_emissao,pc_dt_entrega,pc_comprador,c1_obs`).in(`c1_cc`,lote).gte(`c1_emissao`,dt12m).order(`c1_emissao`,{ascending:false}).range(offPed,offPed+999);if(!rows||!rows.length||(rows.forEach(r=>{
+  // Indexar pelo NOME do CC (agrupa homônimos) + produto
+  let _nomeCC=_ccNomeMapPed[(r.c1_cc||``).trim()]||(r.c1_cc||``).trim();
+  let k=_nomeCC+`|`+(r.c1_produto||``).trim();
+  pedidosAnterioresMap[k]||(pedidosAnterioresMap[k]=[]);
+  pedidosAnterioresMap[k].push(r);
+  // Manter também chave por cc direto para compatibilidade com renderCard individual
+  let k2=(r.c1_cc||``).trim()+`|`+(r.c1_produto||``).trim();
+  pedidosAnterioresMap[k2]||(pedidosAnterioresMap[k2]=[]);
+  if(!pedidosAnterioresMap[k2].find(x=>x.c1_num===r.c1_num&&x.c1_produto===r.c1_produto&&x.c1_emissao===r.c1_emissao))pedidosAnterioresMap[k2].push(r);
+}),rows.length<1e3))break;offPed+=1e3}}scItensMap={};Object.values(pedidosAnterioresMap).forEach(arr=>arr.forEach(r=>{const sc=(r.c1_num||``).trim();const prod=(r.c1_produto||``).trim();if(sc&&prod)scItensMap[sc+`|`+prod]=(r.c1_quant||0)}));if(ccsSols.length>0){// Buscar nomes dos CCs — primeiro pelo ccMap, depois direto do banco se necessário
 let nomesSols=[...new Set(ccsSols.map(cc=>ccMap[cc]?.nome).filter(Boolean))];
 // Se algum CC não está no ccMap, buscar do banco
 let ccsSemNome=ccsSols.filter(cc=>!ccMap[cc]?.nome);
@@ -459,8 +481,12 @@ function renderCardMatricial(grupo,readonly){
         // Buscar o pedido mais recente para este item em QUALQUER CC do grupo
         var ultimoPed=null;
         grupo.forEach(function(s){
-          var k=(s.cc||'').trim()+'|'+(item.codigo||'').trim();
-          var peds=pedidosAnterioresMap[k]||[];
+          var _nomeCC=ccMap[(s.cc||'').trim()]?.nome||(s.cc||'').trim();
+          var k=_nomeCC+'|'+(item.codigo||'').trim();
+          var k2=(s.cc||'').trim()+'|'+(item.codigo||'').trim();
+          var peds=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])];
+          // deduplicar por c1_num+produto+emissao
+          var _seen=new Set();peds=peds.filter(function(p){var _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seen.has(_id))return false;_seen.add(_id);return true;});
           peds.forEach(function(p){
             if(!ultimoPed||( p.c1_emissao||'')>(ultimoPed.c1_emissao||''))ultimoPed=p;
           });
@@ -730,7 +756,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
                 <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:${alterada?`#b45309`:`#0f172a`}">${qtdGerente}${alterada?` ✎`:``}</td>
                 <td style="font-size:11.5px;color:#64748b;font-style:${justGer?`italic`:`normal`}">${justGer||`—`}</td>
                 <td style="font-size:11.5px">
-                  ${(()=>{let k=s.cc+`|`+it.codigo,peds=pedidosAnterioresMap[k]||[];return peds.length?peds.slice(0,2).map(p=>{let st=(p.pc_status||``).toLowerCase(),recebido=st.includes(`receb`)||st.includes(`pré-nota`),pendente=!recebido,cor=recebido?`#16a34a`:`#d97706`;let dataEmissao=p.c1_emissao?p.c1_emissao.slice(0,7):``;return`<div style="margin-bottom:2px;padding:2px 4px;border-radius:4px;background:`+(recebido?`#f0fdf4`:`#fff7ed`)+`">`+(recebido?`✅`:`⏳`)+` <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC `+(p.c1_num||``)+`</span>`+(dataEmissao?` <span style="font-size:9.5px;color:#94a3b8">`+dataEmissao+`</span>`:``)+` <span style="font-weight:700;color:`+cor+`;font-size:10.5px">`+(recebido?`Recebido`:(p.pc_status||`Pendente`))+`</span>`+(p.c1_quant?` <span style="font-size:10px;color:#64748b">`+p.c1_quant+` un</span>`:``)+`</div>`+(()=>{const scNum=(p.c1_num||``).trim();const qtdPend=scItensMap[scNum+`|`+(it.codigo||``).trim()]||0;return qtdPend>0?` <span style="font-size:10px;color:#94a3b8">(${qtdPend} un. pend.)</span>`:``;})() +`</div>`}).join(``)+(peds.length>2?`<div style="color:#94a3b8;font-size:10px">+`+(peds.length-2)+` mais</div>`:``):`<span style="color:#cbd5e1">—</span>`})()}
+                  ${(()=>{let _nomeCCInd=ccMap[s.cc]?.nome||s.cc;let k=_nomeCCInd+`|`+it.codigo,k2=s.cc+`|`+it.codigo,_pedsRaw=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])],_seenInd=new Set(),peds=_pedsRaw.filter(p=>{let _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seenInd.has(_id))return false;_seenInd.add(_id);return true;}).sort((a,b)=>(b.c1_emissao||'').localeCompare(a.c1_emissao||''));return peds.length?peds.slice(0,2).map(p=>{let st=(p.pc_status||``).toLowerCase(),recebido=st.includes(`receb`)||st.includes(`pré-nota`),pendente=!recebido,cor=recebido?`#16a34a`:`#d97706`;let dataEmissao=p.c1_emissao?p.c1_emissao.slice(0,7):``;return`<div style="margin-bottom:2px;padding:2px 4px;border-radius:4px;background:`+(recebido?`#f0fdf4`:`#fff7ed`)+`">`+(recebido?`✅`:`⏳`)+` <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC `+(p.c1_num||``)+`</span>`+(dataEmissao?` <span style="font-size:9.5px;color:#94a3b8">`+dataEmissao+`</span>`:``)+` <span style="font-weight:700;color:`+cor+`;font-size:10.5px">`+(recebido?`Recebido`:(p.pc_status||`Pendente`))+`</span>`+(p.c1_quant?` <span style="font-size:10px;color:#64748b">`+p.c1_quant+` un</span>`:``)+`</div>`+(()=>{const scNum=(p.c1_num||``).trim();const qtdPend=scItensMap[scNum+`|`+(it.codigo||``).trim()]||0;return qtdPend>0?` <span style="font-size:10px;color:#94a3b8">(${qtdPend} un. pend.)</span>`:``;})() +`</div>`}).join(``)+(peds.length>2?`<div style="color:#94a3b8;font-size:10px">+`+(peds.length-2)+` mais</div>`:``):`<span style="color:#cbd5e1">—</span>`})()}
                 </td>
                 <td style="text-align:center">
                   <input type="number" min="0" value="${qtdGerente}"
