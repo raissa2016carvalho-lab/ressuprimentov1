@@ -593,9 +593,8 @@ function renderCardMatricial(grupo,readonly){
     +'</tr></thead><tbody id="tbody-'+cardId+'">'+ linhas+'</tbody></table>'
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-mat-'+cardId+'"></div>'
-    +(readonly?'':'<button id="btn-excel-mat-'+cardId+'" disabled style="margin-top:10px;width:100%;background:#0f172a;color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.4" data-ids="'+solIds.join(',')+'" onclick="gerarExcelMatricial(this.dataset.ids.split(\',\').map(Number))">⬇ Baixar Excel p/ Protheus</button>'+'<div style="display:flex;gap:8px;margin-top:8px">'+'<button data-cardid="'+cardId+'" onclick="resetarCardMat(this)" style="flex:0 0 auto;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer">↩ Resetar</button>'+'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'+'</div>'
-    +'<div style="margin-top:8px">'
-    +'<button style="width:100%;background:#fff;color:#dc2626;border:1px solid #fecaca;border-radius:9px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" data-ids="'+solIds.join(',')+'" onclick="rejeitarRessuprimento(this)">🗑 Rejeitar ressuprimento — remover da lista</button>'
+    +(readonly?'':'<button id="btn-excel-mat-'+cardId+'" disabled style="margin-top:10px;width:100%;background:#0f172a;color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.4" data-ids="'+solIds.join(',')+'" onclick="gerarExcelMatricial(this.dataset.ids.split(\',\').map(Number))">⬇ Baixar Excel p/ Protheus</button>'+'<div style="display:flex;gap:8px;margin-top:8px">'+'<button data-cardid="'+cardId+'" onclick="resetarCardMat(this)" style="flex:0 0 auto;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer">↩ Resetar</button>'+'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'
+    +'<button style="background:#fff;color:#dc2626;border:1px solid #fecaca;border-radius:9px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap" data-ids="'+solIds.join(',')+'" onclick="rejeitarRessuprimento(this)">🗑 Rejeitar</button>'
     +'</div>')
     +'</div>'
     +'</div>';
@@ -760,7 +759,11 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
           <div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>
         </div>
         <div class="card-corpo" id="corpo-${s.id}">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px">
+            <button data-ids="${s.id}" onclick="rejeitarRessuprimento(this)"
+              style="border:1px solid #fecaca;background:#fff;color:#dc2626;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer">
+              🗑 Rejeitar
+            </button>
             <button onclick="aprovarTodosItens(${s.id})"
               style="border:none;background:#16a34a;color:#fff;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">
               ✓ Aprovar todos os itens
