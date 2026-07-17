@@ -800,13 +800,13 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
             <tr>
               <th>Item</th>
               <th style="text-align:center;width:70px">Consumo<br>6m (un)</th>
-              <th style="text-align:center;width:70px">Qtd<br>almoxarife</th>
-              <th style="text-align:center;width:70px">Qtd<br>gerente</th>
+              <th style="text-align:center;width:80px;background:#eff6ff">Qtd<br><span style="font-size:10px;color:#1e40af">almoxarife</span></th>
+              <th style="text-align:center;width:80px;background:#f0fdf4">Qtd<br><span style="font-size:10px;color:#166534">gerente</span></th>
               <th style="text-align:left;width:200px">Justificativa<br>gerente</th>
               <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
-            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let consLive=it.codigo&&it.codigo!==`MANUAL`?(consumoMap[nomeCC+`|`+it.codigo]??consumoMap[s.cc+`|`+it.codigo]??0):0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,alterada=qtdAlmox!==qtdGerente;let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;let isRecusadoGer=it.situacao==='recusado';
+            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let consLive=it.codigo&&it.codigo!==`MANUAL`?(consumoMap[nomeCC+`|`+it.codigo]??consumoMap[s.cc+`|`+it.codigo]??0):0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:(it.qtd_sugerida!=null?it.qtd_sugerida:it.quantidade),qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,alterada=qtdAlmox!==qtdGerente;let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;let isRecusadoGer=it.situacao==='recusado';
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
                 <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
@@ -814,8 +814,20 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
                   ${it.codigo&&it.codigo!==`MANUAL`?`<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>`:``}
                 </td>
                 <td style="text-align:center">${consHtml}</td>
-                <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;color:#475569">${qtdAlmox}</td>
-                <td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:${alterada?`#b45309`:`#0f172a`}">${qtdGerente}${alterada?` ✎`:``}</td>
+                `+((()=>{
+  // Almoxarife cell
+  let almoxCell='<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#eff6ff;color:#1e40af;font-weight:600">'+qtdAlmox+'</td>';
+  // Gerente cell - show delta vs almoxarife
+  let delta=qtdGerente-qtdAlmox;
+  let deltaHtml='';
+  if(alterada){
+    if(delta>0) deltaHtml='<span style="font-size:10px;color:#16a34a;font-weight:700;display:block">▲+'+delta+'</span>';
+    else if(delta<0) deltaHtml='<span style="font-size:10px;color:#dc2626;font-weight:700;display:block">▼'+delta+'</span>';
+  }
+  let gerenteColor=!alterada?'#0f172a':delta>0?'#16a34a':'#dc2626';
+  let gerenteCell='<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#f0fdf4;font-weight:700;color:'+gerenteColor+'">'+qtdGerente+deltaHtml+'</td>';
+  return almoxCell+gerenteCell;
+})())+`
                 <td style="font-size:11.5px;color:#64748b;font-style:${justGer?`italic`:`normal`}">${justGer||`—`}</td>
                 <td style="font-size:11.5px">
                   ${(()=>{let _nomeCCInd=ccMap[s.cc]?.nome||s.cc;let k=_nomeCCInd+`|`+it.codigo,k2=s.cc+`|`+it.codigo,_pedsRaw=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])],_seenInd=new Set(),peds=_pedsRaw.filter(p=>{let _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seenInd.has(_id))return false;_seenInd.add(_id);return true;}).sort((a,b)=>(b.c1_emissao||'').localeCompare(a.c1_emissao||''));return peds.length?peds.slice(0,2).map(p=>{let st=(p.pc_status||``).toLowerCase(),recebido=st.includes(`receb`)||st.includes(`pré-nota`),pendente=!recebido,cor=recebido?`#16a34a`:`#d97706`;let dataEmissao=p.c1_emissao?p.c1_emissao.slice(0,7):``;return`<div style="margin-bottom:2px;padding:2px 4px;border-radius:4px;background:`+(recebido?`#f0fdf4`:`#fff7ed`)+`">`+(recebido?`✅`:`⏳`)+` <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC `+(p.c1_num||``)+`</span>`+(dataEmissao?` <span style="font-size:9.5px;color:#94a3b8">`+dataEmissao+`</span>`:``)+` <span style="font-weight:700;color:`+cor+`;font-size:10.5px">`+(recebido?`Recebido`:(p.pc_status||`Pendente`))+`</span>`+(p.c1_quant?` <span style="font-size:10px;color:#64748b">`+p.c1_quant+` un</span>`:``)+`</div>`+(()=>{const scNum=(p.c1_num||``).trim();const qtdPend=scItensMap[scNum+`|`+(it.codigo||``).trim()]||0;return qtdPend>0?` <span style="font-size:10px;color:#94a3b8">(${qtdPend} un. pend.)</span>`:``;})() +`</div>`}).join(``)+(peds.length>2?`<div style="color:#94a3b8;font-size:10px">+`+(peds.length-2)+` mais</div>`:``):`<span style="color:#cbd5e1">—</span>`})()}
