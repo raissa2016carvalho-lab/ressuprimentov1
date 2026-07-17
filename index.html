@@ -1504,7 +1504,111 @@ function fmtDataHoraSenha(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:
 // ========== CONSOLIDADOS ==========
 function atualizarBarraCons(){let sels=document.querySelectorAll(`.acomp-cb:checked`),barra=document.getElementById(`barra-consolidar`),count=document.getElementById(`count-sel-cons`);sels.length>0?(barra.style.display=`flex`,count.textContent=sels.length+` SC(s) selecionada(s)`):barra.style.display=`none`}window.atualizarBarraCons=atualizarBarraCons;function limparSelecaoAcomp(){document.querySelectorAll(`.acomp-cb`).forEach(cb=>cb.checked=!1),atualizarBarraCons()}window.limparSelecaoAcomp=limparSelecaoAcomp;async function consolidarSelecionadas(){let sels=[...document.querySelectorAll(`.acomp-cb:checked`)];if(!sels.length)return;let nome=prompt(`Nome do consolidado:
 Ex.: Ressuprimento Fardamentos Junho/Julho/Agosto`);if(!nome||!nome.trim())return;let{data:cons,error:e1}=await db.from(`consolidados`).insert({nome:nome.trim()}).select().single();if(e1){alert(`Erro: `+e1.message);return}let inserts=sels.map(cb=>({consolidado_id:cons.id,solicitacao_id:Number(cb.dataset.id)})),{error:e2}=await db.from(`consolidado_scs`).insert(inserts);if(e2){alert(`Erro ao vincular SCs: `+e2.message);return}limparSelecaoAcomp(),alert(`Consolidado criado com `+sels.length+` SC(s)!`),irPara(`consolidados`)}window.consolidarSelecionadas=consolidarSelecionadas;async function novoConsolidado(){if(!isAdmin){alert(`Apenas administradores podem criar consolidados.`);return}let nome=prompt(`Nome do consolidado:`);if(!nome||!nome.trim())return;let{error}=await db.from(`consolidados`).insert({nome:nome.trim()});if(error){alert(`Erro: `+error.message);return}await carregarConsolidados()}window.novoConsolidado=novoConsolidado;async function excluirConsolidado(id,nome){if(!isAdmin){alert(`Apenas administradores podem excluir consolidados.`);return}confirm(`Excluir o consolidado '`+nome+`'?
-As SCs continuam no Acompanhamento.`)&&(await db.from(`consolidados`).delete().eq(`id`,id),await carregarConsolidados())}window.excluirConsolidado=excluirConsolidado;async function carregarConsolidados(){let el=document.getElementById(`lista-consolidados`);if(!el)return;el.innerHTML=`<div class="vazio">Carregando...</div>`;let{data:cons,error}=await db.from(`consolidados`).select(`*`).order(`criado_em`,{ascending:!1});if(error){el.innerHTML=`<div class="vazio">Erro: `+error.message+`</div>`;return}if(!cons||!cons.length){el.innerHTML=`<div class="vazio">Nenhum consolidado ainda.<br><br>No Acompanhamento, marque SCs com o checkbox e clique em "Criar consolidado".</div>`;return}el.innerHTML=cons.map(c=>`
+As SCs continuam no Acompanhamento.`)&&(await db.from(`consolidados`).delete().eq(`id`,id),await carregarConsolidados())}window.excluirConsolidado=excluirConsolidado;
+async function adicionarAoConsolidado(consId, consNome) {
+  // Buscar SCs já vinculadas para não mostrar duplicatas
+  let {data:links} = await db.from('consolidado_scs').select('solicitacao_id').eq('consolidado_id', consId);
+  let jaVinculados = new Set((links||[]).map(l=>l.solicitacao_id));
+
+  // Buscar todas as solicitações não vinculadas a este consolidado
+  let off=0, todas=[];
+  for(;;){
+    let {data:lote} = await db.from('solicitacoes').select('id,cc,status,sc_numero,observacao,criado_em,solicitante_nome').order('criado_em',{ascending:false}).range(off,off+999);
+    if(!lote||!lote.length) break;
+    todas = todas.concat(lote.filter(s=>!jaVinculados.has(s.id)));
+    if(lote.length<1000) break;
+    off+=1000;
+  }
+  if(!todas.length){alert('Nenhuma solicitação disponível para adicionar.');return;}
+
+  // Montar modal
+  let modal = document.getElementById('modal-add-cons');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'modal-add-cons';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+    document.body.appendChild(modal);
+  }
+
+  let rows = todas.map(s=>{
+    let nome = ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
+    let sc = s.sc_numero?'SC '+s.sc_numero:'(sem SC)';
+    let obs = (s.observacao||'').slice(0,50);
+    let dt = fmtData(s.criado_em);
+    let statusLabel = LABEL_STATUS[s.status]||s.status;
+    return `<tr style="border-bottom:1px solid #f1f5f9">
+      <td style="padding:6px 8px"><input type="checkbox" class="add-cons-cb" data-id="${s.id}" style="width:15px;height:15px;accent-color:#1e40af"></td>
+      <td style="padding:6px 8px;font-size:12.5px;font-weight:600">${nome}</td>
+      <td style="padding:6px 8px;font-size:12px;font-family:ui-monospace,monospace;color:#1e40af">${sc}</td>
+      <td style="padding:6px 8px;font-size:12px;color:#64748b">${statusLabel}</td>
+      <td style="padding:6px 8px;font-size:11.5px;color:#94a3b8">${dt}</td>
+      <td style="padding:6px 8px;font-size:11.5px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${obs}">${obs}</td>
+    </tr>`;
+  }).join('');
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:12px;width:90%;max-width:900px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:700;font-size:15px">Adicionar SCs ao consolidado</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">${consNome}</div>
+        </div>
+        <button onclick="document.getElementById('modal-add-cons').style.display='none'" style="border:none;background:none;font-size:20px;cursor:pointer;color:#94a3b8">✕</button>
+      </div>
+      <div style="padding:12px 20px;border-bottom:1px solid #e2e8f0">
+        <input id="modal-add-cons-busca" placeholder="Filtrar por CC, SC ou obs..." oninput="filtrarModalCons()" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px">
+      </div>
+      <div style="overflow-y:auto;flex:1">
+        <table style="width:100%;border-collapse:collapse">
+          <thead style="position:sticky;top:0;background:#f8fafc">
+            <tr>
+              <th style="padding:8px;width:36px"><input type="checkbox" onchange="document.querySelectorAll('.add-cons-cb:not([style*=none])').forEach(cb=>cb.checked=this.checked)" style="width:15px;height:15px;accent-color:#1e40af"></th>
+              <th style="padding:8px;text-align:left;font-size:12px;color:#64748b">Centro de custo</th>
+              <th style="padding:8px;text-align:left;font-size:12px;color:#64748b">SC</th>
+              <th style="padding:8px;text-align:left;font-size:12px;color:#64748b">Status</th>
+              <th style="padding:8px;text-align:left;font-size:12px;color:#64748b">Data</th>
+              <th style="padding:8px;text-align:left;font-size:12px;color:#64748b">Observação</th>
+            </tr>
+          </thead>
+          <tbody id="modal-add-cons-tbody">${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:14px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+        <span id="modal-add-cons-msg" style="font-size:13px;color:#64748b"></span>
+        <div style="display:flex;gap:10px">
+          <button onclick="document.getElementById('modal-add-cons').style.display='none'" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:8px 18px;font-size:13px;cursor:pointer">Cancelar</button>
+          <button onclick="confirmarAdicionarCons(${consId})" style="border:none;background:#1e40af;color:#fff;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer">✓ Adicionar selecionadas</button>
+        </div>
+      </div>
+    </div>`;
+  modal.style.display = 'flex';
+}
+window.adicionarAoConsolidado = adicionarAoConsolidado;
+
+function filtrarModalCons(){
+  let busca = (document.getElementById('modal-add-cons-busca')?.value||'').toLowerCase();
+  document.querySelectorAll('#modal-add-cons-tbody tr').forEach(tr=>{
+    tr.style.display = !busca || tr.textContent.toLowerCase().includes(busca) ? '' : 'none';
+  });
+}
+window.filtrarModalCons = filtrarModalCons;
+
+async function confirmarAdicionarCons(consId){
+  let sels = [...document.querySelectorAll('.add-cons-cb:checked')];
+  if(!sels.length){alert('Selecione ao menos uma solicitação.');return;}
+  let msg = document.getElementById('modal-add-cons-msg');
+  if(msg) msg.textContent = 'Salvando...';
+  let inserts = sels.map(cb=>({consolidado_id:consId, solicitacao_id:Number(cb.dataset.id)}));
+  let {error} = await db.from('consolidado_scs').insert(inserts);
+  if(error){if(msg)msg.textContent='Erro: '+error.message;return;}
+  document.getElementById('modal-add-cons').style.display='none';
+  // Recarregar o corpo do consolidado
+  let corpo = document.getElementById('cons-corpo-'+consId);
+  if(corpo){corpo.dataset.carregado='0';await renderConsolidado(consId,corpo);}
+  alert('✓ '+sels.length+' SC(s) adicionada(s) ao consolidado!');
+}
+window.confirmarAdicionarCons = confirmarAdicionarCons;
+async function carregarConsolidados(){let el=document.getElementById(`lista-consolidados`);if(!el)return;el.innerHTML=`<div class="vazio">Carregando...</div>`;let{data:cons,error}=await db.from(`consolidados`).select(`*`).order(`criado_em`,{ascending:!1});if(error){el.innerHTML=`<div class="vazio">Erro: `+error.message+`</div>`;return}if(!cons||!cons.length){el.innerHTML=`<div class="vazio">Nenhum consolidado ainda.<br><br>No Acompanhamento, marque SCs com o checkbox e clique em "Criar consolidado".</div>`;return}el.innerHTML=cons.map(c=>`
       <div class="card" style="max-width:100%" id="cons-card-${c.id}">
         <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleConsolidado(${c.id})">
           <div>
@@ -1513,6 +1617,10 @@ As SCs continuam no Acompanhamento.`)&&(await db.from(`consolidados`).delete().e
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="color:#1e40af;font-weight:600;font-size:12.5px">Ver ▾</span>
+            <button onclick="event.stopPropagation();adicionarAoConsolidado(${c.id},'${c.nome.replace(/'/g,`'`)}')"
+              style="border:none;background:#dbeafe;color:#1e40af;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">
+              + Adicionar SCs
+            </button>
             <button onclick="event.stopPropagation();excluirConsolidado(${c.id},'${c.nome.replace(/'/g,`'`)}')"
               style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:16px;padding:0"
               onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
