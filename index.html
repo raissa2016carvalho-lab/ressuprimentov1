@@ -595,6 +595,7 @@ function renderCardMatricial(grupo,readonly){
     +'<div id="msg-mat-'+cardId+'"></div>'
     +(readonly?'':'<button id="btn-excel-mat-'+cardId+'" disabled style="margin-top:10px;width:100%;background:#0f172a;color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.4" data-ids="'+solIds.join(',')+'" onclick="gerarExcelMatricial(this.dataset.ids.split(\',\').map(Number))">⬇ Baixar Excel p/ Protheus</button>'+'<div style="display:flex;gap:8px;margin-top:8px">'+'<button data-cardid="'+cardId+'" onclick="resetarCardMat(this)" style="flex:0 0 auto;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:9px;padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer">↩ Resetar</button>'+'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds.join(',')+'" data-msg="msg-mat-'+cardId+'" onclick="salvarGrupoMaster(this)">✓ Aprovar e salvar todas</button>'
     +'<button style="background:#fff;color:#dc2626;border:1px solid #fecaca;border-radius:9px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap" data-ids="'+solIds.join(',')+'" onclick="rejeitarRessuprimento(this)">🗑 Rejeitar</button>'
+    +'<button style="background:#fff;color:#b45309;border:1px solid #fde68a;border-radius:9px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap" data-ids="'+solIds.join(',')+'" onclick="devolverAoGerente(this)">↩ Devolver ao gerente</button>'
     +'</div>')
     +'</div>'
     +'</div>';
@@ -667,6 +668,32 @@ async function rejeitarRessuprimento(btn){
   ids.forEach(function(id){var idx=solicitacoes.findIndex(function(s){return s.id===id;});if(idx>-1)solicitacoes.splice(idx,1);});
 }
 window.rejeitarRessuprimento=rejeitarRessuprimento;
+async function devolverAoGerente(btn){
+  var ids=(btn.dataset.ids||'').split(',').map(Number).filter(Boolean);
+  if(!ids.length)return;
+  var nomes=ids.map(function(id){
+    var sol=solicitacoes.find(function(s){return s.id===id;});
+    return sol?(ccMap[sol.cc]?ccMap[sol.cc].nome:sol.cc):'';
+  }).filter(Boolean).join(' · ');
+  var motivo=prompt('Motivo da devolução ao gerente (obrigatório):\n\n'+nomes);
+  if(motivo===null)return; // cancelou
+  if(!motivo.trim()){alert('Informe o motivo da devolução.');return;}
+  btn.disabled=true;btn.textContent='Devolvendo...';
+  for(var i=0;i<ids.length;i++){
+    await db.from('solicitacoes').update({
+      status:'pendente',
+      observacao_master: motivo.trim(),
+      atualizado_em:(new Date()).toISOString()
+    }).eq('id',ids[i]);
+  }
+  // Remove card do DOM com fade
+  var card=btn.closest('.card');
+  if(card){card.style.transition='opacity .3s';card.style.opacity='0';setTimeout(function(){card.remove();},300);}
+  // Remove da memória
+  ids.forEach(function(id){var ix=solicitacoes.findIndex(function(s){return s.id===id;});if(ix>-1)solicitacoes.splice(ix,1);});
+}
+window.devolverAoGerente=devolverAoGerente;
+
 
 // Monitorar todos os inputs de obs via event delegation
 document.addEventListener('input', function(e){
@@ -812,7 +839,8 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <input id="obs-${s.id}" value="${s.observacao||``}" placeholder="Descreva o motivo da compra"
                 oninput="atualizarBotoesSol(${s.id})"/>
             </div>
-            ${readonly?'':`<button onclick="resetarCardInd(${s.id})" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">↩ Resetar</button>
+            ${readonly?'':`<button onclick="devolverAoGerente(this)" data-ids="${s.id}" style="background:#fff;color:#b45309;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">↩ Devolver ao gerente</button>
+            <button onclick="resetarCardInd(${s.id})" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">↩ Resetar</button>
             <button class="btn-salvar" id="btn-salvar-sol-${s.id}" onclick="salvar(${s.id})"
               ${s.sc_numero?'':`disabled style="opacity:0.4;cursor:not-allowed"`}>Salvar</button>`}
             <button class="btn-salvar" id="btn-excel-sol-${s.id}" style="background:#0f172a${s.observacao?``:`;opacity:0.4;cursor:not-allowed`}"
@@ -909,8 +937,8 @@ sol.itens.forEach(it=>{if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quant
 let semCodigo=aprovados.filter(it=>!it.codigo||it.codigo===`MANUAL`).length,linhas=aprovados.map((it,i)=>({C1_XTIPOSC:`004`,C1_ITEM:String(i+1).padStart(2,`0`),C1_PRODUTO:it.codigo&&it.codigo!==`MANUAL`?it.codigo:``,C1_DESCRI:it.descricao||``,C1_QUANT:masterQtd[it.id]||0,C1_CC:sol.cc,C1_OBS:obs,C1_ESTOQUE:`S`,JUST_GERENTE:it.justificativa_gerente||``})),ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC`),XLSX.writeFile(wb,`SC_solicitacao_${sol.id}.xlsx`),semCodigo>0&&alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`)}window.baixarExcelProtheus=baixarExcelProtheus;
 // ---------- ABA ACOMPANHAMENTO ----------
 async function carregarAcompanhamento(){$(`lista-acomp`).innerHTML=`<div class="vazio">Carregando...</div>`;
-// 1. Buscar solicitações com SC associada
-let{data:sols,error:e1}=await db.from(`solicitacoes`).select(`*`).not(`sc_numero`,`is`,null);if(e1){$(`lista-acomp`).innerHTML=`<div class="vazio">Erro: `+e1.message+`</div>`;return}let associadas=(sols||[]).filter(s=>s.sc_numero&&s.sc_numero.trim());if(!associadas.length){$(`lista-acomp`).innerHTML=`<div class="vazio">Nenhuma solicitação com SC associada ainda.</div>`;return}
+// 1. Buscar TODAS as solicitações (com ou sem SC)
+let off0=0,todosRaw=[];for(;;){let{data:lote,error:e1}=await db.from(`solicitacoes`).select(`*`).order(`criado_em`,{ascending:false}).range(off0,off0+999);if(e1){$(`lista-acomp`).innerHTML=`<div class="vazio">Erro: `+e1.message+`</div>`;return}if(!lote||!lote.length)break;todosRaw=todosRaw.concat(lote);if(lote.length<1000)break;off0+=1000;}let associadas=todosRaw;if(!associadas.length){$(`lista-acomp`).innerHTML=`<div class="vazio">Nenhuma solicitação ainda.</div>`;return}
 // 2. Buscar dados de CC
 let{data:ccs}=await db.from(`centros_custo`).select(`cc,nome`),ccNomes={};(ccs||[]).forEach(c=>ccNomes[c.cc]=c.nome);
 // 3. Buscar itens de sc_pedidos para todas as SCs associadas
@@ -931,12 +959,14 @@ function getItensSc(sol){let sc=sol.sc_numero.trim(),filial=sol.filial||``;if(fi
 // fallback sem filial
 return porSc[sc]||[]}
 // 5. Calcular métricas por SC
-function calcularMetricasSc(itens){let total=itens.length,recebidos=0,valorTotal=0,temPedido=0;return itens.forEach(it=>{let st=(it.pc_status||``).toLowerCase();(st===`recebido`||st===`recebido parcialmente`||st.includes(`pré-nota`)||st.includes(`pre-nota`))&&recebidos++,it.pc_numero&&temPedido++,valorTotal+=Number(it.pc_total)||0}),{total,recebidos,valorTotal,temPedido}}function classificarPedidoGeral(itens){let{total,recebidos,temPedido}=calcularMetricasSc(itens);return temPedido===0?`sem_pedido`:recebidos===total?`recebido`:recebidos>0?`parcial`:`pendente`}function fmtDataEntrega(data){if(!data)return`—`;let s=String(data).trim();return s.length===8&&/^\d{8}$/.test(s)?s.slice(6,8)+`/`+s.slice(4,6)+`/`+s.slice(0,4):s||`—`}function fmtPcStatus(st){if(!st)return`—`;let s=st.toLowerCase();return s.includes(`receb`)?`RECEBIDO`:s.includes(`pré-nota`)||s.includes(`pre-nota`)?`EM RECEBIMENTO (PRÉ-NOTA)`:s.includes(`atendida`)?`ATENDIDO`:st}function statusCls(st){if(!st)return`st-outro`;let s=st.toLowerCase();return s===`recebido`?`st-recebido`:s===`recebido parcialmente`||s.includes(`pré-nota`)||s.includes(`pre-nota`)?`st-parcial`:s===`pendente`||s===`em aprovação`?`st-pendente`:s===`rejeitado pelo aprovador`||s===`pc eliminado por resíduo`?`st-rejeitado`:`st-outro`}let PG_LABEL={sem_pedido:`Sem pedido`,pendente:`Pedido pendente`,parcial:`Pedido parcial`,recebido:`Pedido recebido`},PG_CLASSE={sem_pedido:`p-recusada`,pendente:`p-pendente`,parcial:`p-parcial`,recebido:`p-aprovada`},FILIAIS_NOMES={"01":`MATRIZ`,"03":`PAU DOS FERROS`,"04":`ITAPIPOCA`,"06":`CURRAIS NOVOS`,"07":`SOBRAL`,"08":`APARECIDA DE GOIANIA`,"09":`MARACANAU`,10:`MOSSORO`,11:`ANAPOLIS`,13:`ALAGOINHAS`,14:`RIBEIRA DO POMBAL`,15:`PAULO AFONSO`,22:`GOIANIA`,23:`BATURITE`,24:`MORRINHOS`,25:`CASCAVEL`,27:`CAUCAIA`,29:`HORIZONTE`,34:`SENHOR DO BONFIM`,36:`LUZIANIA`,37:`DIVINOPOLIS`,40:`GARANHUNS`,41:`FLORIANO`,42:`LIVRAMENTO DE NOSSA SENHORA`,43:`HORTOLANDIA`},listaHtml=associadas.map(sol=>{let sc=sol.sc_numero.trim(),itens=getItensSc(sol),{total,recebidos,valorTotal,temPedido}=calcularMetricasSc(itens),pct=total>0?Math.round(recebidos/total*100):0,pgKey=classificarPedidoGeral(itens),filialProtheus=itens.length>0?(itens[0].c1_filial||``).trim():``,filialSol=sol.filial||filialProtheus||``,nomeFilial=FILIAIS_NOMES[filialSol]||filialSol,cc=(itens.length>0?(itens[0].c1_cc||``).trim():``)||sol.cc||``,nomeCC=ccNomes[cc]||cc,obs=itens.length>0?itens[0].c1_obs||sol.observacao||``:sol.observacao||``,nomeCC_low=nomeCC.toLowerCase(),obsLow=obs.toLowerCase(),[bg,cor]=pct===100?[`#dcfce7`,`#16a34a`]:pct>0?[`#fef3c7`,`#b45309`]:[`#f1f5f9`,`#94a3b8`];return`
+function calcularMetricasSc(itens){let total=itens.length,recebidos=0,valorTotal=0,temPedido=0;return itens.forEach(it=>{let st=(it.pc_status||``).toLowerCase();(st===`recebido`||st===`recebido parcialmente`||st.includes(`pré-nota`)||st.includes(`pre-nota`))&&recebidos++,it.pc_numero&&temPedido++,valorTotal+=Number(it.pc_total)||0}),{total,recebidos,valorTotal,temPedido}}function classificarPedidoGeral(itens){let{total,recebidos,temPedido}=calcularMetricasSc(itens);return temPedido===0?`sem_pedido`:recebidos===total?`recebido`:recebidos>0?`parcial`:`pendente`}function fmtDataEntrega(data){if(!data)return`—`;let s=String(data).trim();return s.length===8&&/^\d{8}$/.test(s)?s.slice(6,8)+`/`+s.slice(4,6)+`/`+s.slice(0,4):s||`—`}function fmtPcStatus(st){if(!st)return`—`;let s=st.toLowerCase();return s.includes(`receb`)?`RECEBIDO`:s.includes(`pré-nota`)||s.includes(`pre-nota`)?`EM RECEBIMENTO (PRÉ-NOTA)`:s.includes(`atendida`)?`ATENDIDO`:st}function statusCls(st){if(!st)return`st-outro`;let s=st.toLowerCase();return s===`recebido`?`st-recebido`:s===`recebido parcialmente`||s.includes(`pré-nota`)||s.includes(`pre-nota`)?`st-parcial`:s===`pendente`||s===`em aprovação`?`st-pendente`:s===`rejeitado pelo aprovador`||s===`pc eliminado por resíduo`?`st-rejeitado`:`st-outro`}let PG_LABEL={sem_pedido:`Sem pedido`,pendente:`Pedido pendente`,parcial:`Pedido parcial`,recebido:`Pedido recebido`},PG_CLASSE={sem_pedido:`p-recusada`,pendente:`p-pendente`,parcial:`p-parcial`,recebido:`p-aprovada`},FILIAIS_NOMES={"01":`MATRIZ`,"03":`PAU DOS FERROS`,"04":`ITAPIPOCA`,"06":`CURRAIS NOVOS`,"07":`SOBRAL`,"08":`APARECIDA DE GOIANIA`,"09":`MARACANAU`,10:`MOSSORO`,11:`ANAPOLIS`,13:`ALAGOINHAS`,14:`RIBEIRA DO POMBAL`,15:`PAULO AFONSO`,22:`GOIANIA`,23:`BATURITE`,24:`MORRINHOS`,25:`CASCAVEL`,27:`CAUCAIA`,29:`HORIZONTE`,34:`SENHOR DO BONFIM`,36:`LUZIANIA`,37:`DIVINOPOLIS`,40:`GARANHUNS`,41:`FLORIANO`,42:`LIVRAMENTO DE NOSSA SENHORA`,43:`HORTOLANDIA`},listaHtml=associadas.map(sol=>{let sc=(sol.sc_numero||'').trim(),itens=sc?getItensSc(sol):[],{total,recebidos,valorTotal,temPedido}=calcularMetricasSc(itens),pct=total>0?Math.round(recebidos/total*100):0,pgKey=classificarPedidoGeral(itens),filialProtheus=itens.length>0?(itens[0].c1_filial||``).trim():``,filialSol=sol.filial||filialProtheus||``,nomeFilial=FILIAIS_NOMES[filialSol]||filialSol,cc=(itens.length>0?(itens[0].c1_cc||``).trim():``)||sol.cc||``,nomeCC=ccNomes[cc]||cc,obs=itens.length>0?itens[0].c1_obs||sol.observacao||``:sol.observacao||``,nomeCC_low=nomeCC.toLowerCase(),obsLow=obs.toLowerCase(),[bg,cor]=pct===100?[`#dcfce7`,`#16a34a`]:pct>0?[`#fef3c7`,`#b45309`]:[`#f1f5f9`,`#94a3b8`];return`
         <div class="card" data-cc="${nomeCC_low}" data-pg="${pgKey}" data-obs="${obsLow}" data-pct="${pct}" data-solid="${sol.id}" data-filial="${filialSol}" data-emissao="${itens.length>0&&itens[0].c1_emissao||``}" data-comprador="${[...new Set(itens.map(it=>(it.pc_comprador||``).trim()).filter(Boolean))].join(`,`).toLowerCase()}">
           <div class="card-topo" onclick="toggleCard('ac-${sol.id}')">
-            <div>
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <input type="checkbox" class="acomp-cb" data-id="${sol.id}" onclick="event.stopPropagation()" onchange="atualizarBarraCons()" style="margin-top:4px;width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:#1e40af">
+              <div style="flex:1;min-width:0">
               <div class="card-titulo" style="font-family:ui-monospace,monospace;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span>SC ${sc}</span>
+                <span>${sc?'SC '+sc:'(sem SC)'}</span>
                 <button onclick="event.stopPropagation();editarSC(${sol.id},'${sc}')" title="Corrigir nº da SC" style="border:none;background:none;color:#1e40af;cursor:pointer;font-size:12px;padding:0">✏️</button>
                 ${filialSol?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700">${filialSol} · ${nomeFilial}</span>`:``}
                 <span class="pill p-${sol.status}">${LABEL_STATUS[sol.status]||sol.status}</span>
