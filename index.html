@@ -263,7 +263,23 @@ let ccsSemNome=ccsSols.filter(cc=>!ccMap[cc]?.nome);
 if(ccsSemNome.length>0){
   let{data:ccsFaltando}=await db.from(`centros_custo`).select(`cc,nome`).in(`cc`,ccsSemNome);
   (ccsFaltando||[]).forEach(c=>{ccMap[c.cc]={...ccMap[c.cc],...c};if(c.nome&&!nomesSols.includes(c.nome))nomesSols.push(c.nome)});
-}let todosHomMaster=[];if(nomesSols.length>0){let{data:hom}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSols);todosHomMaster=hom||[]}let mapCcNomeMaster={};todosHomMaster.forEach(c=>{mapCcNomeMaster[c.cc]=c.nome});let ccsExpandidos=[...new Set(todosHomMaster.map(c=>c.cc))];let ccsConsumoBusca=ccsExpandidos.length>0?ccsExpandidos:ccsSols;
+}let todosHomMaster=[];if(nomesSols.length>0){let{data:hom}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSols);todosHomMaster=hom||[]}let mapCcNomeMaster={};todosHomMaster.forEach(c=>{mapCcNomeMaster[c.cc]=c.nome});let ccsExpandidos=[...new Set(todosHomMaster.map(c=>c.cc))];// Incluir TODOS os CCs das solicitações + todos os CCs que aparecem nos grupos matriciais
+// Para garantir que CCs aglutinados no mesmo card tenham consumo carregado
+let _todosGruposCCs=[...new Set([...ccsSols,...ccsExpandidos])];
+// Buscar também CCs que compartilham parte do nome (mesma regional/cidade)
+let _palavrasChave=new Set(nomesSols.flatMap(n=>n.split(/\s+/).filter(w=>w.length>4)));
+let{data:_todosCC2}=await db.from('centros_custo').select('cc,nome');
+(_todosCC2||[]).forEach(c=>{
+  if(!_todosGruposCCs.includes(c.cc)){
+    let palavras=(c.nome||'').split(/\s+/).filter(w=>w.length>4);
+    if(palavras.some(w=>_palavrasChave.has(w))){
+      _todosGruposCCs.push(c.cc);
+      if(!mapCcNomeMaster[c.cc])mapCcNomeMaster[c.cc]=c.nome;
+      if(!ccMap[c.cc])ccMap[c.cc]=c;
+    }
+  }
+});
+let ccsConsumoBusca=_todosGruposCCs.length>0?_todosGruposCCs:ccsSols;
 // Busca robusta com try/catch e cc_pessoas usando ccsSols (não expandidos)
 let consumoData=[],pessoasData=[];
 try{
