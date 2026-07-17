@@ -1071,13 +1071,15 @@ if(false){
   });
   recusadasHtml+='</div>';
 }
-$(`lista-acomp`).innerHTML=listaHtml+`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div>`;
+$(`lista-acomp`).innerHTML=`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div><div id="acomp-cards-container"></div>`;
+_allCardsData=listaHtml;
 // Popular select de consolidados
 let selCons=$(`filtro-acomp-consolidado`);if(selCons){let{data:consData}=await db.from(`consolidados`).select(`id,nome`).order(`criado_em`,{ascending:!1});if(_consolidadoScMap={},consData&&consData.length){let consIds=consData.map(c=>c.id),{data:linksData}=await db.from(`consolidado_scs`).select(`consolidado_id,solicitacao_id`).in(`consolidado_id`,consIds);(linksData||[]).forEach(l=>{_consolidadoScMap[l.consolidado_id]||(_consolidadoScMap[l.consolidado_id]=/* @__PURE__ */ new Set),_consolidadoScMap[l.consolidado_id].add(l.solicitacao_id)}),selCons.innerHTML=`<option value="">Todos os consolidados</option>`+consData.map(c=>`<option value="${c.id}">${c.nome}</option>`).join(``)}}
 // Popular select de compradores
 let selComp=$(`filtro-acomp-comprador`);selComp&&(selComp.innerHTML=`<option value="">Todos os compradores</option>`+[...new Set(scPedidos.map(r=>(r.pc_comprador||``).trim()).filter(Boolean))].sort().map(c=>`<option value="${c.toLowerCase()}">${c}</option>`).join(``));
 // Popular select de CC
-let selCC=$(`filtro-acomp-cc`);selCC&&(selCC.innerHTML=`<option value="">Todos os centros de custo</option>`+[...new Set(associadas.map(s=>{let sc=(s.sc_numero||'').trim(),itens=getItensSc(s),cc=itens.length>0?itens[0].c1_cc||s.cc||``:s.cc||``,nome=ccNomes[cc]||cc;return JSON.stringify({cc,nome})}))].map(j=>JSON.parse(j)).sort((a,b)=>a.nome.localeCompare(b.nome)).map(c=>`<option value="${c.nome.toLowerCase()}">${c.nome}</option>`).join(``))}$(`btn-atualizar-acomp`).addEventListener(`click`,()=>{abaCarregada.acompanhamento=!1,carregarAcompanhamento()});let _solsAcomp=[],_filtroStatusAcomp=`todos`;function setFiltroStatusAcomp(f){_filtroStatusAcomp=f,[`todos`,`sem_pedido`,`pendente`,`parcial`,`recebido`].forEach(k=>{let btn=document.getElementById(`facomp-`+k);if(!btn)return;let ativo=k===f;btn.style.background=ativo?`#1e40af`:`#fff`,btn.style.color=ativo?`#fff`:`#64748b`,btn.style.borderColor=ativo?`#1e40af`:`#e2e8f0`}),filtrarAcomp()}window.setFiltroStatusAcomp=setFiltroStatusAcomp;async function onFiltroCompradorChange(){abaCarregada.acompanhamento=!1,await carregarAcompanhamento(),filtrarAcomp()}window.onFiltroCompradorChange=onFiltroCompradorChange;let _paginaAcomp=1;const _porPaginaAcomp=20;
+let selCC=$(`filtro-acomp-cc`);selCC&&(selCC.innerHTML=`<option value="">Todos os centros de custo</option>`+[...new Set(associadas.map(s=>{let sc=(s.sc_numero||'').trim(),itens=getItensSc(s),cc=itens.length>0?itens[0].c1_cc||s.cc||``:s.cc||``,nome=ccNomes[cc]||cc;return JSON.stringify({cc,nome})}))].map(j=>JSON.parse(j)).sort((a,b)=>a.nome.localeCompare(b.nome)).map(c=>`<option value="${c.nome.toLowerCase()}">${c.nome}</option>`).join(``))}$(`btn-atualizar-acomp`).addEventListener(`click`,()=>{abaCarregada.acompanhamento=!1,carregarAcompanhamento()});let _solsAcomp=[],_filtroStatusAcomp=`todos`;function setFiltroStatusAcomp(f){_filtroStatusAcomp=f,[`todos`,`sem_pedido`,`pendente`,`parcial`,`recebido`].forEach(k=>{let btn=document.getElementById(`facomp-`+k);if(!btn)return;let ativo=k===f;btn.style.background=ativo?`#1e40af`:`#fff`,btn.style.color=ativo?`#fff`:`#64748b`,btn.style.borderColor=ativo?`#1e40af`:`#e2e8f0`}),filtrarAcomp()}window.setFiltroStatusAcomp=setFiltroStatusAcomp;async function onFiltroCompradorChange(){abaCarregada.acompanhamento=!1,await carregarAcompanhamento(),filtrarAcomp()}window.onFiltroCompradorChange=onFiltroCompradorChange;let _paginaAcomp=1,_porPaginaAcomp=20,_allCardsData='',_cardsVisiveis=[];
+
 function filtrarAcomp(resetPagina=true){
   if(resetPagina)_paginaAcomp=1;
   let consFiltro=$(`filtro-acomp-consolidado`)?.value||``,
@@ -1087,51 +1089,80 @@ function filtrarAcomp(resetPagina=true){
     compradorFilt=($(`filtro-acomp-comprador`)?.value||``).toLowerCase().trim(),
     dtIni=$(`filtro-acomp-dt-ini`)?.value||``,
     dtFim=$(`filtro-acomp-dt-fim`)?.value||``,
-    consIds=consFiltro?_consolidadoScMap[Number(consFiltro)]:null,
-    cards=[...document.querySelectorAll(`#lista-acomp .card[data-cc]`)],
-    visiveis=[];
-  cards.forEach(card=>{
+    consIds=consFiltro?_consolidadoScMap[Number(consFiltro)]:null;
+
+  // Parse cards from stored HTML string using a temp container
+  let tmp=document.createElement('div');
+  tmp.innerHTML=_allCardsData;
+  let allCards=[...tmp.querySelectorAll('.card[data-cc]')];
+
+  _cardsVisiveis=allCards.filter(card=>{
     let cc=card.dataset.cc||``,obs=card.dataset.obs||``,pg=card.dataset.pg||``,
       solId=Number(card.dataset.solid||0),filial=card.dataset.filial||``,
       emissao=card.dataset.emissao||``,
       emissaoFmt=emissao.length===8?emissao.slice(0,4)+`-`+emissao.slice(4,6)+`-`+emissao.slice(6,8):emissao,
-      comprador=card.dataset.comprador||``,
-      ok=(!consFiltro||consIds&&consIds.has(solId))&&(!termCC||cc.includes(termCC))&&(!termObs||obs.includes(termObs))&&(!filialFilt||filial===filialFilt)&&(!compradorFilt||comprador.includes(compradorFilt))&&(!dtIni||emissaoFmt>=dtIni)&&(!dtFim||emissaoFmt<=dtFim)&&(_filtroStatusAcomp===`todos`||pg===_filtroStatusAcomp);
-    card.style.display=`none`;
-    if(ok)visiveis.push(card);
+      comprador=card.dataset.comprador||``;
+    return (!consFiltro||consIds&&consIds.has(solId))
+      &&(!termCC||cc.includes(termCC))
+      &&(!termObs||obs.includes(termObs))
+      &&(!filialFilt||filial===filialFilt)
+      &&(!compradorFilt||comprador.includes(compradorFilt))
+      &&(!dtIni||emissaoFmt>=dtIni)
+      &&(!dtFim||emissaoFmt<=dtFim)
+      &&(_filtroStatusAcomp===`todos`||pg===_filtroStatusAcomp);
   });
-  // Paginar
-  let total=visiveis.length,totalPag=Math.ceil(total/_porPaginaAcomp)||1;
-  if(_paginaAcomp>totalPag)_paginaAcomp=totalPag;
-  let inicio=(_paginaAcomp-1)*_porPaginaAcomp,fim=inicio+_porPaginaAcomp;
-  visiveis.forEach((card,i)=>{card.style.display=(i>=inicio&&i<fim)?``:`none`;});
-  // Atualizar paginador
-  let pag=document.getElementById(`paginador-acomp`);
-  if(pag){
-    if(totalPag<=1){pag.style.display=`none`;}
-    else{
-      pag.style.display=`flex`;
-      let html=`<span style="font-size:13px;color:#64748b">${total} resultado(s) · Página ${_paginaAcomp} de ${totalPag}</span><div style="display:flex;gap:6px;align-items:center">`;
-      html+=`<button onclick="irPaginaAcomp(1)" ${_paginaAcomp===1?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">«</button>`;
-      html+=`<button onclick="irPaginaAcomp(${_paginaAcomp-1})" ${_paginaAcomp===1?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">‹ Anterior</button>`;
-      // Page numbers
-      let pStart=Math.max(1,_paginaAcomp-2),pEnd=Math.min(totalPag,_paginaAcomp+2);
-      for(let p=pStart;p<=pEnd;p++){
-        let ativo=p===_paginaAcomp;
-        html+=`<button onclick="irPaginaAcomp(${p})" style="border:1px solid ${ativo?'#1e40af':'#e2e8f0'};background:${ativo?'#1e40af':'#fff'};color:${ativo?'#fff':'#374151'};border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:${ativo?700:400}">${p}</button>`;
-      }
-      html+=`<button onclick="irPaginaAcomp(${_paginaAcomp+1})" ${_paginaAcomp===totalPag?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">Próxima ›</button>`;
-      html+=`<button onclick="irPaginaAcomp(${totalPag})" ${_paginaAcomp===totalPag?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">»</button>`;
-      html+=`</div>`;
-      pag.innerHTML=html;
-    }
-  }
-  let vazio=document.getElementById(`acomp-vazio-filtro`);
-  if(vazio)vazio.style.display=visiveis.length===0?`block`:`none`;
+
+  renderPaginaAcomp();
 }
-function irPaginaAcomp(p){_paginaAcomp=p;filtrarAcomp(false);}
+
+function renderPaginaAcomp(){
+  let total=_cardsVisiveis.length,
+    totalPag=Math.max(1,Math.ceil(total/_porPaginaAcomp)),
+    inicio=(_paginaAcomp-1)*_porPaginaAcomp,
+    fim=Math.min(inicio+_porPaginaAcomp,total);
+
+  let container=document.getElementById('acomp-cards-container');
+  let vazio=document.getElementById('acomp-vazio-filtro');
+  if(!container)return;
+
+  if(total===0){
+    container.innerHTML='';
+    if(vazio)vazio.style.display='block';
+  } else {
+    if(vazio)vazio.style.display='none';
+    container.innerHTML=_cardsVisiveis.slice(inicio,fim).map(c=>c.outerHTML).join('');
+  }
+
+  // Paginador
+  let pag=document.getElementById('paginador-acomp');
+  if(!pag)return;
+  if(totalPag<=1){pag.style.display='none';return;}
+  pag.style.display='flex';
+
+  let pStart=Math.max(1,_paginaAcomp-2),pEnd=Math.min(totalPag,_paginaAcomp+2);
+  let html=`<span style="font-size:13px;color:#64748b">${total} resultado(s) · Página ${_paginaAcomp} de ${totalPag}</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button onclick="irPaginaAcomp(1)" ${_paginaAcomp===1?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:#374151">«</button>
+      <button onclick="irPaginaAcomp(${_paginaAcomp-1})" ${_paginaAcomp===1?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:#374151">‹</button>`;
+  for(let p=pStart;p<=pEnd;p++){
+    let ativo=p===_paginaAcomp;
+    html+=`<button onclick="irPaginaAcomp(${p})" style="border:1px solid ${ativo?'#1e40af':'#e2e8f0'};background:${ativo?'#1e40af':'#fff'};color:${ativo?'#fff':'#374151'};border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:${ativo?700:400}">${p}</button>`;
+  }
+  html+=`<button onclick="irPaginaAcomp(${_paginaAcomp+1})" ${_paginaAcomp===totalPag?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:#374151">›</button>
+      <button onclick="irPaginaAcomp(${totalPag})" ${_paginaAcomp===totalPag?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:#374151">»</button>
+    </div>`;
+  pag.innerHTML=html;
+}
+
+function irPaginaAcomp(p){
+  let totalPag=Math.max(1,Math.ceil(_cardsVisiveis.length/_porPaginaAcomp));
+  if(p<1||p>totalPag)return;
+  _paginaAcomp=p;
+  renderPaginaAcomp();
+  document.getElementById('lista-acomp')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
 window.irPaginaAcomp=irPaginaAcomp;
-window.filtrarAcomp=filtrarAcomp;function ordenarAcomp(){let ordem=document.getElementById(`ordem-acomp`)?.value||`padrao`,lista=document.getElementById(`lista-acomp`);if(!lista)return;let cards=[...lista.querySelectorAll(`.card[data-pct]`)];if(!cards.length)return;if(ordem===`padrao`){carregarAcompanhamento();return}cards.sort((a,b)=>{let pa=Number(a.dataset.pct)||0,pb=Number(b.dataset.pct)||0;return ordem===`maior`?pb-pa:pa-pb});let vazio=document.getElementById(`acomp-vazio-filtro`);cards.forEach(c=>lista.insertBefore(c,vazio)),filtrarAcomp()}window.ordenarAcomp=ordenarAcomp;
+window.filtrarAcomp=filtrarAcomp;window.filtrarAcomp=filtrarAcomp;function ordenarAcomp(){let ordem=document.getElementById(`ordem-acomp`)?.value||`padrao`,lista=document.getElementById(`lista-acomp`);if(!lista)return;let cards=[...lista.querySelectorAll(`.card[data-pct]`)];if(!cards.length)return;if(ordem===`padrao`){carregarAcompanhamento();return}cards.sort((a,b)=>{let pa=Number(a.dataset.pct)||0,pb=Number(b.dataset.pct)||0;return ordem===`maior`?pb-pa:pa-pb});let vazio=document.getElementById(`acomp-vazio-filtro`);cards.forEach(c=>lista.insertBefore(c,vazio)),filtrarAcomp()}window.ordenarAcomp=ordenarAcomp;
 // ---------- ABA BASES ----------
 function normChave(s){return String(s||``).toLowerCase().replace(/[^a-z0-9]/g,``)}function pegar(linha,...chaves){let mapa={};for(let k in linha)mapa[normChave(k)]=linha[k];for(let k of chaves){let v=mapa[normChave(k)];if(v!==void 0&&v!==``)return v}}function titulo(s){return String(s||``).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}function parseCsv(file){return new Promise((resolve,reject)=>{Papa.parse(file,{header:!0,skipEmptyLines:!0,complete:r=>resolve(r.data),error:reject})})}async function upsertEmPartes(tabela,linhas,conflito,logFn){let tamanho=500,feito=0;for(let i=0;i<linhas.length;i+=500){let parte=linhas.slice(i,i+500),{error}=await db.from(tabela).upsert(parte,conflito?{onConflict:conflito}:void 0);if(error)throw Error(tabela+`: `+error.message);feito+=parte.length,logFn&&logFn(`  ${tabela}: ${feito}/${linhas.length}`)}}async function registrarCarimbo(base,registros){await db.from(`bases_status`).upsert({base,atualizado_em:(/* @__PURE__ */ new Date()).toISOString(),registros:registros||0})}async function atualizarSB1(file,logFn){logFn(`Lendo SB1...`);let linhas=await parseCsv(file),mapaItens={};for(let r of linhas){let codigo=String(pegar(r,`B1_COD`)||``).trim();codigo&&(mapaItens[codigo]={codigo,descricao:String(pegar(r,`B1_DESC`)||``).replace(/\s+/g,` `).trim(),grupo:String(pegar(r,`B1_DESCGP`,`B1_GRUPO`)||``).replace(/\s+/g,` `).trim()||`OUTROS`,unidade:String(pegar(r,`B1_UM`)||`UN`).trim(),preco:parseFloat(String(pegar(r,`B1_UPRC`,`B1_CUSTD`)||`0`).replace(`,`,`.`))||0})}let itens=Object.values(mapaItens);return logFn(`${linhas.length} linhas lidas, ${itens.length} itens únicos. Gravando...`),await upsertEmPartes(`itens`,itens,`codigo`,logFn),await registrarCarimbo(`itens`,itens.length),itens.length}async function atualizarCC(file,logFn){logFn(`Lendo Centro de Custo (.csv do Protheus — CTT)...`);let texto=await file.text(),linhasBrutas=Papa.parse(texto,{header:!1,skipEmptyLines:!0}).data.slice(1);function extrairLinha(r){if(r.length>=5)return{cc:r[0],nome:r[1],status:r[2]};let partes=String(r[0]).split(`,`);return{cc:partes[0],nome:partes[1],status:partes[2]}}let mapaCC={},totalDesbloq=0,totalBloq=0,totalLinhas=0;for(let r of linhasBrutas){let{cc,nome,status}=extrairLinha(r),ccLimpo=String(cc||``).trim(),nomeLimpo=String(nome||``).trim(),statusLimpo=String(status||``).trim();!ccLimpo||!nomeLimpo||(totalLinhas++,statusLimpo===`Desbloqueado`?totalDesbloq++:totalBloq++,mapaCC[ccLimpo]={cc:ccLimpo,nome:nomeLimpo,status:statusLimpo||`Desbloqueado`})}let linhasCC=Object.values(mapaCC);return logFn(`${totalLinhas} linha(s): ${totalDesbloq} desbloqueadas, ${totalBloq} bloqueadas. Gravando todos...`),await upsertEmPartes(`centros_custo`,linhasCC,`cc`,logFn),await registrarCarimbo(`centros_custo`,linhasCC.length),linhasCC.length}async function atualizarSRA(file,logFn){logFn(`Lendo SRA...`);let linhas=await parseCsv(file);logFn(`${linhas.length} linhas lidas. Contando ativos por CC e cargo...`);let agg={},totais={};for(let r of linhas){let cc=String(pegar(r,`CCUSTO`)||``).trim(),sit=String(pegar(r,`SIT_FOLHA`)||``).trim().toUpperCase(),cargo=String(pegar(r,`DESC_CARGO`)||pegar(r,`CARGO`)||``).replace(/\s+/g,` `).trim()||`Sem cargo`;!cc||sit!==`NORMAL`||(agg[cc]||(agg[cc]={}),agg[cc][cargo]=(agg[cc][cargo]||0)+1,totais[cc]=(totais[cc]||0)+1)}let registrosPessoas=[];for(let[cc,cargos]of Object.entries(agg))for(let[cargo,qtd]of Object.entries(cargos))registrosPessoas.push({cc,cargo,quantidade:qtd});registrosPessoas.length>0&&(logFn(`${registrosPessoas.length} linhas CC/cargo. Gravando...`),await upsertEmPartes(`cc_pessoas`,registrosPessoas,`cc,cargo`,logFn));for(let[cc,total]of Object.entries(totais))await db.from(`centros_custo`).update({pessoas:total}).eq(`cc`,cc);return await registrarCarimbo(`sra`,registrosPessoas.length),logFn(`✓ ${Object.keys(agg).length} CC(s) atualizados.`),registrosPessoas.length}async function atualizarSCP(file,logFn){logFn(`Lendo SCP...`);let linhas=await parseCsv(file);logFn(`${linhas.length} linhas lidas. Calculando últimos 3 meses...`);let datas=linhas.map(r=>String(pegar(r,`CP_EMISSAO`)||``).trim()).filter(d=>/^\d{8}$/.test(d)).sort(),maxData=datas[datas.length-1]||``;if(!maxData)return logFn(`Erro: nenhuma data encontrada.`),0;let ano=parseInt(maxData.slice(0,4)),mes=parseInt(maxData.slice(4,6)),dtLimite=new Date(ano,mes-4,1),limitStr=dtLimite.getFullYear().toString()+String(dtLimite.getMonth()+1).padStart(2,`0`)+`01`;logFn(`Período: ${limitStr.slice(6,8)}/${limitStr.slice(4,6)}/${limitStr.slice(0,4)} → ${maxData.slice(6,8)}/${maxData.slice(4,6)}/${maxData.slice(0,4)}`);let agg={};for(let r of linhas){if(String(pegar(r,`CP_EMISSAO`)||``).trim()<limitStr)continue;let cc=String(pegar(r,`CP_CC`)||``).trim(),produto=String(pegar(r,`CP_PRODUTO`)||``).trim(),quant=parseFloat(String(pegar(r,`CP_QUANT`)||`0`).replace(`,`,`.`))||0;if(!cc||!produto)continue;let k=cc+`|`+produto;agg[k]=(agg[k]||0)+quant}let registros=Object.entries(agg).map(([k,total])=>{let[cc,codigo]=k.split(`|`);return{cc,codigo,consumo_medio:Math.round(total*100)/100}});return logFn(`${registros.length} pares CC/item. Gravando...`),await upsertEmPartes(`consumo`,registros,`cc,codigo`,logFn),await registrarCarimbo(`consumo`,registros.length),logFn(`✓ Concluído!`),registros.length}const ACOES_BASE={itens:atualizarSB1,centros_custo:atualizarCC,sra:atualizarSRA,consumo:atualizarSCP},arquivosSelecionados={};function arquivoEscolhido(key){let file=$(`arquivo-`+key).files[0];file&&(arquivosSelecionados[key]=file,$(`nome-arquivo-`+key).textContent=file.name,$(`btn-`+key).disabled=!1)}window.arquivoEscolhido=arquivoEscolhido;async function processarBase(key){let file=arquivosSelecionados[key];if(!file)return;let btn=$(`btn-`+key),logEl=$(`log-`+key);btn.disabled=!0,btn.textContent=`Processando...`;let linhasLog=[];function logFn(msg){linhasLog.push(msg),logEl.innerHTML=linhasLog.map(l=>`<div style="font-size:12px;color:#475569;font-family:ui-monospace,monospace">${l}</div>`).join(``)}try{await ACOES_BASE[key](file,logFn),logFn(`✓ Concluído!`),await carregarCarimbos()}catch(e){logFn(`✗ Erro: `+(e.message||e))}finally{btn.disabled=!1,btn.textContent=`Atualizar`}}window.processarBase=processarBase;function fmtCarimbo(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}async function carregarCarimbos(){let{data}=await db.from(`bases_status`).select(`*`),mapa={};(data||[]).forEach(s=>mapa[s.base]=s);for(let key of[`itens`,`centros_custo`,`sra`,`consumo`]){let el=$(`carimbo-`+key),s=mapa[key];s?(el.textContent=`✓ `+fmtCarimbo(s.atualizado_em)+(s.registros?` · ${s.registros} reg.`:``),el.classList.add(`feito`)):(el.textContent=`nunca atualizado`,el.classList.remove(`feito`))}}
 // ---------- ABA MOBILIZAÇÃO ----------
