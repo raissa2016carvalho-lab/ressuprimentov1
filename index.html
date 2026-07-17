@@ -942,7 +942,7 @@ let off0=0,todosRaw=[];for(;;){let{data:lote,error:e1}=await db.from(`solicitaco
 // 2. Buscar dados de CC
 let{data:ccs}=await db.from(`centros_custo`).select(`cc,nome`),ccNomes={};(ccs||[]).forEach(c=>ccNomes[c.cc]=c.nome);
 // 3. Buscar itens de sc_pedidos para todas as SCs associadas
-let numerosSc=[...new Set(associadas.map(s=>(s.sc_numero||'').trim()))].filter(Boolean),porSc={},scFilialMap={};associadas.forEach(s=>{s.filial&&s.sc_numero&&(scFilialMap[s.sc_numero.trim()]=s.filial)});
+associadas=associadas.filter(s=>s!=null);let numerosSc=[...new Set(associadas.map(s=>(s.sc_numero||'').trim()))].filter(Boolean),porSc={},scFilialMap={};associadas.forEach(s=>{s.filial&&s.sc_numero&&(scFilialMap[s.sc_numero.trim()]=s.filial)});
 // Buscar por lotes — filtrando por filial+SC via OR
 // Para SCs sem filial, busca só por sc_numero (fallback)
 let scsComFilial=associadas.filter(s=>s.filial&&s.sc_numero&&s.sc_numero.trim()),scsSemFilial=associadas.filter(s=>!s.filial&&s.sc_numero&&s.sc_numero.trim()),scPedidos=[];
