@@ -1059,7 +1059,7 @@ async function expandirAcomp(solId, topo){
   let totalQtd=itensAtivos.reduce((s,i)=>s+(Number(i.quantidade)||0),0);
   let recebidoQtd=0;
   itensAtivos.forEach(it=>{
-    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo&&['Recebido','Pré-nota'].some(s=>(p.status_desc||'').includes(s)));
+    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo&&['receb','pre-nota','pré-nota'].some(s=>(p.status_desc||'').toLowerCase().includes(s)));
     let qtdRec=pcsItem.reduce((s,p)=>s+(Number(p.c7_quant)||0),0);
     recebidoQtd+=Math.min(qtdRec, Number(it.quantidade)||0);
   });
@@ -1072,9 +1072,9 @@ async function expandirAcomp(solId, topo){
   // Status cores
   function stCor(st){
     let s=(st||'').toLowerCase();
-    if(s.includes('receb')||s.includes('pré-nota'))return{c:'#16a34a',b:'#f0fdf4'};
+    if(s.includes('receb')||s.includes('pre-nota')||s.includes('pré-nota'))return{c:'#16a34a',b:'#f0fdf4'};
     if(s.includes('aprov'))return{c:'#d97706',b:'#fffbeb'};
-    if(s.includes('rejeit')||s.includes('elimin'))return{c:'#ef4444',b:'#fff5f5'};
+    if(s.includes('rejeit')||s.includes('elimin')||s.includes('cancel'))return{c:'#ef4444',b:'#fff5f5'};
     return{c:'#64748b',b:'#f8fafc'};
   }
 
