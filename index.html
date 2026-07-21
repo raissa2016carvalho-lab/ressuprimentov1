@@ -982,43 +982,41 @@ async function carregarAcompanhamento(){
     return;
   }
 
-  // Buscar PCs de todas as SCs em lote
-  let _scNums=[...new Set(todas.map(s=>s.sc_numero.trim()).filter(Boolean))];
-  let _pcMap={},_valorMap={};
-  for(let i=0;i<_scNums.length;i+=50){
-    let lote=_scNums.slice(i,i+50);
-    let{data:pcsLote}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote);
-    (pcsLote||[]).forEach(p=>{
-      let sc=p.c7_numsc;
-      _pcMap[sc]=_pcMap[sc]||[];
-      _pcMap[sc].push(p);
-      _valorMap[sc]=(_valorMap[sc]||0)+(Number(p.c7_total)||0);
-    });
-  }
-  // Buscar itens em lote para calcular % por SC
-  let _solIds=todas.map(s=>s.id);
-  let _itensMap={};
-  for(let i=0;i<_solIds.length;i+=100){
-    let lote=_solIds.slice(i,i+100);
-    let{data:itensLote}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').in('solicitacao_id',lote);
-    (itensLote||[]).forEach(it=>{
-      _itensMap[it.solicitacao_id]=_itensMap[it.solicitacao_id]||[];
-      _itensMap[it.solicitacao_id].push(it);
-    });
-  }
-  // Calcular pct por SC
-  function calcPct(s){
-    let pcs=_pcMap[s.sc_numero?.trim()]||[];
+  // Mapas vazios — preenchidos lazy por card
+  let _pcMap={},_valorMap={},_itensMap={},_pctMap={};
+  // Pré-carregar PCs e itens em background (não bloqueia render)
+  async function _carregarDadosCard(s){
+    let sc=(s.sc_numero||'').trim();
+    if(!_pcMap[sc]&&sc){
+      let off=0,pcs=[];
+      for(;;){
+        let{data:l}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').ilike('c7_numsc',sc).range(off,off+999);
+        if(!l||!l.length)break;
+        pcs=pcs.concat(l);
+        if(l.length<1000)break;
+        off+=1000;
+      }
+      _pcMap[sc]=pcs;
+      _valorMap[sc]=pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+    }
+    if(!_itensMap[s.id]){
+      let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').eq('solicitacao_id',s.id);
+      _itensMap[s.id]=its||[];
+    }
+    // Calcular pct
+    let pcs=_pcMap[(s.sc_numero||'').trim()]||[];
     let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
     let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
-    if(!totalQtd)return 0;
     let recQtd=0;
     itens.forEach(it=>{
-      let qtdRec=(pcs.filter(p=>p.c7_produto===it.codigo&&(p.status_desc||'').toLowerCase().includes('receb'))).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+      let qtdRec=pcs.filter(p=>p.c7_produto===it.codigo&&(p.status_desc||'').toLowerCase().includes('receb')).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
       recQtd+=Math.min(qtdRec,Number(it.quantidade)||0);
     });
-    return Math.min(100,Math.round(recQtd/totalQtd*100));
+    let pct=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
+    _pctMap[s.id]=pct;
+    return pct;
   }
+  function calcPct(s){return _pctMap[s.id]||0;}
 
   // Renderizar lista simples
   let html=todas.map(s=>{
@@ -1044,6 +1042,23 @@ async function carregarAcompanhamento(){
   $(`lista-acomp`).innerHTML=`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div><div id="acomp-cards-container">${html}</div>`;
   _todasSolsAcomp=todas;
   filtrarAcomp();
+  // Carregar dados dos primeiros 30 cards em background
+  setTimeout(async()=>{
+    let primeiros=todas.slice(0,30);
+    for(let s of primeiros){
+      await _carregarDadosCard(s);
+      // Atualizar barra no DOM se card visível
+      let barEl=document.getElementById('bar-pct-'+s.id);
+      let pctEl=document.getElementById('pct-txt-'+s.id);
+      let valEl=document.getElementById('val-txt-'+s.id);
+      let p=_pctMap[s.id]||0;
+      let v=_valorMap[(s.sc_numero||'').trim()]||0;
+      let bc=p===100?'#16a34a':p>0?'#f59e0b':'#e2e8f0';
+      if(barEl){barEl.style.width=p+'%';barEl.style.background=bc;}
+      if(pctEl){pctEl.textContent=p+'%';pctEl.style.color=bc;}
+      if(valEl&&v>0)valEl.textContent='R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+    }
+  },100);
 }
 window.carregarAcompanhamento=carregarAcompanhamento;
 let _filtroStatusAcomp='todos';
@@ -1226,9 +1241,9 @@ function renderPaginaAcomp(){
       let obs=(s.observacao||``).trim();
       let sc=s.sc_numero?`SC ${s.sc_numero}`:`(sem SC)`;
       let pct=calcPct(s);
-      let valor=_valorMap[s.sc_numero?.trim()]||0;
-      let barCor=pct===100?`#16a34a`:pct>0?`#f59e0b`:`#e2e8f0`;
-      let valorFmt=valor>0?`R$ `+valor.toLocaleString('pt-BR',{minimumFractionDigits:2}):`—`;
+      let valor=_valorMap[(s.sc_numero||'').trim()]||0;
+      let barCor=pct===100?`#16a34a`:pct>0?`#f59e0b`:`#94a3b8`;
+      let valorFmt=valor>0?`R$ `+valor.toLocaleString('pt-BR',{minimumFractionDigits:2}):`...`;
       return `<div class="card" style="border-radius:10px;overflow:hidden;margin-bottom:2px">
         <div onclick="expandirAcomp(${s.id},this)" style="padding:12px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;cursor:pointer">
           <input type="checkbox" class="acomp-cb" data-id="${s.id}" onchange="atualizarBarraCons()" onclick="event.stopPropagation()" style="width:16px;height:16px;flex-shrink:0;accent-color:#1e40af">
@@ -1238,11 +1253,11 @@ function renderPaginaAcomp(){
             <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,50)}</em>`:``}</div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
               <div style="background:#e2e8f0;border-radius:99px;height:6px;width:120px;flex-shrink:0">
-                <div style="background:${barCor};height:100%;border-radius:99px;width:${pct}%"></div>
+                <div id="bar-pct-${s.id}" style="background:${barCor};height:100%;border-radius:99px;width:${pct}%;transition:width .4s"></div>
               </div>
-              <span style="font-size:11px;font-weight:700;color:${barCor}">${pct}%</span>
+              <span id="pct-txt-${s.id}" style="font-size:11px;font-weight:700;color:${barCor}">${pct}%</span>
               <span style="font-size:11px;color:#94a3b8">·</span>
-              <span style="font-size:11px;font-weight:600;color:#475569">${valorFmt}</span>
+              <span id="val-txt-${s.id}" style="font-size:11px;font-weight:600;color:#475569">${valorFmt}</span>
             </div>
           </div>
           ${filialNome?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span></span>`}
