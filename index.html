@@ -964,6 +964,8 @@ let obs=(document.getElementById(`obs-`+solId)?.value||sol.observacao||``).trim(
 sol.itens.forEach(it=>{if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quantidade||0;});
 let semCodigo=aprovados.filter(it=>!it.codigo||it.codigo===`MANUAL`).length,linhas=aprovados.map((it,i)=>({C1_XTIPOSC:`004`,C1_ITEM:String(i+1).padStart(2,`0`),C1_PRODUTO:it.codigo&&it.codigo!==`MANUAL`?it.codigo:``,C1_DESCRI:it.descricao||``,C1_QUANT:masterQtd[it.id]||0,C1_CC:sol.cc,C1_OBS:obs,C1_ESTOQUE:`S`,JUST_GERENTE:it.justificativa_gerente||``})),ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC`),XLSX.writeFile(wb,`SC_solicitacao_${sol.id}.xlsx`),semCodigo>0&&alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`)}window.baixarExcelProtheus=baixarExcelProtheus;
 // ---------- ABA ACOMPANHAMENTO ----------
+let _pcMap={},_valorMap={},_itensMap={},_pctMap={};
+function calcPct(s){return _pctMap[s.id]||0;}
 async function carregarAcompanhamento(){
   $(`lista-acomp`).innerHTML=`<div class="vazio">Carregando...</div>`;
 
@@ -982,8 +984,8 @@ async function carregarAcompanhamento(){
     return;
   }
 
-  // Mapas vazios — preenchidos lazy por card
-  let _pcMap={},_valorMap={},_itensMap={},_pctMap={};
+  // Reset mapas ao recarregar
+  _pcMap={};_valorMap={};_itensMap={};_pctMap={};
   // Pré-carregar PCs e itens em background (não bloqueia render)
   async function _carregarDadosCard(s){
     let sc=(s.sc_numero||'').trim();
@@ -1016,8 +1018,6 @@ async function carregarAcompanhamento(){
     _pctMap[s.id]=pct;
     return pct;
   }
-  function calcPct(s){return _pctMap[s.id]||0;}
-
   // Preparar estrutura para renderPaginaAcomp
   $(`lista-acomp`).innerHTML=`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div><div id="acomp-cards-container"></div>`;
   _todasSolsAcomp=todas;
