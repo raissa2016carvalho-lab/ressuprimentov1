@@ -51,7 +51,7 @@ document.addEventListener('click',function(e){
     if(isPorCC){
       var total=parsed['_total']||{};
       // Janela fixa Jan-Jun em ordem crescente
-      var mesesFixosPopup=(function(){var r=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
+      var mesesFixosPopup=(function(){var r=[],d=new Date();for(var i=6;i>=0;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
       var meses=mesesFixosPopup.filter(function(m){return Object.values(parsed).some(function(v){return v&&v[m]>0;});});
       if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico.</div>';}
       else{
@@ -296,7 +296,7 @@ try{
   pessoasData=pd||[];
 }catch(e){console.warn('[master consumo] erro:',e);consumoData=[];pessoasData=[];}let consumoAggNome={};let consumoAggNomeFix={};consumoMensalMap={};
 // Meses fixos: Janeiro a Junho 2026
-const MESES_FIXOS=(function(){var r=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
+const MESES_FIXOS=(function(){var r=[],d=new Date();for(var i=5;i>=0;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
 // Função de normalização de mes para YYYYMM
 function normMes(m){
   var s=String(m||'').trim();
