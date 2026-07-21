@@ -1004,43 +1004,41 @@ async function carregarAcompanhamento(){
   }).join(``);
 
   $(`lista-acomp`).innerHTML=`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div><div id="acomp-cards-container">${html}</div>`;
-  _allCardsData=html;
+  _todasSolsAcomp=todas;
   filtrarAcomp();
 }
 window.carregarAcompanhamento=carregarAcompanhamento;
+let _filtroStatusAcomp='todos';
+function setFiltroStatusAcomp(val){
+  _filtroStatusAcomp=val;
+  ['todos','sem_pedido','pendente','parcial','recebido'].forEach(v=>{
+    let btn=document.getElementById('facomp-'+v);
+    if(!btn)return;
+    let ativo=v===val;
+    btn.style.background=ativo?'#1e40af':'#fff';
+    btn.style.color=ativo?'#fff':'#64748b';
+    btn.style.borderColor=ativo?'#1e40af':'#e2e8f0';
+  });
+  filtrarAcomp();
+}
+window.setFiltroStatusAcomp=setFiltroStatusAcomp;
 
-let _paginaAcomp=1,_porPaginaAcomp=20,_allCardsData='',_cardsVisiveis=[];
+
+let _paginaAcomp=1,_porPaginaAcomp=30,_allCardsData='',_cardsVisiveis=[],_todasSolsAcomp=[];
 
 function filtrarAcomp(resetPagina=true){
   if(resetPagina)_paginaAcomp=1;
-  let consFiltro=$(`filtro-acomp-consolidado`)?.value||``,
-    termCC=($(`filtro-acomp-cc`)?.value||``).toLowerCase().trim(),
+  let termCC=($(`filtro-acomp-cc`)?.value||``).toLowerCase().trim(),
     termObs=($(`filtro-acomp-obs`)?.value||``).toLowerCase().trim(),
-    filialFilt=$(`filtro-acomp-filial`)?.value||``,
-    compradorFilt=($(`filtro-acomp-comprador`)?.value||``).toLowerCase().trim(),
-    dtIni=$(`filtro-acomp-dt-ini`)?.value||``,
-    dtFim=$(`filtro-acomp-dt-fim`)?.value||``,
-    consIds=consFiltro?_consolidadoScMap[Number(consFiltro)]:null;
+    filialFilt=$(`filtro-acomp-filial`)?.value||``;
 
-  // Parse cards from stored HTML string using a temp container
-  let tmp=document.createElement('div');
-  tmp.innerHTML=_allCardsData;
-  let allCards=[...tmp.querySelectorAll('.card[data-cc]')];
-
-  _cardsVisiveis=allCards.filter(card=>{
-    let cc=card.dataset.cc||``,obs=card.dataset.obs||``,pg=card.dataset.pg||``,
-      solId=Number(card.dataset.solid||0),filial=card.dataset.filial||``,
-      emissao=card.dataset.emissao||``,
-      emissaoFmt=emissao.length===8?emissao.slice(0,4)+`-`+emissao.slice(4,6)+`-`+emissao.slice(6,8):emissao,
-      comprador=card.dataset.comprador||``;
-    return (!consFiltro||consIds&&consIds.has(solId))
-      &&(!termCC||cc.includes(termCC))
+  _cardsVisiveis=_todasSolsAcomp.filter(s=>{
+    let nome=(ccMap[s.cc]?.nome||s.cc).toLowerCase();
+    let obs=(s.observacao||``).toLowerCase();
+    let filial=(s.filial||``);
+    return (!termCC||nome.includes(termCC))
       &&(!termObs||obs.includes(termObs))
-      &&(!filialFilt||filial===filialFilt)
-      &&(!compradorFilt||comprador.includes(compradorFilt))
-      &&(!dtIni||emissaoFmt>=dtIni)
-      &&(!dtFim||emissaoFmt<=dtFim)
-      &&(_filtroStatusAcomp===`todos`||pg===_filtroStatusAcomp);
+      &&(!filialFilt||filial===filialFilt);
   });
 
   renderPaginaAcomp();
@@ -1061,7 +1059,28 @@ function renderPaginaAcomp(){
     if(vazio)vazio.style.display='block';
   } else {
     if(vazio)vazio.style.display='none';
-    container.innerHTML=_cardsVisiveis.slice(inicio,fim).map(c=>c.outerHTML).join('');
+    // Re-render visible slice
+    let html=_cardsVisiveis.slice(inicio,fim).map(s=>{
+      let nome=ccMap[s.cc]?.nome||s.cc;
+      let filialNome=s.filial||``;
+      let statusLabel=LABEL_STATUS[s.status]||s.status;
+      let statusCor=s.status===`aprovada`?`#16a34a`:s.status===`recusada`?`#ef4444`:s.status===`aguardando_master`?`#b45309`:`#64748b`;
+      let statusBg=s.status===`aprovada`?`#f0fdf4`:s.status===`recusada`?`#fff5f5`:s.status===`aguardando_master`?`#fef3c7`:`#f8fafc`;
+      let dt=fmtData(s.criado_em);
+      let obs=(s.observacao||``).trim();
+      let sc=s.sc_numero?`SC ${s.sc_numero}`:`(sem SC)`;
+      return `<div class="card" style="padding:14px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <input type="checkbox" class="acomp-cb" data-id="${s.id}" onchange="atualizarBarraCons()" onclick="event.stopPropagation()" style="width:16px;height:16px;flex-shrink:0;accent-color:#1e40af">
+        <div style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#1e40af;min-width:90px">${sc}</div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
+          <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,60)}</em>`:``}</div>
+        </div>
+        ${filialNome?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span></span>`}
+        <span style="background:${statusBg};color:${statusCor};border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">${statusLabel}</span>
+      </div>`;
+    }).join(``);
+    container.innerHTML=html;
   }
 
   // Paginador
@@ -1069,20 +1088,14 @@ function renderPaginaAcomp(){
   if(!pag)return;
   if(totalPag<=1){pag.style.display='none';return;}
   pag.style.display='flex';
-
   let pStart=Math.max(1,_paginaAcomp-2),pEnd=Math.min(totalPag,_paginaAcomp+2);
-  let html=`<span style="font-size:13px;color:#64748b">${total} resultado(s) · Página ${_paginaAcomp} de ${totalPag}</span>
-    <div style="display:flex;gap:6px;align-items:center">
-      <button onclick="irPaginaAcomp(1)" ${_paginaAcomp===1?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:#374151">«</button>
-      <button onclick="irPaginaAcomp(${_paginaAcomp-1})" ${_paginaAcomp===1?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:#374151">‹</button>`;
-  for(let p=pStart;p<=pEnd;p++){
-    let ativo=p===_paginaAcomp;
-    html+=`<button onclick="irPaginaAcomp(${p})" style="border:1px solid ${ativo?'#1e40af':'#e2e8f0'};background:${ativo?'#1e40af':'#fff'};color:${ativo?'#fff':'#374151'};border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;font-weight:${ativo?700:400}">${p}</button>`;
-  }
-  html+=`<button onclick="irPaginaAcomp(${_paginaAcomp+1})" ${_paginaAcomp===totalPag?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:#374151">›</button>
-      <button onclick="irPaginaAcomp(${totalPag})" ${_paginaAcomp===totalPag?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:#374151">»</button>
-    </div>`;
-  pag.innerHTML=html;
+  let html2=`<span style="font-size:13px;color:#64748b">${total} resultado(s) · Página ${_paginaAcomp} de ${totalPag}</span><div style="display:flex;gap:6px">`;
+  html2+=`<button onclick="irPaginaAcomp(1)" ${_paginaAcomp===1?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer">«</button>`;
+  html2+=`<button onclick="irPaginaAcomp(${_paginaAcomp-1})" ${_paginaAcomp===1?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer">‹</button>`;
+  for(let p=pStart;p<=pEnd;p++){let a=p===_paginaAcomp;html2+=`<button onclick="irPaginaAcomp(${p})" style="border:1px solid ${a?'#1e40af':'#e2e8f0'};background:${a?'#1e40af':'#fff'};color:${a?'#fff':'#374151'};border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:${a?700:400}">${p}</button>`;}
+  html2+=`<button onclick="irPaginaAcomp(${_paginaAcomp+1})" ${_paginaAcomp===totalPag?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer">›</button>`;
+  html2+=`<button onclick="irPaginaAcomp(${totalPag})" ${_paginaAcomp===totalPag?'disabled':''} style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer">»</button></div>`;
+  pag.innerHTML=html2;
 }
 
 function irPaginaAcomp(p){
