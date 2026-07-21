@@ -1133,7 +1133,14 @@ if(consData&&consData.length){
 let _solIdsComCons=new Set(Object.values(_consolidadoScMap).flatMap(s=>[...s]));
 let _tmpDiv2=document.createElement('div');
 _tmpDiv2.innerHTML=listaHtml;
-let _cardsSemCons=[..._tmpDiv2.querySelectorAll('.card[data-cc]')].filter(c=>!_solIdsComCons.has(Number(c.dataset.solid)));
+let _cardsSemCons=[..._tmpDiv2.querySelectorAll('.card[data-cc]')].filter(c=>{
+  let sid=Number(c.dataset.solid);
+  // Excluir: vinculados a consolidado OU sem SC associada
+  if(_solIdsComCons.has(sid))return false;
+  // Só mostrar se tiver SC digitada (data-obs ou titulo tem SC)
+  let sol=associadas.find(s=>s.id===sid);
+  return sol&&sol.sc_numero&&sol.sc_numero.trim();
+});
 let _htmlSemCons=_cardsSemCons.length>0?
   `<div style="margin-top:16px">
     <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding:0 4px">Sem consolidado</div>
