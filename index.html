@@ -1054,10 +1054,16 @@ async function expandirAcomp(solId, topo){
     pcs=pcData||[];
   }
 
-  // Calcular % atendido
-  let totalItens=itens.filter(i=>i.situacao!=='recusado').length;
-  let recebidos=pcs.filter(p=>['Recebido','Pré-nota'].some(s=>(p.status_desc||'').includes(s))).length;
-  let pct=totalItens>0?Math.round(recebidos/totalItens*100):0;
+  // Calcular % atendido — por produto cruzado com itens da solicitação
+  let itensAtivos=itens.filter(i=>i.situacao!=='recusado');
+  let totalQtd=itensAtivos.reduce((s,i)=>s+(Number(i.quantidade)||0),0);
+  let recebidoQtd=0;
+  itensAtivos.forEach(it=>{
+    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo&&['Recebido','Pré-nota'].some(s=>(p.status_desc||'').includes(s)));
+    let qtdRec=pcsItem.reduce((s,p)=>s+(Number(p.c7_quant)||0),0);
+    recebidoQtd+=Math.min(qtdRec, Number(it.quantidade)||0);
+  });
+  let pct=totalQtd>0?Math.min(100,Math.round(recebidoQtd/totalQtd*100)):0;
 
   // Montar HTML
   let pcPorProduto={};
