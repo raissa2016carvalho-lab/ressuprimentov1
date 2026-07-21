@@ -1022,6 +1022,112 @@ function setFiltroStatusAcomp(val){
   filtrarAcomp();
 }
 window.setFiltroStatusAcomp=setFiltroStatusAcomp;
+async function expandirAcomp(solId, topo){
+  let detalhe=document.getElementById('acomp-detalhe-'+solId);
+  if(!detalhe)return;
+  let seta=topo.querySelector('span:last-child');
+
+  // Toggle
+  if(detalhe.style.display!=='none'){
+    detalhe.style.display='none';
+    if(seta)seta.textContent='▼';
+    return;
+  }
+  detalhe.style.display='block';
+  if(seta)seta.textContent='▲';
+  if(detalhe.dataset.carregado)return;
+  detalhe.dataset.carregado='1';
+
+  // Buscar dados da solicitação
+  let sol=_todasSolsAcomp.find(s=>s.id===solId);
+  if(!sol){detalhe.innerHTML='<div style="color:#ef4444">Solicitação não encontrada.</div>';return;}
+
+  // Buscar itens
+  let{data:itens}=await db.from('solicitacao_itens').select('codigo,descricao,quantidade,qtd_almoxarife,situacao,justificativa_gerente').eq('solicitacao_id',solId).order('descricao');
+  itens=itens||[];
+
+  // Buscar pedidos de compra pela SC
+  let pcs=[];
+  if(sol.sc_numero&&sol.sc_numero.trim()){
+    let sc=sol.sc_numero.trim();
+    let{data:pcData}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').eq('c7_numsc',sc);
+    pcs=pcData||[];
+  }
+
+  // Calcular % atendido
+  let totalItens=itens.filter(i=>i.situacao!=='recusado').length;
+  let recebidos=pcs.filter(p=>['Recebido','Pré-nota'].some(s=>(p.status_desc||'').includes(s))).length;
+  let pct=totalItens>0?Math.round(recebidos/totalItens*100):0;
+
+  // Montar HTML
+  let pcPorProduto={};
+  pcs.forEach(p=>{(pcPorProduto[p.c7_produto]=pcPorProduto[p.c7_produto]||[]).push(p);});
+
+  // Status cores
+  function stCor(st){
+    let s=(st||'').toLowerCase();
+    if(s.includes('receb')||s.includes('pré-nota'))return{c:'#16a34a',b:'#f0fdf4'};
+    if(s.includes('aprov'))return{c:'#d97706',b:'#fffbeb'};
+    if(s.includes('rejeit')||s.includes('elimin'))return{c:'#ef4444',b:'#fff5f5'};
+    return{c:'#64748b',b:'#f8fafc'};
+  }
+
+  let html=`
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="flex:1">
+        <div style="font-size:12px;color:#64748b;margin-bottom:4px">Progresso de atendimento</div>
+        <div style="background:#e2e8f0;border-radius:99px;height:10px;width:100%;max-width:300px">
+          <div style="background:${pct===100?'#16a34a':pct>0?'#f59e0b':'#e2e8f0'};height:100%;border-radius:99px;width:${pct}%;transition:width .4s"></div>
+        </div>
+        <div style="font-size:12px;color:#475569;margin-top:4px">${pct}% recebido · ${itens.length} item(ns) · ${pcs.length} pedido(s) de compra</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:#94a3b8">Período</div>
+        <div style="font-weight:700;color:#1e40af">${sol.periodo_meses||3} meses</div>
+      </div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead>
+        <tr style="background:#f1f5f9">
+          <th style="text-align:left;padding:7px 10px;color:#475569;font-weight:600">Item</th>
+          <th style="text-align:center;padding:7px 10px;color:#475569;font-weight:600;width:70px">Almox.</th>
+          <th style="text-align:center;padding:7px 10px;color:#475569;font-weight:600;width:70px">Gerente</th>
+          <th style="text-align:left;padding:7px 10px;color:#475569;font-weight:600">Pedidos de compra</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itens.map(it=>{
+          let isRec=it.situacao==='recusado';
+          let qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
+          let qtdGer=it.justificativa_gerente?it.quantidade:null;
+          let pcsItem=pcPorProduto[it.codigo]||[];
+          let pcsHtml=pcsItem.length?pcsItem.map(p=>{
+            let cor=stCor(p.status_desc);
+            let entrega=p.dt_entrega?p.dt_entrega.slice(0,10).split('-').reverse().join('/'):'';
+            return `<span style="display:inline-flex;align-items:center;gap:4px;background:${cor.b};color:${cor.c};border-radius:6px;padding:2px 8px;font-size:11px;margin:2px;white-space:nowrap">
+              PC ${p.c7_num} · ${p.c7_quant} un · ${p.status_desc||'—'}${entrega?` · ${entrega}`:''}
+            </span>`;
+          }).join(''):'<span style="color:#cbd5e1;font-size:11px">Sem PC</span>';
+          return `<tr style="border-bottom:1px solid #f1f5f9;${isRec?'opacity:0.45':''}">
+            <td style="padding:8px 10px">
+              ${isRec?'<span style="color:#ef4444;font-size:10px;font-weight:700">✕ </span>':''}
+              <span style="color:#0f172a">${it.descricao||it.codigo}</span>
+              <div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>
+              ${it.justificativa_gerente?`<div style="font-size:11px;color:#b45309;font-style:italic;margin-top:2px">✎ ${it.justificativa_gerente}</div>`:''}
+            </td>
+            <td style="text-align:center;padding:8px 10px;font-weight:600;color:#1e40af">${qtdAlm}</td>
+            <td style="text-align:center;padding:8px 10px;font-weight:600;color:${qtdGer?'#16a34a':'#cbd5e1'}">${qtdGer||'—'}</td>
+            <td style="padding:8px 10px">${pcsHtml}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+
+  detalhe.innerHTML=html;
+}
+window.expandirAcomp=expandirAcomp;
+
 
 
 let _paginaAcomp=1,_porPaginaAcomp=30,_allCardsData='',_cardsVisiveis=[],_todasSolsAcomp=[];
@@ -1069,15 +1175,21 @@ function renderPaginaAcomp(){
       let dt=fmtData(s.criado_em);
       let obs=(s.observacao||``).trim();
       let sc=s.sc_numero?`SC ${s.sc_numero}`:`(sem SC)`;
-      return `<div class="card" style="padding:14px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-        <input type="checkbox" class="acomp-cb" data-id="${s.id}" onchange="atualizarBarraCons()" onclick="event.stopPropagation()" style="width:16px;height:16px;flex-shrink:0;accent-color:#1e40af">
-        <div style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#1e40af;min-width:90px">${sc}</div>
-        <div style="flex:1;min-width:200px">
-          <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
-          <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,60)}</em>`:``}</div>
+      return `<div class="card" style="border-radius:10px;overflow:hidden;margin-bottom:2px">
+        <div onclick="expandirAcomp(${s.id},this)" style="padding:14px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;cursor:pointer">
+          <input type="checkbox" class="acomp-cb" data-id="${s.id}" onchange="atualizarBarraCons()" onclick="event.stopPropagation()" style="width:16px;height:16px;flex-shrink:0;accent-color:#1e40af">
+          <div style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#1e40af;min-width:90px">${sc}</div>
+          <div style="flex:1;min-width:200px">
+            <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
+            <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,60)}</em>`:``}</div>
+          </div>
+          ${filialNome?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span></span>`}
+          <span style="background:${statusBg};color:${statusCor};border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">${statusLabel}</span>
+          <span style="color:#94a3b8;font-size:13px">▼</span>
         </div>
-        ${filialNome?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span></span>`}
-        <span style="background:${statusBg};color:${statusCor};border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">${statusLabel}</span>
+        <div id="acomp-detalhe-${s.id}" style="display:none;border-top:1px solid #f1f5f9;background:#f8fafc;padding:16px 20px">
+          <div style="color:#94a3b8;font-size:12px">Carregando...</div>
+        </div>
       </div>`;
     }).join(``);
     container.innerHTML=html;
