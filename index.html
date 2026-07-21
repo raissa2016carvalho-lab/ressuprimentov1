@@ -982,6 +982,44 @@ async function carregarAcompanhamento(){
     return;
   }
 
+  // Buscar PCs de todas as SCs em lote
+  let _scNums=[...new Set(todas.map(s=>s.sc_numero.trim()).filter(Boolean))];
+  let _pcMap={},_valorMap={};
+  for(let i=0;i<_scNums.length;i+=50){
+    let lote=_scNums.slice(i,i+50);
+    let{data:pcsLote}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote);
+    (pcsLote||[]).forEach(p=>{
+      let sc=p.c7_numsc;
+      _pcMap[sc]=_pcMap[sc]||[];
+      _pcMap[sc].push(p);
+      _valorMap[sc]=(_valorMap[sc]||0)+(Number(p.c7_total)||0);
+    });
+  }
+  // Buscar itens em lote para calcular % por SC
+  let _solIds=todas.map(s=>s.id);
+  let _itensMap={};
+  for(let i=0;i<_solIds.length;i+=100){
+    let lote=_solIds.slice(i,i+100);
+    let{data:itensLote}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').in('solicitacao_id',lote);
+    (itensLote||[]).forEach(it=>{
+      _itensMap[it.solicitacao_id]=_itensMap[it.solicitacao_id]||[];
+      _itensMap[it.solicitacao_id].push(it);
+    });
+  }
+  // Calcular pct por SC
+  function calcPct(s){
+    let pcs=_pcMap[s.sc_numero?.trim()]||[];
+    let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
+    let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
+    if(!totalQtd)return 0;
+    let recQtd=0;
+    itens.forEach(it=>{
+      let qtdRec=(pcs.filter(p=>p.c7_produto===it.codigo&&(p.status_desc||'').toLowerCase().includes('receb'))).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+      recQtd+=Math.min(qtdRec,Number(it.quantidade)||0);
+    });
+    return Math.min(100,Math.round(recQtd/totalQtd*100));
+  }
+
   // Renderizar lista simples
   let html=todas.map(s=>{
     let nome=ccMap[s.cc]?.nome||s.cc;
@@ -1187,13 +1225,25 @@ function renderPaginaAcomp(){
       let dt=fmtData(s.criado_em);
       let obs=(s.observacao||``).trim();
       let sc=s.sc_numero?`SC ${s.sc_numero}`:`(sem SC)`;
+      let pct=calcPct(s);
+      let valor=_valorMap[s.sc_numero?.trim()]||0;
+      let barCor=pct===100?`#16a34a`:pct>0?`#f59e0b`:`#e2e8f0`;
+      let valorFmt=valor>0?`R$ `+valor.toLocaleString('pt-BR',{minimumFractionDigits:2}):`—`;
       return `<div class="card" style="border-radius:10px;overflow:hidden;margin-bottom:2px">
-        <div onclick="expandirAcomp(${s.id},this)" style="padding:14px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;cursor:pointer">
+        <div onclick="expandirAcomp(${s.id},this)" style="padding:12px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;cursor:pointer">
           <input type="checkbox" class="acomp-cb" data-id="${s.id}" onchange="atualizarBarraCons()" onclick="event.stopPropagation()" style="width:16px;height:16px;flex-shrink:0;accent-color:#1e40af">
           <div style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#1e40af;min-width:90px">${sc}</div>
           <div style="flex:1;min-width:200px">
             <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
-            <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,60)}</em>`:``}</div>
+            <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,50)}</em>`:``}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
+              <div style="background:#e2e8f0;border-radius:99px;height:6px;width:120px;flex-shrink:0">
+                <div style="background:${barCor};height:100%;border-radius:99px;width:${pct}%"></div>
+              </div>
+              <span style="font-size:11px;font-weight:700;color:${barCor}">${pct}%</span>
+              <span style="font-size:11px;color:#94a3b8">·</span>
+              <span style="font-size:11px;font-weight:600;color:#475569">${valorFmt}</span>
+            </div>
           </div>
           ${filialNome?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span></span>`}
           <span style="background:${statusBg};color:${statusCor};border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">${statusLabel}</span>
