@@ -355,14 +355,11 @@ const consumoDataDedup=Object.entries(_aggNomeProdMes).map(([chave,quantidade])=
   }
   // Histórico mensal completo para popup
   if(r.mes&&r.produto){
-    // consumoMensalMap indexado por CC individual (para popup detalhado por CC)
+    // consumoMensalMap indexado APENAS por CC individual
     let kmCC=(r.cc||'').trim()+'|'+r.produto;
     let mesNorm=normMes(r.mes);
     if(!consumoMensalMap[kmCC])consumoMensalMap[kmCC]={};
     consumoMensalMap[kmCC][mesNorm]=(consumoMensalMap[kmCC][mesNorm]||0)+(Number(r.quantidade)||0);
-    // Também indexar por grupo para lookup no card
-    if(!consumoMensalMap[k])consumoMensalMap[k]={};
-    consumoMensalMap[k][mesNorm]=(consumoMensalMap[k][mesNorm]||0)+(Number(r.quantidade)||0);
   }
 });
 // consumoMap usa Jan-Jun fixo (6 meses) — se não tiver dados fixos, usa total/nMeses
