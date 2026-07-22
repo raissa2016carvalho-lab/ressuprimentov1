@@ -486,16 +486,34 @@ function renderCardMatricial(grupo,readonly){
     // Agregar histórico mensal de todos os CCs para o popup
     var mensalAgg={};
     var mensalPorCC={};
-    var _mensalCCsJaSomados=new Set();
+    var _mensalGruposJaSomados=new Set();
     grupo.forEach(function(s){
       var ccKey=(s.cc||'').trim();
-      if(_mensalCCsJaSomados.has(ccKey))return;
-      _mensalCCsJaSomados.add(ccKey);
+      var _grM=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[ccKey]:null;
       var nomeCC=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
-      // Buscar por CC individual para popup correto
-      var m=consumoMensalMap[ccKey+'|'+item.codigo]||{};
-      Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
-      if(Object.keys(m).length)mensalPorCC[nomeCC]=m;
+      if(_grM){
+        // Para CCs com grupo: somar todos os CCs do grupo, mostrar por CC no popup
+        if(!_mensalGruposJaSomados.has(_grM)){
+          _mensalGruposJaSomados.add(_grM);
+          // Buscar todos os CCs do grupo e somar
+          var grupoList=typeof _grupoCCs!=='undefined'?(_grupoCCs[_grM]||[ccKey]):[ccKey];
+          grupoList.forEach(function(cc2){
+            var m2=consumoMensalMap[cc2+'|'+item.codigo]||{};
+            var nome2=ccMap[cc2]?ccMap[cc2].nome:cc2;
+            Object.keys(m2).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m2[mes];});
+            if(Object.keys(m2).length)mensalPorCC[nome2]=(function(){
+              var merged=mensalPorCC[nome2]||{};
+              Object.keys(m2).forEach(function(mes){merged[mes]=(merged[mes]||0)+m2[mes];});
+              return merged;
+            })();
+          });
+        }
+      } else {
+        // CC sem grupo: buscar por CC individual
+        var m=consumoMensalMap[ccKey+'|'+item.codigo]||{};
+        Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
+        if(Object.keys(m).length)mensalPorCC[nomeCC]=m;
+      }
     });
     // histStr guarda breakdown por CC: {"CC1":{mes:qtd},"CC2":{...},"_total":{mes:qtd}}
     mensalPorCC['_total']=mensalAgg;
