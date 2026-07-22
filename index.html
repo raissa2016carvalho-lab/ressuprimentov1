@@ -265,18 +265,32 @@ if(ccsSemNome.length>0){
   (ccsFaltando||[]).forEach(c=>{ccMap[c.cc]={...ccMap[c.cc],...c};if(c.nome&&!nomesSols.includes(c.nome))nomesSols.push(c.nome)});
 }let todosHomMaster=[];if(nomesSols.length>0){let{data:hom}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSols);todosHomMaster=hom||[]}let mapCcNomeMaster={};todosHomMaster.forEach(c=>{mapCcNomeMaster[c.cc]=c.nome});let ccsExpandidos=[...new Set(todosHomMaster.map(c=>c.cc))];// Incluir TODOS os CCs das solicitações + todos os CCs que aparecem nos grupos matriciais
 // Para garantir que CCs aglutinados no mesmo card tenham consumo carregado
+// Buscar grupos fixos do banco (cc_grupos) para expandir consumo por grupo regional
 let _todosGruposCCs=[...new Set([...ccsSols,...ccsExpandidos])];
-// Buscar também CCs que compartilham parte do nome (mesma regional/cidade)
-let _palavrasChave=new Set(nomesSols.flatMap(n=>n.split(/\s+/).filter(w=>w.length>4)));
-let{data:_todosCC2}=await db.from('centros_custo').select('cc,nome');
-(_todosCC2||[]).forEach(c=>{
-  if(!_todosGruposCCs.includes(c.cc)){
-    let palavras=(c.nome||'').split(/\s+/).filter(w=>w.length>4);
-    if(palavras.some(w=>_palavrasChave.has(w))){
-      _todosGruposCCs.push(c.cc);
-      if(!mapCcNomeMaster[c.cc])mapCcNomeMaster[c.cc]=c.nome;
-      if(!ccMap[c.cc])ccMap[c.cc]=c;
-    }
+// Carregar grupos fixos do banco
+let{data:_ccGrupos}=await db.from('cc_grupos').select('cc,grupo,regiao');
+// Mapa: cc -> grupo
+let _ccParaGrupo={};
+(_ccGrupos||[]).forEach(g=>{_ccParaGrupo[g.cc]=g.grupo});
+// Mapa: grupo -> lista de CCs
+let _grupoCCs={};
+(_ccGrupos||[]).forEach(g=>{
+  _grupoCCs[g.grupo]=_grupoCCs[g.grupo]||[];
+  if(!_grupoCCs[g.grupo].includes(g.cc))_grupoCCs[g.grupo].push(g.cc);
+});
+// Para cada CC das solicitações, adicionar todos os CCs do mesmo grupo
+ccsSols.forEach(cc=>{
+  let grupo=_ccParaGrupo[cc];
+  if(grupo&&_grupoCCs[grupo]){
+    _grupoCCs[grupo].forEach(cc2=>{
+      if(!_todosGruposCCs.includes(cc2)){
+        _todosGruposCCs.push(cc2);
+        // Garantir que cc2 está no ccMap e mapCcNomeMaster
+        let ccInfo=(_ccGrupos||[]).find(g=>g.cc===cc2);
+        if(ccInfo&&!ccMap[cc2])ccMap[cc2]={cc:cc2,nome:ccMap[cc]?.nome||cc};
+        if(!mapCcNomeMaster[cc2])mapCcNomeMaster[cc2]=mapCcNomeMaster[cc]||cc;
+      }
+    });
   }
 });
 let ccsConsumoBusca=_todosGruposCCs.length>0?_todosGruposCCs:ccsSols;
@@ -328,7 +342,9 @@ const consumoDataDedup=Object.entries(_aggNomeProdMes).map(([chave,quantidade])=
   return {cc,produto,mes,quantidade,_nome:nome};
 });
 (consumoDataDedup).forEach(r=>{
-  let nome=r._nome||(mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc);
+  // Usar grupo fixo como chave se CC pertence a um grupo definido
+  let _grupoCC=_ccParaGrupo[(r.cc||'').trim()];
+  let nome=_grupoCC||r._nome||(mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc);
   let k=nome+`|`+r.produto;
   // Consumo total (todos os meses) para média geral
   consumoAggNome[k]=(consumoAggNome[k]||0)+(Number(r.quantidade)||0);
@@ -452,7 +468,16 @@ function renderCardMatricial(grupo,readonly){
 
     // Somar consumo de todos os CCs do grupo
     var consTotal=0;
-    grupo.forEach(function(s){var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;consTotal+=(consumoMap[n+'|'+item.codigo]||0);});
+    // Usar grupo fixo se disponível, senão nome do CC
+    var _gruposJaSomados=new Set();
+    grupo.forEach(function(s){
+      var _gr=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;
+      var n=_gr||( ccMap[s.cc]?ccMap[s.cc].nome:s.cc);
+      if(!_gruposJaSomados.has(n)){
+        _gruposJaSomados.add(n);
+        consTotal+=(consumoMap[n+'|'+item.codigo]||0);
+      }
+    });
     var cons=consTotal;
     // Agregar histórico mensal de todos os CCs para o popup
     var mensalAgg={};
