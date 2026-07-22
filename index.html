@@ -87,7 +87,21 @@ document.addEventListener('click',function(e){
     } else {
       // Formato simples (card individual) — exibe como antes
       var mensal=parsed;
-      if(!Object.keys(mensal).length){var chave=nomeCC+'|'+codigo;mensal=consumoMensalMap[chave]||{};}
+      if(!Object.keys(mensal).length){var chave=nomeCC+'|'+codigo;
+        mensal=consumoMensalMap[chave]||{};
+        if(!Object.keys(mensal).length&&typeof _ccParaGrupo!=='undefined'&&typeof _grupoCCs!=='undefined'){
+          // Encontrar CC pelo nome e buscar grupo
+          var ccPorNome=Object.keys(ccMap).find(function(cc){return (ccMap[cc]?.nome||'').trim()===nomeCC.trim();});
+          var grpAtual=ccPorNome?_ccParaGrupo[ccPorNome]:null;
+          var grpList=grpAtual?(_grupoCCs[grpAtual]||[]):(ccPorNome?[ccPorNome]:[]);
+          if(!grpList.length&&ccPorNome)grpList=[ccPorNome];
+          var merged2={};
+          grpList.forEach(function(cc3){
+            var m3=consumoMensalMap[cc3+'|'+codigo]||{};
+            Object.keys(m3).forEach(function(mes){merged2[mes]=(merged2[mes]||0)+m3[mes];});
+          });
+          if(Object.keys(merged2).length)mensal=merged2;
+        }}
       var meses=Object.keys(mensal).filter(function(m){return mensal[m]>0}).sort().reverse().slice(0,6);
       if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico.</div>';}
       else{html+='<table>'+meses.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>'}).join('')+'</table>';}
