@@ -302,7 +302,11 @@ ccsSols.forEach(cc=>{
         // Garantir que cc2 está no ccMap e mapCcNomeMaster
         let ccInfo=(_ccGrupos||[]).find(g=>g.cc===cc2);
         if(ccInfo&&!ccMap[cc2])ccMap[cc2]={cc:cc2,nome:ccMap[cc]?.nome||cc};
-        if(!mapCcNomeMaster[cc2])mapCcNomeMaster[cc2]=mapCcNomeMaster[cc]||cc;
+        // Usar o nome REAL do CC2 (não o nome do CC da solicitação)
+        if(!mapCcNomeMaster[cc2]){
+          var _nomeReal2=ccMap[cc2]?.nome||cc2;
+          mapCcNomeMaster[cc2]=_nomeReal2;
+        }
       }
     });
   }
