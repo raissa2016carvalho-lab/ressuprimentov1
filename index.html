@@ -358,6 +358,18 @@ const consumoDataDedup=Object.entries(_aggNomeProdMes).map(([chave,quantidade])=
   const cc=(consumoData.find(r=>(mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc)===nome&&r.produto===produto)||{}).cc||nome;
   return {cc,produto,mes,quantidade,_nome:nome};
 });
+// Construir consumoMensalMap diretamente do consumoData RAW (por CC individual)
+// Isso evita problemas de agregação por nome que causam dupla contagem
+consumoMensalMap={};
+(consumoData||[]).forEach(r=>{
+  if(r.mes&&r.produto&&r.cc){
+    let kmCC=(r.cc||'').trim()+'|'+(r.produto||'').trim();
+    let mesNorm=normMes(r.mes);
+    if(!consumoMensalMap[kmCC])consumoMensalMap[kmCC]={};
+    consumoMensalMap[kmCC][mesNorm]=(consumoMensalMap[kmCC][mesNorm]||0)+(Number(r.quantidade)||0);
+  }
+});
+
 (consumoDataDedup).forEach(r=>{
   // Usar grupo fixo como chave se CC pertence a um grupo definido
   let _grupoCC=_ccParaGrupo[(r.cc||'').trim()];
@@ -371,13 +383,7 @@ const consumoDataDedup=Object.entries(_aggNomeProdMes).map(([chave,quantidade])=
     consumoAggNomeFix[k]=(consumoAggNomeFix[k]||0)+(Number(r.quantidade)||0);
   }
   // Histórico mensal completo para popup
-  if(r.mes&&r.produto){
-    // consumoMensalMap indexado APENAS por CC individual
-    let kmCC=(r.cc||'').trim()+'|'+r.produto;
-    let mesNorm=normMes(r.mes);
-    if(!consumoMensalMap[kmCC])consumoMensalMap[kmCC]={};
-    consumoMensalMap[kmCC][mesNorm]=(consumoMensalMap[kmCC][mesNorm]||0)+(Number(r.quantidade)||0);
-  }
+
 });
 // consumoMap usa Jan-Jun fixo (6 meses) — se não tiver dados fixos, usa total/nMeses
 consumoMap={};
