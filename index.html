@@ -355,10 +355,14 @@ const consumoDataDedup=Object.entries(_aggNomeProdMes).map(([chave,quantidade])=
   }
   // Histórico mensal completo para popup
   if(r.mes&&r.produto){
-    let km=k;
+    // consumoMensalMap indexado por CC individual (para popup detalhado por CC)
+    let kmCC=(r.cc||'').trim()+'|'+r.produto;
     let mesNorm=normMes(r.mes);
-    if(!consumoMensalMap[km])consumoMensalMap[km]={};
-    consumoMensalMap[km][mesNorm]=(consumoMensalMap[km][mesNorm]||0)+(Number(r.quantidade)||0);
+    if(!consumoMensalMap[kmCC])consumoMensalMap[kmCC]={};
+    consumoMensalMap[kmCC][mesNorm]=(consumoMensalMap[kmCC][mesNorm]||0)+(Number(r.quantidade)||0);
+    // Também indexar por grupo para lookup no card
+    if(!consumoMensalMap[k])consumoMensalMap[k]={};
+    consumoMensalMap[k][mesNorm]=(consumoMensalMap[k][mesNorm]||0)+(Number(r.quantidade)||0);
   }
 });
 // consumoMap usa Jan-Jun fixo (6 meses) — se não tiver dados fixos, usa total/nMeses
@@ -482,23 +486,16 @@ function renderCardMatricial(grupo,readonly){
     // Agregar histórico mensal de todos os CCs para o popup
     var mensalAgg={};
     var mensalPorCC={};
-    var _mensalGruposJaSomados=new Set();
+    var _mensalCCsJaSomados=new Set();
     grupo.forEach(function(s){
-      var _grM=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;
-      var n=_grM||(ccMap[s.cc]?ccMap[s.cc].nome:s.cc);
-      // Usar chave de grupo para evitar dupla contagem no popup
-      if(_grM){
-        if(!_mensalGruposJaSomados.has(_grM)){
-          _mensalGruposJaSomados.add(_grM);
-          var m=consumoMensalMap[_grM+'|'+item.codigo]||{};
-          Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
-          if(Object.keys(m).length)mensalPorCC[_grM]=m;
-        }
-      } else {
-        var m=consumoMensalMap[n+'|'+item.codigo]||{};
-        Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
-        if(Object.keys(m).length)mensalPorCC[n]=m;
-      }
+      var ccKey=(s.cc||'').trim();
+      if(_mensalCCsJaSomados.has(ccKey))return;
+      _mensalCCsJaSomados.add(ccKey);
+      var nomeCC=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
+      // Buscar por CC individual para popup correto
+      var m=consumoMensalMap[ccKey+'|'+item.codigo]||{};
+      Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
+      if(Object.keys(m).length)mensalPorCC[nomeCC]=m;
     });
     // histStr guarda breakdown por CC: {"CC1":{mes:qtd},"CC2":{...},"_total":{mes:qtd}}
     mensalPorCC['_total']=mensalAgg;
