@@ -482,13 +482,23 @@ function renderCardMatricial(grupo,readonly){
     // Agregar histórico mensal de todos os CCs para o popup
     var mensalAgg={};
     var mensalPorCC={};
+    var _mensalGruposJaSomados=new Set();
     grupo.forEach(function(s){
-      var n=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
-      var m=consumoMensalMap[n+'|'+item.codigo]||{};
-      // Agregar total
-      Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
-      // Guardar por CC para popup detalhado
-      if(Object.keys(m).length)mensalPorCC[n]=m;
+      var _grM=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;
+      var n=_grM||(ccMap[s.cc]?ccMap[s.cc].nome:s.cc);
+      // Usar chave de grupo para evitar dupla contagem no popup
+      if(_grM){
+        if(!_mensalGruposJaSomados.has(_grM)){
+          _mensalGruposJaSomados.add(_grM);
+          var m=consumoMensalMap[_grM+'|'+item.codigo]||{};
+          Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
+          if(Object.keys(m).length)mensalPorCC[_grM]=m;
+        }
+      } else {
+        var m=consumoMensalMap[n+'|'+item.codigo]||{};
+        Object.keys(m).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+m[mes];});
+        if(Object.keys(m).length)mensalPorCC[n]=m;
+      }
     });
     // histStr guarda breakdown por CC: {"CC1":{mes:qtd},"CC2":{...},"_total":{mes:qtd}}
     mensalPorCC['_total']=mensalAgg;
