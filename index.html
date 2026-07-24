@@ -301,9 +301,11 @@ ccsSols.forEach(cc=>{
         _todosGruposCCs.push(cc2);
         // Garantir que cc2 está no ccMap e mapCcNomeMaster
         let ccInfo=(_ccGrupos||[]).find(g=>g.cc===cc2);
-        if(ccInfo&&!ccMap[cc2])ccMap[cc2]={cc:cc2,nome:ccMap[cc]?.nome||cc};
-        // Usar o nome REAL do CC2 (não o nome do CC da solicitação)
-        // Sempre usar o nome real do CC2
+        // NUNCA herdar o nome de outro CC: se cc2 não tem entrada própria no ccMap,
+        // manter sem entrada (ou usar o cc2 como nome fallback), para não contaminar
+        // o _aggNomeProdMes e causar dupla contagem
+        if(ccInfo&&!ccMap[cc2])ccMap[cc2]={cc:cc2,nome:cc2}; // fallback: usa o próprio código
+        // Usar o nome REAL do CC2 buscado do banco (centros_custo), não do CC da solicitação
         var _nomeReal2=ccMap[cc2]?.nome||cc2;
         mapCcNomeMaster[cc2]=_nomeReal2;
       }
@@ -391,7 +393,16 @@ let todosKeys=new Set([...Object.keys(consumoAggNome),...Object.keys(consumoAggN
 todosKeys.forEach(k=>{
   let fixo=consumoAggNomeFix[k]||0;
   let total=consumoAggNome[k]||0;
-  let nMeses=new Set(consumoDataDedup.filter(r=>{let nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;return nome+'|'+r.produto===k}).map(r=>r.mes)).size||6;
+  // nMeses: contar meses distintos para todos os CCs que contribuem para a chave k
+  // k pode ser 'ALAGOINHAS|produto' (grupo) ou 'NOME CC|produto' (individual)
+  // Usar consumoData raw para não depender do cc representativo do dedup
+  let nMesesSet=new Set();
+  (consumoData||[]).forEach(function(r2){
+    let _gr2=_ccParaGrupo[(r2.cc||'').trim()];
+    let _nome2=_gr2||(mapCcNomeMaster[r2.cc]||ccMap[r2.cc]?.nome||r2.cc);
+    if(_nome2+'|'+r2.produto===k&&r2.mes)nMesesSet.add(normMes(r2.mes));
+  });
+  let nMeses=nMesesSet.size||6;
   let mediaFixo=total/Math.max(nMeses,1);consumoMap[k]=mediaFixo>=1?Math.round(mediaFixo):mediaFixo>0?-1:0;
 }),pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)})}let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
 let visiveis=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`||s.status===`em_analise`||s.status===`parcial`);
