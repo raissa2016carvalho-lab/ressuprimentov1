@@ -270,7 +270,13 @@ if(pedidosAnterioresMap={},_ccsExpandidosPed.length>0)for(let i=0;i<_ccsExpandid
   let k2=(r.c1_cc||``).trim()+`|`+(r.c1_produto||``).trim();
   pedidosAnterioresMap[k2]||(pedidosAnterioresMap[k2]=[]);
   if(!pedidosAnterioresMap[k2].find(x=>x.c1_num===r.c1_num&&x.c1_produto===r.c1_produto&&x.c1_emissao===r.c1_emissao))pedidosAnterioresMap[k2].push(r);
-}),rows.length<1e3))break;offPed+=1e3}}scItensMap={};Object.values(pedidosAnterioresMap).forEach(arr=>arr.forEach(r=>{const sc=(r.c1_num||``).trim();const prod=(r.c1_produto||``).trim();if(sc&&prod)scItensMap[sc+`|`+prod]=(r.c1_quant||0)}));if(ccsSols.length>0){// Buscar nomes dos CCs — primeiro pelo ccMap, depois direto do banco se necessário
+}),rows.length<1e3))break;offPed+=1e3}}scItensMap={};Object.values(pedidosAnterioresMap).forEach(arr=>arr.forEach(r=>{const sc=(r.c1_num||``).trim();const prod=(r.c1_produto||``).trim();if(sc&&prod)scItensMap[sc+`|`+prod]=(r.c1_quant||0)}));
+// Carregar cc_grupos SEMPRE (antes do if ccsSols) para garantir grupos de todas as regiões
+{let _ccGruposAll=[],_offG=0;
+for(;;){let{data:_lg,error:_eg}=await db.from('cc_grupos').select('cc,grupo,regiao').range(_offG,_offG+999);if(_eg||!_lg||!_lg.length)break;_ccGruposAll=_ccGruposAll.concat(_lg);if(_lg.length<1000)break;_offG+=1000;}
+_ccParaGrupo={};_grupoCCs={};
+_ccGruposAll.forEach(g=>{_ccParaGrupo[g.cc]=g.grupo;_grupoCCs[g.grupo]=_grupoCCs[g.grupo]||[];if(!_grupoCCs[g.grupo].includes(g.cc))_grupoCCs[g.grupo].push(g.cc);});}
+if(ccsSols.length>0){// Buscar nomes dos CCs — primeiro pelo ccMap, depois direto do banco se necessário
 let nomesSols=[...new Set(ccsSols.map(cc=>ccMap[cc]?.nome).filter(Boolean))];
 // Se algum CC não está no ccMap, buscar do banco
 let ccsSemNome=ccsSols.filter(cc=>!ccMap[cc]?.nome);
@@ -279,19 +285,8 @@ if(ccsSemNome.length>0){
   (ccsFaltando||[]).forEach(c=>{ccMap[c.cc]={...ccMap[c.cc],...c};if(c.nome&&!nomesSols.includes(c.nome))nomesSols.push(c.nome)});
 }let todosHomMaster=[];if(nomesSols.length>0){let{data:hom}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSols);todosHomMaster=hom||[]}let mapCcNomeMaster={};todosHomMaster.forEach(c=>{mapCcNomeMaster[c.cc]=c.nome});let ccsExpandidos=[...new Set(todosHomMaster.map(c=>c.cc))];// Incluir TODOS os CCs das solicitações + todos os CCs que aparecem nos grupos matriciais
 // Para garantir que CCs aglutinados no mesmo card tenham consumo carregado
-// Buscar grupos fixos do banco (cc_grupos) para expandir consumo por grupo regional
 let _todosGruposCCs=[...new Set([...ccsSols,...ccsExpandidos])];
-// Carregar grupos fixos do banco
-let{data:_ccGrupos}=await db.from('cc_grupos').select('cc,grupo,regiao');
-// Mapa: cc -> grupo
-_ccParaGrupo={};
-(_ccGrupos||[]).forEach(g=>{_ccParaGrupo[g.cc]=g.grupo});
-// Mapa: grupo -> lista de CCs
-_grupoCCs={};
-(_ccGrupos||[]).forEach(g=>{
-  _grupoCCs[g.grupo]=_grupoCCs[g.grupo]||[];
-  if(!_grupoCCs[g.grupo].includes(g.cc))_grupoCCs[g.grupo].push(g.cc);
-});
+// _ccParaGrupo e _grupoCCs já populados acima
 // Para cada CC das solicitações, adicionar todos os CCs do mesmo grupo
 ccsSols.forEach(cc=>{
   let grupo=_ccParaGrupo[cc];
