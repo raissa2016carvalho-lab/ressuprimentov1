@@ -1089,7 +1089,11 @@ async function salvarRascunhoGrupo(btn){
 }
 window.salvarRascunhoGrupo=salvarRascunhoGrupo;function baixarExcelProtheus(solId){let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;
 // considera decisões feitas na tela (mesmo sem salvar) + situação do banco
-let aprovados=sol.itens.filter(it=>{let dec=decisoes[it.id];return dec===`aprovado`||dec===void 0&&it.situacao===`aprovado`});if(aprovados.length===0){alert(`Nenhum item aprovado nessa solicitação ainda. Aprove e salve antes de gerar o Excel.`);return}
+// Incluir itens aprovados OU (se nenhum aprovado ainda) todos os itens com qtd > 0
+let aprovados=sol.itens.filter(it=>{let dec=decisoes[it.id];return dec===`aprovado`||dec===void 0&&it.situacao===`aprovado`});
+if(aprovados.length===0){// Fallback: incluir todos os itens com qtd > 0 (ex: aguardando_master sem decisão ainda)
+aprovados=sol.itens.filter(it=>(masterQtd[it.id]||it.quantidade||0)>0&&it.codigo&&it.codigo!==`MANUAL`&&it.situacao!==`recusado`);}
+if(aprovados.length===0){alert(`Nenhum item com quantidade para exportar.`);return}
 // lê direto do campo (usuário pode ter digitado sem salvar ainda)
 let obs=(document.getElementById(`obs-`+solId)?.value||sol.observacao||``).trim();if(!obs){alert(`Preencha a Observação antes de gerar o Excel.`);return}// Garantir masterQtd populado
 sol.itens.forEach(it=>{if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quantidade||0;});
