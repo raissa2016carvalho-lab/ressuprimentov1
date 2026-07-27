@@ -295,7 +295,7 @@ ccsSols.forEach(cc=>{
       if(!_todosGruposCCs.includes(cc2)){
         _todosGruposCCs.push(cc2);
         // Garantir que cc2 está no ccMap e mapCcNomeMaster
-        let ccInfo=(_ccGrupos||[]).find(g=>g.cc===cc2);
+        let ccInfo=_ccParaGrupo[cc2]?{cc:cc2,grupo:_ccParaGrupo[cc2]}:null;
         // NUNCA herdar o nome de outro CC: se cc2 não tem entrada própria no ccMap,
         // manter sem entrada (ou usar o cc2 como nome fallback), para não contaminar
         // o _aggNomeProdMes e causar dupla contagem
