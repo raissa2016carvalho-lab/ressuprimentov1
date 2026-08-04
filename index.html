@@ -1212,7 +1212,11 @@ async function expandirAcomp(solId, topo){
 
   // Buscar itens
   let{data:itens}=await db.from('solicitacao_itens').select('codigo,descricao,quantidade,qtd_almoxarife,situacao,justificativa_gerente').eq('solicitacao_id',solId).order('descricao');
-  itens=itens||[];
+  itens=(itens||[]).filter(it=>{
+    let qtdAlm=Number(it.qtd_almoxarife??0);
+    let qtdGer=Number(it.quantidade??0);
+    return qtdAlm>0||qtdGer>0||it.situacao==='recusado';
+  });
 
   // Buscar pedidos de compra pela SC
   let pcs=[];
