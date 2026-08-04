@@ -1119,69 +1119,21 @@ async function carregarAcompanhamento(){
     return;
   }
 
-  // Carregar consolidados para o filtro
-  _consolidadoScMap={};
-  let{data:_cons}=await db.from('consolidados').select('id,nome');
-  if(_cons&&_cons.length){
-    let{data:_links}=await db.from('consolidado_scs').select('consolidado_id,solicitacao_id');
-    (_cons||[]).forEach(c=>{
-      _consolidadoScMap[c.id]={nome:c.nome,ids:new Set()};
-    });
-    (_links||[]).forEach(l=>{
-      if(_consolidadoScMap[l.consolidado_id])
-        _consolidadoScMap[l.consolidado_id].ids.add(l.solicitacao_id);
-    });
-  }
-
   // Reset mapas ao recarregar
   _pcMap={};_valorMap={};_itensMap={};_pctMap={};_pctPedidoMap={};
+  // Pré-carregar PCs e itens em background (não bloqueia render)
   // Preparar estrutura para renderPaginaAcomp
   $(`lista-acomp`).innerHTML=`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div><div id="acomp-cards-container"></div>`;
   _todasSolsAcomp=todas;
   _popularSelects();
   filtrarAcomp();
   _popularCompradores();
-  // Carregar TODOS em paralelo em background — atualiza barras conforme chegam
+  // Carregar % em background usando sc_pedidos (fonte correta)
   setTimeout(()=>_carregarTodasEmParalelo(todas),100);
 }
 
-async function _carregarDadosCard(s){
-  let sc=(s.sc_numero||'').trim();
-  if(!_pcMap[sc]&&sc){
-    let off=0,pcs=[];
-    for(;;){
-      let{data:l}=await db.from('pedidos_compra').select('c7_numsc,c7_filial,c7_produto,c7_quant,c7_total,status_desc').ilike('c7_numsc',sc).range(off,off+999);
-      if(!l||!l.length)break;
-      pcs=pcs.concat(l);
-      if(l.length<1000)break;
-      off+=1000;
-    }
-    _pcMap[sc]=pcs;
-    _valorMap[sc]=pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
-  }
-  if(!_itensMap[s.id]){
-    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').eq('solicitacao_id',s.id);
-    _itensMap[s.id]=its||[];
-  }
-  let pcs=_pcMap[(s.sc_numero||'').trim()]||[];
-  let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
-  let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
-  let recQtd=0;
-  itens.forEach(it=>{
-    let qtdRec=pcs.filter(p=>p.c7_produto===it.codigo&&(p.status_desc||'').toLowerCase().includes('receb')).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
-    recQtd+=Math.min(qtdRec,Number(it.quantidade)||0);
-  });
-  let pct=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
-  _pctMap[s.id]=pct;
-  let totalItens=itens.length;
-  let itensComPc=itens.filter(it=>pcs.some(p=>p.c7_produto===it.codigo&&!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('REJEITADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'))).length;
-  let pctPedido=totalItens>0?Math.min(100,Math.round(itensComPc/totalItens*100)):0;
-  _pctPedidoMap[s.id]=pctPedido;
-  return pct;
-}
-
 async function _carregarTodasEmParalelo(sols){
-  // 1. Buscar TODOS os itens em batch
+  // 1. Buscar itens em batch
   let todosIds=sols.map(s=>s.id);
   for(let i=0;i<todosIds.length;i+=500){
     let lote=todosIds.slice(i,i+500);
@@ -1192,66 +1144,95 @@ async function _carregarTodasEmParalelo(sols){
     });
   }
 
-  // 2. Buscar TODOS os PCs em batch por sc_numero
+  // 2. Buscar sc_pedidos em batch — cruzamento correto SC+produto+status
+  let _scPedidosMap={};
   let todasSCs=[...new Set(sols.map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
-  // Buscar PCs por SC — em paralelo, 20 por vez, com paginação
+  for(let i=0;i<todasSCs.length;i+=50){
+    let lote=todasSCs.slice(i,i+50);
+    let off=0;
+    for(;;){
+      let{data:rows}=await db.from('sc_pedidos').select('c1_num,c1_filial,c1_produto,pc_status,pc_total').in('c1_num',lote).range(off,off+999);
+      if(!rows||!rows.length)break;
+      rows.forEach(r=>{
+        let sc=(r.c1_num||'').trim();
+        let fil=(r.c1_filial||'').trim();
+        let key=fil?fil+'|'+sc:sc;
+        if(!_scPedidosMap[key])_scPedidosMap[key]=[];
+        _scPedidosMap[key].push(r);
+        if(!_scPedidosMap[sc])_scPedidosMap[sc]=[];
+        _scPedidosMap[sc].push(r);
+      });
+      if(rows.length<1000)break;
+      off+=1000;
+    }
+  }
+
+  // 3. Buscar valor total por SC
   for(let i=0;i<todasSCs.length;i+=20){
     let lote=todasSCs.slice(i,i+20);
     await Promise.all(lote.map(async sc=>{
-      let off=0;
+      if(_valorMap[sc]!==undefined)return;
+      let off=0; let total=0;
       for(;;){
-        let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').eq('c7_numsc',sc).range(off,off+999);
+        let{data:pcs}=await db.from('pedidos_compra').select('c7_total').eq('c7_numsc',sc).range(off,off+999);
         if(!pcs||!pcs.length)break;
-        if(!_pcMap[sc])_pcMap[sc]=[];
-        _pcMap[sc]=_pcMap[sc].concat(pcs);
+        total+=(pcs||[]).reduce((a,p)=>a+(Number(p.c7_total)||0),0);
         if(pcs.length<1000)break;
         off+=1000;
       }
-      _valorMap[sc]=(_pcMap[sc]||[]).reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+      _valorMap[sc]=total;
     }));
   }
 
-  // 3. Calcular % e atualizar DOM
-  function statusInvalido(s){let u=(s||'').toUpperCase();return u.includes('ELIMINADO')||u.includes('REJEITADO')||u.includes('FORA DO PROTHEUS');}
+  // 4. Calcular %
+  function statusInvalido(s){let u=(s||'').toUpperCase();return !s||u.includes('ELIMINADO')||u.includes('REJEITADO')||u.includes('FORA DO PROTHEUS');}
+  function isRecebido(s){let u=(s||'').toLowerCase();return u.includes('receb')||u.includes('pre-nota')||u.includes('pré-nota');}
+
   sols.forEach(s=>{
     let sc=(s.sc_numero||'').trim();
-    let pcs=_pcMap[sc]||[];
+    let fil=(s.filial||'').trim();
+    let scRows=_scPedidosMap[fil?fil+'|'+sc:sc]||_scPedidosMap[sc]||[];
     let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
     let itensAtivos=itens.filter(i=>(Number(i.qtd_almoxarife!=null?i.qtd_almoxarife:i.quantidade)||0)>0);
 
-    // % recebido
-    let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
-    let recQtd=0;
-    itens.forEach(it=>{
-      let qtdRec=pcs.filter(p=>p.c7_produto===it.codigo&&(p.status_desc||'').toLowerCase().includes('receb')).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
-      recQtd+=Math.min(qtdRec,Number(it.quantidade)||0);
-    });
-    _pctMap[s.id]=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
-
-    // % pedido — só conta produtos que estão nos itens desta SC
-    let produtosDasc=new Set(itensAtivos.map(i=>i.codigo));
-    let pcsDestaSc=pcs.filter(p=>produtosDasc.has(p.c7_produto)&&!statusInvalido(p.status_desc));
-    let produtosComPc=new Set(pcsDestaSc.map(p=>p.c7_produto));
+    // % pedido — produtos com PC válido nesta SC
+    let produtosComPc=new Set(scRows.filter(r=>r.pc_status&&!statusInvalido(r.pc_status)).map(r=>r.c1_produto));
     let totalAtivos=itensAtivos.length;
     let comPc=itensAtivos.filter(it=>produtosComPc.has(it.codigo)).length;
     _pctPedidoMap[s.id]=totalAtivos>0?Math.min(100,Math.round(comPc/totalAtivos*100)):0;
+
+    // % recebido
+    let produtosRecebidos=new Set(scRows.filter(r=>isRecebido(r.pc_status)).map(r=>r.c1_produto));
+    let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
+    let recQtd=itens.filter(it=>produtosRecebidos.has(it.codigo)).reduce((a,it)=>a+(Number(it.quantidade)||0),0);
+    _pctMap[s.id]=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
 
     _atualizarBarrasCard(s);
   });
 }
 
+async function _carregarPaginaAtual(sols){
+  sols.forEach(s=>_atualizarBarrasCard(s));
+  let semDados=sols.filter(s=>_pctMap[s.id]===undefined);
+  if(semDados.length)await _carregarTodasEmParalelo(semDados);
+}
+
 function _atualizarBarrasCard(s){
+  let barEl=document.getElementById('bar-pct-'+s.id);
   let pctEl=document.getElementById('pct-txt-'+s.id);
   let valEl=document.getElementById('val-txt-'+s.id);
-  let pedEl=document.getElementById('ped-pct-'+s.id);
   let p=_pctMap[s.id]||0;
-  let pp=_pctPedidoMap[s.id]||0;
   let v=_valorMap[(s.sc_numero||'').trim()]||0;
-  let bc=p===100?'#16a34a':p>0?'#f59e0b':'#94a3b8';
-  let pc=pp===100?'#7c3aed':pp>0?'#a78bfa':'#94a3b8';
-  if(pctEl){pctEl.textContent='✅ '+p+'%';pctEl.style.color=bc;}
-  if(pedEl){pedEl.textContent='🛒 '+pp+'%';pedEl.style.color=pc;}
+  let bc=p===100?'#16a34a':p>0?'#f59e0b':'#e2e8f0';
+  if(barEl){barEl.style.width=p+'%';barEl.style.background=bc;}
+  if(pctEl){pctEl.textContent=p+'%';pctEl.style.color=bc;}
   if(valEl&&v>0)valEl.textContent='R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  let pp=_pctPedidoMap[s.id]||0;
+  let pedEl=document.getElementById('ped-pct-'+s.id);
+  let pedBarEl=document.getElementById('ped-bar-'+s.id);
+  let pedCor=pp===100?'#1e40af':pp>0?'#7c3aed':'#e2e8f0';
+  if(pedEl){pedEl.textContent=pp+'%';pedEl.style.color=pedCor;}
+  if(pedBarEl){pedBarEl.style.width=pp+'%';pedBarEl.style.background=pedCor;}
 }
 window.carregarAcompanhamento=carregarAcompanhamento;
 let _filtroStatusAcomp='todos';
@@ -1467,121 +1448,19 @@ window.expandirAcomp=expandirAcomp;
 
 let _paginaAcomp=1,_porPaginaAcomp=30,_allCardsData='',_cardsVisiveis=[],_todasSolsAcomp=[];
 
-// Popular selects de CC e consolidado
-function _popularSelects(){
-  // Select de CCs
-  let selCC=document.getElementById('filtro-acomp-cc');
-  if(selCC){
-    let atual=selCC.value;
-    selCC.innerHTML='<option value>Todos os centros de custo</option>';
-    let ccsUsados=[...new Set(_todasSolsAcomp.map(s=>s.cc))];
-    ccsUsados.sort((a,b)=>(ccMap[a]?.nome||a).localeCompare(ccMap[b]?.nome||b));
-    ccsUsados.forEach(cc=>{
-      let opt=document.createElement('option');
-      opt.value=cc;
-      opt.textContent=ccMap[cc]?.nome||cc;
-      selCC.appendChild(opt);
-    });
-    selCC.value=atual;
-  }
-  // Select de consolidados
-  let selCons=document.getElementById('filtro-acomp-consolidado');
-  if(selCons&&Object.keys(_consolidadoScMap).length>0){
-    let atual=selCons.value;
-    selCons.innerHTML='<option value>Todos os consolidados</option>';
-    Object.entries(_consolidadoScMap).forEach(([id,info])=>{
-      let opt=document.createElement('option');
-      opt.value=id;
-      opt.textContent=(typeof info==='object'?info.nome:info)||id;
-      selCons.appendChild(opt);
-    });
-    selCons.value=atual;
-  }
-}
-
-// Mapa sc_numero → comprador (populado ao carregar acompanhamento)
-let _compradorScMap={};
-
-async function _popularCompradores(){
-  // Busca compradores dos pedidos de compra para popular o select
-  let{data}=await db.from('pedidos_compra').select('c7_numsc,c7_comprador').not('c7_comprador','is',null);
-  _compradorScMap={};
-  let compradores=new Set();
-  (data||[]).forEach(p=>{
-    let sc=(p.c7_numsc||'').trim();
-    let comp=(p.c7_comprador||'').trim();
-    if(sc&&comp){
-      if(!_compradorScMap[sc])_compradorScMap[sc]=new Set();
-      _compradorScMap[sc].add(comp);
-      compradores.add(comp);
-    }
-  });
-  // Popular select de compradores
-  let sel=document.getElementById('filtro-acomp-comprador');
-  if(sel){
-    let atual=sel.value;
-    sel.innerHTML='<option value>Todos os compradores</option>';
-    [...compradores].sort().forEach(c=>{
-      let opt=document.createElement('option');
-      opt.value=c;opt.textContent=c;
-      sel.appendChild(opt);
-    });
-    sel.value=atual;
-  }
-}
-
-function onFiltroCompradorChange(){filtrarAcomp();}
-window.onFiltroCompradorChange=onFiltroCompradorChange;
-
 function filtrarAcomp(resetPagina=true){
   if(resetPagina)_paginaAcomp=1;
-  let termCC=($(`filtro-acomp-cc`)?.value||``).toLowerCase().trim();
-  let termObs=($(`filtro-acomp-obs`)?.value||``).toLowerCase().trim();
-  let filialFilt=$(`filtro-acomp-filial`)?.value||``;
-  let compradorFilt=($(`filtro-acomp-comprador`)?.value||``).trim();
-  let dtIni=$(`filtro-acomp-dt-ini`)?.value||``;
-  let dtFim=$(`filtro-acomp-dt-fim`)?.value||``;
-  let consolidadoFilt=$(`filtro-acomp-consolidado`)?.value||``;
+  let termCC=($(`filtro-acomp-cc`)?.value||``).toLowerCase().trim(),
+    termObs=($(`filtro-acomp-obs`)?.value||``).toLowerCase().trim(),
+    filialFilt=$(`filtro-acomp-filial`)?.value||``;
 
   _cardsVisiveis=_todasSolsAcomp.filter(s=>{
     let nome=(ccMap[s.cc]?.nome||s.cc).toLowerCase();
     let obs=(s.observacao||``).toLowerCase();
     let filial=(s.filial||``);
-
-    // Filtro CC
-    if(termCC&&s.cc!==termCC)return false;
-    // Filtro observação
-    if(termObs&&!obs.includes(termObs))return false;
-    // Filtro filial
-    if(filialFilt&&filial!==filialFilt)return false;
-    // Filtro status (pedido/recebido via _pctMap/_pctPedidoMap)
-    if(_filtroStatusAcomp==='sem_pedido'){
-      if((_pctPedidoMap[s.id]||0)>0)return false;
-    } else if(_filtroStatusAcomp==='pendente'){
-      let pp=_pctPedidoMap[s.id]||0;
-      let pr=_pctMap[s.id]||0;
-      if(pp===0||pr===100)return false;
-    } else if(_filtroStatusAcomp==='parcial'){
-      let pr=_pctMap[s.id]||0;
-      if(pr===0||pr===100)return false;
-    } else if(_filtroStatusAcomp==='recebido'){
-      if((_pctMap[s.id]||0)<100)return false;
-    }
-    // Filtro comprador
-    if(compradorFilt){
-      let sc=(s.sc_numero||'').trim();
-      let comps=_compradorScMap[sc];
-      if(!comps||!comps.has(compradorFilt))return false;
-    }
-    // Filtro datas (por criado_em da solicitação)
-    if(dtIni&&s.criado_em&&s.criado_em.slice(0,10)<dtIni)return false;
-    if(dtFim&&s.criado_em&&s.criado_em.slice(0,10)>dtFim)return false;
-    // Filtro consolidado
-    if(consolidadoFilt){
-      let entry=_consolidadoScMap[consolidadoFilt];
-      if(!entry||!entry.ids.has(s.id))return false;
-    }
-    return true;
+    return (!termCC||nome.includes(termCC))
+      &&(!termObs||obs.includes(termObs))
+      &&(!filialFilt||filial===filialFilt);
   });
 
   renderPaginaAcomp();
@@ -1630,12 +1509,23 @@ function renderPaginaAcomp(){
           <div style="flex:1;min-width:200px">
             <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
             <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,50)}</em>`:``}</div>
-            <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
-              <span id="ped-pct-${s.id}" style="font-size:12px;font-weight:700;color:#a78bfa">🛒 0%</span>
-              <span style="color:#e2e8f0;font-size:11px">|</span>
-              <span id="pct-txt-${s.id}" style="font-size:12px;font-weight:700;color:${barCor}">✅ ${pct}%</span>
-              <span style="color:#e2e8f0;font-size:11px">|</span>
-              <span id="val-txt-${s.id}" style="font-size:11px;font-weight:600;color:#94a3b8">${valorFmt}</span>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:10px;color:#94a3b8;width:58px;flex-shrink:0">🛒 Pedido</span>
+                <div style="background:#e2e8f0;border-radius:99px;height:5px;width:100px;flex-shrink:0">
+                  <div id="ped-bar-${s.id}" style="background:#e2e8f0;height:100%;border-radius:99px;width:0%;transition:width .4s"></div>
+                </div>
+                <span id="ped-pct-${s.id}" style="font-size:11px;font-weight:700;color:#e2e8f0">0%</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:10px;color:#94a3b8;width:58px;flex-shrink:0">✅ Recebido</span>
+                <div style="background:#e2e8f0;border-radius:99px;height:5px;width:100px;flex-shrink:0">
+                  <div id="bar-pct-${s.id}" style="background:${barCor};height:100%;border-radius:99px;width:${pct}%;transition:width .4s"></div>
+                </div>
+                <span id="pct-txt-${s.id}" style="font-size:11px;font-weight:700;color:${barCor}">${pct}%</span>
+                <span style="font-size:11px;color:#94a3b8">·</span>
+                <span id="val-txt-${s.id}" style="font-size:11px;font-weight:600;color:#475569">${valorFmt}</span>
+              </div>
             </div>
           </div>
           ${filialNome?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span></span>`}
