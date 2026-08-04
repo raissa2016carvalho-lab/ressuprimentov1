@@ -1121,55 +1121,58 @@ async function carregarAcompanhamento(){
 
   // Reset mapas ao recarregar
   _pcMap={};_valorMap={};_itensMap={};_pctMap={};_pctPedidoMap={};
-  // Pré-carregar PCs e itens em background (não bloqueia render)
-  async function _carregarDadosCard(s){
-    let sc=(s.sc_numero||'').trim();
-    if(!_pcMap[sc]&&sc){
-      let off=0,pcs=[];
-      for(;;){
-        let{data:l}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').ilike('c7_numsc',sc).range(off,off+999);
-        if(!l||!l.length)break;
-        pcs=pcs.concat(l);
-        if(l.length<1000)break;
-        off+=1000;
-      }
-      _pcMap[sc]=pcs;
-      _valorMap[sc]=pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
-    }
-    if(!_itensMap[s.id]){
-      let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').eq('solicitacao_id',s.id);
-      _itensMap[s.id]=its||[];
-    }
-    // Calcular pct
-    let pcs=_pcMap[(s.sc_numero||'').trim()]||[];
-    let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
-    let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
-    let recQtd=0;
-    itens.forEach(it=>{
-      let qtdRec=pcs.filter(p=>p.c7_produto===it.codigo&&(p.status_desc||'').toLowerCase().includes('receb')).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
-      recQtd+=Math.min(qtdRec,Number(it.quantidade)||0);
-    });
-    let pct=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
-    _pctMap[s.id]=pct;
-    // Calcular % pedido — itens que têm pelo menos 1 PC válido ÷ total de itens ativos
-    let totalItens=itens.length;
-    let itensComPc=itens.filter(it=>pcs.some(p=>p.c7_produto===it.codigo&&!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('REJEITADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'))).length;
-    let pctPedido=totalItens>0?Math.min(100,Math.round(itensComPc/totalItens*100)):0;
-    _pctPedidoMap[s.id]=pctPedido;
-    return pct;
-  }
   // Preparar estrutura para renderPaginaAcomp
   $(`lista-acomp`).innerHTML=`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div><div id="acomp-cards-container"></div>`;
   _todasSolsAcomp=todas;
   filtrarAcomp();
-  // Carregar dados dos primeiros 30 cards em background
-  setTimeout(()=>_carregarPaginaAtual(todas.slice(0,30)),100);
+  // Carregar TODOS em paralelo em background — atualiza barras conforme chegam
+  setTimeout(()=>_carregarTodasEmParalelo(todas),100);
 }
 
-async function _carregarPaginaAtual(sols){
-  for(let s of sols){
-    await _carregarDadosCard(s);
-    _atualizarBarrasCard(s);
+async function _carregarDadosCard(s){
+  let sc=(s.sc_numero||'').trim();
+  if(!_pcMap[sc]&&sc){
+    let off=0,pcs=[];
+    for(;;){
+      let{data:l}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').ilike('c7_numsc',sc).range(off,off+999);
+      if(!l||!l.length)break;
+      pcs=pcs.concat(l);
+      if(l.length<1000)break;
+      off+=1000;
+    }
+    _pcMap[sc]=pcs;
+    _valorMap[sc]=pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+  }
+  if(!_itensMap[s.id]){
+    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').eq('solicitacao_id',s.id);
+    _itensMap[s.id]=its||[];
+  }
+  let pcs=_pcMap[(s.sc_numero||'').trim()]||[];
+  let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
+  let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
+  let recQtd=0;
+  itens.forEach(it=>{
+    let qtdRec=pcs.filter(p=>p.c7_produto===it.codigo&&(p.status_desc||'').toLowerCase().includes('receb')).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+    recQtd+=Math.min(qtdRec,Number(it.quantidade)||0);
+  });
+  let pct=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
+  _pctMap[s.id]=pct;
+  let totalItens=itens.length;
+  let itensComPc=itens.filter(it=>pcs.some(p=>p.c7_produto===it.codigo&&!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('REJEITADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'))).length;
+  let pctPedido=totalItens>0?Math.min(100,Math.round(itensComPc/totalItens*100)):0;
+  _pctPedidoMap[s.id]=pctPedido;
+  return pct;
+}
+
+async function _carregarTodasEmParalelo(sols){
+  // Carrega em lotes de 10 paralelos para não sobrecarregar
+  let tamanho=10;
+  for(let i=0;i<sols.length;i+=tamanho){
+    let lote=sols.slice(i,i+tamanho);
+    await Promise.all(lote.map(async s=>{
+      await _carregarDadosCard(s);
+      _atualizarBarrasCard(s);
+    }));
   }
 }
 
