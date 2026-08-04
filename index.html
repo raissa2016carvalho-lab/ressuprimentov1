@@ -1150,7 +1150,7 @@ async function _carregarDadosCard(s){
   if(!_pcMap[sc]&&sc){
     let off=0,pcs=[];
     for(;;){
-      let{data:l}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').ilike('c7_numsc',sc).range(off,off+999);
+      let{data:l}=await db.from('pedidos_compra').select('c7_numsc,c7_filial,c7_produto,c7_quant,c7_total,status_desc').ilike('c7_numsc',sc).range(off,off+999);
       if(!l||!l.length)break;
       pcs=pcs.concat(l);
       if(l.length<1000)break;
@@ -1196,14 +1196,18 @@ async function _carregarTodasEmParalelo(sols){
   let todasSCs=[...new Set(sols.map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
   for(let i=0;i<todasSCs.length;i+=100){
     let lote=todasSCs.slice(i,i+100);
-    let cond=lote.map(sc=>`c7_numsc.ilike.${sc}`).join(',');
-    let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').or(cond);
+    let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_filial,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote);
     (pcs||[]).forEach(p=>{
       let sc=(p.c7_numsc||'').trim();
+      let fil=(p.c7_filial||'').trim();
+      let key=sc+'|'+fil;
+      if(!_pcMap[key])_pcMap[key]=[];
+      _pcMap[key].push(p);
+      // também indexa só por SC para compatibilidade
       if(!_pcMap[sc])_pcMap[sc]=[];
       _pcMap[sc].push(p);
     });
-    // Calcular valor por SC
+    // Calcular valor por SC+filial
     lote.forEach(sc=>{
       _valorMap[sc]=(_pcMap[sc]||[]).reduce((a,p)=>a+(Number(p.c7_total)||0),0);
     });
@@ -1211,7 +1215,10 @@ async function _carregarTodasEmParalelo(sols){
 
   // 3. Calcular % para todas e atualizar DOM
   sols.forEach(s=>{
-    let pcs=_pcMap[(s.sc_numero||'').trim()]||[];
+    let sc=(s.sc_numero||'').trim();
+    let fil=(s.filial||'').trim();
+    let key=fil?sc+'|'+fil:sc;
+    let pcs=(_pcMap[key]||_pcMap[sc])||[];
     let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
     let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
     let recQtd=0;
