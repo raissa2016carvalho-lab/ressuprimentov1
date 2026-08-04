@@ -1255,21 +1255,17 @@ async function _carregarTodasEmParalelo(sols){
 }
 
 function _atualizarBarrasCard(s){
-  let barEl=document.getElementById('bar-pct-'+s.id);
   let pctEl=document.getElementById('pct-txt-'+s.id);
   let valEl=document.getElementById('val-txt-'+s.id);
-  let p=_pctMap[s.id]||0;
-  let v=_valorMap[(s.sc_numero||'').trim()]||0;
-  let bc=p===100?'#16a34a':p>0?'#f59e0b':'#e2e8f0';
-  if(barEl){barEl.style.width=p+'%';barEl.style.background=bc;}
-  if(pctEl){pctEl.textContent=p+'%';pctEl.style.color=bc;}
-  if(valEl&&v>0)valEl.textContent='R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
-  let pp=_pctPedidoMap[s.id]||0;
   let pedEl=document.getElementById('ped-pct-'+s.id);
-  let pedBarEl=document.getElementById('ped-bar-'+s.id);
-  let pedCor=pp===100?'#1e40af':pp>0?'#7c3aed':'#e2e8f0';
-  if(pedEl){pedEl.textContent=pp+'%';pedEl.style.color=pedCor;}
-  if(pedBarEl){pedBarEl.style.width=pp+'%';pedBarEl.style.background=pedCor;}
+  let p=_pctMap[s.id]||0;
+  let pp=_pctPedidoMap[s.id]||0;
+  let v=_valorMap[(s.sc_numero||'').trim()]||0;
+  let bc=p===100?'#16a34a':p>0?'#f59e0b':'#94a3b8';
+  let pc=pp===100?'#7c3aed':pp>0?'#a78bfa':'#94a3b8';
+  if(pctEl){pctEl.textContent='✅ '+p+'%';pctEl.style.color=bc;}
+  if(pedEl){pedEl.textContent='🛒 '+pp+'%';pedEl.style.color=pc;}
+  if(valEl&&v>0)valEl.textContent='R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
 window.carregarAcompanhamento=carregarAcompanhamento;
 let _filtroStatusAcomp='todos';
@@ -1648,23 +1644,12 @@ function renderPaginaAcomp(){
           <div style="flex:1;min-width:200px">
             <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
             <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,50)}</em>`:``}</div>
-            <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="font-size:10px;color:#94a3b8;width:58px;flex-shrink:0">🛒 Pedido</span>
-                <div style="background:#e2e8f0;border-radius:99px;height:5px;width:100px;flex-shrink:0">
-                  <div id="ped-bar-${s.id}" style="background:#e2e8f0;height:100%;border-radius:99px;width:0%;transition:width .4s"></div>
-                </div>
-                <span id="ped-pct-${s.id}" style="font-size:11px;font-weight:700;color:#e2e8f0">0%</span>
-              </div>
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="font-size:10px;color:#94a3b8;width:58px;flex-shrink:0">✅ Recebido</span>
-                <div style="background:#e2e8f0;border-radius:99px;height:5px;width:100px;flex-shrink:0">
-                  <div id="bar-pct-${s.id}" style="background:${barCor};height:100%;border-radius:99px;width:${pct}%;transition:width .4s"></div>
-                </div>
-                <span id="pct-txt-${s.id}" style="font-size:11px;font-weight:700;color:${barCor}">${pct}%</span>
-                <span style="font-size:11px;color:#94a3b8">·</span>
-                <span id="val-txt-${s.id}" style="font-size:11px;font-weight:600;color:#475569">${valorFmt}</span>
-              </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
+              <span id="ped-pct-${s.id}" style="font-size:12px;font-weight:700;color:#a78bfa">🛒 0%</span>
+              <span style="color:#e2e8f0;font-size:11px">|</span>
+              <span id="pct-txt-${s.id}" style="font-size:12px;font-weight:700;color:${barCor}">✅ ${pct}%</span>
+              <span style="color:#e2e8f0;font-size:11px">|</span>
+              <span id="val-txt-${s.id}" style="font-size:11px;font-weight:600;color:#94a3b8">${valorFmt}</span>
             </div>
           </div>
           ${filialNome?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span></span>`}
