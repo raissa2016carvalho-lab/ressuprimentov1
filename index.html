@@ -1181,32 +1181,19 @@ async function _carregarDadosCard(s){
 }
 
 async function _carregarTodasEmParalelo(sols){
-  // 1. Buscar TODOS os itens das SCs em batch
+  // 1. Buscar TODOS os itens em batch
   let todosIds=sols.map(s=>s.id);
   for(let i=0;i<todosIds.length;i+=500){
     let lote=todosIds.slice(i,i+500);
-    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').in('solicitacao_id',lote);
+    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,qtd_almoxarife,situacao').in('solicitacao_id',lote);
     (its||[]).forEach(it=>{
       if(!_itensMap[it.solicitacao_id])_itensMap[it.solicitacao_id]=[];
       _itensMap[it.solicitacao_id].push(it);
     });
   }
 
-  // 2. Buscar PCs das SCs — indexar por sc_numero
-  // Para SCs numéricas (ex: 003231): cruzar também com os produtos dos itens daquela SC
-  // para evitar contar PCs de outra filial com o mesmo número de SC
+  // 2. Buscar TODOS os PCs em batch por sc_numero
   let todasSCs=[...new Set(sols.map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
-
-  // Montar mapa sc -> Set de produtos esperados (para filtrar na hora de calcular)
-  let _produtosPorSc={};
-  sols.forEach(s=>{
-    let sc=(s.sc_numero||'').trim();
-    if(!sc)return;
-    let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado'&&(Number(i.qtd_almoxarife??i.quantidade)||0)>0);
-    if(!_produtosPorSc[sc])_produtosPorSc[sc]=new Set();
-    itens.forEach(it=>_produtosPorSc[sc].add(it.codigo));
-  });
-
   for(let i=0;i<todasSCs.length;i+=100){
     let lote=todasSCs.slice(i,i+100);
     let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote);
@@ -1220,22 +1207,15 @@ async function _carregarTodasEmParalelo(sols){
     });
   }
 
-  // 3. Calcular % para todas e atualizar DOM
+  // 3. Calcular % e atualizar DOM
+  function statusInvalido(s){let u=(s||'').toUpperCase();return u.includes('ELIMINADO')||u.includes('REJEITADO')||u.includes('FORA DO PROTHEUS');}
   sols.forEach(s=>{
     let sc=(s.sc_numero||'').trim();
-    let todosPcs=_pcMap[sc]||[];
-    let produtosEsperados=_produtosPorSc[sc]||new Set();
-
-    // Filtrar PCs: se SC numérica, só considera PCs cujo produto pertence a esta solicitação
-    let pcs=todosPcs;
-    if(sc&&/^\d+$/.test(sc)&&produtosEsperados.size>0){
-      pcs=todosPcs.filter(p=>produtosEsperados.has(p.c7_produto));
-    }
-
+    let pcs=_pcMap[sc]||[];
     let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
-    let itensAtivos=itens.filter(i=>(Number(i.qtd_almoxarife??i.quantidade)||0)>0);
+    let itensAtivos=itens.filter(i=>(Number(i.qtd_almoxarife!=null?i.qtd_almoxarife:i.quantidade)||0)>0);
 
-    // % recebido — sobre quantidade total
+    // % recebido
     let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
     let recQtd=0;
     itens.forEach(it=>{
@@ -1244,10 +1224,9 @@ async function _carregarTodasEmParalelo(sols){
     });
     _pctMap[s.id]=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
 
-    // % pedido — sobre itens ativos (qtd > 0)
+    // % pedido
     let totalAtivos=itensAtivos.length;
-    let STATUS_INVALIDO=s=>{ let u=(s||'').toUpperCase(); return u.includes('ELIMINADO')||u.includes('REJEITADO')||u.includes('FORA DO PROTHEUS'); };
-    let comPc=itensAtivos.filter(it=>pcs.some(p=>p.c7_produto===it.codigo&&!STATUS_INVALIDO(p.status_desc))).length;
+    let comPc=itensAtivos.filter(it=>pcs.some(p=>p.c7_produto===it.codigo&&!statusInvalido(p.status_desc))).length;
     _pctPedidoMap[s.id]=totalAtivos>0?Math.min(100,Math.round(comPc/totalAtivos*100)):0;
 
     _atualizarBarrasCard(s);
