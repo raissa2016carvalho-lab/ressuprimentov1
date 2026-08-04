@@ -1263,7 +1263,54 @@ async function expandirAcomp(solId, topo){
     return{c:'#64748b',b:'#f8fafc'};
   }
 
-  let html=`
+  // Linha do tempo
+  function fmtDt(s){
+    if(!s)return null;
+    // YYYYMMDD ou YYYY-MM-DD
+    let d=String(s).replace(/-/g,'').trim();
+    if(d.length===8)return d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4);
+    return null;
+  }
+  let dtFormulario=fmtDt(sol.criado_em?.slice(0,10).replace(/-/g,'').replace('T','').slice(0,8)||sol.criado_em);
+  let dtFormularioRaw=sol.criado_em?new Date(sol.criado_em):null;
+  let dtSC=sol.atualizado_em&&sol.sc_numero?fmtDt(sol.atualizado_em?.slice(0,10).replace(/-/g,'')):null;
+  let dtSCRaw=sol.atualizado_em&&sol.sc_numero?new Date(sol.atualizado_em):null;
+  // Data do pedido: menor c7_emissao entre os PCs válidos
+  let pcsValidos=pcs.filter(p=>!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'));
+  let dtPedidoRaw=null;
+  pcsValidos.forEach(p=>{if(p.c7_emissao){let d=new Date(String(p.c7_emissao).slice(0,4)+'-'+String(p.c7_emissao).slice(4,6)+'-'+String(p.c7_emissao).slice(6,8));if(!dtPedidoRaw||d<dtPedidoRaw)dtPedidoRaw=d;}});
+  let dtPedido=dtPedidoRaw?fmtDt(dtPedidoRaw.toISOString().slice(0,10).replace(/-/g,'')):null;
+  // Previsão de entrega: maior dt_entrega entre os PCs válidos
+  let dtEntregaRaw=null;
+  pcsValidos.forEach(p=>{if(p.dt_entrega){let d=new Date(String(p.dt_entrega).slice(0,4)+'-'+String(p.dt_entrega).slice(4,6)+'-'+String(p.dt_entrega).slice(6,8));if(!dtEntregaRaw||d>dtEntregaRaw)dtEntregaRaw=d;}});
+  let dtEntrega=dtEntregaRaw?fmtDt(dtEntregaRaw.toISOString().slice(0,10).replace(/-/g,'')):null;
+  let hoje=new Date();
+  let atrasado=dtEntregaRaw&&dtEntregaRaw<hoje&&pct<100;
+
+  let passos=[
+    {label:'Formulário',data:dtFormulario,raw:dtFormularioRaw,cor:'#1e40af',icone:'📋'},
+    {label:'SC aberta',data:dtSC,raw:dtSCRaw,cor:'#7c3aed',icone:'🔖'},
+    {label:'Pedido',data:dtPedido,raw:dtPedidoRaw,cor:'#d97706',icone:'🛒'},
+    {label:'Entrega prev.',data:dtEntrega,raw:dtEntregaRaw,cor:atrasado?'#ef4444':'#16a34a',icone:atrasado?'⚠️':'📦'},
+  ];
+
+  let linhaDoTempo=`<div style="margin-bottom:16px;padding:12px 14px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+    <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:10px;letter-spacing:.5px">LINHA DO TEMPO</div>
+    <div style="display:flex;align-items:flex-start;gap:0;position:relative">
+      ${passos.map((p,i)=>{
+        let ativo=!!p.data;
+        let ultimo=i===passos.length-1;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;position:relative">
+          ${!ultimo?`<div style="position:absolute;top:12px;left:50%;width:100%;height:2px;background:${ativo&&passos[i+1]?.data?p.cor:'#e2e8f0'};z-index:0"></div>`:''}
+          <div style="width:24px;height:24px;border-radius:50%;background:${ativo?p.cor:'#e2e8f0'};display:flex;align-items:center;justify-content:center;font-size:12px;z-index:1;position:relative;flex-shrink:0">${ativo?'✓':''}</div>
+          <div style="font-size:10px;font-weight:600;color:${ativo?p.cor:'#cbd5e1'};margin-top:4px;text-align:center">${p.label}</div>
+          <div style="font-size:10px;color:${ativo?'#475569':'#cbd5e1'};text-align:center">${p.data||'—'}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+
+  let html=`${linhaDoTempo}
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap">
       <div style="flex:1">
         <div style="font-size:12px;color:#64748b;margin-bottom:4px">Progresso de atendimento</div>
