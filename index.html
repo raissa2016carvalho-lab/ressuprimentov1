@@ -1163,28 +1163,32 @@ async function carregarAcompanhamento(){
   _todasSolsAcomp=todas;
   filtrarAcomp();
   // Carregar dados dos primeiros 30 cards em background
-  setTimeout(async()=>{
-    let primeiros=todas.slice(0,30);
-    for(let s of primeiros){
-      await _carregarDadosCard(s);
-      // Atualizar barra no DOM se card visível
-      let barEl=document.getElementById('bar-pct-'+s.id);
-      let pctEl=document.getElementById('pct-txt-'+s.id);
-      let valEl=document.getElementById('val-txt-'+s.id);
-      let p=_pctMap[s.id]||0;
-      let v=_valorMap[(s.sc_numero||'').trim()]||0;
-      let bc=p===100?'#16a34a':p>0?'#f59e0b':'#e2e8f0';
-      if(barEl){barEl.style.width=p+'%';barEl.style.background=bc;}
-      if(pctEl){pctEl.textContent=p+'%';pctEl.style.color=bc;}
-      if(valEl&&v>0)valEl.textContent='R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
-      let pp=_pctPedidoMap[s.id]||0;
-      let pedEl=document.getElementById('ped-pct-'+s.id);
-      let pedBarEl=document.getElementById('ped-bar-'+s.id);
-      let pedCor=pp===100?'#1e40af':pp>0?'#7c3aed':'#e2e8f0';
-      if(pedEl){pedEl.textContent=pp+'%';pedEl.style.color=pedCor;}
-      if(pedBarEl){pedBarEl.style.width=pp+'%';pedBarEl.style.background=pedCor;}
-    }
-  },100);
+  setTimeout(()=>_carregarPaginaAtual(todas.slice(0,30)),100);
+}
+
+async function _carregarPaginaAtual(sols){
+  for(let s of sols){
+    await _carregarDadosCard(s);
+    _atualizarBarrasCard(s);
+  }
+}
+
+function _atualizarBarrasCard(s){
+  let barEl=document.getElementById('bar-pct-'+s.id);
+  let pctEl=document.getElementById('pct-txt-'+s.id);
+  let valEl=document.getElementById('val-txt-'+s.id);
+  let p=_pctMap[s.id]||0;
+  let v=_valorMap[(s.sc_numero||'').trim()]||0;
+  let bc=p===100?'#16a34a':p>0?'#f59e0b':'#e2e8f0';
+  if(barEl){barEl.style.width=p+'%';barEl.style.background=bc;}
+  if(pctEl){pctEl.textContent=p+'%';pctEl.style.color=bc;}
+  if(valEl&&v>0)valEl.textContent='R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  let pp=_pctPedidoMap[s.id]||0;
+  let pedEl=document.getElementById('ped-pct-'+s.id);
+  let pedBarEl=document.getElementById('ped-bar-'+s.id);
+  let pedCor=pp===100?'#1e40af':pp>0?'#7c3aed':'#e2e8f0';
+  if(pedEl){pedEl.textContent=pp+'%';pedEl.style.color=pedCor;}
+  if(pedBarEl){pedBarEl.style.width=pp+'%';pedBarEl.style.background=pedCor;}
 }
 window.carregarAcompanhamento=carregarAcompanhamento;
 let _filtroStatusAcomp='todos';
@@ -1513,6 +1517,15 @@ function irPaginaAcomp(p){
   _paginaAcomp=p;
   renderPaginaAcomp();
   document.getElementById('lista-acomp')?.scrollIntoView({behavior:'smooth',block:'start'});
+  // Carregar dados das barras para a nova página
+  let inicio=(_paginaAcomp-1)*_porPaginaAcomp;
+  let fim=Math.min(inicio+_porPaginaAcomp,_cardsVisiveis.length);
+  let pagina=_cardsVisiveis.slice(inicio,fim);
+  // Atualizar já cached primeiro
+  pagina.forEach(s=>_atualizarBarrasCard(s));
+  // Carregar os que ainda não têm dados
+  let semDados=pagina.filter(s=>_pctMap[s.id]===undefined);
+  if(semDados.length)_carregarPaginaAtual(semDados);
 }
 window.irPaginaAcomp=irPaginaAcomp;
 window.filtrarAcomp=filtrarAcomp;
