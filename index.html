@@ -1100,6 +1100,66 @@ sol.itens.forEach(it=>{if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quant
 let semCodigo=aprovados.filter(it=>!it.codigo||it.codigo===`MANUAL`).length,linhas=aprovados.map((it,i)=>({C1_XTIPOSC:`004`,C1_ITEM:String(i+1).padStart(2,`0`),C1_PRODUTO:it.codigo&&it.codigo!==`MANUAL`?it.codigo:``,C1_DESCRI:it.descricao||``,C1_QUANT:masterQtd[it.id]||0,C1_CC:sol.cc,C1_OBS:obs,C1_ESTOQUE:`S`,JUST_GERENTE:it.justificativa_gerente||``})),ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC`),XLSX.writeFile(wb,`SC_solicitacao_${sol.id}.xlsx`),semCodigo>0&&alert(`${semCodigo} item(ns) sem código foram incluídos com C1_PRODUTO em branco — preencha antes de importar no Protheus.`)}window.baixarExcelProtheus=baixarExcelProtheus;
 // ---------- ABA ACOMPANHAMENTO ----------
 let _pcMap={},_valorMap={},_itensMap={},_pctMap={};
+
+// Popular selects de CC e consolidado
+function _popularSelects(){
+  let selCC=document.getElementById('filtro-acomp-cc');
+  if(selCC){
+    let atual=selCC.value;
+    selCC.innerHTML='<option value>Todos os centros de custo</option>';
+    let ccsUsados=[...new Set(_todasSolsAcomp.map(s=>s.cc))];
+    ccsUsados.sort((a,b)=>(ccMap[a]?.nome||a).localeCompare(ccMap[b]?.nome||b));
+    ccsUsados.forEach(cc=>{
+      let opt=document.createElement('option');
+      opt.value=cc;
+      opt.textContent=ccMap[cc]?.nome||cc;
+      selCC.appendChild(opt);
+    });
+    selCC.value=atual;
+  }
+  let selCons=document.getElementById('filtro-acomp-consolidado');
+  if(selCons&&Object.keys(_consolidadoScMap).length>0){
+    let atual=selCons.value;
+    selCons.innerHTML='<option value>Todos os consolidados</option>';
+    Object.entries(_consolidadoScMap).forEach(([id,info])=>{
+      let opt=document.createElement('option');
+      opt.value=id;
+      opt.textContent=(typeof info==='object'?info.nome:info)||id;
+      selCons.appendChild(opt);
+    });
+    selCons.value=atual;
+  }
+}
+
+// Mapa sc_numero → comprador
+let _compradorScMap={};
+async function _popularCompradores(){
+  let{data}=await db.from('pedidos_compra').select('c7_numsc,c7_comprador').not('c7_comprador','is',null);
+  _compradorScMap={};
+  let compradores=new Set();
+  (data||[]).forEach(p=>{
+    let sc=(p.c7_numsc||'').trim();
+    let comp=(p.c7_comprador||'').trim();
+    if(sc&&comp){
+      if(!_compradorScMap[sc])_compradorScMap[sc]=new Set();
+      _compradorScMap[sc].add(comp);
+      compradores.add(comp);
+    }
+  });
+  let sel=document.getElementById('filtro-acomp-comprador');
+  if(sel){
+    let atual=sel.value;
+    sel.innerHTML='<option value>Todos os compradores</option>';
+    [...compradores].sort().forEach(c=>{
+      let opt=document.createElement('option');
+      opt.value=c;opt.textContent=c;
+      sel.appendChild(opt);
+    });
+    sel.value=atual;
+  }
+}
+function onFiltroCompradorChange(){filtrarAcomp();}
+window.onFiltroCompradorChange=onFiltroCompradorChange;
 function calcPct(s){return _pctMap[s.id]||0;}
 async function carregarAcompanhamento(){
   $(`lista-acomp`).innerHTML=`<div class="vazio">Carregando...</div>`;
