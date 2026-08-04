@@ -1120,7 +1120,7 @@ async function carregarAcompanhamento(){
   }
 
   // Reset mapas ao recarregar
-  _pcMap={};_valorMap={};_itensMap={};_pctMap={};
+  _pcMap={};_valorMap={};_itensMap={};_pctMap={};_pctPedidoMap={};
   // Pré-carregar PCs e itens em background (não bloqueia render)
   async function _carregarDadosCard(s){
     let sc=(s.sc_numero||'').trim();
@@ -1151,6 +1151,11 @@ async function carregarAcompanhamento(){
     });
     let pct=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
     _pctMap[s.id]=pct;
+    // Calcular % pedido — itens que têm pelo menos 1 PC válido ÷ total de itens ativos
+    let totalItens=itens.length;
+    let itensComPc=itens.filter(it=>pcs.some(p=>p.c7_produto===it.codigo&&!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('REJEITADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'))).length;
+    let pctPedido=totalItens>0?Math.min(100,Math.round(itensComPc/totalItens*100)):0;
+    _pctPedidoMap[s.id]=pctPedido;
     return pct;
   }
   // Preparar estrutura para renderPaginaAcomp
@@ -1172,6 +1177,12 @@ async function carregarAcompanhamento(){
       if(barEl){barEl.style.width=p+'%';barEl.style.background=bc;}
       if(pctEl){pctEl.textContent=p+'%';pctEl.style.color=bc;}
       if(valEl&&v>0)valEl.textContent='R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+      let pp=_pctPedidoMap[s.id]||0;
+      let pedEl=document.getElementById('ped-pct-'+s.id);
+      let pedBarEl=document.getElementById('ped-bar-'+s.id);
+      let pedCor=pp===100?'#1e40af':pp>0?'#7c3aed':'#e2e8f0';
+      if(pedEl){pedEl.textContent=pp+'%';pedEl.style.color=pedCor;}
+      if(pedBarEl){pedBarEl.style.width=pp+'%';pedBarEl.style.background=pedCor;}
     }
   },100);
 }
@@ -1379,13 +1390,23 @@ function renderPaginaAcomp(){
           <div style="flex:1;min-width:200px">
             <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
             <div style="font-size:11.5px;color:#64748b;margin-top:2px">${s.solicitante_nome||``} · mat. ${s.solicitante_matricula||``} · ${dt}${obs?` · <em>${obs.slice(0,50)}</em>`:``}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
-              <div style="background:#e2e8f0;border-radius:99px;height:6px;width:120px;flex-shrink:0">
-                <div id="bar-pct-${s.id}" style="background:${barCor};height:100%;border-radius:99px;width:${pct}%;transition:width .4s"></div>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:10px;color:#94a3b8;width:58px;flex-shrink:0">🛒 Pedido</span>
+                <div style="background:#e2e8f0;border-radius:99px;height:5px;width:100px;flex-shrink:0">
+                  <div id="ped-bar-${s.id}" style="background:#e2e8f0;height:100%;border-radius:99px;width:0%;transition:width .4s"></div>
+                </div>
+                <span id="ped-pct-${s.id}" style="font-size:11px;font-weight:700;color:#e2e8f0">0%</span>
               </div>
-              <span id="pct-txt-${s.id}" style="font-size:11px;font-weight:700;color:${barCor}">${pct}%</span>
-              <span style="font-size:11px;color:#94a3b8">·</span>
-              <span id="val-txt-${s.id}" style="font-size:11px;font-weight:600;color:#475569">${valorFmt}</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:10px;color:#94a3b8;width:58px;flex-shrink:0">✅ Recebido</span>
+                <div style="background:#e2e8f0;border-radius:99px;height:5px;width:100px;flex-shrink:0">
+                  <div id="bar-pct-${s.id}" style="background:${barCor};height:100%;border-radius:99px;width:${pct}%;transition:width .4s"></div>
+                </div>
+                <span id="pct-txt-${s.id}" style="font-size:11px;font-weight:700;color:${barCor}">${pct}%</span>
+                <span style="font-size:11px;color:#94a3b8">·</span>
+                <span id="val-txt-${s.id}" style="font-size:11px;font-weight:600;color:#475569">${valorFmt}</span>
+              </div>
             </div>
           </div>
           ${filialNome?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span></span>`}
