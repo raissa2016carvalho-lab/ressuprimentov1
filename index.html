@@ -1125,6 +1125,7 @@ async function carregarAcompanhamento(){
   $(`lista-acomp`).innerHTML=`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div><div id="acomp-cards-container"></div>`;
   _todasSolsAcomp=todas;
   filtrarAcomp();
+  _popularCompradores();
   // Carregar TODOS em paralelo em background — atualiza barras conforme chegam
   setTimeout(()=>_carregarTodasEmParalelo(todas),100);
 }
@@ -1407,19 +1408,101 @@ window.expandirAcomp=expandirAcomp;
 
 let _paginaAcomp=1,_porPaginaAcomp=30,_allCardsData='',_cardsVisiveis=[],_todasSolsAcomp=[];
 
+// Mapa sc_numero → comprador (populado ao carregar acompanhamento)
+let _compradorScMap={};
+
+async function _popularCompradores(){
+  // Busca compradores dos pedidos de compra para popular o select
+  let{data}=await db.from('pedidos_compra').select('c7_numsc,c7_comprador').not('c7_comprador','is',null);
+  _compradorScMap={};
+  let compradores=new Set();
+  (data||[]).forEach(p=>{
+    let sc=(p.c7_numsc||'').trim();
+    let comp=(p.c7_comprador||'').trim();
+    if(sc&&comp){
+      if(!_compradorScMap[sc])_compradorScMap[sc]=new Set();
+      _compradorScMap[sc].add(comp);
+      compradores.add(comp);
+    }
+  });
+  // Popular select de compradores
+  let sel=document.getElementById('filtro-acomp-comprador');
+  if(sel){
+    let atual=sel.value;
+    sel.innerHTML='<option value>Todos os compradores</option>';
+    [...compradores].sort().forEach(c=>{
+      let opt=document.createElement('option');
+      opt.value=c;opt.textContent=c;
+      sel.appendChild(opt);
+    });
+    sel.value=atual;
+  }
+}
+
+function onFiltroCompradorChange(){filtrarAcomp();}
+window.onFiltroCompradorChange=onFiltroCompradorChange;
+
 function filtrarAcomp(resetPagina=true){
   if(resetPagina)_paginaAcomp=1;
-  let termCC=($(`filtro-acomp-cc`)?.value||``).toLowerCase().trim(),
-    termObs=($(`filtro-acomp-obs`)?.value||``).toLowerCase().trim(),
-    filialFilt=$(`filtro-acomp-filial`)?.value||``;
+  let termCC=($(`filtro-acomp-cc`)?.value||``).toLowerCase().trim();
+  let termObs=($(`filtro-acomp-obs`)?.value||``).toLowerCase().trim();
+  let filialFilt=$(`filtro-acomp-filial`)?.value||``;
+  let compradorFilt=($(`filtro-acomp-comprador`)?.value||``).trim();
+  let dtIni=$(`filtro-acomp-dt-ini`)?.value||``;
+  let dtFim=$(`filtro-acomp-dt-fim`)?.value||``;
+  let consolidadoFilt=$(`filtro-acomp-consolidado`)?.value||``;
 
+  // Popular select de CCs
+  let selCC=document.getElementById('filtro-acomp-cc');
+  if(selCC&&selCC.options.length<=1){
+    let ccsUsados=[...new Set(_todasSolsAcomp.map(s=>s.cc))];
+    ccsUsados.sort((a,b)=>(ccMap[a]?.nome||a).localeCompare(ccMap[b]?.nome||b));
+    ccsUsados.forEach(cc=>{
+      let opt=document.createElement('option');
+      opt.value=(ccMap[cc]?.nome||cc).toLowerCase();
+      opt.textContent=ccMap[cc]?.nome||cc;
+      selCC.appendChild(opt);
+    });
+  }
   _cardsVisiveis=_todasSolsAcomp.filter(s=>{
     let nome=(ccMap[s.cc]?.nome||s.cc).toLowerCase();
     let obs=(s.observacao||``).toLowerCase();
     let filial=(s.filial||``);
-    return (!termCC||nome.includes(termCC))
-      &&(!termObs||obs.includes(termObs))
-      &&(!filialFilt||filial===filialFilt);
+
+    // Filtro CC
+    if(termCC&&!nome.includes(termCC))return false;
+    // Filtro observação
+    if(termObs&&!obs.includes(termObs))return false;
+    // Filtro filial
+    if(filialFilt&&filial!==filialFilt)return false;
+    // Filtro status (pedido/recebido via _pctMap/_pctPedidoMap)
+    if(_filtroStatusAcomp==='sem_pedido'){
+      if((_pctPedidoMap[s.id]||0)>0)return false;
+    } else if(_filtroStatusAcomp==='pendente'){
+      let pp=_pctPedidoMap[s.id]||0;
+      let pr=_pctMap[s.id]||0;
+      if(pp===0||pr===100)return false;
+    } else if(_filtroStatusAcomp==='parcial'){
+      let pr=_pctMap[s.id]||0;
+      if(pr===0||pr===100)return false;
+    } else if(_filtroStatusAcomp==='recebido'){
+      if((_pctMap[s.id]||0)<100)return false;
+    }
+    // Filtro comprador
+    if(compradorFilt){
+      let sc=(s.sc_numero||'').trim();
+      let comps=_compradorScMap[sc];
+      if(!comps||!comps.has(compradorFilt))return false;
+    }
+    // Filtro datas (por criado_em da solicitação)
+    if(dtIni&&s.criado_em&&s.criado_em.slice(0,10)<dtIni)return false;
+    if(dtFim&&s.criado_em&&s.criado_em.slice(0,10)>dtFim)return false;
+    // Filtro consolidado
+    if(consolidadoFilt){
+      let scIds=_consolidadoScMap[consolidadoFilt];
+      if(!scIds||!scIds.has(s.id))return false;
+    }
+    return true;
   });
 
   renderPaginaAcomp();
