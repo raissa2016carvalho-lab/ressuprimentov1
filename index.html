@@ -1194,23 +1194,22 @@ async function _carregarTodasEmParalelo(sols){
 
   // 2. Buscar TODOS os PCs em batch por sc_numero
   let todasSCs=[...new Set(sols.map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
-  for(let i=0;i<todasSCs.length;i+=100){
-    let lote=todasSCs.slice(i,i+100);
-    let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote);
-    console.log('[BATCH PCs] lote=',lote.slice(0,5),'retornou=',pcs?.length||0,'ex:',(pcs||[]).slice(0,2).map(p=>p.c7_numsc));
-    (pcs||[]).forEach(p=>{
-      let sc=(p.c7_numsc||'').trim();
-      if(!_pcMap[sc])_pcMap[sc]=[];
-      _pcMap[sc].push(p);
-    });
-    lote.forEach(sc=>{
+  // Buscar PCs por SC — em paralelo, 20 por vez, com paginação
+  for(let i=0;i<todasSCs.length;i+=20){
+    let lote=todasSCs.slice(i,i+20);
+    await Promise.all(lote.map(async sc=>{
+      let off=0;
+      for(;;){
+        let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').eq('c7_numsc',sc).range(off,off+999);
+        if(!pcs||!pcs.length)break;
+        if(!_pcMap[sc])_pcMap[sc]=[];
+        _pcMap[sc]=_pcMap[sc].concat(pcs);
+        if(pcs.length<1000)break;
+        off+=1000;
+      }
       _valorMap[sc]=(_pcMap[sc]||[]).reduce((a,p)=>a+(Number(p.c7_total)||0),0);
-    });
+    }));
   }
-  // Log dos mapas para debug
-  console.log('[BATCH] _pcMap keys (primeiros 5):',Object.keys(_pcMap).slice(0,5));
-  console.log('[BATCH] REGZMF pcs:',(_pcMap['REGZMF']||[]).length);
-  console.log('[BATCH] 003231 pcs:',(_pcMap['003231']||[]).length);
 
   // 3. Calcular % e atualizar DOM
   function statusInvalido(s){let u=(s||'').toUpperCase();return u.includes('ELIMINADO')||u.includes('REJEITADO')||u.includes('FORA DO PROTHEUS');}
