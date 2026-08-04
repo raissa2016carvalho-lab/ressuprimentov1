@@ -1204,17 +1204,32 @@ async function _carregarTodasEmParalelo(sols){
     });
   }
 
-  // 2. Buscar sc_pedidos em batch — cruzamento correto SC+produto+status
+  // 2. Buscar sc_pedidos — cruzar por c1_num + c1_cc (CC da solicitação)
+  // Isso evita conflito entre filiais com o mesmo número de SC
   let _scPedidosMap={};
   let todasSCs=[...new Set(sols.map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
+
+  // Mapa sc -> cc da solicitação
+  let _scCcSol={};
+  sols.forEach(s=>{
+    let sc=(s.sc_numero||'').trim();
+    if(sc&&s.cc)_scCcSol[sc]=s.cc;
+  });
+
   for(let i=0;i<todasSCs.length;i+=50){
     let lote=todasSCs.slice(i,i+50);
     let off=0;
     for(;;){
-      let{data:rows}=await db.from('sc_pedidos').select('c1_num,c1_filial,c1_produto,pc_status,pc_total').in('c1_num',lote).range(off,off+999);
+      let{data:rows}=await db.from('sc_pedidos').select('c1_num,c1_cc,c1_produto,pc_status,pc_total,pc_numero').in('c1_num',lote).range(off,off+999);
       if(!rows||!rows.length)break;
       rows.forEach(r=>{
         let sc=(r.c1_num||'').trim();
+        let cc=(r.c1_cc||'').trim();
+        let solCC=_scCcSol[sc];
+        // Para SCs numéricas: só aceita se o CC bater com o da solicitação
+        // Para SCs alfanuméricas: aceita todas (cada SC é única por CC)
+        let ehNumerica=!isNaN(sc.replace(/^0+/,'')||'x')&&sc.replace(/^0+/,'')!=='';
+        if(ehNumerica&&solCC&&cc&&cc!==solCC)return;
         if(!_scPedidosMap[sc])_scPedidosMap[sc]=[];
         _scPedidosMap[sc].push(r);
       });
