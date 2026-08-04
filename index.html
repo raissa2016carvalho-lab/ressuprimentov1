@@ -1215,10 +1215,6 @@ async function _carregarTodasEmParalelo(sols){
       if(!rows||!rows.length)break;
       rows.forEach(r=>{
         let sc=(r.c1_num||'').trim();
-        let fil=(r.c1_filial||'').trim();
-        let key=fil?fil+'|'+sc:sc;
-        if(!_scPedidosMap[key])_scPedidosMap[key]=[];
-        _scPedidosMap[key].push(r);
         if(!_scPedidosMap[sc])_scPedidosMap[sc]=[];
         _scPedidosMap[sc].push(r);
       });
@@ -1251,7 +1247,8 @@ async function _carregarTodasEmParalelo(sols){
   sols.forEach(s=>{
     let sc=(s.sc_numero||'').trim();
     let fil=(s.filial||'').trim();
-    let scRows=_scPedidosMap[fil?fil+'|'+sc:sc]||_scPedidosMap[sc]||[];
+    // sc_pedidos indexado apenas por c1_num (filial de compras ≠ filial da solicitação)
+    let scRows=_scPedidosMap[sc]||[];
     let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
     let itensAtivos=itens.filter(i=>(Number(i.qtd_almoxarife!=null?i.qtd_almoxarife:i.quantidade)||0)>0);
 
