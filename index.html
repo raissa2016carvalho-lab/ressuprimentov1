@@ -1119,11 +1119,26 @@ async function carregarAcompanhamento(){
     return;
   }
 
+  // Carregar consolidados para o filtro
+  _consolidadoScMap={};
+  let{data:_cons}=await db.from('consolidados').select('id,nome');
+  if(_cons&&_cons.length){
+    let{data:_links}=await db.from('consolidado_scs').select('consolidado_id,solicitacao_id');
+    (_cons||[]).forEach(c=>{
+      _consolidadoScMap[c.id]={nome:c.nome,ids:new Set()};
+    });
+    (_links||[]).forEach(l=>{
+      if(_consolidadoScMap[l.consolidado_id])
+        _consolidadoScMap[l.consolidado_id].ids.add(l.solicitacao_id);
+    });
+  }
+
   // Reset mapas ao recarregar
   _pcMap={};_valorMap={};_itensMap={};_pctMap={};_pctPedidoMap={};
   // Preparar estrutura para renderPaginaAcomp
   $(`lista-acomp`).innerHTML=`<div id="acomp-vazio-filtro" class="vazio" style="display:none">Nenhuma SC encontrada com esses filtros.</div><div id="acomp-cards-container"></div>`;
   _todasSolsAcomp=todas;
+  _popularSelects();
   filtrarAcomp();
   _popularCompradores();
   // Carregar TODOS em paralelo em background — atualiza barras conforme chegam
@@ -1408,6 +1423,38 @@ window.expandirAcomp=expandirAcomp;
 
 let _paginaAcomp=1,_porPaginaAcomp=30,_allCardsData='',_cardsVisiveis=[],_todasSolsAcomp=[];
 
+// Popular selects de CC e consolidado
+function _popularSelects(){
+  // Select de CCs
+  let selCC=document.getElementById('filtro-acomp-cc');
+  if(selCC){
+    let atual=selCC.value;
+    selCC.innerHTML='<option value>Todos os centros de custo</option>';
+    let ccsUsados=[...new Set(_todasSolsAcomp.map(s=>s.cc))];
+    ccsUsados.sort((a,b)=>(ccMap[a]?.nome||a).localeCompare(ccMap[b]?.nome||b));
+    ccsUsados.forEach(cc=>{
+      let opt=document.createElement('option');
+      opt.value=cc;
+      opt.textContent=ccMap[cc]?.nome||cc;
+      selCC.appendChild(opt);
+    });
+    selCC.value=atual;
+  }
+  // Select de consolidados
+  let selCons=document.getElementById('filtro-acomp-consolidado');
+  if(selCons&&Object.keys(_consolidadoScMap).length>0){
+    let atual=selCons.value;
+    selCons.innerHTML='<option value>Todos os consolidados</option>';
+    Object.entries(_consolidadoScMap).forEach(([id,info])=>{
+      let opt=document.createElement('option');
+      opt.value=id;
+      opt.textContent=(typeof info==='object'?info.nome:info)||id;
+      selCons.appendChild(opt);
+    });
+    selCons.value=atual;
+  }
+}
+
 // Mapa sc_numero → comprador (populado ao carregar acompanhamento)
 let _compradorScMap={};
 
@@ -1452,25 +1499,13 @@ function filtrarAcomp(resetPagina=true){
   let dtFim=$(`filtro-acomp-dt-fim`)?.value||``;
   let consolidadoFilt=$(`filtro-acomp-consolidado`)?.value||``;
 
-  // Popular select de CCs
-  let selCC=document.getElementById('filtro-acomp-cc');
-  if(selCC&&selCC.options.length<=1){
-    let ccsUsados=[...new Set(_todasSolsAcomp.map(s=>s.cc))];
-    ccsUsados.sort((a,b)=>(ccMap[a]?.nome||a).localeCompare(ccMap[b]?.nome||b));
-    ccsUsados.forEach(cc=>{
-      let opt=document.createElement('option');
-      opt.value=(ccMap[cc]?.nome||cc).toLowerCase();
-      opt.textContent=ccMap[cc]?.nome||cc;
-      selCC.appendChild(opt);
-    });
-  }
   _cardsVisiveis=_todasSolsAcomp.filter(s=>{
     let nome=(ccMap[s.cc]?.nome||s.cc).toLowerCase();
     let obs=(s.observacao||``).toLowerCase();
     let filial=(s.filial||``);
 
     // Filtro CC
-    if(termCC&&!nome.includes(termCC))return false;
+    if(termCC&&s.cc!==termCC)return false;
     // Filtro observação
     if(termObs&&!obs.includes(termObs))return false;
     // Filtro filial
@@ -1499,8 +1534,8 @@ function filtrarAcomp(resetPagina=true){
     if(dtFim&&s.criado_em&&s.criado_em.slice(0,10)>dtFim)return false;
     // Filtro consolidado
     if(consolidadoFilt){
-      let scIds=_consolidadoScMap[consolidadoFilt];
-      if(!scIds||!scIds.has(s.id))return false;
+      let entry=_consolidadoScMap[consolidadoFilt];
+      if(!entry||!entry.ids.has(s.id))return false;
     }
     return true;
   });
