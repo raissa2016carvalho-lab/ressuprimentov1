@@ -1181,15 +1181,50 @@ async function _carregarDadosCard(s){
 }
 
 async function _carregarTodasEmParalelo(sols){
-  // Carrega em lotes de 10 paralelos para não sobrecarregar
-  let tamanho=10;
-  for(let i=0;i<sols.length;i+=tamanho){
-    let lote=sols.slice(i,i+tamanho);
-    await Promise.all(lote.map(async s=>{
-      await _carregarDadosCard(s);
-      _atualizarBarrasCard(s);
-    }));
+  // 1. Buscar TODOS os itens de todas as SCs em uma única query
+  let todosIds=sols.map(s=>s.id);
+  for(let i=0;i<todosIds.length;i+=500){
+    let lote=todosIds.slice(i,i+500);
+    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').in('solicitacao_id',lote);
+    (its||[]).forEach(it=>{
+      if(!_itensMap[it.solicitacao_id])_itensMap[it.solicitacao_id]=[];
+      _itensMap[it.solicitacao_id].push(it);
+    });
   }
+
+  // 2. Buscar TODOS os pedidos de compra de todas as SCs em uma única query
+  let todasSCs=[...new Set(sols.map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
+  for(let i=0;i<todasSCs.length;i+=100){
+    let lote=todasSCs.slice(i,i+100);
+    let cond=lote.map(sc=>`c7_numsc.ilike.${sc}`).join(',');
+    let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').or(cond);
+    (pcs||[]).forEach(p=>{
+      let sc=(p.c7_numsc||'').trim();
+      if(!_pcMap[sc])_pcMap[sc]=[];
+      _pcMap[sc].push(p);
+    });
+    // Calcular valor por SC
+    lote.forEach(sc=>{
+      _valorMap[sc]=(_pcMap[sc]||[]).reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+    });
+  }
+
+  // 3. Calcular % para todas e atualizar DOM
+  sols.forEach(s=>{
+    let pcs=_pcMap[(s.sc_numero||'').trim()]||[];
+    let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
+    let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
+    let recQtd=0;
+    itens.forEach(it=>{
+      let qtdRec=pcs.filter(p=>p.c7_produto===it.codigo&&(p.status_desc||'').toLowerCase().includes('receb')).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+      recQtd+=Math.min(qtdRec,Number(it.quantidade)||0);
+    });
+    _pctMap[s.id]=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
+    let totalItens=itens.length;
+    let itensComPc=itens.filter(it=>pcs.some(p=>p.c7_produto===it.codigo&&!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('REJEITADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'))).length;
+    _pctPedidoMap[s.id]=totalItens>0?Math.min(100,Math.round(itensComPc/totalItens*100)):0;
+    _atualizarBarrasCard(s);
+  });
 }
 
 function _atualizarBarrasCard(s){
