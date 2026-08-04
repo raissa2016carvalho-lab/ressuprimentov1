@@ -1233,7 +1233,7 @@ async function expandirAcomp(solId, topo){
   let pcs=[];
   if(sol.sc_numero&&sol.sc_numero.trim()){
     let sc=sol.sc_numero.trim();
-    let scTrim=sc.trim();let{data:pcData}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc',scTrim);
+    let scTrim=sc.trim();let{data:pcData}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_emissao,c7_comprador').ilike('c7_numsc',scTrim);
     pcs=pcData||[];
   }
 
@@ -1266,24 +1266,37 @@ async function expandirAcomp(solId, topo){
   // Linha do tempo
   function fmtDt(s){
     if(!s)return null;
-    // YYYYMMDD ou YYYY-MM-DD
-    let d=String(s).replace(/-/g,'').trim();
+    let str=String(s).trim();
+    // ISO: 2026-07-21T... ou 2026-07-21
+    if(str.includes('-')&&str.length>=10){
+      let p=str.slice(0,10).split('-');
+      if(p.length===3)return p[2]+'/'+p[1]+'/'+p[0];
+    }
+    // YYYYMMDD
+    let d=str.replace(/-/g,'');
     if(d.length===8)return d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4);
     return null;
   }
-  let dtFormulario=fmtDt(sol.criado_em?.slice(0,10).replace(/-/g,'').replace('T','').slice(0,8)||sol.criado_em);
-  let dtFormularioRaw=sol.criado_em?new Date(sol.criado_em):null;
-  let dtSC=sol.atualizado_em&&sol.sc_numero?fmtDt(sol.atualizado_em?.slice(0,10).replace(/-/g,'')):null;
-  let dtSCRaw=sol.atualizado_em&&sol.sc_numero?new Date(sol.atualizado_em):null;
+  function parseDt(s){
+    if(!s)return null;
+    let str=String(s).trim();
+    if(str.includes('-'))return new Date(str.slice(0,10));
+    if(str.length===8)return new Date(str.slice(0,4)+'-'+str.slice(4,6)+'-'+str.slice(6,8));
+    return null;
+  }
+  let dtFormulario=fmtDt(sol.criado_em);
+  let dtFormularioRaw=parseDt(sol.criado_em);
+  let dtSC=sol.atualizado_em&&sol.sc_numero?fmtDt(sol.atualizado_em):null;
+  let dtSCRaw=sol.atualizado_em&&sol.sc_numero?parseDt(sol.atualizado_em):null;
   // Data do pedido: menor c7_emissao entre os PCs válidos
   let pcsValidos=pcs.filter(p=>!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'));
   let dtPedidoRaw=null;
-  pcsValidos.forEach(p=>{if(p.c7_emissao){let d=new Date(String(p.c7_emissao).slice(0,4)+'-'+String(p.c7_emissao).slice(4,6)+'-'+String(p.c7_emissao).slice(6,8));if(!dtPedidoRaw||d<dtPedidoRaw)dtPedidoRaw=d;}});
-  let dtPedido=dtPedidoRaw?fmtDt(dtPedidoRaw.toISOString().slice(0,10).replace(/-/g,'')):null;
+  pcsValidos.forEach(p=>{if(p.c7_emissao){let d=parseDt(p.c7_emissao);if(d&&(!dtPedidoRaw||d<dtPedidoRaw))dtPedidoRaw=d;}});
+  let dtPedido=dtPedidoRaw?fmtDt(dtPedidoRaw.toISOString().slice(0,10)):null;
   // Previsão de entrega: maior dt_entrega entre os PCs válidos
   let dtEntregaRaw=null;
-  pcsValidos.forEach(p=>{if(p.dt_entrega){let d=new Date(String(p.dt_entrega).slice(0,4)+'-'+String(p.dt_entrega).slice(4,6)+'-'+String(p.dt_entrega).slice(6,8));if(!dtEntregaRaw||d>dtEntregaRaw)dtEntregaRaw=d;}});
-  let dtEntrega=dtEntregaRaw?fmtDt(dtEntregaRaw.toISOString().slice(0,10).replace(/-/g,'')):null;
+  pcsValidos.forEach(p=>{if(p.dt_entrega){let d=parseDt(p.dt_entrega);if(d&&(!dtEntregaRaw||d>dtEntregaRaw))dtEntregaRaw=d;}});
+  let dtEntrega=dtEntregaRaw?fmtDt(dtEntregaRaw.toISOString().slice(0,10)):null;
   let hoje=new Date();
   let atrasado=dtEntregaRaw&&dtEntregaRaw<hoje&&pct<100;
 
@@ -1348,8 +1361,9 @@ async function expandirAcomp(solId, topo){
           let pcsHtml=pcsItem.length?pcsItem.map(p=>{
             let cor=stCor(p.status_desc);
             let entrega=p.dt_entrega?p.dt_entrega.slice(0,10).split('-').reverse().join('/'):'';
+            let entregaLabel=entrega?`<span style="font-size:10px;opacity:.8">📦 ${entrega}</span>`:'';
             return `<span style="display:inline-flex;align-items:center;gap:4px;background:${cor.b};color:${cor.c};border-radius:6px;padding:2px 8px;font-size:11px;margin:2px;white-space:nowrap">
-              PC ${p.c7_num} · ${p.c7_quant} un · ${p.status_desc||'—'}${entrega?` · ${entrega}`:''}
+              PC ${p.c7_num} · ${p.c7_quant} un · ${p.status_desc||'—'} ${entregaLabel}
             </span>`;
           }).join(''):'<span style="color:#cbd5e1;font-size:11px">Sem PC</span>';
           return `<tr style="border-bottom:1px solid #f1f5f9;${isRec?'opacity:0.45':''}">
