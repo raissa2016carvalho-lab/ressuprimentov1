@@ -1228,9 +1228,12 @@ async function _carregarTodasEmParalelo(sols){
     });
     _pctMap[s.id]=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
 
-    // % pedido
+    // % pedido — só conta produtos que estão nos itens desta SC
+    let produtosDasc=new Set(itensAtivos.map(i=>i.codigo));
+    let pcsDestaSc=pcs.filter(p=>produtosDasc.has(p.c7_produto)&&!statusInvalido(p.status_desc));
+    let produtosComPc=new Set(pcsDestaSc.map(p=>p.c7_produto));
     let totalAtivos=itensAtivos.length;
-    let comPc=itensAtivos.filter(it=>pcs.some(p=>p.c7_produto===it.codigo&&!statusInvalido(p.status_desc))).length;
+    let comPc=itensAtivos.filter(it=>produtosComPc.has(it.codigo)).length;
     _pctPedidoMap[s.id]=totalAtivos>0?Math.min(100,Math.round(comPc/totalAtivos*100)):0;
 
     _atualizarBarrasCard(s);
