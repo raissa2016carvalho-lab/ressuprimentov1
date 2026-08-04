@@ -1231,10 +1231,15 @@ async function expandirAcomp(solId, topo){
 
   // Buscar pedidos de compra pela SC
   let pcs=[];
+  let dtEmissaoSC=null;
   if(sol.sc_numero&&sol.sc_numero.trim()){
     let sc=sol.sc_numero.trim();
-    let scTrim=sc.trim();let{data:pcData}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_emissao,c7_comprador').ilike('c7_numsc',scTrim);
+    let scTrim=sc.trim();
+    let{data:pcData}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_emissao,c7_comprador').ilike('c7_numsc',scTrim);
     pcs=pcData||[];
+    // Buscar data de emissão da SC no sc_pedidos
+    let{data:scRow}=await db.from('sc_pedidos').select('c1_emissao').ilike('c1_num',scTrim).limit(1).maybeSingle();
+    if(scRow?.c1_emissao)dtEmissaoSC=scRow.c1_emissao;
   }
 
   // Calcular % atendido — por produto cruzado com itens da solicitação
@@ -1286,8 +1291,8 @@ async function expandirAcomp(solId, topo){
   }
   let dtFormulario=fmtDt(sol.criado_em);
   let dtFormularioRaw=parseDt(sol.criado_em);
-  let dtSC=sol.atualizado_em&&sol.sc_numero?fmtDt(sol.atualizado_em):null;
-  let dtSCRaw=sol.atualizado_em&&sol.sc_numero?parseDt(sol.atualizado_em):null;
+  let dtSC=dtEmissaoSC?fmtDt(dtEmissaoSC):(sol.atualizado_em&&sol.sc_numero?fmtDt(sol.atualizado_em):null);
+  let dtSCRaw=dtEmissaoSC?parseDt(dtEmissaoSC):(sol.atualizado_em&&sol.sc_numero?parseDt(sol.atualizado_em):null);
   // Data do pedido: menor c7_emissao entre os PCs válidos
   let pcsValidos=pcs.filter(p=>!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'));
   let dtPedidoRaw=null;
@@ -1349,6 +1354,7 @@ async function expandirAcomp(solId, topo){
           <th style="text-align:center;padding:7px 10px;color:#475569;font-weight:600;width:70px">Almox.</th>
           <th style="text-align:center;padding:7px 10px;color:#475569;font-weight:600;width:70px">Gerente</th>
           <th style="text-align:right;padding:7px 10px;color:#475569;font-weight:600;width:100px">Valor</th>
+          <th style="text-align:center;padding:7px 10px;color:#475569;font-weight:600;width:90px">Prev. Entrega</th>
           <th style="text-align:left;padding:7px 10px;color:#475569;font-weight:600">Pedidos de compra</th>
         </tr>
       </thead>
@@ -1358,12 +1364,15 @@ async function expandirAcomp(solId, topo){
           let qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
           let qtdGer=it.justificativa_gerente?it.quantidade:null;
           let pcsItem=(pcPorProduto[it.codigo]||[]).filter(p=>{let s=(p.status_desc||'').toUpperCase();return!s.includes('ELIMINADO')&&!s.includes('REJEITADO')&&!s.includes('FORA DO PROTHEUS');});
+          // Maior previsão de entrega dos PCs deste item
+          let dtMaxEntrega=null;
+          pcsItem.forEach(p=>{if(p.dt_entrega){let d=parseDt(p.dt_entrega);if(d&&(!dtMaxEntrega||d>dtMaxEntrega))dtMaxEntrega=d;}});
+          let dtEntregaItem=dtMaxEntrega?fmtDt(dtMaxEntrega.toISOString().slice(0,10)):null;
+          let entregaAtrasada=dtMaxEntrega&&dtMaxEntrega<hoje&&it.situacao!=='recusado';
           let pcsHtml=pcsItem.length?pcsItem.map(p=>{
             let cor=stCor(p.status_desc);
-            let entrega=p.dt_entrega?p.dt_entrega.slice(0,10).split('-').reverse().join('/'):'';
-            let entregaLabel=entrega?`<span style="font-size:10px;opacity:.8">📦 ${entrega}</span>`:'';
             return `<span style="display:inline-flex;align-items:center;gap:4px;background:${cor.b};color:${cor.c};border-radius:6px;padding:2px 8px;font-size:11px;margin:2px;white-space:nowrap">
-              PC ${p.c7_num} · ${p.c7_quant} un · ${p.status_desc||'—'} ${entregaLabel}
+              PC ${p.c7_num} · ${p.c7_quant} un · ${p.status_desc||'—'}
             </span>`;
           }).join(''):'<span style="color:#cbd5e1;font-size:11px">Sem PC</span>';
           return `<tr style="border-bottom:1px solid #f1f5f9;${isRec?'opacity:0.45':''}">
@@ -1376,6 +1385,7 @@ async function expandirAcomp(solId, topo){
             <td style="text-align:center;padding:8px 10px;font-weight:600;color:#1e40af">${qtdAlm}</td>
             <td style="text-align:center;padding:8px 10px;font-weight:600;color:${qtdGer?'#16a34a':'#cbd5e1'}">${qtdGer||'—'}</td>
             <td style="text-align:right;padding:8px 10px;font-size:12px;font-weight:600;color:#0f172a;white-space:nowrap">${pcsItem.length?'R$ '+pcsItem.reduce((s,p)=>s+(Number(p.c7_total)||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
+            <td style="text-align:center;padding:8px 10px;white-space:nowrap">${dtEntregaItem?`<span style="font-size:11px;font-weight:600;color:${entregaAtrasada?'#ef4444':'#16a34a'}">${entregaAtrasada?'⚠️ ':' 📦 '}${dtEntregaItem}</span>`:'<span style="color:#cbd5e1;font-size:11px">—</span>'}</td>
             <td style="padding:8px 10px">${pcsHtml}</td>
           </tr>`;
         }).join('')}
