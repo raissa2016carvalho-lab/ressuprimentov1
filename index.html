@@ -1193,15 +1193,21 @@ async function carregarAcompanhamento(){
 }
 
 async function _carregarTodasEmParalelo(sols){
-  // 1. Buscar itens em batch
+  // 1. Buscar itens em batch com paginação
   let todosIds=sols.map(s=>s.id);
-  for(let i=0;i<todosIds.length;i+=500){
-    let lote=todosIds.slice(i,i+500);
-    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,qtd_almoxarife,situacao').in('solicitacao_id',lote);
-    (its||[]).forEach(it=>{
-      if(!_itensMap[it.solicitacao_id])_itensMap[it.solicitacao_id]=[];
-      _itensMap[it.solicitacao_id].push(it);
-    });
+  for(let i=0;i<todosIds.length;i+=100){
+    let lote=todosIds.slice(i,i+100);
+    let off=0;
+    for(;;){
+      let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,qtd_almoxarife,situacao').in('solicitacao_id',lote).range(off,off+999);
+      if(!its||!its.length)break;
+      its.forEach(it=>{
+        if(!_itensMap[it.solicitacao_id])_itensMap[it.solicitacao_id]=[];
+        _itensMap[it.solicitacao_id].push(it);
+      });
+      if(its.length<1000)break;
+      off+=1000;
+    }
   }
 
   // 2. Buscar sc_pedidos — cruzar por c1_num + c1_cc (CC da solicitação)
