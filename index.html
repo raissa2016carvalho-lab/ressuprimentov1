@@ -1244,9 +1244,11 @@ async function expandirAcomp(solId, topo){
   // Status cores
   function stCor(st){
     let s=(st||'').toLowerCase();
-    if(s.includes('receb')||s.includes('pre-nota')||s.includes('pré-nota'))return{c:'#16a34a',b:'#f0fdf4'};
+    if(s.includes('fora do protheus'))return{c:'#7c3aed',b:'#f5f3ff'};
+    if(s.includes('receb')||s.includes('pre-nota')||s.includes('pre-nota'))return{c:'#16a34a',b:'#f0fdf4'};
     if(s.includes('aprov'))return{c:'#d97706',b:'#fffbeb'};
-    if(s.includes('rejeit')||s.includes('elimin')||s.includes('cancel'))return{c:'#ef4444',b:'#fff5f5'};
+    if(s.includes('elimin'))return{c:'#94a3b8',b:'#f1f5f9'};
+    if(s.includes('rejeit')||s.includes('cancel'))return{c:'#ef4444',b:'#fff5f5'};
     return{c:'#64748b',b:'#f8fafc'};
   }
 
@@ -1284,7 +1286,7 @@ async function expandirAcomp(solId, topo){
           let isRec=it.situacao==='recusado';
           let qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
           let qtdGer=it.justificativa_gerente?it.quantidade:null;
-          let pcsItem=pcPorProduto[it.codigo]||[];
+          let pcsItem=(pcPorProduto[it.codigo]||[]).filter(p=>{let s=(p.status_desc||'').toUpperCase();return!s.includes('ELIMINADO')&&!s.includes('REJEITADO')&&!s.includes('FORA DO PROTHEUS');});
           let pcsHtml=pcsItem.length?pcsItem.map(p=>{
             let cor=stCor(p.status_desc);
             let entrega=p.dt_entrega?p.dt_entrega.slice(0,10).split('-').reverse().join('/'):'';
