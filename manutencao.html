@@ -3,226 +3,285 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão de Manutenção — Veículos</title>
+<title>B&Q — Gestão de Manutenção</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface2: #222536;
-    --border: #2d3148;
-    --accent: #f59e0b;
-    --accent2: #ef4444;
-    --accent3: #10b981;
-    --text: #f1f5f9;
-    --muted: #64748b;
-    --font: 'Inter', system-ui, sans-serif;
+    --azul:    #1a2a4a;
+    --azul2:   #243558;
+    --azul3:   #2e4270;
+    --laranja: #e85d04;
+    --laranja2:#ff7b26;
+    --branco:  #ffffff;
+    --cinza:   #f4f6fa;
+    --cinza2:  #e8ecf3;
+    --text:    #1a2a4a;
+    --muted:   #7a8aaa;
+    --border:  #dde3ef;
+    --verde:   #10b981;
+    --vermelho:#ef4444;
+    --font: 'Segoe UI', system-ui, sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+  body { background: var(--cinza); color: var(--text); font-family: var(--font); min-height: 100vh; }
 
   /* HEADER */
   header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 0 24px;
+    background: var(--azul);
+    padding: 0 28px;
     display: flex;
     align-items: center;
     gap: 16px;
-    height: 56px;
+    height: 60px;
     position: sticky;
     top: 0;
     z-index: 100;
+    box-shadow: 0 2px 16px #0004;
   }
-  .logo { font-size: 15px; font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: 8px; }
-  .logo span { background: var(--accent); color: #000; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 800; letter-spacing: .5px; }
-  nav { display: flex; gap: 4px; margin-left: auto; }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 17px; font-weight: 800; color: var(--branco); letter-spacing: -.3px;
+  }
+  .logo-badge {
+    background: var(--laranja); color: #fff;
+    border-radius: 8px; padding: 3px 10px;
+    font-size: 13px; font-weight: 900; letter-spacing: .5px;
+  }
+  .logo-sub { font-size: 11px; font-weight: 400; color: #8fa8cc; margin-top: 1px; }
+  nav { display: flex; gap: 2px; margin-left: auto; }
   nav button {
-    background: none; border: none; color: var(--muted); font-size: 13px; font-weight: 500;
-    padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: all .15s;
+    background: none; border: none; color: #8fa8cc; font-size: 13px; font-weight: 500;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; transition: all .15s;
   }
-  nav button.ativo { background: var(--surface2); color: var(--text); }
-  nav button:hover:not(.ativo) { color: var(--text); }
+  nav button.ativo { background: var(--laranja); color: #fff; font-weight: 700; }
+  nav button:hover:not(.ativo) { color: #fff; background: #ffffff15; }
   .btn-novo {
-    background: var(--accent); color: #000; border: none; border-radius: 8px;
-    padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
-    display: flex; align-items: center; gap: 6px; transition: opacity .15s;
+    background: var(--laranja); color: #fff; border: none; border-radius: 8px;
+    padding: 9px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: background .15s;
+    white-space: nowrap;
   }
-  .btn-novo:hover { opacity: .85; }
+  .btn-novo:hover { background: var(--laranja2); }
 
   /* LAYOUT */
-  main { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; }
 
-  /* CARDS KPI */
-  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  /* KPIs */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
   .kpi {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    padding: 18px 20px; position: relative; overflow: hidden;
+    background: var(--branco); border-radius: 14px; padding: 20px 22px;
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+    box-shadow: 0 1px 4px #1a2a4a0d;
   }
-  .kpi::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  .kpi::after {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 0 0 0 0;
   }
-  .kpi.amarelo::before { background: var(--accent); }
-  .kpi.vermelho::before { background: var(--accent2); }
-  .kpi.verde::before { background: var(--accent3); }
-  .kpi.azul::before { background: #3b82f6; }
-  .kpi-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
-  .kpi-valor { font-size: 32px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
-  .kpi.amarelo .kpi-valor { color: var(--accent); }
-  .kpi.vermelho .kpi-valor { color: var(--accent2); }
-  .kpi.verde .kpi-valor { color: var(--accent3); }
-  .kpi.azul .kpi-valor { color: #3b82f6; }
-  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .kpi.azul::after { background: var(--azul3); }
+  .kpi.laranja::after { background: var(--laranja); }
+  .kpi.verde::after { background: var(--verde); }
+  .kpi.vermelho::after { background: var(--vermelho); }
+  .kpi-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px; }
+  .kpi-valor { font-size: 36px; font-weight: 900; letter-spacing: -1.5px; line-height: 1; color: var(--azul); }
+  .kpi.laranja .kpi-valor { color: var(--laranja); }
+  .kpi.verde .kpi-valor { color: var(--verde); }
+  .kpi.vermelho .kpi-valor { color: var(--vermelho); }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
 
   /* CHARTS */
-  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
   @media(max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
   .chart-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+    background: var(--branco); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; box-shadow: 0 1px 4px #1a2a4a0d;
   }
-  .chart-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 16px; }
-  .chart-wrap { position: relative; height: 200px; }
+  .chart-title {
+    font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .6px; margin-bottom: 16px; display: flex; align-items: center; gap: 6px;
+  }
+  .chart-wrap { position: relative; height: 210px; }
 
   /* TABELA */
   .table-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    overflow: hidden; margin-bottom: 24px;
+    background: var(--branco); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; box-shadow: 0 1px 4px #1a2a4a0d; margin-bottom: 20px;
   }
   .table-header {
     padding: 16px 20px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--azul);
   }
-  .table-title { font-size: 14px; font-weight: 700; flex: 1; }
+  .table-title { font-size: 14px; font-weight: 700; color: #fff; flex: 1; }
   .search-input {
-    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 7px 12px; font-size: 13px; color: var(--text); width: 220px;
+    background: #ffffff20; border: 1px solid #ffffff30; border-radius: 8px;
+    padding: 7px 12px; font-size: 13px; color: #fff; width: 200px;
   }
-  .search-input::placeholder { color: var(--muted); }
+  .search-input::placeholder { color: #8fa8cc; }
   select.filter {
-    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 7px 12px; font-size: 13px; color: var(--text); cursor: pointer;
+    background: #ffffff20; border: 1px solid #ffffff30; border-radius: 8px;
+    padding: 7px 12px; font-size: 13px; color: #fff; cursor: pointer;
   }
+  select.filter option { background: var(--azul); color: #fff; }
   table { width: 100%; border-collapse: collapse; }
-  th { padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
-  td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th {
+    padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 700;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
+    border-bottom: 1px solid var(--border); background: var(--cinza);
+  }
+  td { padding: 13px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--surface2); }
+  tr:hover td { background: var(--cinza); }
 
   /* BADGES */
   .badge {
-    display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 700;
+    display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 700;
   }
-  .badge-em { background: #f59e0b20; color: var(--accent); border: 1px solid #f59e0b40; }
-  .badge-atrasado { background: #ef444420; color: var(--accent2); border: 1px solid #ef444440; }
-  .badge-ok { background: #10b98120; color: var(--accent3); border: 1px solid #10b98140; }
-
-  /* MODAL */
-  .overlay {
-    position: fixed; inset: 0; background: #00000090; z-index: 200;
-    display: flex; align-items: center; justify-content: center; padding: 16px;
-  }
-  .modal {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-    padding: 28px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
-  }
-  .modal h2 { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
-  .form-group { margin-bottom: 16px; }
-  label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .3px; }
-  input, select, textarea {
-    width: 100%; background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text);
-    transition: border .15s;
-  }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
-  textarea { resize: vertical; min-height: 80px; font-family: var(--font); }
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
-  .btn-cancel {
-    background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
-    border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
-  }
-  .btn-save {
-    background: var(--accent); color: #000; border: none;
-    border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer;
-  }
-  .btn-save:hover { opacity: .9; }
-
-  /* HISTÓRICO */
-  .historico-item {
-    display: flex; align-items: center; gap: 10px; padding: 8px 0;
-    border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted);
-  }
-  .historico-item:last-child { border-bottom: none; }
-  .historico-data { color: var(--accent); font-weight: 700; font-family: monospace; }
+  .badge-em { background: #e85d0415; color: var(--laranja); border: 1px solid #e85d0430; }
+  .badge-atrasado { background: #ef444415; color: var(--vermelho); border: 1px solid #ef444430; }
+  .badge-ok { background: #10b98115; color: var(--verde); border: 1px solid #10b98130; }
 
   /* PLACA */
   .placa {
-    font-family: monospace; font-weight: 800; font-size: 14px;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; padding: 2px 8px; letter-spacing: 1px;
+    font-family: 'Courier New', monospace; font-weight: 800; font-size: 13px;
+    background: var(--azul); color: #fff;
+    border-radius: 6px; padding: 3px 9px; letter-spacing: 1.5px;
   }
 
   /* DIAS */
-  .dias-badge {
-    font-weight: 700; font-size: 13px;
-  }
-  .dias-ok { color: var(--accent3); }
-  .dias-alerta { color: var(--accent); }
-  .dias-critico { color: var(--accent2); }
+  .dias-ok { color: var(--verde); font-weight: 700; }
+  .dias-alerta { color: var(--laranja); font-weight: 700; }
+  .dias-critico { color: var(--vermelho); font-weight: 700; }
 
-  .empty { text-align: center; padding: 48px; color: var(--muted); font-size: 14px; }
+  /* BOTÕES AÇÃO */
+  .btn-acao {
+    border-radius: 6px; padding: 5px 11px; font-size: 11px; cursor: pointer;
+    font-weight: 700; border: 1px solid; transition: all .15s;
+  }
+  .btn-revisar { background: #e85d0412; color: var(--laranja); border-color: #e85d0430; }
+  .btn-revisar:hover { background: var(--laranja); color: #fff; }
+  .btn-saida { background: #10b98112; color: var(--verde); border-color: #10b98130; }
+  .btn-saida:hover { background: var(--verde); color: #fff; }
+
+  /* MODAL */
+  .overlay {
+    position: fixed; inset: 0; background: #1a2a4a99; z-index: 200;
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal {
+    background: var(--branco); border-radius: 16px; padding: 28px;
+    width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 20px 60px #1a2a4a40;
+  }
+  .modal-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 22px;
+    padding-bottom: 16px; border-bottom: 2px solid var(--laranja);
+  }
+  .modal-header h2 { font-size: 16px; font-weight: 800; color: var(--azul); }
+  .form-group { margin-bottom: 16px; }
+  label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
+  input, select, textarea {
+    width: 100%; background: var(--cinza); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 10px 13px; font-size: 14px; color: var(--text);
+    font-family: var(--font); transition: border .15s;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--laranja); background: #fff; }
+  textarea { resize: vertical; min-height: 80px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .btn-cancel {
+    background: var(--cinza); border: 1px solid var(--border); color: var(--muted);
+    border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn-cancel:hover { background: var(--cinza2); }
+  .btn-save {
+    background: var(--laranja); color: #fff; border: none;
+    border-radius: 8px; padding: 10px 22px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .btn-save:hover { background: var(--laranja2); }
+  .btn-save.verde { background: var(--verde); }
+  .btn-save.verde:hover { background: #0da870; }
+
+  /* INFO BOX */
+  .info-box {
+    background: var(--cinza); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 16px; font-size: 13px;
+  }
+  .info-box .placa { font-size: 12px; }
+
+  /* HISTÓRICO REVISÕES */
+  .rev-list { list-style: none; }
+  .rev-list li {
+    display: flex; align-items: center; gap: 8px; padding: 7px 0;
+    font-size: 12px; color: var(--muted); border-bottom: 1px dashed var(--border);
+  }
+  .rev-list li:last-child { border: none; }
+  .rev-num {
+    background: var(--azul); color: #fff; border-radius: 4px;
+    padding: 1px 7px; font-size: 10px; font-weight: 700; min-width: 28px; text-align: center;
+  }
+  .rev-data { color: var(--laranja); font-weight: 700; font-family: monospace; }
+
+  .empty { text-align: center; padding: 52px; color: var(--muted); font-size: 14px; }
   .loading { text-align: center; padding: 32px; color: var(--muted); }
+  .acertos { color: var(--verde); font-weight: 700; }
+  .erros { color: var(--vermelho); font-weight: 700; }
 
-  /* ABA HISTORICO */
-  .historico-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    margin-bottom: 12px; overflow: hidden;
+  /* SEÇÃO TÍTULO */
+  .section-label {
+    font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .6px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
   }
-  .historico-header {
-    padding: 14px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    border-bottom: 1px solid var(--border); cursor: pointer;
-  }
-  .historico-header:hover { background: var(--surface2); }
-  .historico-body { padding: 14px 18px; }
-  .revisoes-lista { list-style: none; }
-  .revisoes-lista li {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 0; font-size: 12px; color: var(--muted);
-    border-bottom: 1px dashed var(--border);
-  }
-  .revisoes-lista li:last-child { border-bottom: none; }
-  .revisao-num { 
-    background: var(--surface2); border-radius: 4px; padding: 1px 6px;
-    font-size: 10px; font-weight: 700; color: var(--accent); min-width: 28px; text-align: center;
-  }
-  .acertos { color: var(--accent3); font-weight: 700; }
-  .erros { color: var(--accent2); font-weight: 700; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">🔧 <span>MANUTENÇÃO</span> Gestão de Veículos</div>
+  <div class="logo">
+    <div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="logo-badge">B&Q</span>
+        <span>Gestão de Manutenção</span>
+      </div>
+      <div class="logo-sub">Controle de frota e veículos</div>
+    </div>
+  </div>
   <nav>
-    <button class="ativo" onclick="irAba('dashboard')">Dashboard</button>
-    <button onclick="irAba('ativos')">Em Manutenção</button>
-    <button onclick="irAba('historico')">Histórico</button>
+    <button class="ativo" onclick="irAba('dashboard')">📊 Dashboard</button>
+    <button onclick="irAba('ativos')">🔧 Em Manutenção</button>
+    <button onclick="irAba('historico')">📋 Histórico</button>
   </nav>
-  <button class="btn-novo" onclick="abrirModalNovo()">+ Registrar</button>
+  <button class="btn-novo" onclick="abrirModalNovo()">+ Registrar Entrada</button>
 </header>
 
 <main>
+
   <!-- DASHBOARD -->
   <div id="aba-dashboard">
     <div class="kpi-grid" id="kpis">
-      <div class="kpi amarelo"><div class="kpi-label">Em Manutenção</div><div class="kpi-valor" id="kpi-em">—</div><div class="kpi-sub">veículos ativos</div></div>
-      <div class="kpi vermelho"><div class="kpi-label">Com Atraso</div><div class="kpi-valor" id="kpi-atrasados">—</div><div class="kpi-sub">previsão vencida</div></div>
-      <div class="kpi verde"><div class="kpi-label">Concluídos</div><div class="kpi-valor" id="kpi-concluidos">—</div><div class="kpi-sub">no total</div></div>
-      <div class="kpi azul"><div class="kpi-label">Tempo Médio</div><div class="kpi-valor" id="kpi-tempo">—</div><div class="kpi-sub">dias em manutenção</div></div>
+      <div class="kpi laranja">
+        <div class="kpi-label">Em Manutenção</div>
+        <div class="kpi-valor" id="kpi-em">—</div>
+        <div class="kpi-sub">veículos ativos agora</div>
+      </div>
+      <div class="kpi vermelho">
+        <div class="kpi-label">Com Atraso</div>
+        <div class="kpi-valor" id="kpi-atrasados">—</div>
+        <div class="kpi-sub">previsão vencida</div>
+      </div>
+      <div class="kpi verde">
+        <div class="kpi-label">Concluídos</div>
+        <div class="kpi-valor" id="kpi-concluidos">—</div>
+        <div class="kpi-sub">total histórico</div>
+      </div>
+      <div class="kpi azul">
+        <div class="kpi-label">Tempo Médio</div>
+        <div class="kpi-valor" id="kpi-tempo">—</div>
+        <div class="kpi-sub">dias por manutenção</div>
+      </div>
     </div>
     <div class="charts-grid">
       <div class="chart-card">
-        <div class="chart-title">🏭 Por Filial</div>
+        <div class="chart-title">🏭 Veículos por Filial</div>
         <div class="chart-wrap"><canvas id="chart-filial"></canvas></div>
       </div>
       <div class="chart-card">
@@ -232,7 +291,7 @@
     </div>
     <div class="charts-grid">
       <div class="chart-card">
-        <div class="chart-title">📊 Precisão de Previsão (acertos vs erros)</div>
+        <div class="chart-title">🎯 Precisão de Previsão</div>
         <div class="chart-wrap"><canvas id="chart-precisao"></canvas></div>
       </div>
       <div class="chart-card">
@@ -246,8 +305,8 @@
   <div id="aba-ativos" style="display:none">
     <div class="table-card">
       <div class="table-header">
-        <div class="table-title">Veículos em Manutenção</div>
-        <input class="search-input" placeholder="🔍 Placa ou nome..." id="busca-ativos" oninput="renderAtivos()">
+        <div class="table-title">🔧 Veículos em Manutenção</div>
+        <input class="search-input" placeholder="🔍 Placa ou veículo..." id="busca-ativos" oninput="renderAtivos()">
         <select class="filter" id="filtro-filial-ativos" onchange="renderAtivos()">
           <option value="">Todas as filiais</option>
         </select>
@@ -260,7 +319,7 @@
   <div id="aba-historico" style="display:none">
     <div class="table-card">
       <div class="table-header">
-        <div class="table-title">Histórico de Manutenções</div>
+        <div class="table-title">📋 Histórico de Manutenções</div>
         <input class="search-input" placeholder="🔍 Placa..." id="busca-historico" oninput="renderHistorico()">
         <select class="filter" id="filtro-filial-hist" onchange="renderHistorico()">
           <option value="">Todas as filiais</option>
@@ -269,16 +328,20 @@
       <div id="lista-historico"><div class="loading">Carregando...</div></div>
     </div>
   </div>
+
 </main>
 
 <!-- MODAL NOVO -->
 <div class="overlay" id="modal-novo" style="display:none">
   <div class="modal">
-    <h2>🔧 Registrar Manutenção</h2>
+    <div class="modal-header">
+      <span style="font-size:20px">🔧</span>
+      <h2>Registrar Entrada em Manutenção</h2>
+    </div>
     <div class="form-group">
       <label>Placa do Veículo *</label>
-      <input type="text" id="f-placa" placeholder="Ex: ABC-1234" style="text-transform:uppercase" oninput="buscarVeiculo()">
-      <div id="nome-veiculo" style="margin-top:6px;font-size:12px;color:#f59e0b"></div>
+      <input type="text" id="f-placa" placeholder="Ex: BEW-2H58" style="text-transform:uppercase;font-family:monospace;font-weight:700;font-size:16px;letter-spacing:2px" oninput="buscarVeiculo()">
+      <div id="nome-veiculo" style="margin-top:6px;font-size:12px;color:var(--laranja);font-weight:600"></div>
     </div>
     <div class="form-group">
       <label>Nome / Descrição do Veículo</label>
@@ -347,11 +410,11 @@
     </div>
     <div class="form-group">
       <label>Observações</label>
-      <textarea id="f-obs" placeholder="Descreva o problema ou observações relevantes..."></textarea>
+      <textarea id="f-obs" placeholder="Descreva o problema ou observações..."></textarea>
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="fecharModal('modal-novo')">Cancelar</button>
-      <button class="btn-save" onclick="salvarManutencao()">Registrar</button>
+      <button class="btn-save" onclick="salvarManutencao()">Registrar Entrada</button>
     </div>
   </div>
 </div>
@@ -359,23 +422,26 @@
 <!-- MODAL ATUALIZAR PREVISÃO -->
 <div class="overlay" id="modal-update" style="display:none">
   <div class="modal">
-    <h2>📅 Atualizar Previsão de Saída</h2>
-    <div id="info-veiculo-update" style="margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:8px;font-size:13px"></div>
+    <div class="modal-header">
+      <span style="font-size:20px">📅</span>
+      <h2>Atualizar Previsão de Saída</h2>
+    </div>
+    <div class="info-box" id="info-veiculo-update"></div>
     <div class="form-group">
       <label>Nova Previsão de Saída *</label>
       <input type="date" id="u-previsao">
     </div>
     <div class="form-group">
-      <label>Motivo da Atualização</label>
-      <textarea id="u-motivo" placeholder="Ex: Peça em trânsito, aguardando aprovação..."></textarea>
+      <label>Motivo da Revisão</label>
+      <textarea id="u-motivo" placeholder="Ex: Aguardando peça, aprovação pendente..."></textarea>
     </div>
     <div class="form-group">
       <label>Histórico de Revisões</label>
-      <div id="historico-revisoes" style="max-height:150px;overflow-y:auto"></div>
+      <div id="historico-revisoes" style="max-height:160px;overflow-y:auto;background:var(--cinza);border-radius:8px;padding:10px"></div>
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="fecharModal('modal-update')">Cancelar</button>
-      <button class="btn-save" onclick="salvarAtualizacao()">Atualizar</button>
+      <button class="btn-save" onclick="salvarAtualizacao()">Atualizar Previsão</button>
     </div>
   </div>
 </div>
@@ -383,8 +449,11 @@
 <!-- MODAL CONCLUIR -->
 <div class="overlay" id="modal-concluir" style="display:none">
   <div class="modal">
-    <h2>✅ Registrar Saída</h2>
-    <div id="info-veiculo-concluir" style="margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:8px;font-size:13px"></div>
+    <div class="modal-header">
+      <span style="font-size:20px">✅</span>
+      <h2>Registrar Saída</h2>
+    </div>
+    <div class="info-box" id="info-veiculo-concluir"></div>
     <div class="form-group">
       <label>Data de Saída *</label>
       <input type="date" id="c-saida">
@@ -395,13 +464,12 @@
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="fecharModal('modal-concluir')">Cancelar</button>
-      <button class="btn-save" onclick="salvarConclusao()" style="background:#10b981">Registrar Saída</button>
+      <button class="btn-save verde" onclick="salvarConclusao()">✅ Confirmar Saída</button>
     </div>
   </div>
 </div>
 
 <script>
-// ── SUPABASE ──────────────────────────────────────────────────────────────
 const SUPA_URL = 'https://vvwtqbehfwrgcmbjdniu.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis';
 
@@ -421,12 +489,7 @@ async function supa(method, path, body) {
   return r.json();
 }
 
-// ── ESTADO ────────────────────────────────────────────────────────────────
-let _manutencoes = [];
-let _veiculos = {};
-let _updateId = null;
-let _concluirId = null;
-let _abaAtual = 'dashboard';
+let _manutencoes = [], _veiculos = {}, _updateId = null, _concluirId = null;
 let charts = {};
 
 const FILIAIS = {
@@ -438,387 +501,272 @@ const FILIAIS = {
   '37':'DIVINOPOLIS','40':'GARANHUNS','41':'FLORIANO','42':'LIVRAMENTO','43':'HORTOLANDIA'
 };
 
-// ── INICIALIZAÇÃO ──────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-  // Data de hoje como padrão
-  const hoje = new Date().toISOString().slice(0,10);
-  document.getElementById('f-entrada').value = hoje;
-
-  // Popular filtros de filial
+  document.getElementById('f-entrada').value = hoje();
   ['filtro-filial-ativos','filtro-filial-hist'].forEach(id => {
     const sel = document.getElementById(id);
     Object.entries(FILIAIS).forEach(([k,v]) => {
       const o = document.createElement('option');
-      o.value = k; o.textContent = `${k} — ${v}`;
-      sel.appendChild(o);
+      o.value = k; o.textContent = `${k} — ${v}`; sel.appendChild(o);
     });
   });
-
   await carregarDados();
 });
 
 async function carregarDados() {
   try {
-    // Carrega veículos do Protheus (ST9001)
     try {
       const bens = await supa('GET', 'bens?select=bem,nome&limit=5000');
-      (bens || []).forEach(b => { _veiculos[b.bem?.trim()] = b.nome?.trim(); });
-    } catch(e) { console.warn('Tabela bens não encontrada ainda:', e.message); }
-
-    // Carrega manutenções
+      (bens||[]).forEach(b => { _veiculos[b.bem?.trim()] = b.nome?.trim(); });
+    } catch(e) { console.warn('Bens:', e.message); }
     _manutencoes = await supa('GET', 'manutencao_veiculos?select=*&order=criado_em.desc') || [];
-
-    renderDashboard();
-    renderAtivos();
-    renderHistorico();
-  } catch(e) {
-    console.error('Erro ao carregar:', e);
-  }
+    renderDashboard(); renderAtivos(); renderHistorico();
+  } catch(e) { console.error(e); }
 }
 
-// ── NAVEGAÇÃO ─────────────────────────────────────────────────────────────
 function irAba(aba) {
-  _abaAtual = aba;
-  ['dashboard','ativos','historico'].forEach(a => {
-    document.getElementById('aba-'+a).style.display = a === aba ? 'block' : 'none';
-    document.querySelectorAll('nav button')[['dashboard','ativos','historico'].indexOf(a)].classList.toggle('ativo', a === aba);
+  ['dashboard','ativos','historico'].forEach((a,i) => {
+    document.getElementById('aba-'+a).style.display = a===aba ? 'block' : 'none';
+    document.querySelectorAll('nav button')[i].classList.toggle('ativo', a===aba);
   });
 }
 
-// ── HELPERS ───────────────────────────────────────────────────────────────
-function diasEntre(d1, d2) {
-  return Math.round((new Date(d2) - new Date(d1)) / 86400000);
-}
+function diasEntre(d1, d2) { return Math.round((new Date(d2) - new Date(d1)) / 86400000); }
 function hoje() { return new Date().toISOString().slice(0,10); }
-function fmtDt(d) {
-  if (!d) return '—';
-  const [y,m,day] = d.split('-');
-  return `${day}/${m}/${y}`;
-}
-function nomeFilial(cod) { return FILIAIS[cod] || cod; }
+function fmtDt(d) { if(!d) return '—'; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}`; }
+function nomeFilial(cod) { return FILIAIS[cod]||cod; }
 
-// ── DASHBOARD ─────────────────────────────────────────────────────────────
 function renderDashboard() {
-  const ativos = _manutencoes.filter(m => !m.data_saida);
-  const concluidos = _manutencoes.filter(m => m.data_saida);
-  const atrasados = ativos.filter(m => m.previsao_saida < hoje());
-
-  // KPIs
+  const ativos = _manutencoes.filter(m=>!m.data_saida);
+  const concluidos = _manutencoes.filter(m=>m.data_saida);
+  const atrasados = ativos.filter(m=>m.previsao_saida<hoje());
   document.getElementById('kpi-em').textContent = ativos.length;
   document.getElementById('kpi-atrasados').textContent = atrasados.length;
   document.getElementById('kpi-concluidos').textContent = concluidos.length;
-
-  // Tempo médio dos concluídos
-  const tempos = concluidos.map(m => diasEntre(m.data_entrada, m.data_saida)).filter(d => d >= 0);
-  const media = tempos.length ? Math.round(tempos.reduce((a,b) => a+b, 0) / tempos.length) : 0;
-  document.getElementById('kpi-tempo').textContent = media + 'd';
-
-  // Charts
+  const tempos = concluidos.map(m=>diasEntre(m.data_entrada,m.data_saida)).filter(d=>d>=0);
+  const media = tempos.length ? Math.round(tempos.reduce((a,b)=>a+b,0)/tempos.length) : 0;
+  document.getElementById('kpi-tempo').textContent = media+'d';
   renderChartFilial(ativos);
   renderChartDefeito(ativos);
   renderChartPrecisao(concluidos);
   renderChartTempo(concluidos);
 }
 
-function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+function dc(id) { if(charts[id]){charts[id].destroy();delete charts[id];} }
+
+const COR_AZUL = '#1a2a4a', COR_LAR = '#e85d04', COR_VD = '#10b981', COR_VM = '#ef4444';
+const PALETTE = ['#e85d04','#1a2a4a','#10b981','#3b82f6','#8b5cf6','#f59e0b','#ec4899','#06b6d4'];
+const GRID = '#dde3ef', TICK = '#7a8aaa';
+const baseOpts = { responsive:true, maintainAspectRatio:false,
+  plugins:{legend:{display:false}},
+  scales:{ x:{ticks:{color:TICK,font:{size:10}},grid:{color:GRID}}, y:{ticks:{color:TICK},grid:{color:GRID}} }
+};
 
 function renderChartFilial(ativos) {
-  destroyChart('filial');
-  const counts = {};
-  ativos.forEach(m => { const k = nomeFilial(m.filial); counts[k] = (counts[k]||0)+1; });
-  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,8);
-  const ctx = document.getElementById('chart-filial').getContext('2d');
-  charts['filial'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: sorted.map(([k]) => k),
-      datasets: [{ data: sorted.map(([,v]) => v), backgroundColor: '#f59e0b99', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 4 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#2d3148' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#2d3148' } } } }
-  });
+  dc('filial');
+  const c={}; ativos.forEach(m=>{const k=nomeFilial(m.filial);c[k]=(c[k]||0)+1;});
+  const s=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const ctx=document.getElementById('chart-filial').getContext('2d');
+  charts['filial']=new Chart(ctx,{type:'bar',data:{labels:s.map(([k])=>k),datasets:[{data:s.map(([,v])=>v),backgroundColor:COR_LAR+'99',borderColor:COR_LAR,borderWidth:1,borderRadius:5}]},options:baseOpts});
 }
 
 function renderChartDefeito(ativos) {
-  destroyChart('defeito');
-  const counts = {};
-  ativos.forEach(m => { if(m.defeito) counts[m.defeito] = (counts[m.defeito]||0)+1; });
-  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,8);
-  const colors = ['#f59e0b','#ef4444','#3b82f6','#10b981','#8b5cf6','#ec4899','#f97316','#06b6d4'];
-  const ctx = document.getElementById('chart-defeito').getContext('2d');
-  charts['defeito'] = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: sorted.map(([k]) => k),
-      datasets: [{ data: sorted.map(([,v]) => v), backgroundColor: colors, borderWidth: 0 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 }, padding: 8 } } } }
-  });
+  dc('defeito');
+  const c={}; ativos.forEach(m=>{if(m.defeito)c[m.defeito]=(c[m.defeito]||0)+1;});
+  const s=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const ctx=document.getElementById('chart-defeito').getContext('2d');
+  charts['defeito']=new Chart(ctx,{type:'doughnut',data:{labels:s.map(([k])=>k),datasets:[{data:s.map(([,v])=>v),backgroundColor:PALETTE,borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:TICK,font:{size:11},padding:8}}}}});
 }
 
 function renderChartPrecisao(concluidos) {
-  destroyChart('precisao');
-  let acertos = 0, erros = 0;
-  concluidos.forEach(m => {
-    if (!m.data_saida || !m.previsao_saida) return;
-    if (m.data_saida <= m.previsao_saida) acertos++;
-    else erros++;
-  });
-  const ctx = document.getElementById('chart-precisao').getContext('2d');
-  charts['precisao'] = new Chart(ctx, {
-    type: 'pie',
-    data: {
-      labels: [`Dentro do prazo (${acertos})`, `Com atraso (${erros})`],
-      datasets: [{ data: [acertos, erros], backgroundColor: ['#10b98180','#ef444480'], borderColor: ['#10b981','#ef4444'], borderWidth: 1 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 12 }, padding: 12 } } } }
-  });
+  dc('precisao');
+  let ac=0,er=0;
+  concluidos.forEach(m=>{if(!m.data_saida||!m.previsao_saida)return;m.data_saida<=m.previsao_saida?ac++:er++;});
+  const ctx=document.getElementById('chart-precisao').getContext('2d');
+  charts['precisao']=new Chart(ctx,{type:'pie',data:{
+    labels:[`No prazo (${ac})`,`Atrasou (${er})`],
+    datasets:[{data:[ac,er],backgroundColor:[COR_VD+'99',COR_VM+'99'],borderColor:[COR_VD,COR_VM],borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:TICK,font:{size:12},padding:14}}}}});
 }
 
 function renderChartTempo(concluidos) {
-  destroyChart('tempo');
-  const porFilial = {};
-  concluidos.forEach(m => {
-    const k = nomeFilial(m.filial);
-    if (!porFilial[k]) porFilial[k] = [];
-    porFilial[k].push(diasEntre(m.data_entrada, m.data_saida));
-  });
-  const labels = Object.keys(porFilial);
-  const medias = labels.map(k => Math.round(porFilial[k].reduce((a,b)=>a+b,0)/porFilial[k].length));
-  const ctx = document.getElementById('chart-tempo').getContext('2d');
-  charts['tempo'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ label: 'Dias', data: medias, backgroundColor: '#3b82f699', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-      scales: { x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#2d3148' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#2d3148' } } } }
-  });
+  dc('tempo');
+  const pf={};
+  concluidos.forEach(m=>{const k=nomeFilial(m.filial);if(!pf[k])pf[k]=[];pf[k].push(diasEntre(m.data_entrada,m.data_saida));});
+  const labels=Object.keys(pf);
+  const medias=labels.map(k=>Math.round(pf[k].reduce((a,b)=>a+b,0)/pf[k].length));
+  const ctx=document.getElementById('chart-tempo').getContext('2d');
+  charts['tempo']=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Dias',data:medias,backgroundColor:COR_AZUL+'99',borderColor:COR_AZUL,borderWidth:1,borderRadius:5}]},options:baseOpts});
 }
 
-// ── EM MANUTENÇÃO ──────────────────────────────────────────────────────────
 function renderAtivos() {
-  const busca = (document.getElementById('busca-ativos')?.value || '').toLowerCase();
-  const filFil = document.getElementById('filtro-filial-ativos')?.value || '';
-  const ativos = _manutencoes.filter(m => {
-    if (m.data_saida) return false;
-    if (filFil && m.filial !== filFil) return false;
-    if (busca && !((m.placa||'').toLowerCase().includes(busca) || (m.nome_veiculo||'').toLowerCase().includes(busca))) return false;
+  const busca=(document.getElementById('busca-ativos')?.value||'').toLowerCase();
+  const fil=document.getElementById('filtro-filial-ativos')?.value||'';
+  const ativos=_manutencoes.filter(m=>{
+    if(m.data_saida)return false;
+    if(fil&&m.filial!==fil)return false;
+    if(busca&&!((m.placa||'').toLowerCase().includes(busca)||(m.nome_veiculo||'').toLowerCase().includes(busca)))return false;
     return true;
   });
-
-  const el = document.getElementById('tabela-ativos');
-  if (!ativos.length) { el.innerHTML = '<div class="empty">Nenhum veículo em manutenção.</div>'; return; }
-
-  const hj = hoje();
-  el.innerHTML = `<table>
-    <thead><tr>
-      <th>Placa</th><th>Veículo</th><th>Filial</th><th>Defeito</th>
-      <th>Entrada</th><th>Previsão Saída</th><th>Dias</th><th>Status</th><th>Ações</th>
-    </tr></thead>
-    <tbody>${ativos.map(m => {
-      const dias = diasEntre(m.data_entrada, hj);
-      const atrasado = m.previsao_saida < hj;
-      const diasRestantes = diasEntre(hj, m.previsao_saida);
-      const dCls = atrasado ? 'dias-critico' : diasRestantes <= 2 ? 'dias-alerta' : 'dias-ok';
-      const badge = atrasado ? `<span class="badge badge-atrasado">⚠ Atrasado ${Math.abs(diasRestantes)}d</span>` : `<span class="badge badge-em">Em andamento</span>`;
+  const el=document.getElementById('tabela-ativos');
+  if(!ativos.length){el.innerHTML='<div class="empty">Nenhum veículo em manutenção no momento.</div>';return;}
+  const hj=hoje();
+  el.innerHTML=`<table>
+    <thead><tr><th>Placa</th><th>Veículo</th><th>Filial</th><th>Defeito</th><th>Entrada</th><th>Previsão Saída</th><th>Dias</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody>${ativos.map(m=>{
+      const dias=diasEntre(m.data_entrada,hj);
+      const atrasado=m.previsao_saida<hj;
+      const diasRest=diasEntre(hj,m.previsao_saida);
+      const dCls=atrasado?'dias-critico':diasRest<=2?'dias-alerta':'dias-ok';
+      const badge=atrasado?`<span class="badge badge-atrasado">⚠ ${Math.abs(diasRest)}d atrasado</span>`:`<span class="badge badge-em">Em andamento</span>`;
       return `<tr>
         <td><span class="placa">${m.placa||'—'}</span></td>
-        <td>${m.nome_veiculo||'—'}</td>
+        <td style="font-size:13px">${m.nome_veiculo||'—'}</td>
         <td style="font-size:11px;color:var(--muted)">${m.filial} — ${nomeFilial(m.filial)}</td>
-        <td><span style="font-size:12px">${m.defeito||'—'}</span></td>
+        <td><span style="font-size:12px;font-weight:600">${m.defeito||'—'}</span></td>
         <td style="font-size:12px">${fmtDt(m.data_entrada)}</td>
         <td style="font-size:12px">${fmtDt(m.previsao_saida)}</td>
         <td><span class="dias-badge ${dCls}">${dias}d</span></td>
         <td>${badge}</td>
         <td style="display:flex;gap:6px;padding:8px 16px">
-          <button onclick="abrirUpdate(${m.id})" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600">📅 Revisar</button>
-          <button onclick="abrirConcluir(${m.id})" style="background:var(--surface2);border:1px solid var(--border);color:var(--accent3);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600">✅ Saída</button>
+          <button class="btn-acao btn-revisar" onclick="abrirUpdate(${m.id})">📅 Revisar</button>
+          <button class="btn-acao btn-saida" onclick="abrirConcluir(${m.id})">✅ Saída</button>
         </td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
 }
 
-// ── HISTÓRICO ──────────────────────────────────────────────────────────────
 function renderHistorico() {
-  const busca = (document.getElementById('busca-historico')?.value || '').toLowerCase();
-  const filFil = document.getElementById('filtro-filial-hist')?.value || '';
-  const hist = _manutencoes.filter(m => {
-    if (!m.data_saida) return false;
-    if (filFil && m.filial !== filFil) return false;
-    if (busca && !(m.placa||'').toLowerCase().includes(busca)) return false;
+  const busca=(document.getElementById('busca-historico')?.value||'').toLowerCase();
+  const fil=document.getElementById('filtro-filial-hist')?.value||'';
+  const hist=_manutencoes.filter(m=>{
+    if(!m.data_saida)return false;
+    if(fil&&m.filial!==fil)return false;
+    if(busca&&!(m.placa||'').toLowerCase().includes(busca))return false;
     return true;
   });
-
-  const el = document.getElementById('lista-historico');
-  if (!hist.length) { el.innerHTML = '<div class="empty">Nenhuma manutenção concluída.</div>'; return; }
-
-  el.innerHTML = `<table>
-    <thead><tr>
-      <th>Placa</th><th>Veículo</th><th>Filial</th><th>Defeito</th>
-      <th>Entrada</th><th>Saída</th><th>Duração</th><th>Previsão era</th><th>Precisão</th><th>Revisões</th>
-    </tr></thead>
-    <tbody>${hist.map(m => {
-      const duracao = diasEntre(m.data_entrada, m.data_saida);
-      const noprazo = m.data_saida <= m.previsao_saida;
-      const revisoes = (m.historico_previsoes || []).length;
+  const el=document.getElementById('lista-historico');
+  if(!hist.length){el.innerHTML='<div class="empty">Nenhuma manutenção concluída.</div>';return;}
+  el.innerHTML=`<table>
+    <thead><tr><th>Placa</th><th>Veículo</th><th>Filial</th><th>Defeito</th><th>Entrada</th><th>Saída</th><th>Duração</th><th>Previsão era</th><th>Precisão</th><th>Revisões</th></tr></thead>
+    <tbody>${hist.map(m=>{
+      const dur=diasEntre(m.data_entrada,m.data_saida);
+      const noprazo=m.data_saida<=m.previsao_saida;
+      const revs=(m.historico_previsoes||[]).length;
       return `<tr>
         <td><span class="placa">${m.placa||'—'}</span></td>
         <td style="font-size:12px">${m.nome_veiculo||'—'}</td>
         <td style="font-size:11px;color:var(--muted)">${m.filial} — ${nomeFilial(m.filial)}</td>
-        <td style="font-size:12px">${m.defeito||'—'}</td>
+        <td style="font-size:12px;font-weight:600">${m.defeito||'—'}</td>
         <td style="font-size:12px">${fmtDt(m.data_entrada)}</td>
         <td style="font-size:12px">${fmtDt(m.data_saida)}</td>
-        <td style="font-weight:700">${duracao}d</td>
+        <td style="font-weight:800;color:var(--azul)">${dur}d</td>
         <td style="font-size:12px;color:var(--muted)">${fmtDt(m.previsao_saida)}</td>
-        <td>${noprazo ? '<span class="acertos">✓ No prazo</span>' : '<span class="erros">✗ Atrasou</span>'}</td>
-        <td style="font-size:12px;color:var(--muted)">${revisoes} revisão(ões)</td>
+        <td>${noprazo?'<span class="acertos">✓ No prazo</span>':'<span class="erros">✗ Atrasou</span>'}</td>
+        <td style="font-size:12px;color:var(--muted)">${revs} rev.</td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
 }
 
-// ── BUSCAR VEÍCULO ─────────────────────────────────────────────────────────
 let _buscaTimer;
 function buscarVeiculo() {
   clearTimeout(_buscaTimer);
-  _buscaTimer = setTimeout(() => {
-    const placa = document.getElementById('f-placa').value.trim().toUpperCase();
-    const nome = _veiculos[placa];
-    const el = document.getElementById('nome-veiculo');
-    if (nome) { el.textContent = '🚗 ' + nome; document.getElementById('f-nome').value = nome; }
-    else el.textContent = '';
-  }, 400);
+  _buscaTimer = setTimeout(()=>{
+    const placa=document.getElementById('f-placa').value.trim().toUpperCase();
+    const nome=_veiculos[placa];
+    const el=document.getElementById('nome-veiculo');
+    if(nome){el.innerHTML='🚗 '+nome;document.getElementById('f-nome').value=nome;}
+    else el.innerHTML='';
+  },400);
 }
 
-// ── MODAIS ─────────────────────────────────────────────────────────────────
-function abrirModalNovo() {
-  ['f-placa','f-nome','f-obs'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('f-filial').value = '';
-  document.getElementById('f-defeito').value = '';
-  document.getElementById('f-entrada').value = hoje();
-  document.getElementById('f-previsao').value = '';
-  document.getElementById('nome-veiculo').textContent = '';
-  document.getElementById('modal-novo').style.display = 'flex';
+function abrirModalNovo(){
+  ['f-placa','f-nome','f-obs'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-filial').value='';
+  document.getElementById('f-defeito').value='';
+  document.getElementById('f-entrada').value=hoje();
+  document.getElementById('f-previsao').value='';
+  document.getElementById('nome-veiculo').innerHTML='';
+  document.getElementById('modal-novo').style.display='flex';
 }
 
-function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
+function fecharModal(id){document.getElementById(id).style.display='none';}
 
-function abrirUpdate(id) {
-  const m = _manutencoes.find(x => x.id === id);
-  if (!m) return;
-  _updateId = id;
-  document.getElementById('u-previsao').value = m.previsao_saida || '';
-  document.getElementById('u-motivo').value = '';
-  document.getElementById('info-veiculo-update').innerHTML =
-    `<span class="placa">${m.placa}</span> &nbsp; ${m.nome_veiculo||''} &nbsp; · &nbsp; ${m.filial} — ${nomeFilial(m.filial)}<br>
-     <span style="color:var(--muted);font-size:11px;margin-top:4px;display:block">Previsão atual: <b style="color:var(--accent)">${fmtDt(m.previsao_saida)}</b></span>`;
-
-  const hist = m.historico_previsoes || [];
-  const el = document.getElementById('historico-revisoes');
-  if (!hist.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px">Nenhuma revisão anterior.</div>'; }
-  else {
-    el.innerHTML = '<ul class="revisoes-lista">' + hist.map((h, i) =>
-      `<li><span class="revisao-num">v${i+1}</span> <span class="historico-data">${fmtDt(h.data)}</span> → previsão alterada para <b style="color:var(--accent)">${fmtDt(h.nova_previsao)}</b>${h.motivo ? ` — ${h.motivo}` : ''}</li>`
-    ).join('') + '</ul>';
-  }
-  document.getElementById('modal-update').style.display = 'flex';
+function abrirUpdate(id){
+  const m=_manutencoes.find(x=>x.id===id);if(!m)return;
+  _updateId=id;
+  document.getElementById('u-previsao').value=m.previsao_saida||'';
+  document.getElementById('u-motivo').value='';
+  document.getElementById('info-veiculo-update').innerHTML=
+    `<span class="placa">${m.placa}</span> &nbsp; <b>${m.nome_veiculo||''}</b> &nbsp;·&nbsp; ${m.filial} — ${nomeFilial(m.filial)}<br>
+     <span style="color:var(--muted);font-size:11px;margin-top:4px;display:block">Previsão atual: <b style="color:var(--laranja)">${fmtDt(m.previsao_saida)}</b></span>`;
+  const hist=m.historico_previsoes||[];
+  const el=document.getElementById('historico-revisoes');
+  el.innerHTML=!hist.length?'<span style="color:var(--muted);font-size:12px">Nenhuma revisão anterior.</span>':
+    `<ul class="rev-list">${hist.map((h,i)=>`<li><span class="rev-num">v${i+1}</span><span class="rev-data">${fmtDt(h.data)}</span> → <b style="color:var(--laranja)">${fmtDt(h.nova_previsao)}</b>${h.motivo?` — ${h.motivo}`:''}</li>`).join('')}</ul>`;
+  document.getElementById('modal-update').style.display='flex';
 }
 
-function abrirConcluir(id) {
-  const m = _manutencoes.find(x => x.id === id);
-  if (!m) return;
-  _concluirId = id;
-  document.getElementById('c-saida').value = hoje();
-  document.getElementById('c-obs').value = '';
-  document.getElementById('info-veiculo-concluir').innerHTML =
-    `<span class="placa">${m.placa}</span> &nbsp; ${m.nome_veiculo||''} &nbsp; · &nbsp; ${m.filial} — ${nomeFilial(m.filial)}<br>
-     <span style="color:var(--muted);font-size:11px;margin-top:4px;display:block">Em manutenção desde <b style="color:var(--accent)">${fmtDt(m.data_entrada)}</b> (${diasEntre(m.data_entrada, hoje())} dias)</span>`;
-  document.getElementById('modal-concluir').style.display = 'flex';
+function abrirConcluir(id){
+  const m=_manutencoes.find(x=>x.id===id);if(!m)return;
+  _concluirId=id;
+  document.getElementById('c-saida').value=hoje();
+  document.getElementById('c-obs').value='';
+  document.getElementById('info-veiculo-concluir').innerHTML=
+    `<span class="placa">${m.placa}</span> &nbsp; <b>${m.nome_veiculo||''}</b> &nbsp;·&nbsp; ${m.filial} — ${nomeFilial(m.filial)}<br>
+     <span style="color:var(--muted);font-size:11px;margin-top:4px;display:block">Em manutenção desde <b style="color:var(--laranja)">${fmtDt(m.data_entrada)}</b> (${diasEntre(m.data_entrada,hoje())} dias)</span>`;
+  document.getElementById('modal-concluir').style.display='flex';
 }
 
-// ── SALVAR ─────────────────────────────────────────────────────────────────
-async function salvarManutencao() {
-  const placa = document.getElementById('f-placa').value.trim().toUpperCase();
-  const filial = document.getElementById('f-filial').value;
-  const entrada = document.getElementById('f-entrada').value;
-  const previsao = document.getElementById('f-previsao').value;
-  const defeito = document.getElementById('f-defeito').value;
-  if (!placa || !filial || !entrada || !previsao || !defeito) { alert('Preencha todos os campos obrigatórios.'); return; }
-
-  try {
-    const data = {
-      placa,
-      nome_veiculo: document.getElementById('f-nome').value.trim(),
-      filial,
-      data_entrada: entrada,
-      previsao_saida: previsao,
-      defeito,
-      observacoes: document.getElementById('f-obs').value.trim(),
-      historico_previsoes: [],
-      criado_em: new Date().toISOString(),
-    };
-    const res = await supa('POST', 'manutencao_veiculos', data);
-    _manutencoes.unshift(res[0] || res);
+async function salvarManutencao(){
+  const placa=document.getElementById('f-placa').value.trim().toUpperCase();
+  const filial=document.getElementById('f-filial').value;
+  const entrada=document.getElementById('f-entrada').value;
+  const previsao=document.getElementById('f-previsao').value;
+  const defeito=document.getElementById('f-defeito').value;
+  if(!placa||!filial||!entrada||!previsao||!defeito){alert('Preencha todos os campos obrigatórios.');return;}
+  try{
+    const res=await supa('POST','manutencao_veiculos',{
+      placa,nome_veiculo:document.getElementById('f-nome').value.trim(),filial,
+      data_entrada:entrada,previsao_saida:previsao,defeito,
+      observacoes:document.getElementById('f-obs').value.trim(),
+      historico_previsoes:[],criado_em:new Date().toISOString(),
+    });
+    _manutencoes.unshift(res[0]||res);
     fecharModal('modal-novo');
-    renderDashboard(); renderAtivos();
-    irAba('ativos');
-  } catch(e) { alert('Erro ao salvar: ' + e.message); }
+    renderDashboard();renderAtivos();irAba('ativos');
+  }catch(e){alert('Erro: '+e.message);}
 }
 
-async function salvarAtualizacao() {
-  const novaPrevisao = document.getElementById('u-previsao').value;
-  const motivo = document.getElementById('u-motivo').value.trim();
-  if (!novaPrevisao) { alert('Informe a nova previsão de saída.'); return; }
-
-  const m = _manutencoes.find(x => x.id === _updateId);
-  if (!m) return;
-
-  const hist = [...(m.historico_previsoes || []), {
-    data: hoje(),
-    previsao_anterior: m.previsao_saida,
-    nova_previsao: novaPrevisao,
-    motivo,
-  }];
-
-  try {
-    await supa('PATCH', `manutencao_veiculos?id=eq.${_updateId}`, {
-      previsao_saida: novaPrevisao,
-      historico_previsoes: hist,
-    });
-    m.previsao_saida = novaPrevisao;
-    m.historico_previsoes = hist;
-    fecharModal('modal-update');
-    renderDashboard(); renderAtivos();
-  } catch(e) { alert('Erro ao atualizar: ' + e.message); }
+async function salvarAtualizacao(){
+  const nova=document.getElementById('u-previsao').value;
+  const motivo=document.getElementById('u-motivo').value.trim();
+  if(!nova){alert('Informe a nova previsão.');return;}
+  const m=_manutencoes.find(x=>x.id===_updateId);if(!m)return;
+  const hist=[...(m.historico_previsoes||[]),{data:hoje(),previsao_anterior:m.previsao_saida,nova_previsao:nova,motivo}];
+  try{
+    await supa('PATCH',`manutencao_veiculos?id=eq.${_updateId}`,{previsao_saida:nova,historico_previsoes:hist});
+    m.previsao_saida=nova;m.historico_previsoes=hist;
+    fecharModal('modal-update');renderDashboard();renderAtivos();
+  }catch(e){alert('Erro: '+e.message);}
 }
 
-async function salvarConclusao() {
-  const saida = document.getElementById('c-saida').value;
-  const obs = document.getElementById('c-obs').value.trim();
-  if (!saida) { alert('Informe a data de saída.'); return; }
-
-  try {
-    await supa('PATCH', `manutencao_veiculos?id=eq.${_concluirId}`, {
-      data_saida: saida,
-      obs_conclusao: obs,
-    });
-    const m = _manutencoes.find(x => x.id === _concluirId);
-    if (m) { m.data_saida = saida; m.obs_conclusao = obs; }
-    fecharModal('modal-concluir');
-    renderDashboard(); renderAtivos(); renderHistorico();
-  } catch(e) { alert('Erro ao concluir: ' + e.message); }
+async function salvarConclusao(){
+  const saida=document.getElementById('c-saida').value;
+  if(!saida){alert('Informe a data de saída.');return;}
+  try{
+    await supa('PATCH',`manutencao_veiculos?id=eq.${_concluirId}`,{data_saida:saida,obs_conclusao:document.getElementById('c-obs').value.trim()});
+    const m=_manutencoes.find(x=>x.id===_concluirId);
+    if(m){m.data_saida=saida;}
+    fecharModal('modal-concluir');renderDashboard();renderAtivos();renderHistorico();
+  }catch(e){alert('Erro: '+e.message);}
 }
 
-// Fechar modal clicando fora
-['modal-novo','modal-update','modal-concluir'].forEach(id => {
-  document.getElementById(id).addEventListener('click', e => {
-    if (e.target.id === id) fecharModal(id);
-  });
+['modal-novo','modal-update','modal-concluir'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',e=>{if(e.target.id===id)fecharModal(id);});
 });
 </script>
 </body>
