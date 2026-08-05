@@ -675,10 +675,12 @@ let _buscaTimer;
 function buscarVeiculo() {
   clearTimeout(_buscaTimer);
   _buscaTimer = setTimeout(()=>{
-    const placa=document.getElementById('f-placa').value.trim().toUpperCase();
-    const nome=_veiculos[placa];
+    const raw=document.getElementById('f-placa').value.trim().toUpperCase();
+    const placa=raw.replace(/[-\s]/g,'');
+    const nome=_veiculos[placa]||_veiculos[raw];
     const el=document.getElementById('nome-veiculo');
     if(nome){el.innerHTML='🚗 '+nome;document.getElementById('f-nome').value=nome;}
+    else if(placa.length>=7)el.innerHTML='<span style="color:#94a3b8;font-size:12px">⚠️ Placa não encontrada no cadastro</span>';
     else el.innerHTML='';
   },400);
 }
