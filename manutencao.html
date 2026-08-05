@@ -517,7 +517,7 @@ async function carregarDados() {
   try {
     try {
       const bens = await supa('GET', 'bens?select=bem,nome&limit=5000');
-      (bens||[]).forEach(b => { _veiculos[b.bem?.trim()] = b.nome?.trim(); });
+      (bens||[]).forEach(b => { const k=b.bem?.trim(); if(k) _veiculos[k]={nome:b.nome?.trim(),modelo:b.modelo?.trim()}; });
     } catch(e) { console.warn('Bens:', e.message); }
     _manutencoes = await supa('GET', 'manutencao_veiculos?select=*&order=criado_em.desc') || [];
     renderDashboard(); renderAtivos(); renderHistorico();
@@ -613,21 +613,26 @@ function renderAtivos() {
   if(!ativos.length){el.innerHTML='<div class="empty">Nenhum veículo em manutenção no momento.</div>';return;}
   const hj=hoje();
   el.innerHTML=`<table>
-    <thead><tr><th>Placa</th><th>Veículo</th><th>Filial</th><th>Defeito</th><th>Entrada</th><th>Previsão Saída</th><th>Dias</th><th>Status</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Placa</th><th>Veículo</th><th>Modelo</th><th>Filial</th><th>Defeito</th><th>Entrada</th><th>Previsão Saída</th><th>Dias</th><th>Revisões</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>${ativos.map(m=>{
       const dias=diasEntre(m.data_entrada,hj);
       const atrasado=m.previsao_saida<hj;
       const diasRest=diasEntre(hj,m.previsao_saida);
       const dCls=atrasado?'dias-critico':diasRest<=2?'dias-alerta':'dias-ok';
       const badge=atrasado?`<span class="badge badge-atrasado">⚠ ${Math.abs(diasRest)}d atrasado</span>`:`<span class="badge badge-em">Em andamento</span>`;
+      const revisoes=(m.historico_previsoes||[]).length;
+      const bem=_veiculos[m.placa]||_veiculos[(m.placa||'').replace(/[-\s]/g,'')]||{};
+      const modelo=typeof bem==='object'?bem.modelo:bem;
       return `<tr>
         <td><span class="placa">${m.placa||'—'}</span></td>
-        <td style="font-size:13px">${m.nome_veiculo||'—'}</td>
+        <td style="font-size:12px">${m.nome_veiculo||'—'}</td>
+        <td style="font-size:11px;color:var(--muted)">${modelo||'—'}</td>
         <td style="font-size:11px;color:var(--muted)">${m.filial} — ${nomeFilial(m.filial)}</td>
         <td><span style="font-size:12px;font-weight:600">${m.defeito||'—'}</span></td>
         <td style="font-size:12px">${fmtDt(m.data_entrada)}</td>
         <td style="font-size:12px">${fmtDt(m.previsao_saida)}</td>
         <td><span class="dias-badge ${dCls}">${dias}d</span></td>
+        <td style="text-align:center">${revisoes>0?`<span style="background:#f59e0b20;color:#e85d04;border-radius:99px;padding:2px 9px;font-size:12px;font-weight:700">${revisoes}x</span>`:`<span style="color:var(--muted);font-size:12px">—</span>`}</td>
         <td>${badge}</td>
         <td style="display:flex;gap:6px;padding:8px 16px">
           <button class="btn-acao btn-revisar" onclick="abrirUpdate(${m.id})">📅 Revisar</button>
@@ -677,7 +682,7 @@ function buscarVeiculo() {
   _buscaTimer = setTimeout(()=>{
     const raw=document.getElementById('f-placa').value.trim().toUpperCase();
     const placa=raw.replace(/[-\s]/g,'');
-    const nome=_veiculos[placa]||_veiculos[raw];
+    const vObj=_veiculos[placa]||_veiculos[raw]; const nome=typeof vObj==='object'?vObj.nome:vObj;
     const el=document.getElementById('nome-veiculo');
     if(nome){el.innerHTML='🚗 '+nome;document.getElementById('f-nome').value=nome;}
     else if(placa.length>=7)el.innerHTML='<span style="color:#94a3b8;font-size:12px">⚠️ Placa não encontrada no cadastro</span>';
