@@ -516,7 +516,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 async function carregarDados() {
   try {
     try {
-      const bens = await supa('GET', 'bens?select=bem,nome&limit=5000');
+      const bens = await supa('GET', 'bens?select=bem,nome,modelo&limit=5000');
       (bens||[]).forEach(b => { const k=b.bem?.trim(); if(k) _veiculos[k]={nome:b.nome?.trim(),modelo:b.modelo?.trim()}; });
     } catch(e) { console.warn('Bens:', e.message); }
     _manutencoes = await supa('GET', 'manutencao_veiculos?select=*&order=criado_em.desc') || [];
