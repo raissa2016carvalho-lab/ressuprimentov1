@@ -1206,7 +1206,7 @@ async function _carregarTodasEmParalelo(sols){
     let lote=todosIds.slice(i,i+100);
     let off=0;
     for(;;){
-      let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,qtd_almoxarife,situacao').in('solicitacao_id',lote).range(off,off+999);
+      let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao').in('solicitacao_id',lote).range(off,off+999);
       if(!its||!its.length)break;
       its.forEach(it=>{
         if(!_itensMap[it.solicitacao_id])_itensMap[it.solicitacao_id]=[];
@@ -1991,7 +1991,7 @@ function filtrarAprovadores(){
 window.filtrarAprovadores=filtrarAprovadores;
 window.exportarExcelAcomp=exportarExcelAcomp;async function baixarExcelAcomp(solId,scNumero){
   // Busca itens do banco se ainda não carregados
-  if(!_itensMap[solId]){
+  if(!_itensMap[solId]||!(_itensMap[solId][0]?.descricao)){
     let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao,justificativa_gerente').eq('solicitacao_id',solId);
     _itensMap[solId]=its||[];
   }
