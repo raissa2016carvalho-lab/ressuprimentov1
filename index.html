@@ -1989,11 +1989,52 @@ function filtrarAprovadores(){
   el.innerHTML=`<table><thead><tr><th>PC</th><th>SC</th><th>N1 — Aprovador</th><th>N1 — Status</th><th>N2 — Aprovador</th><th>N2 — Status</th><th>N3 — Aprovador</th><th>N3 — Status</th></tr></thead><tbody>${lista.map(r=>`<tr><td style="font-family:monospace;font-weight:700">${r.c7_num||'—'}</td><td>${r.c7_numsc||'—'}</td><td style="font-size:12px">${r.aprovador_n1||'—'}</td><td>${pill(r.situacao_n1)}</td><td style="font-size:12px">${r.aprovador_n2||'—'}</td><td>${pill(r.situacao_n2)}</td><td style="font-size:12px">${r.aprovador_n3||'—'}</td><td>${pill(r.situacao_n3)}</td></tr>`).join('')}</tbody></table>`;
 }
 window.filtrarAprovadores=filtrarAprovadores;
-window.exportarExcelAcomp=exportarExcelAcomp;function baixarExcelAcomp(solId,scNumero){
-// busca os dados já renderizados da tabela do card
-let corpo=document.getElementById(`corpo-ac-`+solId);if(!corpo)return;let rows=[];if(corpo.querySelectorAll(`table tr`).forEach((tr,i)=>{if(i===0)return;let tds=tr.querySelectorAll(`td`);tds.length&&rows.push({Item:tds[0]?.innerText?.trim()||``,"Nº PC":tds[1]?.innerText?.trim()||``,Qtd:tds[2]?.innerText?.trim()||``,Valor:tds[3]?.innerText?.trim()||``,Status:tds[4]?.innerText?.trim()||``})}),!rows.length){alert(`Nenhum dado para exportar.`);return}let ws=XLSX.utils.json_to_sheet(rows);
-// largura das colunas
-ws[`!cols`]=[{wch:60},{wch:10},{wch:8},{wch:16},{wch:30}];let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`SC `+scNumero),XLSX.writeFile(wb,`SC_${scNumero}_acompanhamento.xlsx`)}window.baixarExcelAcomp=baixarExcelAcomp;async function excluirAcomp(solId,scNumero){if(!isAdmin){alert(`Apenas administradores podem excluir.`);return}let confirmado=prompt(`Para excluir a SC ${scNumero}, digite o número da SC para confirmar:`);if(confirmado===null)return;if(confirmado.trim()!==String(scNumero).trim()){alert(`Número incorreto. Exclusão cancelada.`);return}let{error:e1}=await db.from(`solicitacao_itens`).delete().eq(`solicitacao_id`,solId);if(e1){alert(`Erro ao excluir itens: `+e1.message);return}let{error:e2}=await db.from(`solicitacoes`).delete().eq(`id`,solId);if(e2){alert(`Erro ao excluir SC: `+e2.message);return}await carregarAcompanhamento()}window.excluirAcomp=excluirAcomp;async function editarFilial(solId){let FILIAIS_LISTA=[{c:`01`,n:`MATRIZ`},{c:`03`,n:`PAU DOS FERROS`},{c:`04`,n:`ITAPIPOCA`},{c:`06`,n:`CURRAIS NOVOS`},{c:`07`,n:`SOBRAL`},{c:`08`,n:`APARECIDA DE GOIANIA`},{c:`09`,n:`MARACANAU`},{c:`10`,n:`MOSSORO`},{c:`11`,n:`ANAPOLIS`},{c:`13`,n:`ALAGOINHAS`},{c:`14`,n:`RIBEIRA DO POMBAL`},{c:`15`,n:`PAULO AFONSO`},{c:`22`,n:`GOIANIA`},{c:`23`,n:`BATURITE`},{c:`24`,n:`MORRINHOS`},{c:`25`,n:`CASCAVEL`},{c:`27`,n:`CAUCAIA`},{c:`29`,n:`HORIZONTE`},{c:`34`,n:`SENHOR DO BONFIM`},{c:`36`,n:`LUZIANIA`},{c:`37`,n:`DIVINOPOLIS`},{c:`40`,n:`GARANHUNS`},{c:`41`,n:`FLORIANO`},{c:`42`,n:`LIVRAMENTO DE NOSSA SENHORA`},{c:`43`,n:`HORTOLANDIA`}],menu=`Escolha a filial:
+window.exportarExcelAcomp=exportarExcelAcomp;async function baixarExcelAcomp(solId,scNumero){
+  // Busca itens do banco se ainda não carregados
+  if(!_itensMap[solId]){
+    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao,justificativa_gerente').eq('solicitacao_id',solId);
+    _itensMap[solId]=its||[];
+  }
+  // Busca PCs do banco se não carregados
+  let sc=(scNumero||'').trim();
+  if(!_pcMap[sc]&&sc){
+    let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega').eq('c7_numsc',sc).limit(2000);
+    _pcMap[sc]=pcs||[];
+    _valorMap[sc]=(_pcMap[sc]).reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+  }
+  let itens=(_itensMap[solId]||[]).filter(it=>{
+    let qtd=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
+    return Number(qtd)>0||it.situacao==='recusado';
+  });
+  let pcs=_pcMap[sc]||[];
+  let rows=itens.map(it=>{
+    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo&&!(p.status_desc||'').toUpperCase().includes('ELIMINADO')&&!(p.status_desc||'').toUpperCase().includes('FORA DO PROTHEUS'));
+    let pcNums=pcsItem.map(p=>p.c7_num).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
+    let status=pcsItem.length?[...new Set(pcsItem.map(p=>p.status_desc||''))].join(', '):'Sem PC';
+    let qtdPc=pcsItem.reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+    let valorPc=pcsItem.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+    let dtEntrega=pcsItem.map(p=>p.dt_entrega).filter(Boolean).sort().pop()||'';
+    if(dtEntrega.length===8)dtEntrega=dtEntrega.slice(6,8)+'/'+dtEntrega.slice(4,6)+'/'+dtEntrega.slice(0,4);
+    return{
+      'Código':it.codigo||'',
+      'Descrição':it.descricao||'',
+      'Qtd Almox':it.qtd_almoxarife||'',
+      'Qtd Gerente':it.quantidade||'',
+      'Situação':it.situacao||'',
+      'Nº PC':pcNums||'Sem PC',
+      'Qtd PC':qtdPc||'',
+      'Valor PC':valorPc?'R$ '+valorPc.toLocaleString('pt-BR',{minimumFractionDigits:2}):'',
+      'Previsão Entrega':dtEntrega,
+      'Status PC':status,
+    };
+  });
+  if(!rows.length){alert('Nenhum item para exportar.');return;}
+  let ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:12},{wch:60},{wch:10},{wch:10},{wch:12},{wch:14},{wch:8},{wch:14},{wch:16},{wch:30}];
+  let wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'SC '+scNumero);
+  XLSX.writeFile(wb,'SC_'+scNumero+'_acompanhamento.xlsx');
+}window.baixarExcelAcomp=baixarExcelAcomp;async function excluirAcomp(solId,scNumero){if(!isAdmin){alert(`Apenas administradores podem excluir.`);return}let confirmado=prompt(`Para excluir a SC ${scNumero}, digite o número da SC para confirmar:`);if(confirmado===null)return;if(confirmado.trim()!==String(scNumero).trim()){alert(`Número incorreto. Exclusão cancelada.`);return}let{error:e1}=await db.from(`solicitacao_itens`).delete().eq(`solicitacao_id`,solId);if(e1){alert(`Erro ao excluir itens: `+e1.message);return}let{error:e2}=await db.from(`solicitacoes`).delete().eq(`id`,solId);if(e2){alert(`Erro ao excluir SC: `+e2.message);return}await carregarAcompanhamento()}window.excluirAcomp=excluirAcomp;async function editarFilial(solId){let FILIAIS_LISTA=[{c:`01`,n:`MATRIZ`},{c:`03`,n:`PAU DOS FERROS`},{c:`04`,n:`ITAPIPOCA`},{c:`06`,n:`CURRAIS NOVOS`},{c:`07`,n:`SOBRAL`},{c:`08`,n:`APARECIDA DE GOIANIA`},{c:`09`,n:`MARACANAU`},{c:`10`,n:`MOSSORO`},{c:`11`,n:`ANAPOLIS`},{c:`13`,n:`ALAGOINHAS`},{c:`14`,n:`RIBEIRA DO POMBAL`},{c:`15`,n:`PAULO AFONSO`},{c:`22`,n:`GOIANIA`},{c:`23`,n:`BATURITE`},{c:`24`,n:`MORRINHOS`},{c:`25`,n:`CASCAVEL`},{c:`27`,n:`CAUCAIA`},{c:`29`,n:`HORIZONTE`},{c:`34`,n:`SENHOR DO BONFIM`},{c:`36`,n:`LUZIANIA`},{c:`37`,n:`DIVINOPOLIS`},{c:`40`,n:`GARANHUNS`},{c:`41`,n:`FLORIANO`},{c:`42`,n:`LIVRAMENTO DE NOSSA SENHORA`},{c:`43`,n:`HORTOLANDIA`}],menu=`Escolha a filial:
 
 `+FILIAIS_LISTA.map(f=>f.c+` - `+f.n).join(`
 `),nova=prompt(menu);if(!nova||!nova.trim())return;let filialLimpa=nova.trim().padStart(2,`0`);if(!FILIAIS_LISTA.find(f=>f.c===filialLimpa)){alert(`Filial inválida: `+filialLimpa+`
