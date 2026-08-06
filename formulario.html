@@ -42,7 +42,17 @@ let idx=ccsSelecionados.findIndex(c=>c.cc===cc);if(idx<0)return;let novaP=Math.m
 // normalizar os outros proporcionalmente
 let resto=1-novaP,outros=ccsSelecionados.filter((_,i)=>i!==idx),somaOutros=outros.reduce((s,c)=>s+c.proporcao,0);somaOutros>0?outros.forEach(c=>{c.proporcao=c.proporcao/somaOutros*resto}):outros.length&&outros.forEach(c=>{c.proporcao=resto/outros.length}),renderChips(),renderTabelaItens()}window.ajustarProporcao=ajustarProporcao;
 // ── CONSUMO + ITENS ─────────────────────────────────────────────────────────
-async function carregarConsumo(){if(!ccsSelecionados.length){$(`card-itens`).style.display=`none`,$(`area-enviar`).style.display=`none`;return}$(`card-itens`).style.display=`block`,$(`loading-itens`).style.display=`block`,$(`tabela-itens`).style.display=`none`;let ccs=ccsSelecionados.map(c=>c.cc),nomesSelecionados=ccsSelecionados.map(c=>c.nome),{data:todosHomonimos}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSelecionados),todosCodigosCC=[...new Set((todosHomonimos||[]).map(c=>c.cc))];
+async function carregarConsumo(){if(!ccsSelecionados.length){$(`card-itens`).style.display=`none`,$(`area-enviar`).style.display=`none`;return}$(`card-itens`).style.display=`block`,$(`loading-itens`).style.display=`block`,$(`tabela-itens`).style.display=`none`;let ccs=ccsSelecionados.map(c=>c.cc);
+// Buscar grupos manuais dos CCs selecionados
+let{data:gruposDosCCs}=await db.from(`cc_grupos`).select(`cc,grupo`).in(`cc`,ccs);
+let gruposEncontrados=[...new Set((gruposDosCCs||[]).map(g=>g.grupo).filter(Boolean))];
+let todosCodigosCC=[...new Set(ccs)];
+if(gruposEncontrados.length){
+  let{data:ccsDoGrupo}=await db.from(`cc_grupos`).select(`cc,grupo`).in(`grupo`,gruposEncontrados);
+  (ccsDoGrupo||[]).forEach(g=>{if(!todosCodigosCC.includes(g.cc))todosCodigosCC.push(g.cc);});
+}
+// Mapa cc -> nome para indexar consumo
+let{data:todosHomonimos}=await db.from(`centros_custo`).select(`cc,nome`).in(`cc`,todosCodigosCC);
 // ── Cache de consumo (sessionStorage, válido 4h) ──────────────────────────
 let consumoData=null;
 const cacheKey=`consumo_cache_`+todosCodigosCC.slice().sort().join(`_`);
@@ -53,7 +63,16 @@ let agg={};
 // Consumo individual por CC+produto
 // Meses fixos Jan-Jun 2026 — mesma janela usada no painel do gerente
 const MESES_FIXOS=(function(){var meses=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);meses.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return meses})();
-let mapCcNome={};(todosHomonimos||[]).forEach(c=>{mapCcNome[c.cc]=c.nome});
+let mapCcNome={};
+// Mapa cc -> grupo (se tiver grupo, usa grupo como chave; senão usa nome)
+let mapCcGrupo={};
+(gruposDosCCs||[]).forEach(g=>{mapCcGrupo[g.cc]=g.grupo;});
+// Para CCs do grupo buscados adicionalmente
+if(gruposEncontrados.length){
+  let{data:_ccsGr}=await db.from(`cc_grupos`).select(`cc,grupo`).in(`grupo`,gruposEncontrados);
+  (_ccsGr||[]).forEach(g=>{mapCcGrupo[g.cc]=g.grupo;});
+}
+(todosHomonimos||[]).forEach(c=>{mapCcNome[c.cc]=mapCcGrupo[c.cc]||c.nome;});
 // Acumula apenas os meses fixos para média; histórico mensal completo fica em consumoMapMensal
 (consumoData||[]).forEach(r=>{let k=r.produto;agg[k]||(agg[k]={produto:r.produto,descricao:r.descricao,total:0});if(MESES_FIXOS.includes(r.mes))agg[k].total+=Number(r.quantidade)||0}),consumoMap={},consumoMapCC={};consumoMapMensal={};let aggCC={};let aggCCFixo={};(consumoData||[]).forEach(r=>{let nome=mapCcNome[r.cc]||r.cc,k=nome+`|`+r.produto;aggCC[k]=(aggCC[k]||0)+(Number(r.quantidade)||0);if(MESES_FIXOS.includes(r.mes)){aggCCFixo[k]=(aggCCFixo[k]||0)+(Number(r.quantidade)||0)}if(r.mes&&r.produto){let km=nome+`|`+r.produto;if(!consumoMapMensal[km])consumoMapMensal[km]={};consumoMapMensal[km][r.mes]=(consumoMapMensal[km][r.mes]||0)+(Number(r.quantidade)||0)}}),Object.entries(aggCCFixo).forEach(([k,total])=>{consumoMapCC[k]=Math.floor(total/6)}),Object.values(agg).forEach(v=>{consumoMap[v.produto]={media:Math.floor(v.total/6),descricao:v.descricao}});
 // Buscar itens dos grupos permitidos (cache sessionStorage 4h)
