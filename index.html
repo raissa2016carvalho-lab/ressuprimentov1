@@ -1751,7 +1751,51 @@ function estimativaItem(codigo,totalMob){
   return precoUnit>0?precoUnit*totalMob:0;
 }
 function fmtBRL(v){return v>0?'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';}
-function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNorm=normalizarCodigo(codigo);return pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===codNorm&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))&&statusRecebido(p.status_desc)).reduce((acc,p)=>acc+(Number(p.c7_quant)||0),0)}function itemEstaRecebido(codigo){return qtdRecebidaDoItem(codigo)>0}let cats={recebido:[],estoque:[],pendente:[],aprovacao:[],semPedido:[]};itensConsolidados.forEach(it=>{let codTrim=(it.codigo||``).trim(),qtdEst=codTrim&&mapaEstoque[codTrim]||0;if(qtdEst>0){let linhas=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[];cats.estoque.push({...it,linhas,qtdEst});return}if(!codTrim||!temDadosNoBanco){cats.semPedido.push({...it,linhas:[]});return}let linhas=pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc)));linhas.length===0?cats.semPedido.push({...it,linhas:[]}):linhas.every(p=>statusRecebido(p.status_desc))?cats.recebido.push({...it,linhas}):linhas.some(p=>(p.status_desc||``).toLowerCase().includes(`aprov`))?cats.aprovacao.push({...it,linhas}):cats.pendente.push({...it,linhas})});let total=itensConsolidados.length||1,pctReceb=Math.round(cats.recebido.length/total*100),pctPend=Math.round(cats.pendente.length/total*100),pctAprov=Math.round(cats.aprovacao.length/total*100),pctSem=Math.round(cats.semPedido.length/total*100);function baixarExcelCatMob(catKey){let linhas=({recebido:cats.recebido,pendente:cats.pendente,aprovacao:cats.aprovacao,semPedido:cats.semPedido}[catKey]||[]).flatMap(it=>it.linhas&&it.linhas.length>0?it.linhas.map(l=>({Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:l.c7_numsc,Status:l.status_desc,"Qtde PC":l.c7_quant})):[{Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:`-`,Status:catKey===`recebido`?`Recebido`:`Sem pedido`,"Qtde PC":``}]);if(!linhas.length){alert(`Nenhum item nesta categoria.`);return}let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,catKey),XLSX.writeFile(wb,`mobilizacao_${catKey}.xlsx`)}window.baixarExcelCatMob=baixarExcelCatMob;function toggleCatMob(mobId,catKey){let uid=`cat-`+mobId+`-`+catKey,el=document.getElementById(uid);if(!el)return;let aberto=el.style.display!==`none`;[`recebido`,`estoque`,`aprovacao`,`pendente`,`semPedido`].forEach(k=>{let outro=document.getElementById(`cat-`+mobId+`-`+k);outro&&(outro.style.display=`none`)}),aberto||(el.style.display=`block`)}window.toggleCatMob=toggleCatMob;function renderCardCat(catKey,label,cor,icone,itens){let uid=`cat-`+mobId+`-`+catKey,pct=Math.round(itens.length/total*100);return`
+function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNorm=normalizarCodigo(codigo);return pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===codNorm&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))&&statusRecebido(p.status_desc)).reduce((acc,p)=>acc+(Number(p.c7_quant)||0),0)}function itemEstaRecebido(codigo){return qtdRecebidaDoItem(codigo)>0}let cats={recebido:[],estoque:[],pendente:[],aprovacao:[],semPedido:[]};itensConsolidados.forEach(it=>{let codTrim=(it.codigo||``).trim(),qtdEst=codTrim&&mapaEstoque[codTrim]||0;if(qtdEst>0){let linhas=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[];cats.estoque.push({...it,linhas,qtdEst});return}if(!codTrim||!temDadosNoBanco){cats.semPedido.push({...it,linhas:[]});return}let linhas=pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc)));linhas.length===0?cats.semPedido.push({...it,linhas:[]}):linhas.every(p=>statusRecebido(p.status_desc))?cats.recebido.push({...it,linhas}):linhas.some(p=>(p.status_desc||``).toLowerCase().includes(`aprov`))?cats.aprovacao.push({...it,linhas}):cats.pendente.push({...it,linhas})});let total=itensConsolidados.length||1,pctReceb=Math.round(cats.recebido.length/total*100),pctPend=Math.round(cats.pendente.length/total*100),pctAprov=Math.round(cats.aprovacao.length/total*100),pctSem=Math.round(cats.semPedido.length/total*100);function baixarExcelCatMob(catKey){let linhas=({recebido:cats.recebido,pendente:cats.pendente,aprovacao:cats.aprovacao,semPedido:cats.semPedido}[catKey]||[]).flatMap(it=>it.linhas&&it.linhas.length>0?it.linhas.map(l=>({Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:l.c7_numsc,Status:l.status_desc,"Qtde PC":l.c7_quant})):[{Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:`-`,Status:catKey===`recebido`?`Recebido`:`Sem pedido`,"Qtde PC":``}]);if(!linhas.length){alert(`Nenhum item nesta categoria.`);return}let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,catKey),XLSX.writeFile(wb,`mobilizacao_${catKey}.xlsx`)}window.baixarExcelCatMob=baixarExcelCatMob;
+async function baixarExcelMob(mobId){
+  // Buscar dados necessários
+  let[{data:mob},{data:itens},{data:estoqueData}]=await Promise.all([
+    db.from('mobilizacoes').select('*').eq('id',mobId).single(),
+    db.from('mobilizacao_itens').select('*').eq('mobilizacao_id',mobId).order('descricao'),
+    db.from('mobilizacao_estoque').select('*').eq('mobilizacao_id',mobId)
+  ]);
+  let mapaEst={};(estoqueData||[]).forEach(e=>{if(e.codigo)mapaEst[e.codigo.trim()]=Number(e.qtd_estoque)||0;});
+  // Consolidar itens por código
+  let grupos={};
+  (itens||[]).forEach(it=>{
+    let k=it.codigo?.trim()||('desc:'+it.descricao);
+    if(!grupos[k])grupos[k]={descricao:it.descricao,codigo:it.codigo,total_mob:0};
+    grupos[k].total_mob+=Number(it.total_mob)||0;
+  });
+  let itensC=Object.values(grupos);
+  // Montar linhas
+  let rows=itensC.map(it=>{
+    let cod=(it.codigo||'').trim();
+    let qtdEst=mapaEst[cod]||0;
+    let qtdPC=valorPedidoAtual(cod); // soma dos c7_total — mas precisamos da qtd
+    // Buscar qtd do pedido nos pcsEncontrados
+    let qtdPedido=pcsEncontrados.filter(p=>(p.c7_produto||'').trim()===cod).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+    let valPC=valorPedidoAtual(cod);
+    let estim=estimativaItem(cod,it.total_mob);
+    let diferenca=Math.max(0,it.total_mob-qtdEst-qtdPedido);
+    return{
+      'Código':it.codigo||'',
+      'Descrição':it.descricao||'',
+      'Total Mob.':it.total_mob,
+      'Via Estoque':qtdEst||'',
+      'Pedido (qtd)':qtdPedido||'',
+      'Diferença Pendente':diferenca||'',
+      'Estimativa (R$)':estim?estim.toFixed(2):'',
+      'Valor PC (R$)':valPC?valPC.toFixed(2):'',
+    };
+  });
+  let ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:12},{wch:55},{wch:10},{wch:12},{wch:12},{wch:16},{wch:14},{wch:14}];
+  let wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,mob?.nome?.slice(0,31)||'Mobilização');
+  XLSX.writeFile(wb,'mobilizacao_'+mobId+'.xlsx');
+}
+window.baixarExcelMob=baixarExcelMob;function toggleCatMob(mobId,catKey){let uid=`cat-`+mobId+`-`+catKey,el=document.getElementById(uid);if(!el)return;let aberto=el.style.display!==`none`;[`recebido`,`estoque`,`aprovacao`,`pendente`,`semPedido`].forEach(k=>{let outro=document.getElementById(`cat-`+mobId+`-`+k);outro&&(outro.style.display=`none`)}),aberto||(el.style.display=`block`)}window.toggleCatMob=toggleCatMob;function renderCardCat(catKey,label,cor,icone,itens){let uid=`cat-`+mobId+`-`+catKey,pct=Math.round(itens.length/total*100);return`
         <div onclick="toggleCatMob('${mobId}','${catKey}')" style="border:2px solid ${cor}30;border-radius:12px;padding:18px 12px 14px;cursor:pointer;background:#fff;user-select:none;text-align:center;position:relative"
              onmouseover="this.style.boxShadow='0 4px 18px ${cor}28';this.style.borderColor='${cor}80'"
              onmouseout="this.style.boxShadow='none';this.style.borderColor='${cor}30'">
@@ -1806,6 +1850,9 @@ function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNo
             <button onclick="removerScMob(${mobId}, ${s.id})" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:14px;line-height:1;padding:2px">✕</button>
           </span>
         `).join(``);container.innerHTML=avisoProtheus+`
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button onclick="baixarExcelMob(${mobId})" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">⬇ Excel completo</button>
+      </div>
       <div style="margin-bottom:16px">
         <label style="font-size:11.5px;font-weight:600;color:#64748b;display:block;margin-bottom:8px">SCs desta mobilização</label>
         <div>${listaScsHtml}</div>
