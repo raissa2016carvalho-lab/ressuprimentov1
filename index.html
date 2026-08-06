@@ -2056,42 +2056,42 @@ async function editarSCAcomp(solId, scAtual){
 }
 window.editarSCAcomp=editarSCAcomp;
 // ---------- ABA GERENTES ----------
-let todosCC=[],_todosCC=[],_eqData=[],_todosCCRaw=[];async function carregarEquivalencias(){let[{data:ccsData},{data:eqData}]=await Promise.all([db.from(`centros_custo`).select(`cc,nome,pessoas`).eq(`status`,`Desbloqueado`).order(`nome`),db.from(`cc_equivalencias`).select(`*`).order(`criado_em`,{ascending:!1})]);_todosCC=(ccsData||[]).filter(c=>c.cc&&c.cc.length>5),_todosCC.sort((a,b)=>a.nome.localeCompare(b.nome)),_eqData=eqData||[],renderListaCC(),renderEquivalencias()}window.carregarEquivalencias=carregarEquivalencias;function filtrarListaCC(){renderListaCC()}window.filtrarListaCC=filtrarListaCC;function renderListaCC(){let el=$(`lista-ccs-eq`),termo=($(`busca-cc-lista`)?.value||``).toLowerCase().trim(),soDupl=$(`mostrar-duplicados`)?.checked,porNome={};_todosCC.forEach(c=>{porNome[c.nome]||(porNome[c.nome]=[]),porNome[c.nome].push(c)});
-// CCs já consolidados
-let jaConsolidados=/* @__PURE__ */ new Set;_eqData.forEach(eq=>{jaConsolidados.add(eq.cc_principal+`|`+eq.cc_secundario)});let grupos=Object.entries(porNome);if(termo&&(grupos=grupos.filter(([nome])=>nome.toLowerCase().includes(termo))),soDupl&&(grupos=grupos.filter(([,ccs])=>ccs.length>1)),!grupos.length){el.innerHTML=`<div class="vazio">Nenhum centro de custo encontrado.</div>`;return}el.innerHTML=grupos.map(([nome,ccs])=>{let duplicado=ccs.length>1,linhas=ccs.map(c=>{
-// Verificar se já tem equivalência com outro CC do mesmo grupo
-let jaEq=_eqData.some(eq=>eq.cc_principal===c.cc||eq.cc_secundario===c.cc);return`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px">
-          <span style="font-family:ui-monospace,monospace;font-size:12px;color:#1e40af;font-weight:600;min-width:90px">${c.cc}</span>
-          <span style="font-size:12px;color:#475569;flex:1">${c.nome}</span>
-          <span style="font-size:11px;color:#64748b">👥 ${c.pessoas||0}</span>
-          ${jaEq?`<span style="font-size:10.5px;background:#d1fae5;color:#065f46;border-radius:4px;padding:1px 6px;font-weight:600">✓ consolidado</span>`:``}
-        </div>`}).join(``),podeConsolidar=duplicado&&ccs.length===2,jaEqPar=podeConsolidar&&_eqData.some(eq=>eq.cc_principal===ccs[0].cc&&eq.cc_secundario===ccs[1].cc||eq.cc_principal===ccs[1].cc&&eq.cc_secundario===ccs[0].cc);return`<div style="background:#fff;border:1px solid ${duplicado?`#fbbf24`:`#e2e8f0`};border-radius:10px;padding:12px 14px;margin-bottom:8px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-          <div style="font-size:13px;font-weight:700;color:#0f172a">
-            ${nome}
-            ${duplicado?`<span style="background:#fef3c7;color:#b45309;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700;margin-left:6px">⚠ ${ccs.length} CCs com mesmo nome</span>`:``}
-          </div>
-          ${podeConsolidar&&!jaEqPar?`
-            <button onclick="consolidarPar('${ccs[0].cc}','${ccs[1].cc}','${nome.replace(/'/g,`'`)}')"
-              style="background:#1e40af;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">
-              🔗 Consolidar
-            </button>`:``}
-          ${jaEqPar?`<span style="font-size:11.5px;color:#065f46;font-weight:600">✓ Já consolidado</span>`:``}
-        </div>
-        ${linhas}
-      </div>`}).join(``)}async function consolidarPar(cc1,cc2,nome){let msgEl=$(`eq-msg`),{error}=await db.from(`cc_equivalencias`).insert({cc_principal:cc1,cc_secundario:cc2,observacao:nome});if(error){msgEl.innerHTML=`<div class="msg erro">Erro: `+error.message+`</div>`;return}msgEl.innerHTML=`<div class="msg ok">✓ `+nome+` consolidado!</div>`,setTimeout(()=>{msgEl.innerHTML=``,carregarEquivalencias()},1e3)}window.consolidarPar=consolidarPar;function renderEquivalencias(){let el=$(`lista-equivalencias`);if(!_eqData.length){el.innerHTML=`<div class="vazio" style="font-size:12.5px">Nenhuma equivalência cadastrada ainda.</div>`;return}let ccNomes={};_todosCC.forEach(c=>ccNomes[c.cc]=c.nome),el.innerHTML=_eqData.map(eq=>`
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:0;font-size:13px">
-          <span style="font-weight:600">${ccNomes[eq.cc_principal]||eq.cc_principal}</span>
-          <span style="font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin:0 4px">${eq.cc_principal}</span>
-          <span style="color:#64748b">↔</span>
-          <span style="font-weight:600;margin-left:4px">${ccNomes[eq.cc_secundario]||eq.cc_secundario}</span>
-          <span style="font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin-left:4px">${eq.cc_secundario}</span>
-        </div>
-        <button onclick="removerEquivalencia(${eq.id})"
-          style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:15px;padding:0"
-          onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
-      </div>`).join(``)}async function removerEquivalencia(id){confirm(`Remover esta equivalência?`)&&(await db.from(`cc_equivalencias`).delete().eq(`id`,id),carregarEquivalencias())}window.removerEquivalencia=removerEquivalencia;
+let todosCC=[],_todosCC=[],_eqData=[],_todosCCRaw=[];async function carregarEquivalencias(){let[{data:ccsData},{data:gruposData}]=await Promise.all([db.from(`centros_custo`).select(`cc,nome,pessoas`).eq(`status`,`Desbloqueado`).order(`nome`),db.from(`cc_grupos`).select(`*`).order(`grupo`)]);_todosCC=(ccsData||[]).filter(c=>c.cc&&c.cc.length>5),_todosCC.sort((a,b)=>a.nome.localeCompare(b.nome)),_gruposData=gruposData||[],renderListaCC(),renderEquivalencias()}window.carregarEquivalencias=carregarEquivalencias;function filtrarListaCC(){renderListaCC()}window.filtrarListaCC=filtrarListaCC;function renderListaCC(){let el=$(`lista-ccs-eq`),termo=($(`busca-cc-lista`)?.value||``).toLowerCase().trim();let ccParaGrupo={};(_gruposData||[]).forEach(g=>{ccParaGrupo[g.cc]=g.grupo});let lista=_todosCC.filter(c=>!termo||c.nome.toLowerCase().includes(termo)||c.cc.toLowerCase().includes(termo)||(ccParaGrupo[c.cc]||``).toLowerCase().includes(termo));if(!lista.length){el.innerHTML=`<div class="vazio">Nenhum CC encontrado.</div>`;return}el.innerHTML=lista.map(c=>{let g=ccParaGrupo[c.cc]||``;return`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:0"><span style="font-family:monospace;font-size:12px;color:#1e40af;font-weight:600">${c.cc}</span><span style="font-size:13px;font-weight:600;color:#0f172a;margin-left:8px">${c.nome}</span><span style="font-size:11px;color:#64748b;margin-left:8px">👥 ${c.pessoas||0}</span>${g?`<span style="font-size:10.5px;background:#dbeafe;color:#1e40af;border-radius:4px;padding:1px 7px;font-weight:700;margin-left:8px">📦 ${g}</span>`:`<span style="font-size:11px;color:#cbd5e1;margin-left:8px">Sem grupo</span>`}</div><div style="display:flex;gap:6px;align-items:center"><input id="gi-${c.cc}" placeholder="Nome do grupo..." value="${g}" style="margin:0;padding:6px 10px;font-size:12px;width:180px;border:1px solid #e2e8f0;border-radius:6px"><button onclick="salvarGrupoCC('${c.cc}')" style="background:#1e40af;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">Salvar</button>${g?`<button onclick="removerGrupoCC('${c.cc}')" style="background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:16px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>`:``}</div></div>`}).join(``);
+return;/*
+*/}
+async function salvarGrupoCC(cc){
+  let input=document.getElementById(`gi-${cc}`);
+  let grupo=(input?.value||``).trim();
+  if(!grupo){alert(`Digite o nome do grupo.`);return;}
+  let msgEl=$(`eq-msg`);
+  let{error}=await db.from(`cc_grupos`).upsert({cc,grupo,regiao:``},{onConflict:`cc`});
+  if(error){msgEl.innerHTML=`<div class="msg erro">Erro: ${error.message}</div>`;return;}
+  msgEl.innerHTML=`<div class="msg ok">✓ CC ${cc} adicionado ao grupo ${grupo}!</div>`;
+  setTimeout(()=>{msgEl.innerHTML=``;carregarEquivalencias();},800);
+}
+window.salvarGrupoCC=salvarGrupoCC;
+async function removerGrupoCC(cc){
+  if(!confirm(`Remover ${cc} do grupo?`))return;
+  await db.from(`cc_grupos`).delete().eq(`cc`,cc);
+  carregarEquivalencias();
+}
+window.removerGrupoCC=removerGrupoCC;
+function renderEquivalencias(){
+  let el=$(`lista-equivalencias`);
+  if(!_gruposData||!_gruposData.length){el.innerHTML=`<div class="vazio" style="font-size:12.5px">Nenhum grupo cadastrado ainda.</div>`;return;}
+  let ccNomes={};_todosCC.forEach(c=>ccNomes[c.cc]=c.nome);
+  let porGrupo={};
+  _gruposData.forEach(g=>{if(!porGrupo[g.grupo])porGrupo[g.grupo]=[];porGrupo[g.grupo].push(g);});
+  el.innerHTML=Object.entries(porGrupo).map(([grupo,ccs])=>`
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">📦 ${grupo} <span style="font-size:11px;color:#94a3b8;font-weight:400">(${ccs.length} CC${ccs.length>1?`s`:``})</span></div>
+      ${ccs.map(g=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:#f8fafc;border-radius:6px;margin-bottom:4px">
+        <span style="font-family:monospace;font-size:11px;color:#1e40af;font-weight:600">${g.cc}</span>
+        <span style="font-size:12px;color:#475569;flex:1">${ccNomes[g.cc]||g.cc}</span>
+        <button onclick="removerGrupoCC('${g.cc}')" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:14px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>
+      </div>`).join(``)}
+    </div>`).join(``);
+}
 // ---------- REDEFINIÇÃO DE SENHA ----------
 function fmtDataHoraSenha(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}async function carregarPedidosSenha(){let el=$(`lista-pedidos-senha`);el.innerHTML=`<div class="vazio">Carregando...</div>`;let{data,error}=await db.from(`pedidos_redefinicao`).select(`*`).order(`solicitado_em`,{ascending:!1}).limit(100);if(error){el.innerHTML=`<div class="vazio">Erro: `+error.message+`</div>`;return}if(!data||!data.length){el.innerHTML=`<div class="vazio">Nenhum pedido de redefinição ainda.</div>`;return}el.innerHTML=data.map(p=>{let agora=/* @__PURE__ */ new Date,expirado=p.expira_em&&new Date(p.expira_em)<agora,statusLabel=p.status,statusCor=`#64748b`;return p.status===`pendente`?(statusLabel=`Pendente`,statusCor=`#d97706`):p.status===`aprovado`&&!expirado?(statusLabel=`Aprovado (ativo)`,statusCor=`#16a34a`):p.status===`aprovado`&&expirado?(statusLabel=`Expirado`,statusCor=`#ef4444`):p.status===`usado`&&(statusLabel=`Já utilizado`,statusCor=`#64748b`),`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:8px;max-width:700px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
