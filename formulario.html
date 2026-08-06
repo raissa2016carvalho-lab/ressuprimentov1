@@ -22,9 +22,11 @@ let debTimer=null;function buscarCC(){clearTimeout(debTimer),debTimer=setTimeout
         <span style="font-weight:600">${c.nome}</span>
         <span style="color:#94a3b8;font-size:11px;margin-left:6px">${c.cc}</span>
         <span style="color:#64748b;font-size:11px;margin-left:6px">👥 ${c.pessoas}</span>
-      </div>`).join(``),sugsEl.style.display=`block`},200)}async function selecionarCC(cc){if($(`sugs-cc`).style.display=`none`,$(`busca-cc`).value=``,ccsSelecionados.find(c=>c.cc===cc))return;let base=todosCCs.find(c=>c.cc===cc);base&&(ccsSelecionados.push({...base}),calcularProporcao(),renderChips(),await carregarConsumo())}function removerCC(cc){ccsSelecionados=ccsSelecionados.filter(c=>c.cc!==cc),calcularProporcao(),renderChips(),carregarConsumo()}function calcularProporcao(){let totalPessoas=ccsSelecionados.reduce((s,c)=>s+c.pessoas,0);ccsSelecionados.forEach(c=>{c.proporcao=totalPessoas>0?c.pessoas/totalPessoas:1/ccsSelecionados.length})}function renderChips(){let area=$(`area-ccs`),chips=$(`chips-cc`),propGrid=$(`prop-grid`);if(!ccsSelecionados.length){area.style.display=`none`;return}area.style.display=`block`,chips.innerHTML=ccsSelecionados.map(c=>`<span class="cc-chip">${c.nome} <span style="font-size:10.5px;opacity:.7">${c.cc}</span>
-      <button onclick="removerCC('${c.cc}')">✕</button>
-    </span>`).join(``),propGrid.innerHTML=ccsSelecionados.map(c=>{let pct=Math.round(c.proporcao*100);return`<div class="prop-row">
+      </div>`).join(``),sugsEl.style.display=`block`},200)}async function selecionarCC(cc){if($(`sugs-cc`).style.display=`none`,$(`busca-cc`).value=``,ccsSelecionados.find(c=>c.cc===cc))return;let base=todosCCs.find(c=>c.cc===cc);base&&(ccsSelecionados.push({...base}),calcularProporcao(),renderChips(),await carregarConsumo())}function removerCC(cc){ccsSelecionados=ccsSelecionados.filter(c=>c.cc!==cc),calcularProporcao(),renderChips(),carregarConsumo()}function calcularProporcao(){let totalPessoas=ccsSelecionados.reduce((s,c)=>s+c.pessoas,0);ccsSelecionados.forEach(c=>{c.proporcao=totalPessoas>0?c.pessoas/totalPessoas:1/ccsSelecionados.length})}function renderChips(){let area=$(`area-ccs`),chips=$(`chips-cc`),propGrid=$(`prop-grid`);if(!ccsSelecionados.length){area.style.display=`none`;return}area.style.display=`block`,chips.innerHTML=ccsSelecionados.map(c=>{
+  let ccsGrupo=(window._grupoExpandido||{})[c.cc]||[];
+  let outros=ccsGrupo.filter(cc=>cc!==c.cc);
+  return`<div style="margin-bottom:4px"><span class="cc-chip">${c.nome} <span style="font-size:10.5px;opacity:.7">${c.cc}</span>${outros.length?`<span style="font-size:10px;background:#bfdbfe;color:#1e40af;border-radius:3px;padding:1px 5px;margin-left:4px">📦 +${outros.length} CC${outros.length>1?'s':''}</span>`:``}<button onclick="removerCC('${c.cc}')">✕</button></span>${outros.length?`<div style="font-size:11px;color:#94a3b8;margin-top:2px;margin-left:4px">🔗 consolidado com: ${outros.join(', ')}</div>`:``}</div>`;
+}).join(``),propGrid.innerHTML=ccsSelecionados.map(c=>{let pct=Math.round(c.proporcao*100);return`<div class="prop-row">
       <div style="flex:1;min-width:0">
         <div style="font-size:12.5px;font-weight:600;color:#0f172a">${c.nome}</div>
         <div style="font-size:11px;color:#64748b">${c.cc}</div>
@@ -43,6 +45,7 @@ let idx=ccsSelecionados.findIndex(c=>c.cc===cc);if(idx<0)return;let novaP=Math.m
 let resto=1-novaP,outros=ccsSelecionados.filter((_,i)=>i!==idx),somaOutros=outros.reduce((s,c)=>s+c.proporcao,0);somaOutros>0?outros.forEach(c=>{c.proporcao=c.proporcao/somaOutros*resto}):outros.length&&outros.forEach(c=>{c.proporcao=resto/outros.length}),renderChips(),renderTabelaItens()}window.ajustarProporcao=ajustarProporcao;
 // ── CONSUMO + ITENS ─────────────────────────────────────────────────────────
 async function carregarConsumo(){if(!ccsSelecionados.length){$(`card-itens`).style.display=`none`,$(`area-enviar`).style.display=`none`;return}$(`card-itens`).style.display=`block`,$(`loading-itens`).style.display=`block`,$(`tabela-itens`).style.display=`none`;let ccs=ccsSelecionados.map(c=>c.cc);
+window._grupoExpandido={}; // cc -> [ccs do grupo]
 // Buscar grupos manuais dos CCs selecionados
 let{data:gruposDosCCs}=await db.from(`cc_grupos`).select(`cc,grupo`).in(`cc`,ccs);
 let gruposEncontrados=[...new Set((gruposDosCCs||[]).map(g=>g.grupo).filter(Boolean))];
@@ -50,6 +53,11 @@ let todosCodigosCC=[...new Set(ccs)];
 if(gruposEncontrados.length){
   let{data:ccsDoGrupo}=await db.from(`cc_grupos`).select(`cc,grupo`).in(`grupo`,gruposEncontrados);
   (ccsDoGrupo||[]).forEach(g=>{if(!todosCodigosCC.includes(g.cc))todosCodigosCC.push(g.cc);});
+  // Salvar para renderChips mostrar quais CCs estão no grupo
+  ccs.forEach(cc=>{
+    let grupo=(gruposDosCCs||[]).find(g=>g.cc===cc)?.grupo;
+    if(grupo){window._grupoExpandido[cc]=(ccsDoGrupo||[]).filter(g=>g.grupo===grupo).map(g=>g.cc);}
+  });
 }
 // Mapa cc -> nome para indexar consumo
 let{data:todosHomonimos}=await db.from(`centros_custo`).select(`cc,nome`).in(`cc`,todosCodigosCC);
