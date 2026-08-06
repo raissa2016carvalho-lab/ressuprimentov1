@@ -1816,12 +1816,12 @@ function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNo
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:10px">
         ${(()=>{
   // Calcular totais de estimativa e valor PC
   let totalEst=itensConsolidados.reduce((a,it)=>a+estimativaItem(it.codigo,it.total_mob),0);
   let totalPC=itensConsolidados.reduce((a,it)=>a+valorPedidoAtual(it.codigo),0);
-  return`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+  return`<div style="display:contents">
     ${[
       {cor:'#22c55e',icone:'✅',n:cats.recebido.length,label:'Recebidos',cat:'recebido'},
       {cor:'#6366f1',icone:'📦',n:cats.estoque.length,label:'Via estoque',cat:'estoque'},
@@ -1835,15 +1835,15 @@ function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNo
       <div style="font-size:9px;color:#94a3b8">${Math.round(c.n/total*100)}%</div>
       ${c.cat==='pendente'?`<button onclick="event.stopPropagation();baixarExcelCatMob('pendente')" style="margin-top:3px;background:#ef444415;border:1px solid #ef444430;color:#ef4444;border-radius:4px;padding:1px 5px;font-size:9px;cursor:pointer;font-weight:600">⬇</button>`:''}
     </div>`).join('')}
-    <div style="border:1px solid #1e40af30;border-radius:8px;padding:8px 10px;background:#eff6ff;text-align:center;flex:1;min-width:0">
-      <div style="font-size:16px">📋</div>
+    <div style="border:1px solid #1e40af30;border-radius:8px;padding:6px 8px;background:#eff6ff;text-align:center;flex:1;min-width:0">
+      <div style="font-size:12px">📋</div>
       <div style="font-size:13px;font-weight:800;color:#1e40af;line-height:1.2">${fmtBRL(totalEst)}</div>
-      <div style="font-size:10px;color:#64748b;margin-top:2px">Estimativa</div>
+      <div style="font-size:9px;color:#64748b;margin-top:1px">Estimativa</div>
     </div>
-    <div style="border:1px solid #16a34a30;border-radius:8px;padding:8px 10px;background:#f0fdf4;text-align:center;flex:1;min-width:0">
-      <div style="font-size:16px">🛒</div>
+    <div style="border:1px solid #16a34a30;border-radius:8px;padding:6px 8px;background:#f0fdf4;text-align:center;flex:1;min-width:0">
+      <div style="font-size:12px">🛒</div>
       <div style="font-size:13px;font-weight:800;color:#16a34a;line-height:1.2">${fmtBRL(totalPC)}</div>
-      <div style="font-size:10px;color:#64748b;margin-top:2px">Valor PC</div>
+      <div style="font-size:9px;color:#64748b;margin-top:1px">Valor PC</div>
     </div>
   </div>`;
 })()}
