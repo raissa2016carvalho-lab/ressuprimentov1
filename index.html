@@ -2298,13 +2298,18 @@ async function carregarConsolidados(){let el=document.getElementById(`lista-cons
     `).join(``);cons.forEach(c=>_carregarResumoConsolidado(c.id));}async function toggleConsolidado(id){let corpo=document.getElementById(`cons-corpo-`+id);corpo.classList.toggle(`aberto`),corpo.classList.contains(`aberto`)&&corpo.dataset.carregado===`0`&&(corpo.dataset.carregado=`1`,await renderConsolidado(id,corpo))}// ── RESUMOS DOS CARDS ─────────────────────────────────────────────────────
 async function _carregarResumoMob(mobId,numEquipes){
   let el=document.getElementById('mob-resumo-'+mobId);if(!el)return;
-  let[{data:itens},{data:scsLista}]=await Promise.all([
+  let[{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([
     db.from('mobilizacao_itens').select('codigo,total_mob').eq('mobilizacao_id',mobId),
-    db.from('mobilizacao_scs').select('sc_numero,filial').eq('mobilizacao_id',mobId)
+    db.from('mobilizacao_scs').select('sc_numero,filial').eq('mobilizacao_id',mobId),
+    db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id',mobId)
   ]);
   let totalItens=(itens||[]).length;
   let scsNums=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);
-  let pcsRec=0,pcsTotal=0;
+  // Estoque
+  let mapaEstoque={};(estoqueData||[]).forEach(e=>{if(e.codigo)mapaEstoque[e.codigo.trim()]=Number(e.qtd_estoque)||0;});
+  let atendidosEstoque=new Set((itens||[]).filter(it=>{let cod=(it.codigo||'').trim();return cod&&(mapaEstoque[cod]||0)>0;}).map(it=>it.codigo.trim()));
+  // Pedidos recebidos
+  let atendidosPC=new Set();
   if(scsNums.length>0){
     let scsPorFilial={};(scsLista||[]).forEach(s=>{let f=s.filial||'';if(!scsPorFilial[f])scsPorFilial[f]=[];scsPorFilial[f].push(s.sc_numero.trim());});
     let pcsEnc=[];
@@ -2316,13 +2321,13 @@ async function _carregarResumoMob(mobId,numEquipes){
       pcsEnc=pcsEnc.concat(pcs||[]);
     }
     let codigos=new Set((itens||[]).map(i=>(i.codigo||'').trim()).filter(Boolean));
-    let pcsFilt=pcsEnc.filter(p=>codigos.has((p.c7_produto||'').trim()));
     let isRec=s=>{let u=(s||'').toLowerCase();return u.includes('receb')||u.includes('pré-nota');};
-    let prodComPc=new Set(pcsFilt.map(p=>p.c7_produto));
-    let prodRec=new Set(pcsFilt.filter(p=>isRec(p.status_desc)).map(p=>p.c7_produto));
-    pcsTotal=prodComPc.size;pcsRec=prodRec.size;
+    pcsEnc.filter(p=>codigos.has((p.c7_produto||'').trim())&&isRec(p.status_desc)).forEach(p=>atendidosPC.add(p.c7_produto));
   }
-  let pct=totalItens>0?Math.round(pcsRec/totalItens*100):0;
+  // Total atendidos = PC + estoque (sem dupla contagem)
+  let totalAtendidos=new Set([...atendidosPC,...atendidosEstoque]).size;
+  let perEquipe=numEquipes>0?totalItens/numEquipes:totalItens;
+  let pct=totalItens>0?Math.round(totalAtendidos/totalItens*100):0;
   let cor=pct===100?'#16a34a':pct>50?'#1e40af':pct>20?'#f59e0b':'#94a3b8';
   el.innerHTML=`
     <span style="font-size:11px;font-weight:700;color:${cor};background:${cor}15;border-radius:99px;padding:2px 8px">${pct}% atendido</span>
