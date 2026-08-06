@@ -277,32 +277,19 @@ for(;;){let{data:_lg,error:_eg}=await db.from('cc_grupos').select('cc,grupo,regi
 _ccParaGrupo={};_grupoCCs={};
 _ccGruposAll.forEach(g=>{_ccParaGrupo[g.cc]=g.grupo;_grupoCCs[g.grupo]=_grupoCCs[g.grupo]||[];if(!_grupoCCs[g.grupo].includes(g.cc))_grupoCCs[g.grupo].push(g.cc);});}
 if(ccsSols.length>0){// Buscar nomes dos CCs — primeiro pelo ccMap, depois direto do banco se necessário
-let nomesSols=[...new Set(ccsSols.map(cc=>ccMap[cc]?.nome).filter(Boolean))];
-// Se algum CC não está no ccMap, buscar do banco
-let ccsSemNome=ccsSols.filter(cc=>!ccMap[cc]?.nome);
-if(ccsSemNome.length>0){
-  let{data:ccsFaltando}=await db.from(`centros_custo`).select(`cc,nome`).in(`cc`,ccsSemNome);
-  (ccsFaltando||[]).forEach(c=>{ccMap[c.cc]={...ccMap[c.cc],...c};if(c.nome&&!nomesSols.includes(c.nome))nomesSols.push(c.nome)});
-}let todosHomMaster=[];if(nomesSols.length>0){let{data:hom}=await db.from(`centros_custo`).select(`cc,nome`).in(`nome`,nomesSols);todosHomMaster=hom||[]}let mapCcNomeMaster={};todosHomMaster.forEach(c=>{mapCcNomeMaster[c.cc]=c.nome});let ccsExpandidos=[...new Set(todosHomMaster.map(c=>c.cc))];// Incluir TODOS os CCs das solicitações + todos os CCs que aparecem nos grupos matriciais
-// Para garantir que CCs aglutinados no mesmo card tenham consumo carregado
-let _todosGruposCCs=[...new Set([...ccsSols,...ccsExpandidos])];
-// _ccParaGrupo e _grupoCCs já populados acima
-// Para cada CC das solicitações, adicionar todos os CCs do mesmo grupo
+// Expansão por grupos MANUAIS apenas (cc_grupos) — sem consolidação automática por nome
+let mapCcNomeMaster={};
+ccsSols.forEach(cc=>{mapCcNomeMaster[cc]=ccMap[cc]?.nome||cc;});
+let _todosGruposCCs=[...new Set([...ccsSols])];
+// Adicionar CCs do mesmo grupo manual
 ccsSols.forEach(cc=>{
   let grupo=_ccParaGrupo[cc];
   if(grupo&&_grupoCCs[grupo]){
     _grupoCCs[grupo].forEach(cc2=>{
       if(!_todosGruposCCs.includes(cc2)){
         _todosGruposCCs.push(cc2);
-        // Garantir que cc2 está no ccMap e mapCcNomeMaster
-        let ccInfo=_ccParaGrupo[cc2]?{cc:cc2,grupo:_ccParaGrupo[cc2]}:null;
-        // NUNCA herdar o nome de outro CC: se cc2 não tem entrada própria no ccMap,
-        // manter sem entrada (ou usar o cc2 como nome fallback), para não contaminar
-        // o _aggNomeProdMes e causar dupla contagem
-        if(ccInfo&&!ccMap[cc2])ccMap[cc2]={cc:cc2,nome:cc2}; // fallback: usa o próprio código
-        // Usar o nome REAL do CC2 buscado do banco (centros_custo), não do CC da solicitação
-        var _nomeReal2=ccMap[cc2]?.nome||cc2;
-        mapCcNomeMaster[cc2]=_nomeReal2;
+        if(!ccMap[cc2])ccMap[cc2]={cc:cc2,nome:cc2};
+        mapCcNomeMaster[cc2]=ccMap[cc2]?.nome||cc2;
       }
     });
   }
@@ -322,84 +309,54 @@ try{
   consumoData=rows;
   let{data:pd}=await db.from(`cc_pessoas`).select(`cc,cargo,quantidade`).in(`cc`,ccsSols);
   pessoasData=pd||[];
-}catch(e){console.warn('[master consumo] erro:',e);consumoData=[];pessoasData=[];}let consumoAggNome={};let consumoAggNomeFix={};consumoMensalMap={};
-// Meses fixos: Janeiro a Junho 2026
-const MESES_FIXOS=(function(){var r=[],d=new Date();for(var i=5;i>=0;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
-// Função de normalização de mes para YYYYMM
+}catch(e){console.warn('[master consumo] erro:',e);consumoData=[];pessoasData=[];}consumoMensalMap={};
+// Normalizar mes para YYYYMM
 function normMes(m){
   var s=String(m||'').trim();
   if(/^\d{6}$/.test(s))return s;
   if(/^\d{4}-\d{2}/.test(s))return s.replace(/-/g,'').slice(0,6);
-  var ptM={janeiro:'01',fevereiro:'02','março':'03',marco:'03',abril:'04',maio:'05',junho:'06',julho:'07',agosto:'08',setembro:'09',outubro:'10',novembro:'11',dezembro:'12'};
-  var mt=s.match(/(\d{2})\s*(?:\/|de\s+)(\w+)/i);
-  if(mt&&ptM[mt[2].toLowerCase()])return'20'+mt[1]+ptM[mt[2].toLowerCase()];
   return s;
 }
-// Agregar consumo por NOME+produto+mes somando todos os CCs com mesmo nome
-// Homônimos: soma seus valores (não descarta nenhum)
-// CCs com nomes diferentes: ficam em chaves separadas, somam no forEach normalmente
-const _aggNomeProdMes={};
-(consumoData||[]).forEach(r=>{
-  const _m=normMes(r.mes);
-  const nome=mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc;
-  const chave=nome+'|'+r.produto+'|'+_m;
-  _aggNomeProdMes[chave]=(_aggNomeProdMes[chave]||0)+(Number(r.quantidade)||0);
-});
-// Converter para array de registros com nome+produto+mes+quantidade agregados
-const consumoDataDedup=Object.entries(_aggNomeProdMes).map(([chave,quantidade])=>{
-  const parts=chave.split('|');
-  const mes=parts[parts.length-1];
-  const produto=parts[parts.length-2];
-  const nome=parts.slice(0,parts.length-2).join('|');
-  // Encontrar um CC representativo para este nome (para manter compatibilidade)
-  const cc=(consumoData.find(r=>(mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc)===nome&&r.produto===produto)||{}).cc||nome;
-  return {cc,produto,mes,quantidade,_nome:nome};
-});
-// Construir consumoMensalMap diretamente do consumoData RAW (por CC individual)
-// Isso evita problemas de agregação por nome que causam dupla contagem
+// Agregar consumo: chave = grupo|produto (se CC tem grupo manual) ou cc|produto
+const _aggProdMes={};
 consumoMensalMap={};
 (consumoData||[]).forEach(r=>{
-  if(r.mes&&r.produto&&r.cc){
-    let kmCC=(r.cc||'').trim()+'|'+(r.produto||'').trim();
-    let mesNorm=normMes(r.mes);
-    if(!consumoMensalMap[kmCC])consumoMensalMap[kmCC]={};
-    consumoMensalMap[kmCC][mesNorm]=(consumoMensalMap[kmCC][mesNorm]||0)+(Number(r.quantidade)||0);
-  }
+  if(!r.mes||!r.produto||!r.cc)return;
+  let cc=(r.cc||'').trim();
+  let grupo=_ccParaGrupo[cc];
+  let chaveAgg=(grupo||cc)+'|'+r.produto+'|'+normMes(r.mes);
+  _aggProdMes[chaveAgg]=(_aggProdMes[chaveAgg]||0)+(Number(r.quantidade)||0);
+  // consumoMensalMap por CC exato para popup
+  let kmCC=cc+'|'+r.produto;
+  let mesNorm=normMes(r.mes);
+  if(!consumoMensalMap[kmCC])consumoMensalMap[kmCC]={};
+  consumoMensalMap[kmCC][mesNorm]=(consumoMensalMap[kmCC][mesNorm]||0)+(Number(r.quantidade)||0);
 });
-
-(consumoDataDedup).forEach(r=>{
-  // Usar grupo fixo como chave se CC pertence a um grupo definido
-  let _grupoCC=_ccParaGrupo[(r.cc||'').trim()];
-  let nome=_grupoCC||r._nome||(mapCcNomeMaster[r.cc]||ccMap[r.cc]?.nome||r.cc);
-  let k=nome+`|`+r.produto;
-  // Consumo total (todos os meses) para média geral
-  consumoAggNome[k]=(consumoAggNome[k]||0)+(Number(r.quantidade)||0);
-  // Consumo fixo Jan-Jun para exibição
-  let _mesNorm2=normMes(r.mes);
-  if(r.mes&&MESES_FIXOS.includes(_mesNorm2)){
-    consumoAggNomeFix[k]=(consumoAggNomeFix[k]||0)+(Number(r.quantidade)||0);
-  }
-  // Histórico mensal completo para popup
-
-});
-// consumoMap usa Jan-Jun fixo (6 meses) — se não tiver dados fixos, usa total/nMeses
+// consumoMap: média dos últimos 6 meses por grupo|produto ou cc|produto
 consumoMap={};
-let todosKeys=new Set([...Object.keys(consumoAggNome),...Object.keys(consumoAggNomeFix)]);
-todosKeys.forEach(k=>{
-  let fixo=consumoAggNomeFix[k]||0;
-  let total=consumoAggNome[k]||0;
-  // nMeses: contar meses distintos para todos os CCs que contribuem para a chave k
-  // k pode ser 'ALAGOINHAS|produto' (grupo) ou 'NOME CC|produto' (individual)
-  // Usar consumoData raw para não depender do cc representativo do dedup
-  let nMesesSet=new Set();
-  (consumoData||[]).forEach(function(r2){
-    let _gr2=_ccParaGrupo[(r2.cc||'').trim()];
-    let _nome2=_gr2||(mapCcNomeMaster[r2.cc]||ccMap[r2.cc]?.nome||r2.cc);
-    if(_nome2+'|'+r2.produto===k&&r2.mes)nMesesSet.add(normMes(r2.mes));
-  });
-  let nMeses=nMesesSet.size||6;
-  let mediaFixo=total/Math.max(nMeses,1);consumoMap[k]=mediaFixo>=1?Math.round(mediaFixo):mediaFixo>0?-1:0;
-}),pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)})}let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
+const _aggTotal={};const _aggMeses={};
+Object.entries(_aggProdMes).forEach(([chave,qtd])=>{
+  const parts=chave.split('|');
+  const mes=parts[parts.length-1];
+  const k=parts.slice(0,parts.length-1).join('|');
+  _aggTotal[k]=(_aggTotal[k]||0)+qtd;
+  if(!_aggMeses[k])_aggMeses[k]=new Set();
+  _aggMeses[k].add(mes);
+});
+Object.keys(_aggTotal).forEach(k=>{
+  let total=_aggTotal[k]||0;
+  let nMeses=(_aggMeses[k]?.size)||6;
+  let media=total/Math.max(nMeses,1);
+  consumoMap[k]=media>=1?Math.round(media):media>0?-1:0;
+});
+// Alias: também indexar por nome do CC para compatibilidade com renderCard
+Object.keys(consumoMap).forEach(k=>{
+  let [chaveCC,...rest]=k.split('|');
+  let produto=rest.join('|');
+  let nome=ccMap[chaveCC]?.nome;
+  if(nome&&nome!==chaveCC){let kNome=nome+'|'+produto;if(!consumoMap[kNome])consumoMap[kNome]=consumoMap[k];}
+});
+(pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)})}let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
 let visiveis=solicitacoes.filter(s=>{
   if(s.status===`aguardando_master`)return true;
   if(s.status===`pendente`){
@@ -914,7 +871,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
-            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(consumoMap[nomeCC+'|'+it.codigo]??(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??0):0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:(it.qtd_sugerida!=null?it.qtd_sugerida:it.quantidade),qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,alterada=!!(justGer&&qtdAlmox!==qtdGerente),gerenteAlterou=!!justGer;let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;let isRecusadoGer=it.situacao==='recusado';
+            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:(it.qtd_sugerida!=null?it.qtd_sugerida:it.quantidade),qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,alterada=!!(justGer&&qtdAlmox!==qtdGerente),gerenteAlterou=!!justGer;let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;let isRecusadoGer=it.situacao==='recusado';
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
                 <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
