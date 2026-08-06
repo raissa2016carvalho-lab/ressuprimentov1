@@ -2324,10 +2324,19 @@ async function _carregarResumoMob(mobId,numEquipes){
     let isRec=s=>{let u=(s||'').toLowerCase();return u.includes('receb')||u.includes('pré-nota');};
     pcsEnc.filter(p=>codigos.has((p.c7_produto||'').trim())&&isRec(p.status_desc)).forEach(p=>atendidosPC.add(p.c7_produto));
   }
-  // Total atendidos = PC + estoque (sem dupla contagem)
-  let totalAtendidos=new Set([...atendidosPC,...atendidosEstoque]).size;
-  let perEquipe=numEquipes>0?totalItens/numEquipes:totalItens;
-  let pct=totalItens>0?Math.round(totalAtendidos/totalItens*100):0;
+  // Calcular % igual ao interno: itens onde (PC recebido OU estoque suficiente p/ 1 equipe)
+  let atendidos=0;
+  (itens||[]).forEach(it=>{
+    let cod=(it.codigo||'').trim();if(!cod)return;
+    let qtdTotal=Number(it.total_mob)||0;
+    let perEquipe=numEquipes>0?qtdTotal/numEquipes:qtdTotal;
+    let qtdEst=mapaEstoque[cod]||0;
+    let recPC=atendidosPC.has(cod);
+    // Via estoque: tem estoque suficiente para pelo menos 1 equipe
+    let viaEst=perEquipe>0&&qtdEst>=perEquipe;
+    if(recPC||viaEst)atendidos++;
+  });
+  let pct=totalItens>0?Math.round(atendidos/totalItens*100):0;
   let cor=pct===100?'#16a34a':pct>50?'#1e40af':pct>20?'#f59e0b':'#94a3b8';
   el.innerHTML=`
     <span style="font-size:11px;font-weight:700;color:${cor};background:${cor}15;border-radius:99px;padding:2px 8px">${pct}% atendido</span>
