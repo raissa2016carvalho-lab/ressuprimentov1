@@ -2284,10 +2284,52 @@ async function carregarConsolidados(){let el=document.getElementById(`lista-cons
         <div class="card-corpo" id="cons-corpo-${c.id}" data-carregado="0"></div>
       </div>
     `).join(``)}async function toggleConsolidado(id){let corpo=document.getElementById(`cons-corpo-`+id);corpo.classList.toggle(`aberto`),corpo.classList.contains(`aberto`)&&corpo.dataset.carregado===`0`&&(corpo.dataset.carregado=`1`,await renderConsolidado(id,corpo))}window.toggleConsolidado=toggleConsolidado;async function renderConsolidado(consId,container){container.innerHTML=`<div style="padding:12px;color:#64748b;font-size:13px">Carregando...</div>`;let{data:links}=await db.from(`consolidado_scs`).select(`solicitacao_id`).eq(`consolidado_id`,consId);if(!links||!links.length){container.innerHTML=`<div style="padding:16px;color:#94a3b8;font-size:13px">Nenhuma SC vinculada.</div>`;return}let ids=links.map(l=>l.solicitacao_id),{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`id`,ids),{data:ccs}=await db.from(`centros_custo`).select(`cc,nome`),ccNomes={};(ccs||[]).forEach(c=>ccNomes[c.cc]=c.nome);
-// Buscar sc_pedidos por filial+SC — igual ao acompanhamento
-let porSc={},scsComFilial=(sols||[]).filter(s=>s.filial&&s.sc_numero),scsSemFilial=(sols||[]).filter(s=>!s.filial&&s.sc_numero),scPedidos=[];if(scsComFilial.length>0){let porFilial={};scsComFilial.forEach(s=>{let f=s.filial;porFilial[f]||(porFilial[f]=[]),porFilial[f].push(s.sc_numero.trim())});for(let[filial,scs]of Object.entries(porFilial))for(let i=0;i<scs.length;i+=100){let lote=scs.slice(i,i+100),off=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`*`).eq(`c1_filial`,filial).in(`c1_num`,lote).range(off,off+999);if(!rows||!rows.length||(scPedidos=scPedidos.concat(rows),rows.length<1e3))break;off+=1e3}}}if(scsSemFilial.length>0){let scsNums=[...new Set(scsSemFilial.map(s=>s.sc_numero.trim()))];for(let i=0;i<scsNums.length;i+=100){let lote=scsNums.slice(i,i+100),off=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`*`).in(`c1_num`,lote).range(off,off+999);if(!rows||!rows.length||(scPedidos=scPedidos.concat(rows),rows.length<1e3))break;off+=1e3}}}scPedidos.forEach(r=>{let filial=(r.c1_filial||``).trim(),sc=(r.c1_num||``).trim(),chave=filial?filial+`|`+sc:sc;porSc[chave]||(porSc[chave]=[]),porSc[chave].push(r)});function getItensSolCons(sol){let sc=(sol.sc_numero||'').trim(),filial=sol.filial||``;if(filial){let itens=porSc[filial+`|`+sc];if(itens&&itens.length)return itens}return porSc[sc]||[]}function isRecebido(st){if(!st)return!1;let s=st.toLowerCase();return s===`recebido`||s===`recebido parcialmente`||s.includes(`pré-nota`)||s.includes(`pre-nota`)}
-// Calcular métricas
-let totalSkus=0,totalRecebidos=0,valorTotalGeral=0,metPorSc={},metPorCC={};(sols||[]).forEach(sol=>{let sc=sol.sc_numero,cc=sol.cc,nomeCC=ccNomes[cc]||cc,obs=(sol.observacao||``).trim(),label=nomeCC+(obs?` · `+obs:``);metPorSc[sc]||(metPorSc[sc]={nome:nomeCC,obs,label,total:0,recebidos:0,valor:0}),metPorCC[cc]||(metPorCC[cc]={nome:nomeCC,total:0,recebidos:0,valor:0}),getItensSolCons(sol).forEach(it=>{totalSkus++,metPorSc[sc].total++,metPorCC[cc].total++,isRecebido(it.pc_status)&&(totalRecebidos++,metPorSc[sc].recebidos++,metPorCC[cc].recebidos++);let v=Number(it.pc_total)||0;valorTotalGeral+=v,metPorSc[sc].valor+=v,metPorCC[cc].valor+=v})});let pctGeral=totalSkus>0?Math.round(totalRecebidos/totalSkus*100):0,corPct=pctGeral===100?`#16a34a`:pctGeral>50?`#1e40af`:pctGeral>20?`#f59e0b`:`#ef4444`,scList=Object.entries(metPorSc).map(([sc,m])=>({...m,sc,pct:m.total>0?Math.round(m.recebidos/m.total*100):0})).sort((a,b)=>b.pct-a.pct),ccList=Object.entries(metPorCC).map(([cc,m])=>({...m,cc,pct:m.total>0?Math.round(m.recebidos/m.total*100):0})).sort((a,b)=>b.valor-a.valor),ccPctList=Object.entries(metPorCC).map(([cc,m])=>({...m,cc,pct:m.total>0?Math.round(m.recebidos/m.total*100):0})).sort((a,b)=>b.pct-a.pct);
+// Buscar pedidos_compra por SC (fonte do status real — igual ao acompanhamento)
+function isRecebido(st){if(!st)return!1;let s=(st||'').toLowerCase();return s.includes('receb')||s.includes('pré-nota')||s.includes('pre-nota');}
+let todasSCs=[...new Set((sols||[]).map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
+let pcPorSC={};
+for(let i=0;i<todasSCs.length;i+=50){
+  let lote=todasSCs.slice(i,i+50),off=0;
+  for(;;){
+    let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote).range(off,off+999);
+    if(!pcs||!pcs.length)break;
+    pcs.forEach(p=>{let sc=(p.c7_numsc||'').trim();if(!pcPorSC[sc])pcPorSC[sc]=[];pcPorSC[sc].push(p);});
+    if(pcs.length<1000)break;off+=1000;
+  }
+}
+// Buscar itens das solicitações para saber quais produtos esperar
+let itensMap={};
+let solIds=(sols||[]).map(s=>s.id);
+for(let i=0;i<solIds.length;i+=100){
+  let lote=solIds.slice(i,i+100),off=0;
+  for(;;){
+    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').in('solicitacao_id',lote).range(off,off+999);
+    if(!its||!its.length)break;
+    its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
+    if(its.length<1000)break;off+=1000;
+  }
+}
+// Calcular métricas por SC usando pedidos_compra
+let totalSkus=0,totalRecebidos=0,valorTotalGeral=0,metPorSc={},metPorCC={};
+(sols||[]).forEach(sol=>{
+  let sc=(sol.sc_numero||'').trim(),cc=sol.cc,nomeCC=ccNomes[cc]||cc,obs=(sol.observacao||'').trim();
+  metPorSc[sc]||(metPorSc[sc]={nome:nomeCC,obs,label:nomeCC+(obs?' · '+obs:''),total:0,recebidos:0,valor:0});
+  metPorCC[cc]||(metPorCC[cc]={nome:nomeCC,total:0,recebidos:0,valor:0});
+  let pcs=pcPorSC[sc]||[];
+  let itens=(itensMap[sol.id]||[]).filter(it=>it.situacao!=='recusado');
+  // Usar itens da solicitação como base (produtos únicos)
+  let produtosVistos=new Set();
+  itens.forEach(it=>{
+    if(produtosVistos.has(it.codigo))return;
+    produtosVistos.add(it.codigo);
+    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
+    let recebido=pcsItem.some(p=>isRecebido(p.status_desc));
+    let valor=pcsItem.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+    totalSkus++;metPorSc[sc].total++;metPorCC[cc].total++;
+    if(recebido){totalRecebidos++;metPorSc[sc].recebidos++;metPorCC[cc].recebidos++;}
+    valorTotalGeral+=valor;metPorSc[sc].valor+=valor;metPorCC[cc].valor+=valor;
+  });
+});let pctGeral=totalSkus>0?Math.round(totalRecebidos/totalSkus*100):0,corPct=pctGeral===100?`#16a34a`:pctGeral>50?`#1e40af`:pctGeral>20?`#f59e0b`:`#ef4444`,scList=Object.entries(metPorSc).map(([sc,m])=>({...m,sc,pct:m.total>0?Math.round(m.recebidos/m.total*100):0})).sort((a,b)=>b.pct-a.pct),ccList=Object.entries(metPorCC).map(([cc,m])=>({...m,cc,pct:m.total>0?Math.round(m.recebidos/m.total*100):0})).sort((a,b)=>b.valor-a.valor),ccPctList=Object.entries(metPorCC).map(([cc,m])=>({...m,cc,pct:m.total>0?Math.round(m.recebidos/m.total*100):0})).sort((a,b)=>b.pct-a.pct);
 // Gráfico barras % por SC
 function barChart(items,valFn,labelFn,corFn){let max=Math.max(...items.map(valFn),1);return items.map(it=>{let v=valFn(it),pct=Math.round(v/max*100),cor=corFn?corFn(it):`#1e40af`;return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="flex:1;min-width:0;font-size:11.5px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="`+labelFn(it)+`">`+labelFn(it)+`</div><div style="width:140px;flex-shrink:0;background:#f1f5f9;border-radius:4px;overflow:hidden;height:14px"><div style="width:`+pct+`%;height:100%;background:`+cor+`;border-radius:4px"></div></div><div style="font-size:11.5px;font-weight:700;color:`+cor+`;min-width:42px;text-align:right">`+fmtBRL(v)+`</div></div>`}).join(``)}function pctBar(items,labelFn){return items.map(it=>{let p=it.pct,cor=p===100?`#16a34a`:p>50?`#1e40af`:p>20?`#f59e0b`:`#ef4444`;return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="flex:1;min-width:0;font-size:11.5px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="`+labelFn(it)+`">`+labelFn(it)+`</div><div style="width:140px;flex-shrink:0;background:#f1f5f9;border-radius:4px;overflow:hidden;height:14px"><div style="width:`+p+`%;height:100%;background:`+cor+`;border-radius:4px"></div></div><div style="font-size:11.5px;font-weight:700;color:`+cor+`;min-width:38px;text-align:right">`+p+`%</div></div>`}).join(``)}
 // Lista de SCs
