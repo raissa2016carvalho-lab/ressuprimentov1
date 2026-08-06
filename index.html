@@ -1128,6 +1128,12 @@ function calcPct(s){return _pctMap[s.id]||0;}
 async function carregarAcompanhamento(){
   $(`lista-acomp`).innerHTML=`<div class="vazio">Carregando...</div>`;
 
+  // Garantir que ccMap está populado
+  if(!ccMap||Object.keys(ccMap).length===0){
+    let{data:ccs}=await db.from(`centros_custo`).select(`*`);
+    (ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c;});
+  }
+
   // Buscar solicitações com SC digitada
   let off=0, todas=[];
   for(;;){
