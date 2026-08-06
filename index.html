@@ -253,39 +253,74 @@ let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){
 // carrega consumo 3m e pessoas por cargo para os CCs visíveis
 let ccsSols=[...new Set(solicitacoes.map(s=>s.cc).filter(Boolean))];
 // Expandir homônimos: buscar todos os CCs com mesmo nome (igual ao consumo)
-// Expandir por grupos manuais (cc_grupos) em vez de homônimos por nome
-let _ccsExpandidosPed=ccsSols.slice();
-// Buscar grupos dos CCs das solicitações
-{let{data:_grpPed}=await db.from(`cc_grupos`).select(`cc,grupo`).in(`cc`,ccsSols);
-let _gruposPed=[...new Set((_grpPed||[]).map(g=>g.grupo).filter(Boolean))];
-if(_gruposPed.length>0){
-  let{data:_ccsGrpPed}=await db.from(`cc_grupos`).select(`cc,grupo`).in(`grupo`,_gruposPed);
-  (_ccsGrpPed||[]).forEach(g=>{if(!_ccsExpandidosPed.includes(g.cc))_ccsExpandidosPed.push(g.cc)});
-}}
-// Mapa cc -> grupo (para indexar pedidos por grupo)
+// Buscar pedidos cruzando SC + filial — fonte mais precisa
+// Para cada solicitação com SC associada, buscar pelo número da SC + filial
 _ccNomeMapPed={};
-{let{data:_grpMapPed}=await db.from(`cc_grupos`).select(`cc,grupo`).in(`cc`,_ccsExpandidosPed);
-(_grpMapPed||[]).forEach(g=>{_ccNomeMapPed[g.cc]=g.grupo;});
-// CCs sem grupo ficam com seu próprio código
-_ccsExpandidosPed.forEach(cc=>{if(!_ccNomeMapPed[cc])_ccNomeMapPed[cc]=cc;});}
-// Mapa cc -> filial da solicitação (para filtrar pedidos por filial)
-let _ccFilialPed={};
-solicitacoes.forEach(s=>{if(s.cc&&s.filial)_ccFilialPed[s.cc]=s.filial;});
-// Buscar pedidos filtrando por filial quando possível
-if(pedidosAnterioresMap={},_ccsExpandidosPed.length>0)for(let i=0;i<_ccsExpandidosPed.length;i+=50){let lote=_ccsExpandidosPed.slice(i,i+50),dt12m=(()=>{let d=new Date;return d.setMonth(d.getMonth()-12),d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,`0`)+String(d.getDate()).padStart(2,`0`)})(),offPed=0;for(;;){let{data:rows}=await db.from(`sc_pedidos`).select(`c1_filial,c1_cc,c1_produto,c1_num,c1_quant,pc_numero,pc_status,c1_emissao,pc_dt_entrega,pc_comprador,c1_obs`).in(`c1_cc`,lote).gte(`c1_emissao`,dt12m).ilike(`c1_obs`,`%ressuprimento trim%`).order(`c1_emissao`,{ascending:false}).range(offPed,offPed+999);if(!rows||!rows.length||(rows.forEach(r=>{
-  let cc=(r.c1_cc||``).trim();
-  let filialSol=_ccFilialPed[cc];
-  // Filtrar por filial: se temos filial da solicitação, só aceita pedidos da mesma filial
-  // (filial de compras pode ser diferente, então validamos com alguma tolerância)
-  // Indexar por grupo|produto ou cc|produto
-  let _nomeCC=_ccNomeMapPed[cc]||cc;
-  let k=_nomeCC+`|`+(r.c1_produto||``).trim();
-  pedidosAnterioresMap[k]||(pedidosAnterioresMap[k]=[]);
-  pedidosAnterioresMap[k].push(r);
-  let k2=cc+`|`+(r.c1_produto||``).trim();
-  pedidosAnterioresMap[k2]||(pedidosAnterioresMap[k2]=[]);
-  if(!pedidosAnterioresMap[k2].find(x=>x.c1_num===r.c1_num&&x.c1_produto===r.c1_produto&&x.c1_emissao===r.c1_emissao))pedidosAnterioresMap[k2].push(r);
-}),rows.length<1e3))break;offPed+=1e3}}scItensMap={};Object.values(pedidosAnterioresMap).forEach(arr=>arr.forEach(r=>{const sc=(r.c1_num||``).trim();const prod=(r.c1_produto||``).trim();if(sc&&prod)scItensMap[sc+`|`+prod]=(r.c1_quant||0)}));
+pedidosAnterioresMap={};
+scItensMap={};
+// Separar solicitações com SC (busca por SC+filial) e sem SC (busca por CC)
+let _solsComSC=solicitacoes.filter(s=>s.sc_numero&&s.sc_numero.trim());
+let _solsSemSC=solicitacoes.filter(s=>!s.sc_numero||!s.sc_numero.trim());
+// 1. Para SCs com número: buscar sc_pedidos por c1_num + c1_filial
+let _scNums=[...new Set(_solsComSC.map(s=>s.sc_numero.trim()))];
+let _scFilialMap={};
+_solsComSC.forEach(s=>{_scFilialMap[s.sc_numero.trim()]=s.filial;});
+let _scCCMap={};
+_solsComSC.forEach(s=>{_scCCMap[s.sc_numero.trim()]=s.cc;});
+if(_scNums.length>0){
+  for(let i=0;i<_scNums.length;i+=100){
+    let lote=_scNums.slice(i,i+100),offPed=0;
+    for(;;){
+      let q=db.from(`sc_pedidos`).select(`c1_filial,c1_cc,c1_produto,c1_num,c1_quant,pc_numero,pc_status,c1_emissao,pc_dt_entrega,pc_comprador,c1_obs`).in(`c1_num`,lote).order(`c1_emissao`,{ascending:false}).range(offPed,offPed+999);
+      let{data:rows}=await q;
+      if(!rows||!rows.length)break;
+      rows.forEach(r=>{
+        let sc=(r.c1_num||``).trim();
+        let filialSol=_scFilialMap[sc];
+        let ccSol=_scCCMap[sc];
+        // Filtrar por filial se disponível
+        if(filialSol&&r.c1_filial&&r.c1_filial.trim()!==filialSol)return;
+        // Indexar por CC da solicitação + produto
+        let k=ccSol+`|`+(r.c1_produto||``).trim();
+        pedidosAnterioresMap[k]||(pedidosAnterioresMap[k]=[]);
+        if(!pedidosAnterioresMap[k].find(x=>x.c1_num===r.c1_num&&x.c1_produto===r.c1_produto&&x.c1_emissao===r.c1_emissao))
+          pedidosAnterioresMap[k].push(r);
+        // Também indexar por nome do CC para cards matriciais
+        let nomeCC=ccMap[ccSol]?.nome||ccSol;
+        _ccNomeMapPed[ccSol]=nomeCC;
+        let k2=nomeCC+`|`+(r.c1_produto||``).trim();
+        if(k2!==k){pedidosAnterioresMap[k2]||(pedidosAnterioresMap[k2]=[]);if(!pedidosAnterioresMap[k2].find(x=>x.c1_num===r.c1_num&&x.c1_produto===r.c1_produto&&x.c1_emissao===r.c1_emissao))pedidosAnterioresMap[k2].push(r);}
+        // scItensMap para qtd pendente
+        const scNum=(r.c1_num||``).trim();const prod=(r.c1_produto||``).trim();if(scNum&&prod)scItensMap[scNum+`|`+prod]=(r.c1_quant||0);
+      });
+      if(rows.length<1000)break;
+      offPed+=1000;
+    }
+  }
+}
+// 2. Para SCs sem número: buscar por CC (últimos 12 meses)
+let _ccsSemSC=[...new Set(_solsSemSC.map(s=>s.cc).filter(Boolean))];
+if(_ccsSemSC.length>0){
+  let dt12m=(()=>{let d=new Date;return d.setMonth(d.getMonth()-12),d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')})();
+  for(let i=0;i<_ccsSemSC.length;i+=50){
+    let lote=_ccsSemSC.slice(i,i+50),offPed=0;
+    for(;;){
+      let{data:rows}=await db.from(`sc_pedidos`).select(`c1_filial,c1_cc,c1_produto,c1_num,c1_quant,pc_numero,pc_status,c1_emissao,pc_dt_entrega,pc_comprador,c1_obs`).in(`c1_cc`,lote).gte(`c1_emissao`,dt12m).ilike(`c1_obs`,`%ressuprimento trim%`).order(`c1_emissao`,{ascending:false}).range(offPed,offPed+999);
+      if(!rows||!rows.length)break;
+      rows.forEach(r=>{
+        let cc=(r.c1_cc||``).trim();
+        let k=cc+`|`+(r.c1_produto||``).trim();
+        pedidosAnterioresMap[k]||(pedidosAnterioresMap[k]=[]);
+        if(!pedidosAnterioresMap[k].find(x=>x.c1_num===r.c1_num&&x.c1_produto===r.c1_produto&&x.c1_emissao===r.c1_emissao))pedidosAnterioresMap[k].push(r);
+        const scNum=(r.c1_num||``).trim();const prod=(r.c1_produto||``).trim();if(scNum&&prod)scItensMap[scNum+`|`+prod]=(r.c1_quant||0);
+      });
+      if(rows.length<1000)break;
+      offPed+=1000;
+    }
+  }
+}
+// Preencher _ccNomeMapPed para CCs sem SC
+// _ccNomeMapPed e scItensMap já populados na busca acima
 // Carregar cc_grupos SEMPRE (antes do if ccsSols) para garantir grupos de todas as regiões
 {let _ccGruposAll=[],_offG=0;
 for(;;){let{data:_lg,error:_eg}=await db.from('cc_grupos').select('cc,grupo,regiao').range(_offG,_offG+999);if(_eg||!_lg||!_lg.length)break;_ccGruposAll=_ccGruposAll.concat(_lg);if(_lg.length<1000)break;_offG+=1000;}
