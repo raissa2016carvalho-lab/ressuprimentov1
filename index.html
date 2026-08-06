@@ -1821,7 +1821,7 @@ function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNo
   // Calcular totais de estimativa e valor PC
   let totalEst=itensConsolidados.reduce((a,it)=>a+estimativaItem(it.codigo,it.total_mob),0);
   let totalPC=itensConsolidados.reduce((a,it)=>a+valorPedidoAtual(it.codigo),0);
-  return`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:12px">
+  return`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:12px">
     ${[
       {cor:'#22c55e',icone:'✅',n:cats.recebido.length,label:'Recebidos',cat:'recebido'},
       {cor:'#6366f1',icone:'📦',n:cats.estoque.length,label:'Via estoque',cat:'estoque'},
