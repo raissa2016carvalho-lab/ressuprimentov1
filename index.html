@@ -1764,9 +1764,12 @@ function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNo
                   ${pcNum}
                   <span style="font-size:10.5px;font-weight:700;color:${cor}">${l.status_desc||`—`}</span>
                   ${(l.c7_comprador||``).trim()?`<span style="font-size:10px;color:#64748b;font-style:italic">${l.c7_comprador.trim()}</span>`:``}
-                </span>`}).join(``):`<span style="font-size:11px;color:#94a3b8">Sem PC gerado</span>`;return`<tr style="border-bottom:1px solid #f1f5f9">
+                </span>`}).join(``):`<span style="font-size:11px;color:#94a3b8">Sem PC gerado</span>`;let qtdEst2=it.codigo?(mapaEstoque[(it.codigo||'').trim()]||0):0;
+          let qtdPend=catKey==='pendente'?Math.max(0,(it.total_mob||0)-qtdEst2):null;
+          return`<tr style="border-bottom:1px solid #f1f5f9">
             <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>`:``}</td>
-            <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap">${it.total_mob}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap">${it.total_mob}${qtdPend!==null&&qtdEst2>0?` <span style="font-size:10px;color:#ef4444;font-weight:700">(falta ${qtdPend})</span>`:''}
+            ${qtdPend!==null&&qtdEst2>0?`<div style="font-size:10px;color:#6366f1">estoque: ${qtdEst2}</div>`:``}</td>
             <td style="padding:6px 10px;font-size:12px;flex-wrap:wrap">${scsDoItem}</td>
           </tr>`}).join(``);return`<div id="${uid}" style="display:none;border:1px solid ${cor}40;border-radius:10px;overflow:hidden;margin-bottom:8px">
           <div style="padding:9px 14px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">
@@ -1814,11 +1817,35 @@ function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNo
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px">
-        ${renderCardCat(`recebido`,`Recebidos`,`#22c55e`,`✅`,cats.recebido)}
-        ${renderCardCat(`estoque`,`Via estoque`,`#6366f1`,`📦`,cats.estoque)}
-        ${renderCardCat(`aprovacao`,`Em aprovação`,`#f59e0b`,`⏳`,cats.aprovacao)}
-        ${renderCardCat(`pendente`,`Pendentes`,`#ef4444`,`🔴`,cats.pendente)}
-        ${renderCardCat(`semPedido`,`Sem pedido`,`#94a3b8`,`⚪`,cats.semPedido)}
+        ${(()=>{
+  // Calcular totais de estimativa e valor PC
+  let totalEst=itensConsolidados.reduce((a,it)=>a+estimativaItem(it.codigo,it.total_mob),0);
+  let totalPC=itensConsolidados.reduce((a,it)=>a+valorPedidoAtual(it.codigo),0);
+  return`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:12px">
+    ${[
+      {cor:'#22c55e',icone:'✅',n:cats.recebido.length,label:'Recebidos',cat:'recebido'},
+      {cor:'#6366f1',icone:'📦',n:cats.estoque.length,label:'Via estoque',cat:'estoque'},
+      {cor:'#f59e0b',icone:'⏳',n:cats.aprovacao.length,label:'Em aprovação',cat:'aprovacao'},
+      {cor:'#ef4444',icone:'🔴',n:cats.pendente.length,label:'Pendentes',cat:'pendente'},
+      {cor:'#94a3b8',icone:'⚪',n:cats.semPedido.length,label:'Sem pedido',cat:'semPedido'},
+    ].map(c=>`<div onclick="toggleCatMob(${mobId},'${c.cat}')" style="border:1px solid ${c.cor}30;border-radius:8px;padding:8px 10px;background:#fff;cursor:pointer;text-align:center;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px ${c.cor}30'" onmouseout="this.style.boxShadow=''">
+      <div style="font-size:16px">${c.icone}</div>
+      <div style="font-size:20px;font-weight:800;color:${c.cor};line-height:1.1">${c.n}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px">${c.label}</div>
+      <div style="font-size:10px;color:#94a3b8">${Math.round(c.n/total*100)}% do total</div>
+    </div>`).join('')}
+    <div style="border:1px solid #1e40af30;border-radius:8px;padding:8px 10px;background:#eff6ff;text-align:center">
+      <div style="font-size:16px">📋</div>
+      <div style="font-size:13px;font-weight:800;color:#1e40af;line-height:1.2">${fmtBRL(totalEst)}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px">Estimativa</div>
+    </div>
+    <div style="border:1px solid #16a34a30;border-radius:8px;padding:8px 10px;background:#f0fdf4;text-align:center">
+      <div style="font-size:16px">🛒</div>
+      <div style="font-size:13px;font-weight:800;color:#16a34a;line-height:1.2">${fmtBRL(totalPC)}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px">Valor PC</div>
+    </div>
+  </div>`;
+})()}
       </div>
       <div style="margin-bottom:10px">${renderPaineisCat()}</div>
       <div style="margin-bottom:20px">${pizzaCats()}</div>
