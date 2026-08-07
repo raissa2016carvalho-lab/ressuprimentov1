@@ -277,7 +277,9 @@ async function carregarConsumo(rows) {
     consumos = consumos.concat(data);
     if (data.length < 1000) break;
     off += 1000;
+    if (off > 200000) break; // segurança
   }
+  console.log(`Total consumo registros: ${consumos.length}`);
 
   // Agrupa por filial+produto
   const agrup = {};
