@@ -82,6 +82,7 @@ tr:hover td{background:#f8fafc}
     <span>LWHSB2010 — SB2</span>
   </div>
   <div class="tag" id="tag-sync">Carregando...</div>
+  <div id="tag-ultima" style="font-size:11px;color:#475569;margin-left:4px"></div>
   <div style="margin-left:auto;display:flex;gap:8px">
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
     <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
@@ -196,6 +197,18 @@ async function carregar() {
   document.getElementById('resumo').innerHTML = '';
   document.getElementById('paginador').style.display = 'none';
   document.getElementById('tag-sync').textContent = 'Carregando...';
+  document.getElementById('tag-ultima').textContent = '';
+
+  // Busca última atualização do sync
+  try {
+    const { data: status } = await db.from('bases_status').select('atualizado_em,registros').eq('base','estoque_sb2').single();
+    if (status && status.atualizado_em) {
+      const dt = new Date(status.atualizado_em);
+      const fmt = dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+      document.getElementById('tag-ultima').innerHTML =
+        `<span style="color:#64748b">Última atualização:</span> <strong style="color:#e2e8f0">${fmt}</strong> <span style="color:#64748b">(${(status.registros||0).toLocaleString('pt-BR')} itens)</span>`;
+    }
+  } catch(e) {}
 
   let rows = [], off = 0;
   for (;;) {
