@@ -301,7 +301,7 @@ async function carregarConsumo(rows) {
   // Agrupa por filial+produto
   const agrup = {};
   consumos.forEach(r => {
-    const fil = String(r.filial||'').trim().replace(/^0+/,'') || '0';
+    const fil = String(r.filial||'').trim();
     const k = `${fil}|${(r.produto||'').trim()}`;
     if (!agrup[k]) agrup[k] = { total: 0, meses: new Set() };
     agrup[k].total += Number(r.quantidade) || 0;
@@ -317,7 +317,7 @@ async function carregarConsumo(rows) {
 
   // Enriquecer rows com consumo
   rows.forEach(r => {
-    const fil = String(r.filial||'').trim().replace(/^0+/,'') || '0';
+    const fil = String(r.filial||'').trim();
     const k = `${fil}|${(r.codigo||'').trim()}`;
     const cons = _mapaConsumo[k];
     if (cons) {
