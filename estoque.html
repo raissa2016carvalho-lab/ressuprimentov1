@@ -149,6 +149,18 @@ tr:hover td{background:#f8fafc}
 <script>
 const SUPABASE_URL = 'https://vvwtqbehfwrgcmbjdniu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis';
+
+const FILIAIS = {
+  '01': 'MATRIZ', '03': 'PAU DOS FERROS', '04': 'ITAPIPOCA',
+  '06': 'CURRAIS NOVOS', '07': 'SOBRAL', '08': 'APARECIDA DE GOIANIA',
+  '09': 'MARACANAU', '10': 'MOSSORO', '11': 'ANAPOLIS',
+  '13': 'ALAGOINHAS', '14': 'RIBEIRA DO POMBAL', '15': 'PAULO AFONSO',
+  '22': 'GOIANIA', '23': 'BATURITE', '24': 'MORRINHOS',
+  '25': 'CASCAVEL', '27': 'CAUCAIA', '29': 'HORIZONTE',
+  '34': 'SENHOR DO BONFIM', '36': 'LUZIANIA', '37': 'DIVINOPOLIS',
+  '40': 'GARANHUNS', '41': 'FLORIANO', '42': 'LIVRAMENTO DE NOSSA SENHORA',
+  '43': 'HORTOLANDIA', '44': 'BRUMADO', '45': 'NITEROI'
+};
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const POR_PAGINA = 100;
@@ -367,7 +379,7 @@ function renderTabela() {
 
   const linhas = pagina.map((r, i) => `
     <tr>
-      <td class="cod">${(r.filial||'').trim()}</td>
+      <td class="cod" title="${(r.filial||'').trim()}">${FILIAIS[(r.filial||'').trim()] || (r.filial||'').trim()}</td>
       <td class="cod">${(r.codigo||'').trim()}</td>
       <td>${r.descricao||'—'}</td>
       <td>${(r.grupo||'—')}</td>
@@ -376,13 +388,20 @@ function renderTabela() {
       <td>${badgeBloq(r.bloqueado)}</td>
       <td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_movimento)}</td>
       <td class="num">${(Number(r._consumo_total)||0) > 0 ? Number(r._consumo_total).toLocaleString('pt-BR') : '—'}</td>
-      <td class="num" style="color:${corCobertura(r._cobertura)}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
+      <td class="num" style="color:${corCobertura(r._cobertura)};cursor:${r._cobertura != null ? 'help' : 'default'}" 
+        title="${r._cobertura != null ? 
+          'Cobertura: ' + Number(r._cobertura).toFixed(1) + ' meses\n' +
+          'Qtd atual: ' + (Number(r.qtd_atual)||0).toLocaleString('pt-BR') + ' un\n' +
+          'Consumo 2026: ' + (Number(r._consumo_total)||0).toLocaleString('pt-BR') + ' un\n' +
+          'Média mensal: ' + (Number(r._consumo_media)||0).toFixed(1) + ' un/mês\n' +
+          'Cálculo: ' + (Number(r.qtd_atual)||0) + ' ÷ ' + (Number(r._consumo_media)||0).toFixed(1) + ' = ' + Number(r._cobertura).toFixed(1) + ' meses'
+          : 'Sem histórico de consumo em 2026'}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
     </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
     <table>
       <thead><tr>
-        ${th('filial','Filial')}
+        ${th('filial','Filial / Nome')}
         ${th('codigo','Código')}
         ${th('descricao','Descrição')}
         ${th('grupo','Grupo')}
