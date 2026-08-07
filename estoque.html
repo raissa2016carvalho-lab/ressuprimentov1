@@ -242,7 +242,7 @@ async function carregar() {
   });
 
   // Montar lista de grupos únicos
-  const grupos = new Set(rowsConsolid.map(r => (r.grupo || '').trim()).filter(Boolean));
+  const grupos = new Set(_todos.map(r => (r.grupo || '').trim()).filter(Boolean));
   const selGrupo = document.getElementById('f-grupo');
   if (selGrupo) {
     selGrupo.innerHTML = '<option value="">Todos os grupos</option>';
@@ -254,7 +254,7 @@ async function carregar() {
   }
 
   // Buscar consumo 2026 por filial+produto
-  await carregarConsumo(rowsConsolid);
+  await carregarConsumo(_todos);
 
   // Consolidar por filial+codigo — agrupa armazens
   const mapaConsolid = {};
@@ -264,8 +264,9 @@ async function carregar() {
       mapaConsolid[k] = { ...r, qtd_atual: 0, _armazens: [] };
     }
     mapaConsolid[k].qtd_atual += Number(r.qtd_atual) || 0;
+    const armTrim = (r.armazem||'').trim().replace(/^0+/,'') || '—';
     mapaConsolid[k]._armazens.push({
-      armazem: (r.armazem||'').trim() || '—',
+      armazem: armTrim,
       qtd: Number(r.qtd_atual) || 0
     });
   });
