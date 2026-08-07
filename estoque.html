@@ -253,9 +253,6 @@ async function carregar() {
     });
   }
 
-  // Buscar consumo 2026 por filial+produto
-  await carregarConsumo(_todos);
-
   // Consolidar por filial+codigo — agrupa armazens
   const mapaConsolid = {};
   rows.forEach(r => {
@@ -272,6 +269,9 @@ async function carregar() {
   });
   const rowsConsolid = Object.values(mapaConsolid);
   _todos = rowsConsolid;
+
+  // Buscar consumo 2026 DEPOIS da consolidação — enrich vai em _todos já correto
+  await carregarConsumo(_todos);
 
   document.getElementById('tag-sync').textContent = rowsConsolid.length.toLocaleString('pt-BR') + ' registros';
   aplicarFiltros();
