@@ -265,9 +265,11 @@ async function carregarConsumo(rows) {
     if (cons && cons.total > 0) {
       const media = cons.total / mesesDecorridos;
       r._consumo_total = cons.total;
+      r._consumo_media = media;
       r._cobertura = media > 0 ? (Number(r.qtd_atual)||0) / media : null;
     } else {
       r._consumo_total = 0;
+      r._consumo_media = 0;
       r._cobertura = null;
     }
   });
