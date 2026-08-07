@@ -253,8 +253,64 @@ async function carregar() {
     });
   }
 
+  // Buscar consumo 2026 por filial+produto
+  await carregarConsumo(rows);
+
   document.getElementById('tag-sync').textContent = rows.length.toLocaleString('pt-BR') + ' registros';
   aplicarFiltros();
+}
+
+// ── CONSUMO 2026 ─────────────────────────────────────────
+let _mapaConsumo = {}; // key: filial|codigo → {total, media, cobertura}
+
+async function carregarConsumo(rows) {
+  _mapaConsumo = {};
+  // busca todos os meses de 2026
+  let consumos = [], off = 0;
+  for (;;) {
+    const { data } = await db
+      .from('consumo_mensal')
+      .select('filial,produto,mes,quantidade')
+      .gte('mes', '2026-01')
+      .range(off, off + 999);
+    if (!data || !data.length) break;
+    consumos = consumos.concat(data);
+    if (data.length < 1000) break;
+    off += 1000;
+  }
+
+  // Agrupa por filial+produto
+  const agrup = {};
+  consumos.forEach(r => {
+    const k = `${(r.filial||'').trim()}|${(r.produto||'').trim()}`;
+    if (!agrup[k]) agrup[k] = { total: 0, meses: new Set() };
+    agrup[k].total += Number(r.quantidade) || 0;
+    agrup[k].meses.add(r.mes);
+  });
+
+  // Calcula média mensal e cobertura
+  const mesAtual = new Date().getMonth() + 1; // meses decorridos em 2026
+  Object.entries(agrup).forEach(([k, v]) => {
+    const media = v.meses.size > 0 ? v.total / v.meses.size : 0;
+    _mapaConsumo[k] = { total: v.total, media, meses: v.meses.size };
+  });
+
+  // Enriquecer rows com consumo
+  rows.forEach(r => {
+    const k = `${(r.filial||'').trim()}|${(r.codigo||'').trim()}`;
+    const cons = _mapaConsumo[k];
+    if (cons) {
+      r._consumo_total  = cons.total;
+      r._consumo_media  = cons.media;
+      r._cobertura      = cons.media > 0 ? (Number(r.qtd_atual) || 0) / cons.media : null;
+    } else {
+      r._consumo_total  = 0;
+      r._consumo_media  = 0;
+      r._cobertura      = null;
+    }
+  });
+
+  console.log(`Consumo 2026 carregado: ${Object.keys(_mapaConsumo).length} combinações`);
 }
 
 // ── FILTROS ─────────────────────────────────────────────
@@ -395,6 +451,8 @@ function renderTabela() {
       <td class="num">${(Number(r.custo_medio)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td>${badgeBloq(r.bloqueado)}</td>
       <td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_movimento)}</td>
+      <td class="num">${r._consumo_total > 0 ? r._consumo_total.toLocaleString('pt-BR') : '—'}</td>
+      <td class="num" style="color:${r._cobertura === null ? '#94a3b8' : r._cobertura < 1 ? '#ef4444' : r._cobertura < 3 ? '#f59e0b' : '#16a34a'}">${r._cobertura !== null ? r._cobertura.toFixed(1) + ' m' : '—'}</td>
     </tr>
   `).join('');
 
@@ -410,6 +468,8 @@ function renderTabela() {
         ${th('custo_medio','Custo Médio')}
         ${th('bloqueado','Status')}
         ${th('dt_ult_movimento','Últ. Mov.')}
+        ${th('_consumo_total','Consumo 2026')}
+        ${th('_cobertura','Cobertura')}
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table>
