@@ -8,15 +8,12 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;min-height:100vh}
-
-/* ── TOPO ── */
 .topo{background:#0f172a;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .topo .logo{background:#1e40af;border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0}
 .topo h1{font-size:15px;font-weight:700}
 .topo span{color:#64748b;font-size:12px}
-.topo .tag{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:3px 10px;font-size:11.5px;color:#94a3b8;margin-left:auto}
-
-/* ── FILTROS ── */
+.tag{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:3px 10px;font-size:11.5px;color:#94a3b8}
+.topo-right{margin-left:auto;display:flex;gap:8px;align-items:center}
 .filtros-wrap{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
 .filtros-wrap label{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px}
 .filtros-wrap input,.filtros-wrap select{border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;outline:none;background:#fff}
@@ -24,28 +21,19 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f
 .f-group{display:flex;flex-direction:column;min-width:0}
 .f-busca{flex:1;min-width:200px}
 .f-busca input{width:100%}
-
 .pills{display:flex;flex-wrap:wrap;gap:6px;padding:12px 24px;background:#fff;border-bottom:1px solid #e2e8f0}
 .pill-btn{border:1px solid #e2e8f0;border-radius:999px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:#475569;font-family:inherit;transition:all .15s}
 .pill-btn.ativo{background:#1e40af;border-color:#1e40af;color:#fff}
-.pill-btn.verde{background:#16a34a;border-color:#16a34a;color:#fff}
-.pill-btn.vermelho{background:#ef4444;border-color:#ef4444;color:#fff}
-.pill-btn.laranja{background:#f59e0b;border-color:#f59e0b;color:#fff}
-
-/* ── RESUMO ── */
 .resumo{display:flex;flex-wrap:wrap;gap:10px;padding:16px 24px}
 .resumo-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;min-width:140px;flex:1}
 .resumo-card .val{font-size:22px;font-weight:800;color:#0f172a;line-height:1}
 .resumo-card .lab{font-size:11.5px;color:#64748b;margin-top:3px}
 .resumo-card.alerta .val{color:#ef4444}
 .resumo-card.bloq .val{color:#f59e0b}
-
-/* ── TABELA ── */
 .tabela-wrap{padding:0 24px 24px;overflow-x:auto}
 table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;font-size:13px;margin-top:12px}
 th{text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;padding:9px 10px;font-size:11px;font-weight:600;white-space:nowrap;background:#f8fafc;cursor:pointer;user-select:none}
 th:hover{background:#f1f5f9}
-th .seta{color:#94a3b8;margin-left:3px}
 td{border-bottom:1px solid #f1f5f9;padding:8px 10px;vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#f8fafc}
@@ -55,23 +43,15 @@ tr:hover td{background:#f8fafc}
 .badge-ok{background:#dcfce7;color:#166534;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700}
 .badge-alerta{background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700}
 .badge-zero{background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700}
-
-/* ── PAGINADOR ── */
 .paginador{display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:#fff;border-top:1px solid #e2e8f0;flex-wrap:wrap;gap:8px;font-size:13px;color:#64748b}
 .pag-btns{display:flex;gap:6px}
 .pag-btn{border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer;background:#fff;font-family:inherit}
 .pag-btn:disabled{opacity:.4;cursor:not-allowed}
 .pag-btn.ativo{background:#1e40af;border-color:#1e40af;color:#fff}
-
 .vazio{text-align:center;color:#64748b;padding:48px;font-size:14px}
 .loading{text-align:center;color:#94a3b8;padding:48px;font-size:13px}
-
 .btn-excel{background:#166534;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
 .btn-atualizar{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-
-.nivel-bar{display:flex;align-items:center;gap:6px}
-.nivel-bar .bar-bg{background:#f1f5f9;border-radius:99px;height:6px;width:60px;overflow:hidden;flex-shrink:0}
-.nivel-bar .bar-fill{height:100%;border-radius:99px;transition:width .3s}
 </style>
 <body>
 
@@ -83,13 +63,12 @@ tr:hover td{background:#f8fafc}
   </div>
   <div class="tag" id="tag-sync">Carregando...</div>
   <div id="tag-ultima" style="font-size:11px;color:#475569;margin-left:4px"></div>
-  <div style="margin-left:auto;display:flex;gap:8px">
+  <div class="topo-right">
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
     <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
   </div>
 </div>
 
-<!-- FILTROS -->
 <div class="filtros-wrap">
   <div class="f-group">
     <label>Filial</label>
@@ -151,7 +130,6 @@ tr:hover td{background:#f8fafc}
   </div>
 </div>
 
-<!-- PILLS STATUS -->
 <div class="pills">
   <button class="pill-btn ativo" id="pill-todos" onclick="setPill('todos')">Todos</button>
   <button class="pill-btn" id="pill-ok" onclick="setPill('ok')">✓ Normal</button>
@@ -161,15 +139,8 @@ tr:hover td{background:#f8fafc}
   <button class="pill-btn" id="pill-desbloqueado" onclick="setPill('desbloqueado')">🔓 Desbloqueados</button>
 </div>
 
-<!-- RESUMO -->
 <div class="resumo" id="resumo"></div>
-
-<!-- TABELA -->
-<div class="tabela-wrap">
-  <div id="tabela-container"><div class="loading">Conectando ao banco...</div></div>
-</div>
-
-<!-- PAGINADOR -->
+<div class="tabela-wrap"><div id="tabela-container"><div class="loading">Conectando ao banco...</div></div></div>
 <div class="paginador" id="paginador" style="display:none">
   <span id="pag-info"></span>
   <div class="pag-btns" id="pag-btns"></div>
@@ -183,13 +154,14 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const POR_PAGINA = 100;
 const NIVEL_BAIXO = 10;
 
-let _todos = [];       // dados brutos do banco
-let _filtrados = [];   // após filtros
+let _todos = [];
+let _filtrados = [];
 let _pagina = 1;
 let _sortCol = 'filial';
 let _sortDir = 1;
 let _pillAtiva = 'todos';
-let _armazens = new Set();
+let _paginaAtual = [];
+let _mapaConsumo = {};
 
 // ── CARREGAR ────────────────────────────────────────────
 async function carregar() {
@@ -199,28 +171,26 @@ async function carregar() {
   document.getElementById('tag-sync').textContent = 'Carregando...';
   document.getElementById('tag-ultima').textContent = '';
 
-  // Busca última atualização do sync
+  // Última atualização
   try {
-    const { data: status } = await db.from('bases_status').select('atualizado_em,registros').eq('base','estoque_sb2').single();
-    if (status && status.atualizado_em) {
-      const dt = new Date(status.atualizado_em);
-      const fmt = dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    const { data: st } = await db.from('bases_status').select('atualizado_em,registros').eq('base','estoque_sb2').single();
+    if (st && st.atualizado_em) {
+      const dt = new Date(st.atualizado_em);
+      const fmt = dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
       document.getElementById('tag-ultima').innerHTML =
-        `<span style="color:#64748b">Última atualização:</span> <strong style="color:#e2e8f0">${fmt}</strong> <span style="color:#64748b">(${(status.registros||0).toLocaleString('pt-BR')} itens)</span>`;
+        `<span style="color:#64748b">Última atualização:</span> <strong style="color:#e2e8f0">${fmt}</strong> <span style="color:#64748b">(${(st.registros||0).toLocaleString('pt-BR')} itens)</span>`;
     }
   } catch(e) {}
 
+  // Buscar estoque
   let rows = [], off = 0;
   for (;;) {
-    let { data, error } = await db
+    const { data, error } = await db
       .from('estoque_sb2')
       .select('filial,codigo,descricao,grupo,armazem,qtd_atual,custo_medio,bloqueado,status,dt_ult_movimento')
-      
       .range(off, off + 999);
-
     if (error) {
-      document.getElementById('tabela-container').innerHTML =
-        '<div class="vazio">Erro ao carregar: ' + error.message + '</div>';
+      document.getElementById('tabela-container').innerHTML = '<div class="vazio">Erro ao carregar: ' + error.message + '</div>';
       return;
     }
     if (!data || !data.length) break;
@@ -229,532 +199,95 @@ async function carregar() {
     off += 1000;
   }
 
-  // _todos já definido na consolidação acima
-
-  // Montar lista de armazéns únicos
-  _armazens = new Set(rows.map(r => (r.armazem || '').trim()).filter(Boolean).sort());
+  // Popular selects de armazém e grupo
+  const arms = new Set(rows.map(r => (r.armazem||'').trim()).filter(Boolean));
   const selArm = document.getElementById('f-armazem');
   selArm.innerHTML = '<option value="">Todos</option>';
-  [..._armazens].sort().forEach(a => {
-    const o = document.createElement('option');
-    o.value = a; o.textContent = a;
-    selArm.appendChild(o);
-  });
+  [...arms].sort().forEach(a => { const o = document.createElement('option'); o.value=a; o.textContent=a; selArm.appendChild(o); });
 
-  // Montar lista de grupos únicos
-  const grupos = new Set(_todos.map(r => (r.grupo || '').trim()).filter(Boolean));
-  const selGrupo = document.getElementById('f-grupo');
-  if (selGrupo) {
-    selGrupo.innerHTML = '<option value="">Todos os grupos</option>';
-    [...grupos].sort().forEach(g => {
-      const o = document.createElement('option');
-      o.value = g; o.textContent = g;
-      selGrupo.appendChild(o);
-    });
-  }
+  const grps = new Set(rows.map(r => (r.grupo||'').trim()).filter(Boolean));
+  const selGrp = document.getElementById('f-grupo');
+  selGrp.innerHTML = '<option value="">Todos os grupos</option>';
+  [...grps].sort().forEach(g => { const o = document.createElement('option'); o.value=g; o.textContent=g; selGrp.appendChild(o); });
 
-  // Consolidar por filial+codigo — agrupa armazens
-  const mapaConsolid = {};
+  // Consolidar por filial+codigo (somar armazéns)
+  const mapa = {};
   rows.forEach(r => {
     const k = `${(r.filial||'').trim()}|${(r.codigo||'').trim()}`;
-    if (!mapaConsolid[k]) {
-      mapaConsolid[k] = { ...r, qtd_atual: 0, _armazens: [] };
-    }
-    mapaConsolid[k].qtd_atual += Number(r.qtd_atual) || 0;
-    const armTrim = (r.armazem||'').trim().replace(/^0+/,'') || '—';
-    mapaConsolid[k]._armazens.push({
-      armazem: armTrim,
+    if (!mapa[k]) mapa[k] = { ...r, qtd_atual: 0, _armazens: [] };
+    mapa[k].qtd_atual += Number(r.qtd_atual) || 0;
+    mapa[k]._armazens.push({
+      armazem: (r.armazem||'').trim().replace(/^0+/,'') || '—',
       qtd: Number(r.qtd_atual) || 0
     });
   });
-  const rowsConsolid = Object.values(mapaConsolid);
-  _todos = rowsConsolid;
+  _todos = Object.values(mapa);
 
-  // Buscar consumo 2026 DEPOIS da consolidação — enrich vai em _todos já correto
+  // Buscar consumo anual
   await carregarConsumo(_todos);
 
-  document.getElementById('tag-sync').textContent = rowsConsolid.length.toLocaleString('pt-BR') + ' registros';
+  document.getElementById('tag-sync').textContent = _todos.length.toLocaleString('pt-BR') + ' registros';
   aplicarFiltros();
 }
 
-// ── CONSUMO 2026 ─────────────────────────────────────────
-let _mapaConsumo = {}; // key: filial|codigo → {total, media, cobertura}
-
+// ── CONSUMO ANUAL ────────────────────────────────────────
 async function carregarConsumo(rows) {
   _mapaConsumo = {};
-  // busca todos os meses de 2026
   let consumos = [], off = 0;
   for (;;) {
-    const { data } = await db
-      .from('consumo_anual')
-      .select('filial,produto,total_ano')
-      .range(off, off + 999);
+    const { data } = await db.from('consumo_anual').select('filial,produto,total_ano').range(off, off + 999);
     if (!data || !data.length) break;
     consumos = consumos.concat(data);
     if (data.length < 1000) break;
     off += 1000;
-    if (off > 200000) break; // segurança
   }
-
-  // Monta mapa direto do consumo_anual
   consumos.forEach(r => {
-    const fil = String(r.filial||'').trim();
-    const k = `${fil}|${(r.produto||'').trim()}`;
+    const k = `${(r.filial||'').trim()}|${(r.produto||'').trim()}`;
     _mapaConsumo[k] = { total: Number(r.total_ano) || 0 };
   });
 
-  // Média mensal = total / meses decorridos no ano
   const mesesDecorridos = Math.max(1, new Date().getMonth() + 1);
-
-  // Enriquecer rows com consumo
   rows.forEach(r => {
-    const fil = String(r.filial||'').trim();
-    const k = `${fil}|${(r.codigo||'').trim()}`;
+    const k = `${(r.filial||'').trim()}|${(r.codigo||'').trim()}`;
     const cons = _mapaConsumo[k];
     if (cons && cons.total > 0) {
       const media = cons.total / mesesDecorridos;
       r._consumo_total = cons.total;
-      r._consumo_media = media;
-      r._cobertura     = media > 0 ? (Number(r.qtd_atual) || 0) / media : null;
+      r._cobertura = media > 0 ? (Number(r.qtd_atual)||0) / media : null;
     } else {
       r._consumo_total = 0;
-      r._consumo_media = 0;
-      r._cobertura     = null;
+      r._cobertura = null;
     }
   });
-
-  console.log(`Consumo anual carregado: ${Object.keys(_mapaConsumo).length} combinações`);nt="width=device-width,initial-scale=1">
-<title>Posição de Estoque</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;min-height:100vh}
-
-/* ── TOPO ── */
-.topo{background:#0f172a;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.topo .logo{background:#1e40af;border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0}
-.topo h1{font-size:15px;font-weight:700}
-.topo span{color:#64748b;font-size:12px}
-.topo .tag{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:3px 10px;font-size:11.5px;color:#94a3b8;margin-left:auto}
-
-/* ── FILTROS ── */
-.filtros-wrap{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
-.filtros-wrap label{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px}
-.filtros-wrap input,.filtros-wrap select{border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;outline:none;background:#fff}
-.filtros-wrap input:focus,.filtros-wrap select:focus{border-color:#1e40af}
-.f-group{display:flex;flex-direction:column;min-width:0}
-.f-busca{flex:1;min-width:200px}
-.f-busca input{width:100%}
-
-.pills{display:flex;flex-wrap:wrap;gap:6px;padding:12px 24px;background:#fff;border-bottom:1px solid #e2e8f0}
-.pill-btn{border:1px solid #e2e8f0;border-radius:999px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:#475569;font-family:inherit;transition:all .15s}
-.pill-btn.ativo{background:#1e40af;border-color:#1e40af;color:#fff}
-.pill-btn.verde{background:#16a34a;border-color:#16a34a;color:#fff}
-.pill-btn.vermelho{background:#ef4444;border-color:#ef4444;color:#fff}
-.pill-btn.laranja{background:#f59e0b;border-color:#f59e0b;color:#fff}
-
-/* ── RESUMO ── */
-.resumo{display:flex;flex-wrap:wrap;gap:10px;padding:16px 24px}
-.resumo-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;min-width:140px;flex:1}
-.resumo-card .val{font-size:22px;font-weight:800;color:#0f172a;line-height:1}
-.resumo-card .lab{font-size:11.5px;color:#64748b;margin-top:3px}
-.resumo-card.alerta .val{color:#ef4444}
-.resumo-card.bloq .val{color:#f59e0b}
-
-/* ── TABELA ── */
-.tabela-wrap{padding:0 24px 24px;overflow-x:auto}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;font-size:13px;margin-top:12px}
-th{text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;padding:9px 10px;font-size:11px;font-weight:600;white-space:nowrap;background:#f8fafc;cursor:pointer;user-select:none}
-th:hover{background:#f1f5f9}
-th .seta{color:#94a3b8;margin-left:3px}
-td{border-bottom:1px solid #f1f5f9;padding:8px 10px;vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:#f8fafc}
-.num{text-align:right;font-family:ui-monospace,monospace;font-weight:600}
-.cod{font-family:ui-monospace,monospace;color:#1e40af;font-size:12px}
-.badge-bloq{background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700}
-.badge-ok{background:#dcfce7;color:#166534;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700}
-.badge-alerta{background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700}
-.badge-zero{background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700}
-
-/* ── PAGINADOR ── */
-.paginador{display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:#fff;border-top:1px solid #e2e8f0;flex-wrap:wrap;gap:8px;font-size:13px;color:#64748b}
-.pag-btns{display:flex;gap:6px}
-.pag-btn{border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer;background:#fff;font-family:inherit}
-.pag-btn:disabled{opacity:.4;cursor:not-allowed}
-.pag-btn.ativo{background:#1e40af;border-color:#1e40af;color:#fff}
-
-.vazio{text-align:center;color:#64748b;padding:48px;font-size:14px}
-.loading{text-align:center;color:#94a3b8;padding:48px;font-size:13px}
-
-.btn-excel{background:#166534;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
-.btn-atualizar{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-
-.nivel-bar{display:flex;align-items:center;gap:6px}
-.nivel-bar .bar-bg{background:#f1f5f9;border-radius:99px;height:6px;width:60px;overflow:hidden;flex-shrink:0}
-.nivel-bar .bar-fill{height:100%;border-radius:99px;transition:width .3s}
-</style>
-<body>
-
-<div class="topo">
-  <div class="logo">E</div>
-  <div>
-    <h1>Posição de Estoque</h1>
-    <span>LWHSB2010 — SB2</span>
-  </div>
-  <div class="tag" id="tag-sync">Carregando...</div>
-  <div id="tag-ultima" style="font-size:11px;color:#475569;margin-left:4px"></div>
-  <div style="margin-left:auto;display:flex;gap:8px">
-    <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
-    <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
-  </div>
-</div>
-
-<!-- FILTROS -->
-<div class="filtros-wrap">
-  <div class="f-group">
-    <label>Filial</label>
-    <select id="f-filial" onchange="aplicarFiltros()">
-      <option value="">Todas as filiais</option>
-      <option value="01">01 — MATRIZ</option>
-      <option value="03">03 — PAU DOS FERROS</option>
-      <option value="04">04 — ITAPIPOCA</option>
-      <option value="06">06 — CURRAIS NOVOS</option>
-      <option value="07">07 — SOBRAL</option>
-      <option value="08">08 — APARECIDA DE GOIANIA</option>
-      <option value="09">09 — MARACANAU</option>
-      <option value="10">10 — MOSSORO</option>
-      <option value="11">11 — ANAPOLIS</option>
-      <option value="13">13 — ALAGOINHAS</option>
-      <option value="14">14 — RIBEIRA DO POMBAL</option>
-      <option value="15">15 — PAULO AFONSO</option>
-      <option value="22">22 — GOIANIA</option>
-      <option value="23">23 — BATURITE</option>
-      <option value="24">24 — MORRINHOS</option>
-      <option value="25">25 — CASCAVEL</option>
-      <option value="27">27 — CAUCAIA</option>
-      <option value="29">29 — HORIZONTE</option>
-      <option value="34">34 — SENHOR DO BONFIM</option>
-      <option value="36">36 — LUZIANIA</option>
-      <option value="37">37 — DIVINOPOLIS</option>
-      <option value="40">40 — GARANHUNS</option>
-      <option value="41">41 — FLORIANO</option>
-      <option value="42">42 — LIVRAMENTO DE NOSSA SENHORA</option>
-      <option value="43">43 — HORTOLANDIA</option>
-      <option value="44">44 — BRUMADO</option>
-      <option value="45">45 — NITEROI</option>
-    </select>
-  </div>
-  <div class="f-group">
-    <label>Armazém</label>
-    <select id="f-armazem" onchange="aplicarFiltros()">
-      <option value="">Todos</option>
-    </select>
-  </div>
-  <div class="f-group">
-    <label>Grupo</label>
-    <select id="f-grupo" onchange="aplicarFiltros()">
-      <option value="">Todos os grupos</option>
-    </select>
-  </div>
-  <div class="f-group f-busca">
-    <label>Código / Descrição</label>
-    <input id="f-busca" placeholder="🔍 Buscar..." oninput="aplicarFiltros()">
-  </div>
-  <div class="f-group">
-    <label>Nível mínimo</label>
-    <select id="f-nivel" onchange="aplicarFiltros()">
-      <option value="">Qualquer quantidade</option>
-      <option value="0">Zerados (= 0)</option>
-      <option value="10">Baixo estoque (≤ 10)</option>
-      <option value="50">Baixo estoque (≤ 50)</option>
-    </select>
-  </div>
-</div>
-
-<!-- PILLS STATUS -->
-<div class="pills">
-  <button class="pill-btn ativo" id="pill-todos" onclick="setPill('todos')">Todos</button>
-  <button class="pill-btn" id="pill-ok" onclick="setPill('ok')">✓ Normal</button>
-  <button class="pill-btn" id="pill-alerta" onclick="setPill('alerta')">⚠ Nível baixo (≤ 10)</button>
-  <button class="pill-btn" id="pill-zero" onclick="setPill('zero')">✕ Zerados</button>
-  <button class="pill-btn" id="pill-bloqueado" onclick="setPill('bloqueado')">🔒 Bloqueados</button>
-  <button class="pill-btn" id="pill-desbloqueado" onclick="setPill('desbloqueado')">🔓 Desbloqueados</button>
-</div>
-
-<!-- RESUMO -->
-<div class="resumo" id="resumo"></div>
-
-<!-- TABELA -->
-<div class="tabela-wrap">
-  <div id="tabela-container"><div class="loading">Conectando ao banco...</div></div>
-</div>
-
-<!-- PAGINADOR -->
-<div class="paginador" id="paginador" style="display:none">
-  <span id="pag-info"></span>
-  <div class="pag-btns" id="pag-btns"></div>
-</div>
-
-<script>
-const SUPABASE_URL = 'https://vvwtqbehfwrgcmbjdniu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const POR_PAGINA = 100;
-const NIVEL_BAIXO = 10;
-
-let _todos = [];       // dados brutos do banco
-let _filtrados = [];   // após filtros
-let _pagina = 1;
-let _sortCol = 'filial';
-let _sortDir = 1;
-let _pillAtiva = 'todos';
-let _armazens = new Set();
-
-// ── CARREGAR ────────────────────────────────────────────
-async function carregar() {
-  document.getElementById('tabela-container').innerHTML = '<div class="loading">Carregando dados do estoque...</div>';
-  document.getElementById('resumo').innerHTML = '';
-  document.getElementById('paginador').style.display = 'none';
-  document.getElementById('tag-sync').textContent = 'Carregando...';
-  document.getElementById('tag-ultima').textContent = '';
-
-  // Busca última atualização do sync
-  try {
-    const { data: status } = await db.from('bases_status').select('atualizado_em,registros').eq('base','estoque_sb2').single();
-    if (status && status.atualizado_em) {
-      const dt = new Date(status.atualizado_em);
-      const fmt = dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-      document.getElementById('tag-ultima').innerHTML =
-        `<span style="color:#64748b">Última atualização:</span> <strong style="color:#e2e8f0">${fmt}</strong> <span style="color:#64748b">(${(status.registros||0).toLocaleString('pt-BR')} itens)</span>`;
-    }
-  } catch(e) {}
-
-  let rows = [], off = 0;
-  for (;;) {
-    let { data, error } = await db
-      .from('estoque_sb2')
-      .select('filial,codigo,descricao,grupo,armazem,qtd_atual,custo_medio,bloqueado,status,dt_ult_movimento')
-      
-      .range(off, off + 999);
-
-    if (error) {
-      document.getElementById('tabela-container').innerHTML =
-        '<div class="vazio">Erro ao carregar: ' + error.message + '</div>';
-      return;
-    }
-    if (!data || !data.length) break;
-    rows = rows.concat(data);
-    if (data.length < 1000) break;
-    off += 1000;
-  }
-
-  // _todos já definido na consolidação acima
-
-  // Montar lista de armazéns únicos
-  _armazens = new Set(rows.map(r => (r.armazem || '').trim()).filter(Boolean).sort());
-  const selArm = document.getElementById('f-armazem');
-  selArm.innerHTML = '<option value="">Todos</option>';
-  [..._armazens].sort().forEach(a => {
-    const o = document.createElement('option');
-    o.value = a; o.textContent = a;
-    selArm.appendChild(o);
-  });
-
-  // Montar lista de grupos únicos
-  const grupos = new Set(_todos.map(r => (r.grupo || '').trim()).filter(Boolean));
-  const selGrupo = document.getElementById('f-grupo');
-  if (selGrupo) {
-    selGrupo.innerHTML = '<option value="">Todos os grupos</option>';
-    [...grupos].sort().forEach(g => {
-      const o = document.createElement('option');
-      o.value = g; o.textContent = g;
-      selGrupo.appendChild(o);
-    });
-  }
-
-  // Consolidar por filial+codigo — agrupa armazens
-  const mapaConsolid = {};
-  rows.forEach(r => {
-    const k = `${(r.filial||'').trim()}|${(r.codigo||'').trim()}`;
-    if (!mapaConsolid[k]) {
-      mapaConsolid[k] = { ...r, qtd_atual: 0, _armazens: [] };
-    }
-    mapaConsolid[k].qtd_atual += Number(r.qtd_atual) || 0;
-    const armTrim = (r.armazem||'').trim().replace(/^0+/,'') || '—';
-    mapaConsolid[k]._armazens.push({
-      armazem: armTrim,
-      qtd: Number(r.qtd_atual) || 0
-    });
-  });
-  const rowsConsolid = Object.values(mapaConsolid);
-  _todos = rowsConsolid;
-
-  // Buscar consumo 2026 DEPOIS da consolidação — enrich vai em _todos já correto
-  await carregarConsumo(_todos);
-
-  document.getElementById('tag-sync').textContent = rowsConsolid.length.toLocaleString('pt-BR') + ' registros';
-  aplicarFiltros();
 }
 
-// ── CONSUMO 2026 ─────────────────────────────────────────
-let _mapaConsumo = {}; // key: filial|codigo → {total, media, cobertura}
-
-async function carregarConsumo(rows) {
-  _mapaConsumo = {};
-  // busca todos os meses de 2026
-  let consumos = [], off = 0;
-  for (;;) {
-    const { data } = await db
-      .from('consumo_anual')
-      .select('filial,produto,total_ano')
-      .range(off, off + 999);
-    if (!data || !data.length) break;
-    consumos = consumos.concat(data);
-    if (data.length < 1000) break;
-    off += 1000;
-    if (off > 200000) break; // segurança
-  }
-
-  // Agrupa por filial+produto
-  const agrup = {};
-  consumos.forEach(r => {
-    const fil = String(r.filial||'').trim();
-    const k = `${fil}|${(r.produto||'').trim()}`;
-    if (!agrup[k]) agrup[k] = { total: 0, meses: new Set() };
-    agrup[k].total += Number(r.quantidade) || 0;
-    agrup[k].meses.add(r.mes);
-  });
-
-  // Calcula média mensal e cobertura
-  const mesAtual = new Date().getMonth() + 1; // meses decorridos em 2026
-  Object.entries(agrup).forEach(([k, v]) => {
-    const media = v.meses.size > 0 ? v.total / v.meses.size : 0;
-    _mapaConsumo[k] = { total: v.total, media, meses: v.meses.size };
-  });
-
-  // Enriquecer rows com consumo
-  rows.forEach(r => {
-    const fil = String(r.filial||'').trim();
-    const k = `${fil}|${(r.codigo||'').trim()}`;
-    const cons = _mapaConsumo[k];
-    if (cons) {
-      r._consumo_total  = cons.total;
-      r._consumo_media  = cons.media;
-      r._cobertura      = cons.media > 0 ? (Number(r.qtd_atual) || 0) / cons.media : null;
-    } else {
-      r._consumo_total  = 0;
-      r._consumo_media  = 0;
-      r._cobertura      = null;
-    }
-  });
-  // Debug: mostrar primeiras chaves do mapa de consumo
-  const keysConsumo = Object.keys(_mapaConsumo).slice(0,3);
-  // Debug: mostrar chaves do estoque para o mesmo produto
-  const exemploEstoque = rows.find(r => (r.codigo||'').trim() === '100000139');
-  if (exemploEstoque) {
-    const kEx = `${String(exemploEstoque.filial||'').trim()}|${(exemploEstoque.codigo||'').trim()}`;
-
-  }
-}
-
-
-// ── POPUP ARMAZÉNS ───────────────────────────────────────
-let _paginaAtual = [];
-
-function abrirPopupArmazem(idx) {
-  const r = _paginaAtual[idx];
-  if (!r || !r._armazens) return;
-
-  // Remove popup anterior
-  const old = document.getElementById('popup-arm');
-  if (old) old.remove();
-
-  const linhas = r._armazens
-    .sort((a,b) => b.qtd - a.qtd)
-    .map(a => `<tr>
-      <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;font-family:monospace">${a.armazem}</td>
-      <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">${a.qtd.toLocaleString('pt-BR')}</td>
-    </tr>`).join('');
-
-  const popup = document.createElement('div');
-  popup.id = 'popup-arm';
-  popup.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-    background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.2);
-    z-index:9999;min-width:280px;overflow:hidden`;
-  popup.innerHTML = `
-    <div style="background:#0f172a;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-weight:700;font-size:13px">${(r.codigo||'').trim()} — Filial ${(r.filial||'').trim()}</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px">${(r.descricao||'').trim()}</div>
-      </div>
-      <button onclick="document.getElementById('popup-arm').remove()" 
-        style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1">✕</button>
-    </div>
-    <div style="padding:8px 0">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr>
-          <th style="padding:6px 12px;text-align:left;color:#64748b;font-size:11px;border-bottom:2px solid #e2e8f0">Armazém</th>
-          <th style="padding:6px 12px;text-align:right;color:#64748b;font-size:11px;border-bottom:2px solid #e2e8f0">Qtd</th>
-        </tr></thead>
-        <tbody>${linhas}</tbody>
-        <tfoot><tr>
-          <td style="padding:8px 12px;font-weight:700;border-top:2px solid #e2e8f0">Total</td>
-          <td style="padding:8px 12px;font-weight:700;text-align:right;border-top:2px solid #e2e8f0">${(Number(r.qtd_atual)||0).toLocaleString('pt-BR')}</td>
-        </tr></tfoot>
-      </table>
-    </div>`;
-
-  document.body.appendChild(popup);
-  // Fechar clicando fora
-  setTimeout(() => document.addEventListener('click', function handler(e) {
-    if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click', handler); }
-  }), 100);
-}
-window.abrirPopupArmazem = abrirPopupArmazem;
-
-// ── FILTROS ─────────────────────────────────────────────
+// ── FILTROS ──────────────────────────────────────────────
 function aplicarFiltros() {
-  const filial   = document.getElementById('f-filial').value.trim();
-  const armazem  = document.getElementById('f-armazem').value.trim();
-  const busca    = document.getElementById('f-busca').value.toLowerCase().trim();
-  const nivelSel = document.getElementById('f-nivel').value;
+  const filial  = document.getElementById('f-filial').value.trim();
+  const armazem = document.getElementById('f-armazem').value.trim();
+  const grupo   = document.getElementById('f-grupo').value.trim();
+  const busca   = document.getElementById('f-busca').value.toLowerCase().trim();
+  const nivel   = document.getElementById('f-nivel').value;
 
   _filtrados = _todos.filter(r => {
-    const fil = (r.filial || '').trim();
-    const arm = (r.armazem  || '').trim();
-    const cod = (r.codigo    || '').trim();
+    const fil  = (r.filial||'').trim();
+    const cod  = (r.codigo||'').trim();
     const qatu = Number(r.qtd_atual) || 0;
-    const bloq = (r.bloqueado || '').trim();
-    const isBloqueado = bloq === '1' || bloq.toUpperCase() === 'S' || bloq === 'B';
+    const isBloq = r.bloqueado === true || r.bloqueado === '1' || r.bloqueado === 'S';
 
-    if (filial && fil !== filial && fil.replace(/^0+/, '') !== filial.replace(/^0+/, '')) return false;
-    if (armazem && arm !== armazem) return false;
-
-    const grupoSel = document.getElementById('f-grupo').value.trim();
-    const grupoItem = (r.grupo || '').trim();
-    if (grupoSel && grupoItem !== grupoSel) return false;
-    if (busca && !cod.toLowerCase().includes(busca) && !(r.descricao || '').toLowerCase().includes(busca) && !(r.grupo || '').toLowerCase().includes(busca)) return false;
-
-    // Pill
-    if (_pillAtiva === 'bloqueado'    && !isBloqueado) return false;
-    if (_pillAtiva === 'desbloqueado' && isBloqueado)  return false;
-    if (_pillAtiva === 'alerta'       && (qatu > NIVEL_BAIXO || qatu <= 0)) return false;
-    if (_pillAtiva === 'zero'         && qatu !== 0) return false;
-    if (_pillAtiva === 'ok'           && (qatu <= NIVEL_BAIXO)) return false;
-
-    // Nível
-    if (nivelSel === '0'  && qatu !== 0) return false;
-    if (nivelSel === '10' && qatu > 10)  return false;
-    if (nivelSel === '50' && qatu > 50)  return false;
-
+    if (filial && fil !== filial) return false;
+    if (grupo && (r.grupo||'').trim() !== grupo) return false;
+    if (busca && !cod.toLowerCase().includes(busca) && !(r.descricao||'').toLowerCase().includes(busca)) return false;
+    if (nivel === '0' && qatu !== 0) return false;
+    if (nivel === '10' && qatu > 10) return false;
+    if (nivel === '50' && qatu > 50) return false;
+    if (_pillAtiva === 'bloqueado'    && !isBloq) return false;
+    if (_pillAtiva === 'desbloqueado' && isBloq) return false;
+    if (_pillAtiva === 'alerta' && (qatu > NIVEL_BAIXO || qatu <= 0)) return false;
+    if (_pillAtiva === 'zero'   && qatu !== 0) return false;
+    if (_pillAtiva === 'ok'     && qatu <= NIVEL_BAIXO) return false;
     return true;
   });
-
-  // Ordenar
-
 
   _filtrados.sort((a, b) => {
     let va = a[_sortCol] ?? '', vb = b[_sortCol] ?? '';
@@ -771,30 +304,23 @@ function aplicarFiltros() {
 
 function setPill(p) {
   _pillAtiva = p;
-  document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('ativo','verde','vermelho','laranja'));
+  document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('ativo'));
   const el = document.getElementById('pill-' + p);
-  if (el) {
-    el.classList.add('ativo');
-    if (p === 'alerta') el.classList.add('laranja');
-    if (p === 'zero')   el.classList.add('vermelho');
-    if (p === 'ok')     el.classList.add('verde');
-  }
+  if (el) el.classList.add('ativo');
   aplicarFiltros();
 }
 
 // ── RESUMO ───────────────────────────────────────────────
 function renderResumo() {
-  const total     = _filtrados.length;
-  const zerados   = _filtrados.filter(r => (Number(r.qtd_atual) || 0) === 0).length;
-  const baixos    = _filtrados.filter(r => { const q = Number(r.qtd_atual)||0; return q > 0 && q <= NIVEL_BAIXO; }).length;
-  const bloqueados= _filtrados.filter(r => { const b=(r.bloqueado||'').trim(); return b==='1'||b.toUpperCase()==='S'||b==='B'; }).length;
-
+  const total    = _filtrados.length;
+  const zerados  = _filtrados.filter(r => (Number(r.qtd_atual)||0) === 0).length;
+  const baixos   = _filtrados.filter(r => { const q=Number(r.qtd_atual)||0; return q>0&&q<=NIVEL_BAIXO; }).length;
+  const bloqs    = _filtrados.filter(r => r.bloqueado===true||r.bloqueado==='1'||r.bloqueado==='S').length;
   document.getElementById('resumo').innerHTML = `
     <div class="resumo-card"><div class="val">${total.toLocaleString('pt-BR')}</div><div class="lab">Itens encontrados</div></div>
     <div class="resumo-card alerta"><div class="val">${zerados.toLocaleString('pt-BR')}</div><div class="lab">Zerados</div></div>
     <div class="resumo-card alerta"><div class="val">${baixos.toLocaleString('pt-BR')}</div><div class="lab">Nível baixo (≤ ${NIVEL_BAIXO})</div></div>
-    <div class="resumo-card bloq"><div class="val">${bloqueados.toLocaleString('pt-BR')}</div><div class="lab">Bloqueados</div></div>
-  `;
+    <div class="resumo-card bloq"><div class="val">${bloqs.toLocaleString('pt-BR')}</div><div class="lab">Bloqueados</div></div>`;
 }
 
 // ── TABELA ───────────────────────────────────────────────
@@ -802,9 +328,6 @@ function renderTabela() {
   const inicio = (_pagina - 1) * POR_PAGINA;
   const pagina = _filtrados.slice(inicio, inicio + POR_PAGINA);
   _paginaAtual = pagina;
-  // Debug consumo
-  const ex = pagina.find(r => (r.codigo||'').trim() === '100000139');
-  if (ex)
 
   if (!_filtrados.length) {
     document.getElementById('tabela-container').innerHTML = '<div class="vazio">Nenhum item encontrado com esses filtros.</div>';
@@ -813,7 +336,7 @@ function renderTabela() {
 
   function th(col, label) {
     const seta = col === _sortCol ? (_sortDir === 1 ? ' ↑' : ' ↓') : '';
-    return `<th onclick="sortBy('${col}')">${label}<span class="seta">${seta}</span></th>`;
+    return `<th onclick="sortBy('${col}')">${label}${seta}</th>`;
   }
 
   function fmtData(d) {
@@ -824,44 +347,37 @@ function renderTabela() {
   }
 
   function badgeQtd(q) {
-    const n = Number(q) || 0;
+    const n = Number(q)||0;
     if (n === 0)          return `<span class="badge-zero">${n}</span>`;
     if (n <= NIVEL_BAIXO) return `<span class="badge-alerta">⚠ ${n}</span>`;
     return `<span class="badge-ok">${n.toLocaleString('pt-BR')}</span>`;
   }
 
   function badgeBloq(b) {
-    const s = (b || '').trim();
-    const isBloq = s === '1' || s.toUpperCase() === 'S' || s === 'B';
-    return isBloq
-      ? '<span class="badge-bloq">🔒 Bloqueado</span>'
-      : '<span class="badge-ok">🔓 Livre</span>';
+    const isBloq = b===true||b==='1'||b==='S';
+    return isBloq ? '<span class="badge-bloq">🔒 Bloqueado</span>' : '<span class="badge-ok">🔓 Livre</span>';
   }
 
-  function nivelBar(q) {
-    const n = Math.min(100, Math.max(0, Number(q)||0));
-    const pct = Math.min(100, (n / 100) * 100);
-    const cor = n === 0 ? '#e2e8f0' : n <= NIVEL_BAIXO ? '#ef4444' : '#16a34a';
-    return `<div class="nivel-bar">
-      <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${cor}"></div></div>
-      ${badgeQtd(n)}
-    </div>`;
+  function corCobertura(c) {
+    if (c == null) return '#94a3b8';
+    if (c < 1) return '#ef4444';
+    if (c < 3) return '#f59e0b';
+    return '#16a34a';
   }
 
   const linhas = pagina.map((r, i) => `
     <tr>
       <td class="cod">${(r.filial||'').trim()}</td>
       <td class="cod">${(r.codigo||'').trim()}</td>
-      <td>${(r.descricao||'—')}</td>
+      <td>${r.descricao||'—'}</td>
       <td>${(r.grupo||'—')}</td>
-      <td class="num" onclick="abrirPopupArmazem(${i})" style="cursor:pointer;color:#1e40af;text-decoration:underline dotted" title="Clique para ver por armazém">${(Number(r.qtd_atual)||0).toLocaleString('pt-BR')}</td>
+      <td class="num" onclick="abrirPopup(${i})" style="cursor:pointer;color:#1e40af;text-decoration:underline dotted" title="Ver por armazém">${badgeQtd(r.qtd_atual)}</td>
       <td class="num">${(Number(r.custo_medio)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td>${badgeBloq(r.bloqueado)}</td>
       <td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_movimento)}</td>
-      <td class="num">${(Number(r._consumo_total)||0) > 0 ? (Number(r._consumo_total)).toLocaleString('pt-BR') : '—'}</td>
-      <td class="num" style="color:${(r._cobertura == null || isNaN(r._cobertura)) ? '#94a3b8' : Number(r._cobertura) < 1 ? '#ef4444' : r._cobertura < 3 ? '#f59e0b' : '#16a34a'}">${(r._cobertura != null && r._cobertura !== undefined && !isNaN(Number(r._cobertura))) ? Number(r._cobertura).toFixed(1) + ' m' : '—'}</td>
-    </tr>
-  `).join('');
+      <td class="num">${(Number(r._consumo_total)||0) > 0 ? Number(r._consumo_total).toLocaleString('pt-BR') : '—'}</td>
+      <td class="num" style="color:${corCobertura(r._cobertura)}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
+    </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
     <table>
@@ -878,8 +394,49 @@ function renderTabela() {
         ${th('_cobertura','Cobertura')}
       </tr></thead>
       <tbody>${linhas}</tbody>
-    </table>
-  `;
+    </table>`;
+}
+
+// ── POPUP ARMAZÉNS ───────────────────────────────────────
+function abrirPopup(i) {
+  const r = _paginaAtual[i];
+  if (!r || !r._armazens) return;
+  const old = document.getElementById('popup-arm');
+  if (old) old.remove();
+
+  const linhas = r._armazens.sort((a,b) => b.qtd-a.qtd).map(a =>
+    `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;font-family:monospace">${a.armazem}</td>
+     <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">${a.qtd.toLocaleString('pt-BR')}</td></tr>`
+  ).join('');
+
+  const popup = document.createElement('div');
+  popup.id = 'popup-arm';
+  popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.2);z-index:9999;min-width:280px;overflow:hidden';
+  popup.innerHTML = `
+    <div style="background:#0f172a;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700;font-size:13px">${(r.codigo||'').trim()} — Filial ${(r.filial||'').trim()}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px">${(r.descricao||'').trim()}</div>
+      </div>
+      <button onclick="document.getElementById('popup-arm').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1">✕</button>
+    </div>
+    <div style="padding:8px 0">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th style="padding:6px 12px;text-align:left;color:#64748b;font-size:11px;border-bottom:2px solid #e2e8f0">Armazém</th>
+          <th style="padding:6px 12px;text-align:right;color:#64748b;font-size:11px;border-bottom:2px solid #e2e8f0">Qtd</th>
+        </tr></thead>
+        <tbody>${linhas}</tbody>
+        <tfoot><tr>
+          <td style="padding:8px 12px;font-weight:700;border-top:2px solid #e2e8f0">Total</td>
+          <td style="padding:8px 12px;font-weight:700;text-align:right;border-top:2px solid #e2e8f0">${(Number(r.qtd_atual)||0).toLocaleString('pt-BR')}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+  document.body.appendChild(popup);
+  setTimeout(() => document.addEventListener('click', function h(e) {
+    if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click',h); }
+  }), 100);
 }
 
 // ── PAGINADOR ────────────────────────────────────────────
@@ -887,72 +444,59 @@ function renderPaginador() {
   const total = _filtrados.length;
   const totalPags = Math.ceil(total / POR_PAGINA);
   const pag = document.getElementById('paginador');
-  const info = document.getElementById('pag-info');
-  const btns = document.getElementById('pag-btns');
-
-  if (total === 0) { pag.style.display = 'none'; return; }
-  pag.style.display = 'flex';
-
-  const ini = (_pagina - 1) * POR_PAGINA + 1;
-  const fim = Math.min(_pagina * POR_PAGINA, total);
-  info.textContent = `${ini}–${fim} de ${total.toLocaleString('pt-BR')} itens`;
+  if (!total) { pag.style.display='none'; return; }
+  pag.style.display='flex';
+  document.getElementById('pag-info').textContent =
+    `${(_pagina-1)*POR_PAGINA+1}–${Math.min(_pagina*POR_PAGINA,total)} de ${total.toLocaleString('pt-BR')} itens`;
 
   let html = `<button class="pag-btn" onclick="irPag(${_pagina-1})" ${_pagina===1?'disabled':''}>‹ Ant.</button>`;
-  const delta = 2;
-  for (let p = 1; p <= totalPags; p++) {
-    if (p === 1 || p === totalPags || (p >= _pagina - delta && p <= _pagina + delta)) {
+  for (let p=1; p<=totalPags; p++) {
+    if (p===1||p===totalPags||(p>=_pagina-2&&p<=_pagina+2))
       html += `<button class="pag-btn ${p===_pagina?'ativo':''}" onclick="irPag(${p})">${p}</button>`;
-    } else if (p === _pagina - delta - 1 || p === _pagina + delta + 1) {
+    else if (p===_pagina-3||p===_pagina+3)
       html += `<span style="padding:0 4px;color:#94a3b8">…</span>`;
-    }
   }
   html += `<button class="pag-btn" onclick="irPag(${_pagina+1})" ${_pagina===totalPags?'disabled':''}>Próx. ›</button>`;
-  btns.innerHTML = html;
+  document.getElementById('pag-btns').innerHTML = html;
 }
 
 function irPag(p) {
-  const totalPags = Math.ceil(_filtrados.length / POR_PAGINA);
-  if (p < 1 || p > totalPags) return;
-  _pagina = p;
-  renderTabela();
-  renderPaginador();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  const t = Math.ceil(_filtrados.length/POR_PAGINA);
+  if (p<1||p>t) return;
+  _pagina=p; renderTabela(); renderPaginador();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
-// ── ORDENAÇÃO ────────────────────────────────────────────
 function sortBy(col) {
-  if (_sortCol === col) _sortDir *= -1;
-  else { _sortCol = col; _sortDir = 1; }
+  if (_sortCol===col) _sortDir*=-1; else { _sortCol=col; _sortDir=1; }
   aplicarFiltros();
 }
-window.sortBy = sortBy;
-window.irPag  = irPag;
-window.setPill = setPill;
-window.aplicarFiltros = aplicarFiltros;
 
-// ── EXCEL ────────────────────────────────────────────────
+// ── EXCEL ─────────────────────────────────────────────────
 function exportarExcel() {
   if (!_filtrados.length) { alert('Nenhum dado para exportar.'); return; }
   const linhas = _filtrados.map(r => ({
-    Filial:     (r.filial  || '').trim(),
-    Código:     (r.codigo     || '').trim(),
-    Armazém:    (r.armazem   || '').trim(),
-    'Qtd Atual': Number(r.qtd_atual)  || 0,
-    'Qtd Final': Number(r.qtd_fim)  || 0,
-    'Custo Médio': Number(r.custo_medio) || 0,
-    Status:     (r.bloqueado || '').trim() === '1' ? 'Bloqueado' : 'Livre',
-    'Últ. Entrada': r.dt_ult_entrada || '',
-    'Últ. Mov.':    r.dt_ult_movimento || '',
+    Filial:     (r.filial||'').trim(),
+    Código:     (r.codigo||'').trim(),
+    Descrição:  (r.descricao||'').trim(),
+    Grupo:      (r.grupo||'').trim(),
+    'Qtd Atual': Number(r.qtd_atual)||0,
+    'Custo Médio': Number(r.custo_medio)||0,
+    Status:     r.bloqueado ? 'Bloqueado' : 'Livre',
+    'Últ. Mov.': r.dt_ult_movimento||'',
+    'Consumo 2026': Number(r._consumo_total)||0,
+    'Cobertura (meses)': r._cobertura!=null ? parseFloat(Number(r._cobertura).toFixed(1)) : '',
   }));
   const ws = XLSX.utils.json_to_sheet(linhas);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Estoque');
   XLSX.writeFile(wb, 'posicao_estoque.xlsx');
 }
-window.exportarExcel = exportarExcel;
-window.carregar = carregar;
 
-// ── INIT ─────────────────────────────────────────────────
+window.irPag=irPag; window.sortBy=sortBy; window.setPill=setPill;
+window.aplicarFiltros=aplicarFiltros; window.exportarExcel=exportarExcel;
+window.carregar=carregar; window.abrirPopup=abrirPopup;
+
 carregar();
 </script>
 </body>
