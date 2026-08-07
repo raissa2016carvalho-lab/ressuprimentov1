@@ -517,7 +517,7 @@ function renderTabela() {
     </div>`;
   }
 
-  const linhas = pagina.map(r => `
+  const linhas = pagina.map((r, i) => `
     <tr>
       <td class="cod">${(r.filial||'').trim()}</td>
       <td class="cod">${(r.codigo||'').trim()}</td>
