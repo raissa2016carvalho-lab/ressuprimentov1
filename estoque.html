@@ -528,7 +528,7 @@ function renderTabela() {
       <td>${badgeBloq(r.bloqueado)}</td>
       <td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_movimento)}</td>
       <td class="num">${r._consumo_total > 0 ? r._consumo_total.toLocaleString('pt-BR') : '—'}</td>
-      <td class="num" style="color:${r._cobertura === null ? '#94a3b8' : r._cobertura < 1 ? '#ef4444' : r._cobertura < 3 ? '#f59e0b' : '#16a34a'}">${r._cobertura !== null ? r._cobertura.toFixed(1) + ' m' : '—'}</td>
+      <td class="num" style="color:${r._cobertura === null ? '#94a3b8' : r._cobertura < 1 ? '#ef4444' : r._cobertura < 3 ? '#f59e0b' : '#16a34a'}">${(r._cobertura != null && !isNaN(r._cobertura)) ? Number(r._cobertura).toFixed(1) + ' m' : '—'}</td>
     </tr>
   `).join('');
 
