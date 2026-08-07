@@ -195,7 +195,7 @@ async function carregar() {
   for (;;) {
     let { data, error } = await db
       .from('estoque_sb2')
-      .select('filial,codigo,armazem,qtd_atual,qtd_fim,custo_medio,bloqueado,status,dt_ult_entrada,dt_ult_movimento')
+      .select('filial,codigo,descricao,armazem,qtd_atual,qtd_fim,custo_medio,bloqueado,status,dt_ult_entrada,dt_ult_movimento')
       
       .range(off, off + 999);
 
@@ -353,6 +353,7 @@ function renderTabela() {
     <tr>
       <td class="cod">${(r.filial||'').trim()}</td>
       <td class="cod">${(r.codigo||'').trim()}</td>
+      <td>${(r.descricao||'—')}</td>
       <td>${(r.armazem||'').trim()||'—'}</td>
       <td>${nivelBar(r.qtd_atual)}</td>
       <td class="num">${(Number(r.qtd_fim)||0).toLocaleString('pt-BR')}</td>
@@ -368,6 +369,7 @@ function renderTabela() {
       <thead><tr>
         ${th('filial','Filial')}
         ${th('codigo','Código')}
+        ${th('descricao','Descrição')}
         ${th('armazem','Armazém')}
         ${th('qtd_atual','Qtd Atual')}
         ${th('qtd_fim','Qtd Final')}
