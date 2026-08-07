@@ -129,6 +129,12 @@ tr:hover td{background:#f8fafc}
       <option value="">Todos</option>
     </select>
   </div>
+  <div class="f-group">
+    <label>Grupo</label>
+    <select id="f-grupo" onchange="aplicarFiltros()">
+      <option value="">Todos os grupos</option>
+    </select>
+  </div>
   <div class="f-group f-busca">
     <label>Código / Descrição</label>
     <input id="f-busca" placeholder="🔍 Buscar..." oninput="aplicarFiltros()">
@@ -195,7 +201,7 @@ async function carregar() {
   for (;;) {
     let { data, error } = await db
       .from('estoque_sb2')
-      .select('filial,codigo,descricao,armazem,qtd_atual,qtd_fim,custo_medio,bloqueado,status,dt_ult_entrada,dt_ult_movimento')
+      .select('filial,codigo,descricao,grupo,armazem,qtd_atual,qtd_fim,custo_medio,bloqueado,status,dt_ult_entrada,dt_ult_movimento')
       
       .range(off, off + 999);
 
@@ -222,6 +228,18 @@ async function carregar() {
     selArm.appendChild(o);
   });
 
+  // Montar lista de grupos únicos
+  const grupos = new Set(rows.map(r => (r.grupo || '').trim()).filter(Boolean));
+  const selGrupo = document.getElementById('f-grupo');
+  if (selGrupo) {
+    selGrupo.innerHTML = '<option value="">Todos os grupos</option>';
+    [...grupos].sort().forEach(g => {
+      const o = document.createElement('option');
+      o.value = g; o.textContent = g;
+      selGrupo.appendChild(o);
+    });
+  }
+
   document.getElementById('tag-sync').textContent = rows.length.toLocaleString('pt-BR') + ' registros';
   aplicarFiltros();
 }
@@ -243,7 +261,11 @@ function aplicarFiltros() {
 
     if (filial && fil !== filial && fil.replace(/^0+/, '') !== filial.replace(/^0+/, '')) return false;
     if (armazem && arm !== armazem) return false;
-    if (busca && !cod.toLowerCase().includes(busca) && !(r.status || '').toLowerCase().includes(busca)) return false;
+
+    const grupoSel = document.getElementById('f-grupo').value.trim();
+    const grupoItem = (r.grupo || '').trim();
+    if (grupoSel && grupoItem !== grupoSel) return false;
+    if (busca && !cod.toLowerCase().includes(busca) && !(r.descricao || '').toLowerCase().includes(busca) && !(r.grupo || '').toLowerCase().includes(busca)) return false;
 
     // Pill
     if (_pillAtiva === 'bloqueado'    && !isBloqueado) return false;
