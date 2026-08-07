@@ -438,6 +438,11 @@ function aplicarFiltros() {
   });
 
   // Ordenar
+  // Debug consumo nos filtrados
+  const exF = _filtrados.find(r => (r.codigo||'').trim() === '100000139' && (r.filial||'').trim() === '01');
+  if (exF) console.log('Filtrados consumo 01|100000139:', exF._consumo_total, exF._cobertura);
+  else console.log('100000139 filial 01 nao encontrado nos filtrados, total filtrados:', _filtrados.length);
+
   _filtrados.sort((a, b) => {
     let va = a[_sortCol] ?? '', vb = b[_sortCol] ?? '';
     if (typeof va === 'string') va = va.toLowerCase();
