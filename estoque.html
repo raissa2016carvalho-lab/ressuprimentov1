@@ -484,6 +484,9 @@ function renderTabela() {
   const inicio = (_pagina - 1) * POR_PAGINA;
   const pagina = _filtrados.slice(inicio, inicio + POR_PAGINA);
   _paginaAtual = pagina;
+  // Debug consumo
+  const ex = pagina.find(r => (r.codigo||'').trim() === '100000139');
+  if (ex) console.log('Render debug:', ex.filial, ex._consumo_total, ex._cobertura);
 
   if (!_filtrados.length) {
     document.getElementById('tabela-container').innerHTML = '<div class="vazio">Nenhum item encontrado com esses filtros.</div>';
