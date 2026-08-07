@@ -332,6 +332,16 @@ async function carregarConsumo(rows) {
   });
 
   console.log(`Consumo 2026 carregado: ${Object.keys(_mapaConsumo).length} combinações`);
+  // Debug: mostrar primeiras chaves do mapa de consumo
+  const keysConsumo = Object.keys(_mapaConsumo).slice(0,3);
+  console.log('Chaves consumo (exemplo):', keysConsumo);
+  // Debug: mostrar chaves do estoque para o mesmo produto
+  const exemploEstoque = rows.find(r => (r.codigo||'').trim() === '100000139');
+  if (exemploEstoque) {
+    const kEx = `${String(exemploEstoque.filial||'').trim()}|${(exemploEstoque.codigo||'').trim()}`;
+    console.log('Chave estoque (100000139 filial 01):', kEx);
+    console.log('Consumo encontrado?', !!_mapaConsumo[kEx]);
+  }
 }
 
 
