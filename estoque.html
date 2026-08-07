@@ -214,7 +214,7 @@ async function carregar() {
   for (;;) {
     let { data, error } = await db
       .from('estoque_sb2')
-      .select('filial,codigo,descricao,grupo,armazem,qtd_atual,qtd_fim,custo_medio,bloqueado,status,dt_ult_entrada,dt_ult_movimento')
+      .select('filial,codigo,descricao,grupo,armazem,qtd_atual,custo_medio,bloqueado,status,dt_ult_movimento')
       
       .range(off, off + 999);
 
@@ -389,12 +389,11 @@ function renderTabela() {
       <td class="cod">${(r.filial||'').trim()}</td>
       <td class="cod">${(r.codigo||'').trim()}</td>
       <td>${(r.descricao||'—')}</td>
+      <td>${(r.grupo||'—')}</td>
       <td>${(r.armazem||'').trim()||'—'}</td>
-      <td>${nivelBar(r.qtd_atual)}</td>
-      <td class="num">${(Number(r.qtd_fim)||0).toLocaleString('pt-BR')}</td>
+      <td class="num">${(Number(r.qtd_atual)||0).toLocaleString('pt-BR')}</td>
       <td class="num">${(Number(r.custo_medio)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td>${badgeBloq(r.bloqueado)}</td>
-      <td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_entrada)}</td>
       <td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_movimento)}</td>
     </tr>
   `).join('');
@@ -405,12 +404,11 @@ function renderTabela() {
         ${th('filial','Filial')}
         ${th('codigo','Código')}
         ${th('descricao','Descrição')}
+        ${th('grupo','Grupo')}
         ${th('armazem','Armazém')}
         ${th('qtd_atual','Qtd Atual')}
-        ${th('qtd_fim','Qtd Final')}
         ${th('custo_medio','Custo Médio')}
         ${th('bloqueado','Status')}
-        ${th('dt_ult_entrada','Últ. Entrada')}
         ${th('dt_ult_movimento','Últ. Mov.')}
       </tr></thead>
       <tbody>${linhas}</tbody>
