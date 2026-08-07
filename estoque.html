@@ -433,10 +433,7 @@ function aplicarFiltros() {
   });
 
   // Ordenar
-  // Debug consumo nos filtrados
-  const exF = _filtrados.find(r => (r.codigo||'').trim() === '100000139' && (r.filial||'').trim() === '01');
-  if (exF)
-  else
+
 
   _filtrados.sort((a, b) => {
     let va = a[_sortCol] ?? '', vb = b[_sortCol] ?? '';
