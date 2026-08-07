@@ -1174,6 +1174,32 @@ async function carregarAcompanhamento(){
   _popularCompradores();
   // Carregar % em background usando sc_pedidos (fonte correta)
   setTimeout(()=>_carregarTodasEmParalelo(todas),100);
+  // Carregar status das SCs em background
+  setTimeout(async()=>{
+    let comSC=todas.filter(s=>s.sc_numero&&s.sc_numero.trim());
+    let scNums=[...new Set(comSC.map(s=>s.sc_numero.trim()))];
+    if(!scNums.length)return;
+    for(let i=0;i<scNums.length;i+=100){
+      let lote=scNums.slice(i,i+100);
+      let{data:rows}=await db.from('sc_pedidos').select('c1_num,status_desc').in('c1_num',lote).limit(lote.length);
+      let scStatus={};
+      (rows||[]).forEach(r=>{if(r.c1_num&&r.status_desc&&!scStatus[r.c1_num])scStatus[r.c1_num]=r.status_desc;});
+      comSC.filter(s=>lote.includes(s.sc_numero.trim())).forEach(s=>{
+        let el=document.getElementById('sc-status-'+s.id);
+        let st=scStatus[s.sc_numero.trim()]||'';
+        if(el&&st){
+          let cor='#94a3b8';
+          if(st.includes('Totalmente'))cor='#16a34a';
+          else if(st.includes('Parcialmente'))cor='#f59e0b';
+          else if(st.includes('Rejeit'))cor='#ef4444';
+          else if(st.includes('Elim'))cor='#94a3b8';
+          else if(st.includes('Pendente'))cor='#d97706';
+          el.textContent=st.replace('Solicitação ','').replace(' Utilizada em Cotação','');
+          el.style.color=cor;
+        }
+      });
+    }
+  },500);
 }
 
 async function _carregarTodasEmParalelo(sols){
@@ -1565,9 +1591,12 @@ function renderPaginaAcomp(){
       return `<div class="card" style="border-radius:10px;overflow:hidden;margin-bottom:2px">
         <div onclick="expandirAcomp(${s.id},this)" style="padding:12px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;cursor:pointer">
           <input type="checkbox" class="acomp-cb" data-id="${s.id}" onchange="atualizarBarraCons()" onclick="event.stopPropagation()" style="width:16px;height:16px;flex-shrink:0;accent-color:#1e40af">
-          <div style="display:flex;align-items:center;gap:6px;min-width:90px">
-            <span style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#1e40af">${sc}</span>
-            <button onclick="event.stopPropagation();editarSCAcomp(${s.id},'${(s.sc_numero||'').trim()}')" title="Alterar SC" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0;line-height:1">✏️</button>
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:90px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#1e40af">${sc}</span>
+              <button onclick="event.stopPropagation();editarSCAcomp(${s.id},'${(s.sc_numero||'').trim()}')" title="Alterar SC" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0;line-height:1">✏️</button>
+            </div>
+            ${s.sc_numero?`<span id="sc-status-${s.id}" style="font-size:9px;color:#94a3b8;font-family:ui-monospace,monospace">—</span>`:''}
           </div>
           <div style="flex:1;min-width:200px">
             <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
