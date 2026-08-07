@@ -296,7 +296,6 @@ async function carregarConsumo(rows) {
     off += 1000;
     if (off > 200000) break; // segurança
   }
-  console.log(`Total consumo registros: ${consumos.length}`);
 
   // Agrupa por filial+produto
   const agrup = {};
@@ -330,17 +329,13 @@ async function carregarConsumo(rows) {
       r._cobertura      = null;
     }
   });
-
-  console.log(`Consumo 2026 carregado: ${Object.keys(_mapaConsumo).length} combinações`);
   // Debug: mostrar primeiras chaves do mapa de consumo
   const keysConsumo = Object.keys(_mapaConsumo).slice(0,3);
-  console.log('Chaves consumo (exemplo):', keysConsumo);
   // Debug: mostrar chaves do estoque para o mesmo produto
   const exemploEstoque = rows.find(r => (r.codigo||'').trim() === '100000139');
   if (exemploEstoque) {
     const kEx = `${String(exemploEstoque.filial||'').trim()}|${(exemploEstoque.codigo||'').trim()}`;
-    console.log('Chave estoque (100000139 filial 01):', kEx);
-    console.log('Consumo encontrado?', !!_mapaConsumo[kEx]);
+
   }
 }
 
@@ -440,8 +435,8 @@ function aplicarFiltros() {
   // Ordenar
   // Debug consumo nos filtrados
   const exF = _filtrados.find(r => (r.codigo||'').trim() === '100000139' && (r.filial||'').trim() === '01');
-  if (exF) console.log('Filtrados consumo 01|100000139:', exF._consumo_total, exF._cobertura);
-  else console.log('100000139 filial 01 nao encontrado nos filtrados, total filtrados:', _filtrados.length);
+  if (exF)
+  else
 
   _filtrados.sort((a, b) => {
     let va = a[_sortCol] ?? '', vb = b[_sortCol] ?? '';
@@ -491,7 +486,7 @@ function renderTabela() {
   _paginaAtual = pagina;
   // Debug consumo
   const ex = pagina.find(r => (r.codigo||'').trim() === '100000139');
-  if (ex) console.log('Render debug:', ex.filial, ex._consumo_total, ex._cobertura);
+  if (ex)
 
   if (!_filtrados.length) {
     document.getElementById('tabela-container').innerHTML = '<div class="vazio">Nenhum item encontrado com esses filtros.</div>';
@@ -545,8 +540,8 @@ function renderTabela() {
       <td class="num">${(Number(r.custo_medio)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td>${badgeBloq(r.bloqueado)}</td>
       <td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_movimento)}</td>
-      <td class="num">${r._consumo_total > 0 ? r._consumo_total.toLocaleString('pt-BR') : '—'}</td>
-      <td class="num" style="color:${r._cobertura === null ? '#94a3b8' : r._cobertura < 1 ? '#ef4444' : r._cobertura < 3 ? '#f59e0b' : '#16a34a'}">${(r._cobertura != null && !isNaN(r._cobertura)) ? Number(r._cobertura).toFixed(1) + ' m' : '—'}</td>
+      <td class="num">${(Number(r._consumo_total)||0) > 0 ? (Number(r._consumo_total)).toLocaleString('pt-BR') : '—'}</td>
+      <td class="num" style="color:${(r._cobertura == null || isNaN(r._cobertura)) ? '#94a3b8' : Number(r._cobertura) < 1 ? '#ef4444' : r._cobertura < 3 ? '#f59e0b' : '#16a34a'}">${(r._cobertura != null && r._cobertura !== undefined && !isNaN(Number(r._cobertura))) ? Number(r._cobertura).toFixed(1) + ' m' : '—'}</td>
     </tr>
   `).join('');
 
