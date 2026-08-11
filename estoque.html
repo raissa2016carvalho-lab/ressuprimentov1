@@ -398,7 +398,7 @@ function renderTabela() {
           'Média mensal: ' + (Number(r._consumo_media)||0).toFixed(1) + ' un/mês\n' +
           'Cálculo: ' + (Number(r.qtd_atual)||0) + ' ÷ ' + (Number(r._consumo_media)||0).toFixed(1) + ' = ' + Number(r._cobertura).toFixed(1) + ' meses'
           : 'Sem histórico de consumo em 2026'}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
-      <td style="text-align:center"><button onclick="baixarExcelSCsAbertas('${(r.filial||'').trim()}','${(r.codigo||'').trim()}','${(r.descricao||'').replace(/'/g,\"\\'\")}'" style="background:#1e40af;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600">⬇ SCs</button></td>
+      <td style="text-align:center"><button data-idx="${i}" onclick="baixarExcelSCsAbertas(this)" style="background:#1e40af;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600">⬇ SCs</button></td>
     </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
@@ -421,7 +421,13 @@ function renderTabela() {
 }
 
 // ── EXCEL SCs ABERTAS ────────────────────────────────────
-async function baixarExcelSCsAbertas(filial, codigo, descricao) {
+async function baixarExcelSCsAbertas(btn) {
+  const idx = parseInt(btn.dataset.idx);
+  const r = _paginaAtual[idx];
+  if (!r) return;
+  const filial = (r.filial||'').trim();
+  const codigo = (r.codigo||'').trim();
+  const descricao = r.descricao||'';
   if (!codigo) { alert('Código inválido.'); return; }
   // Buscar sc_pedidos por produto e filial
   let rows = [], off = 0;
