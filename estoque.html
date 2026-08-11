@@ -469,10 +469,10 @@ async function baixarExcelSCsAbertas(btn) {
   if (!scRows.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
 
   // Buscar pedidos_compra para as SCs encontradas
-  const scNums = [...new Set(scRows.map(r2 => (r2.c1_num||'').trim()).filter(Boolean))];
+  const scNumsPC = [...new Set(scRows.map(r2 => (r2.c1_num||'').trim()).filter(Boolean))];
   let pcsPorSC = {};
-  for (let i = 0; i < scNums.length; i += 50) {
-    const lote = scNums.slice(i, i+50);
+  for (let i = 0; i < scNumsPC.length; i += 50) {
+    const lote = scNumsPC.slice(i, i+50);
     const vars = lote.map(s => `c7_numsc.eq.${s}`).join(',');
     const { data: pcs } = await db.from('pedidos_compra')
       .select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador')
