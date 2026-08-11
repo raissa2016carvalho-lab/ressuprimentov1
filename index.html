@@ -2328,7 +2328,7 @@ async function buscarSC(){
   // Buscar nas solicitações e também na sc_pedidos
   let [{ data: sols }, { data: pcs }] = await Promise.all([
     db.from('solicitacoes').select('*').or(`sc_numero.ilike.%${q}%`).limit(10),
-    db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc', q).limit(50),
+    db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc', q).limit(200),
   ]);
   if(!sols?.length && !pcs?.length){ el.innerHTML='<div class="vazio">Nenhuma SC encontrada.</div>'; return; }
   el.innerHTML = renderCardSC(q, sols||[], pcs||[]);
@@ -2379,6 +2379,8 @@ function renderCardSC(sc, sols, pcs){
     ${pcUnicos.length?`<table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="background:#f8fafc">
         <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600">PC</th>
+        <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600">Filial</th>
+        <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600">Descrição</th>
         <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600">Status</th>
         <th style="padding:6px 10px;text-align:right;color:#64748b;font-weight:600">Qtd</th>
         <th style="padding:6px 10px;text-align:right;color:#64748b;font-weight:600">Valor</th>
@@ -2389,6 +2391,8 @@ function renderCardSC(sc, sols, pcs){
         const cor = isRec(p.status_desc)?'#16a34a':(p.status_desc||'').toLowerCase().includes('aprov')?'#d97706':'#64748b';
         return `<tr style="border-top:1px solid #f1f5f9">
           <td style="padding:6px 10px;font-family:monospace;font-weight:700">${p.c7_num}</td>
+          <td style="padding:6px 10px;font-size:11px;color:#64748b">${p.c7_filial||'—'}</td>
+          <td style="padding:6px 10px;font-size:11px">${p.c7_descri||'—'}</td>
           <td style="padding:6px 10px;color:${cor};font-weight:600">${p.status_desc||'—'}</td>
           <td style="padding:6px 10px;text-align:right">${p.c7_quant||'—'}</td>
           <td style="padding:6px 10px;text-align:right">${p.c7_total?'R$ '+Number(p.c7_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
@@ -2430,7 +2434,7 @@ async function carregarFavoritosSC(){
   for(const sc of _favoritosSC){
     const [{ data: sols },{ data: pcs }] = await Promise.all([
       db.from('solicitacoes').select('*').ilike('sc_numero', sc).limit(5),
-      db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc', sc).limit(50),
+      db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc', sc).limit(200),
     ]);
     html += renderCardSC(sc, sols||[], pcs||[]);
   }
