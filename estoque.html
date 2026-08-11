@@ -135,8 +135,6 @@ tr:hover td{background:#f8fafc}
   <button class="pill-btn" id="pill-ok" onclick="setPill('ok')">✓ Normal</button>
   <button class="pill-btn" id="pill-alerta" onclick="setPill('alerta')">⚠ Nível baixo (≤ 10)</button>
   <button class="pill-btn" id="pill-zero" onclick="setPill('zero')">✕ Zerados</button>
-  <button class="pill-btn" id="pill-bloqueado" onclick="setPill('bloqueado')">🔒 Bloqueados</button>
-  <button class="pill-btn" id="pill-desbloqueado" onclick="setPill('desbloqueado')">🔓 Desbloqueados</button>
 </div>
 
 <div class="resumo" id="resumo"></div>
@@ -387,8 +385,7 @@ function renderTabela() {
       <td>${(r.grupo||'—')}</td>
       <td class="num" onclick="abrirPopup(${i})" style="cursor:pointer;color:#1e40af;text-decoration:underline dotted" title="Ver por armazém">${badgeQtd(r.qtd_atual)}</td>
       <td class="num">${(Number(r.custo_medio)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td>${badgeBloq(r.bloqueado)}</td>
-      <td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_movimento)}</td>
+<td style="color:#64748b;font-size:12px">${fmtData(r.dt_ult_movimento)}</td>
       <td class="num">${(Number(r._consumo_total)||0) > 0 ? Number(r._consumo_total).toLocaleString('pt-BR') : '—'}</td>
       <td class="num" style="color:${corCobertura(r._cobertura)};cursor:${r._cobertura != null ? 'help' : 'default'}" 
         title="${r._cobertura != null ? 
@@ -410,7 +407,6 @@ function renderTabela() {
         ${th('grupo','Grupo')}
         ${th('qtd_atual','Qtd Atual')}
         ${th('custo_medio','Custo Médio')}
-        ${th('bloqueado','Status')}
         ${th('dt_ult_movimento','Últ. Mov.')}
         ${th('_consumo_total','Consumo 2026')}
         ${th('_cobertura','Cobertura')}
