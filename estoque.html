@@ -426,122 +426,81 @@ async function baixarExcelSCsAbertas(btn) {
   const descricao = r.descricao||'';
   if (!codigo) { alert('Código inválido.'); return; }
 
-  // 1. Buscar solicitações da filial que têm este item (status aberto)
-  const statusAbertos = ['aprovada','parcial','aguardando_master','pendente'];
-  let solIds = [], off0 = 0;
+  // Buscar CCs da filial para filtrar sc_pedidos
+  const { data: ccsData } = await db.from('centros_custo').select('cc').eq('filial', filial);
+  const ccs = (ccsData||[]).map(c => c.cc).filter(Boolean);
+
+  // Buscar sc_pedidos por produto + CC da filial (status aberto)
+  const statusIgnorar = ['Solicitação Totalmente Atendida','Elim. por Resíduo','Solicitação Rejeitada','Solicitação Rejeitada pelo Compras'];
+  let scRows = [], off = 0;
   for (;;) {
-    let q = db.from('solicitacoes').select('id,sc_numero,cc,filial,status,observacao');
-    if (filial) q = q.eq('filial', filial);
-    q = q.in('status', statusAbertos).range(off0, off0+999);
-    const { data: sols } = await q;
-    if (!sols || !sols.length) break;
-    solIds = solIds.concat(sols);
-    if (sols.length < 1000) break;
-    off0 += 1000;
-  }
-  if (!solIds.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
-
-  // 2. Buscar itens dessas solicitações que contenham o produto
-  const ids = solIds.map(s => s.id);
-  let itensEnc = [];
-  for (let i = 0; i < ids.length; i += 200) {
-    const lote = ids.slice(i, i+200);
-    const { data: its } = await db.from('solicitacao_itens')
-      .select('solicitacao_id,codigo,quantidade,qtd_almoxarife,situacao')
-      .in('solicitacao_id', lote)
-      .eq('codigo', codigo)
-      .neq('situacao', 'recusado');
-    itensEnc = itensEnc.concat(its||[]);
-  }
-  if (!itensEnc.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
-
-  // Mapa solicitacao_id -> solicitacao
-  const solMap = {};
-  solIds.forEach(s => solMap[s.id] = s);
-
-  // 3. Buscar sc_pedidos para as SCs encontradas
-  const scNums = [...new Set(solIds.map(s => (s.sc_numero||'').trim()).filter(Boolean))];
-  let rows = [];
-  if (scNums.length > 0) {
-    for (let i = 0; i < scNums.length; i += 50) {
-      const lote = scNums.slice(i, i+50);
-      const { data } = await db.from('sc_pedidos')
-        .select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,status_desc,pc_numero,c1_emissao,pc_comprador')
-        .in('c1_num', lote)
-        .eq('c1_produto', codigo);
-      rows = rows.concat(data||[]);
-    }
+    let q = db.from('sc_pedidos')
+      .select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,c1_emissao,status_desc,pc_numero,pc_status,pc_comprador')
+      .eq('c1_produto', codigo);
+    if (ccs.length > 0) q = q.in('c1_cc', ccs);
+    const { data } = await q.range(off, off+999);
+    if (!data||!data.length) break;
+    const filtrados = data.filter(row => !statusIgnorar.includes(row.status_desc));
+    scRows = scRows.concat(filtrados);
+    if (data.length < 1000) break;
+    off += 1000;
   }
 
-  // Montar linha por solicitação que tem o item
-  const linhasExcel = itensEnc.map(it => {
-    const sol = solMap[it.solicitacao_id] || {};
-    const sc = (sol.sc_numero||'').trim();
-    const pcRows = rows.filter(r2 => (r2.c1_num||'').trim() === sc);
-    return { sol, it, sc, pcRows };
-  });
+  if (!scRows.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
 
-  if (!linhasExcel.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
-
-  // Variável rows para compatibilidade abaixo
-  const _linhas = linhasExcel;
-  // Buscar pedidos_compra para trazer status real do PC
-  const scNumsOld = [...new Set(rows.map(r => (r.c1_num||'').trim()).filter(Boolean))];
-  let pcMap = {};
-  for (let i = 0; i < scNumsOld.length; i += 50) {
-    const lote = scNumsOld.slice(i, i+50);
+  // Buscar pedidos_compra para as SCs encontradas
+  const scNums = [...new Set(scRows.map(r2 => (r2.c1_num||'').trim()).filter(Boolean))];
+  let pcsPorSC = {};
+  for (let i = 0; i < scNums.length; i += 50) {
+    const lote = scNums.slice(i, i+50);
     const vars = lote.map(s => `c7_numsc.eq.${s}`).join(',');
     const { data: pcs } = await db.from('pedidos_compra')
       .select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador')
-      .or(vars)
-      .eq('c7_produto', codigo);
+      .or(vars).eq('c7_produto', codigo);
     (pcs||[]).forEach(p => {
       const k = (p.c7_numsc||'').trim();
-      if (!pcMap[k]) pcMap[k] = [];
-      pcMap[k].push(p);
+      if (!pcsPorSC[k]) pcsPorSC[k] = [];
+      pcsPorSC[k].push(p);
     });
   }
-  const fmtDt = d => { if(!d)return''; const s=String(d).replace(/-/g,''); return s.length===8?s.slice(6,8)+'/'+s.slice(4,6)+'/'+s.slice(0,4):d; };
-  // Buscar pedidos_compra para as SCs
-  const scNumsPC = [...new Set(_linhas.map(l=>l.sc).filter(Boolean))];
-  let pcMap2 = {};
-  for (let i = 0; i < scNumsPC.length; i += 50) {
-    const lote = scNumsPC.slice(i, i+50);
-    const vars = lote.map(s=>`c7_numsc.eq.${s}`).join(',');
-    const { data: pcs } = await db.from('pedidos_compra')
-      .select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador')
-      .or(vars).eq('c7_produto', codigo);
-    (pcs||[]).forEach(p => { const k=(p.c7_numsc||'').trim(); if(!pcMap2[k])pcMap2[k]=[]; pcMap2[k].push(p); });
-  }
-  const excelRows = _linhas.map(({sol, it, sc, pcRows}) => {
-    const pcs = pcMap2[sc] || [];
-    const pcNums = pcs.map(p=>p.c7_num).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
+
+  const fmtDt = d => {
+    if (!d) return '';
+    const s = String(d).replace(/-/g,'').slice(0,8);
+    return s.length===8 ? s.slice(6)+'/'+s.slice(4,6)+'/'+s.slice(0,4) : d;
+  };
+
+  // Uma linha por sc_pedidos, cruzando com pedidos_compra
+  const excelRows = scRows.map(row => {
+    const sc = (row.c1_num||'').trim();
+    const pcs = pcsPorSC[sc] || [];
+    const pcNums = [...new Set(pcs.map(p=>p.c7_num))].join(', ') || 'Sem PC';
     const pcStatus = pcs.length ? [...new Set(pcs.map(p=>p.status_desc))].join(', ') : 'Sem PC';
-    const qtdPedida = pcs.reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+    const qtdPC = pcs.reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
     const valorPC = pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
-    const dtEntrega = pcs.map(p=>p.dt_entrega).filter(Boolean).sort().pop()||'';
-    const scRow = pcRows[0]||{};
+    const dtEnt = pcs.map(p=>p.dt_entrega).filter(Boolean).sort().pop()||'';
+    const comprador = pcs[0]?.c7_comprador || row.pc_comprador || '';
     return {
-      'SC': sc||'Sem SC',
+      'SC': sc,
+      'CC': (row.c1_cc||'').trim(),
       'Filial': filial,
-      'CC': sol.cc||'',
-      'Status Sol.': sol.status||'',
-      'Obs': sol.observacao||'',
       'Código': codigo,
       'Descrição': descricao,
-      'Qtd Solicitada': Number(it.quantidade)||0,
-      'Qtd Almox': it.qtd_almoxarife!=null?it.qtd_almoxarife:'',
-      'Emissão SC': fmtDt(scRow.c1_emissao||''),
-      'Nº PC': pcNums||'Sem PC',
-      'Qtd PC': qtdPedida||'',
-      'Valor PC (R$)': valorPC?valorPC.toFixed(2):'',
+      'Qtd SC': Number(row.c1_quant)||0,
+      'Qtd Entregue': Number(row.c1_quje)||0,
+      'Status SC': row.status_desc||'',
+      'Emissão SC': fmtDt(row.c1_emissao),
+      'Nº PC': pcNums,
+      'Qtd PC': qtdPC||'',
+      'Valor PC (R$)': valorPC ? valorPC.toFixed(2) : '',
       'Status PC': pcStatus,
-      'Previsão Entrega': fmtDt(dtEntrega),
-      'Comprador': scRow.pc_comprador||pcs[0]?.c7_comprador||'',
+      'Previsão Entrega': fmtDt(dtEnt),
+      'Comprador': comprador,
     };
   });
+
   const ws = XLSX.utils.json_to_sheet(excelRows);
-  ws['!cols'] = [{wch:10},{wch:8},{wch:12},{wch:12},{wch:50},{wch:8},{wch:10},{wch:30},{wch:12},{wch:14},{wch:8},{wch:12},{wch:30},{wch:14},{wch:20}];
+  ws['!cols'] = [{wch:10},{wch:12},{wch:8},{wch:12},{wch:50},{wch:10},{wch:12},{wch:30},{wch:12},{wch:14},{wch:8},{wch:12},{wch:30},{wch:14},{wch:20}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'SCs Abertas');
   XLSX.writeFile(wb, `scs_abertas_${codigo}.xlsx`);
