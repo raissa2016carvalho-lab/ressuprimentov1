@@ -504,17 +504,17 @@ async function baixarExcelSCsAbertas(btn) {
   const fmtDt = d => { if(!d)return''; const s=String(d).replace(/-/g,''); return s.length===8?s.slice(6,8)+'/'+s.slice(4,6)+'/'+s.slice(0,4):d; };
   // Buscar pedidos_compra para as SCs
   const scNumsPC = [...new Set(_linhas.map(l=>l.sc).filter(Boolean))];
-  let pcMap = {};
+  let pcMap2 = {};
   for (let i = 0; i < scNumsPC.length; i += 50) {
     const lote = scNumsPC.slice(i, i+50);
     const vars = lote.map(s=>`c7_numsc.eq.${s}`).join(',');
     const { data: pcs } = await db.from('pedidos_compra')
       .select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador')
       .or(vars).eq('c7_produto', codigo);
-    (pcs||[]).forEach(p => { const k=(p.c7_numsc||'').trim(); if(!pcMap[k])pcMap[k]=[]; pcMap[k].push(p); });
+    (pcs||[]).forEach(p => { const k=(p.c7_numsc||'').trim(); if(!pcMap2[k])pcMap2[k]=[]; pcMap2[k].push(p); });
   }
   const excelRows = _linhas.map(({sol, it, sc, pcRows}) => {
-    const pcs = pcMap[sc] || [];
+    const pcs = pcMap2[sc] || [];
     const pcNums = pcs.map(p=>p.c7_num).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
     const pcStatus = pcs.length ? [...new Set(pcs.map(p=>p.status_desc))].join(', ') : 'Sem PC';
     const qtdPedida = pcs.reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
