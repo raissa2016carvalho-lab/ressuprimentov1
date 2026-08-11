@@ -486,10 +486,10 @@ async function baixarExcelSCsAbertas(btn) {
   // Variável rows para compatibilidade abaixo
   const _linhas = linhasExcel;
   // Buscar pedidos_compra para trazer status real do PC
-  const scNums = [...new Set(rows.map(r => (r.c1_num||'').trim()).filter(Boolean))];
+  const scNumsOld = [...new Set(rows.map(r => (r.c1_num||'').trim()).filter(Boolean))];
   let pcMap = {};
-  for (let i = 0; i < scNums.length; i += 50) {
-    const lote = scNums.slice(i, i+50);
+  for (let i = 0; i < scNumsOld.length; i += 50) {
+    const lote = scNumsOld.slice(i, i+50);
     const vars = lote.map(s => `c7_numsc.eq.${s}`).join(',');
     const { data: pcs } = await db.from('pedidos_compra')
       .select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador')
