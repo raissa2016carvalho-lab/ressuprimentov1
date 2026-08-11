@@ -395,7 +395,6 @@ function renderTabela() {
           'Média mensal: ' + (Number(r._consumo_media)||0).toFixed(1) + ' un/mês\n' +
           'Cálculo: ' + (Number(r.qtd_atual)||0) + ' ÷ ' + (Number(r._consumo_media)||0).toFixed(1) + ' = ' + Number(r._cobertura).toFixed(1) + ' meses'
           : 'Sem histórico de consumo em 2026'}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
-      <td style="text-align:center"><button data-idx="${i}" onclick="baixarExcelSCsAbertas(this)" style="background:#1e40af;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600">⬇ SCs</button></td>
     </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
@@ -410,7 +409,6 @@ function renderTabela() {
         ${th('dt_ult_movimento','Últ. Mov.')}
         ${th('_consumo_total','Consumo 2026')}
         ${th('_cobertura','Cobertura')}
-        <th>SCs Abertas</th>
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table>`;
@@ -426,44 +424,19 @@ async function baixarExcelSCsAbertas(btn) {
   const descricao = r.descricao||'';
   if (!codigo) { alert('Código inválido.'); return; }
 
-  // Buscar solicitações da filial com SC associada
+  // Buscar sc_pedidos por produto (todas as filiais por enquanto)
   const statusIgnorar = ['Solicitação Totalmente Atendida','Elim. por Resíduo','Solicitação Rejeitada','Solicitação Rejeitada pelo Compras'];
-  let scRows = [];
-
-  // 1. Buscar SCs abertas da filial
-  let solsFilial = [], off0 = 0;
+  let scRows = [], off = 0;
   for (;;) {
-    let q = db.from('solicitacoes').select('id,sc_numero,filial,cc');
-    if (filial) q = q.eq('filial', filial);
-    q = q.not('sc_numero','is',null).range(off0, off0+999);
-    const { data: sols } = await q;
-    if (!sols||!sols.length) break;
-    solsFilial = solsFilial.concat(sols);
-    if (sols.length < 1000) break;
-    off0 += 1000;
-  }
-  const scNums = [...new Set(solsFilial.map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
-  const scFilialMap = {};
-  solsFilial.forEach(s => { if(s.sc_numero) scFilialMap[s.sc_numero.trim()] = s; });
-
-  // 2. Buscar sc_pedidos por produto + SCs da filial
-  if (scNums.length > 0) {
-    for (let i = 0; i < scNums.length; i += 100) {
-      const lote = scNums.slice(i, i+100);
-      let off = 0;
-      for (;;) {
-        const { data } = await db.from('sc_pedidos')
-          .select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,c1_emissao,status_desc,pc_numero,pc_status,pc_comprador')
-          .eq('c1_produto', codigo)
-          .in('c1_num', lote)
-          .range(off, off+999);
-        if (!data||!data.length) break;
-        const filtrados = data.filter(row => !statusIgnorar.includes(row.status_desc));
-        scRows = scRows.concat(filtrados);
-        if (data.length < 1000) break;
-        off += 1000;
-      }
-    }
+    const { data } = await db.from('sc_pedidos')
+      .select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,c1_emissao,status_desc,pc_numero,pc_status,pc_comprador')
+      .eq('c1_produto', codigo)
+      .range(off, off+999);
+    if (!data||!data.length) break;
+    const filtrados = data.filter(row => !statusIgnorar.includes(row.status_desc));
+    scRows = scRows.concat(filtrados);
+    if (data.length < 1000) break;
+    off += 1000;
   }
 
   if (!scRows.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
