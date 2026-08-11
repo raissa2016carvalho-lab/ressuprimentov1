@@ -398,6 +398,7 @@ function renderTabela() {
           'Média mensal: ' + (Number(r._consumo_media)||0).toFixed(1) + ' un/mês\n' +
           'Cálculo: ' + (Number(r.qtd_atual)||0) + ' ÷ ' + (Number(r._consumo_media)||0).toFixed(1) + ' = ' + Number(r._cobertura).toFixed(1) + ' meses'
           : 'Sem histórico de consumo em 2026'}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
+      <td style="text-align:center"><button onclick="baixarExcelSCsAbertas('${(r.filial||'').trim()}','${(r.codigo||'').trim()}','${(r.descricao||'').replace(/'/g,\"\\'\")}'" style="background:#1e40af;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;font-weight:600">⬇ SCs</button></td>
     </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
@@ -413,9 +414,80 @@ function renderTabela() {
         ${th('dt_ult_movimento','Últ. Mov.')}
         ${th('_consumo_total','Consumo 2026')}
         ${th('_cobertura','Cobertura')}
+        <th>SCs Abertas</th>
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table>`;
+}
+
+// ── EXCEL SCs ABERTAS ────────────────────────────────────
+async function baixarExcelSCsAbertas(filial, codigo, descricao) {
+  if (!codigo) { alert('Código inválido.'); return; }
+  // Buscar sc_pedidos por produto e filial
+  let rows = [], off = 0;
+  for (;;) {
+    const { data } = await db.from('sc_pedidos')
+      .select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,status_desc,pc_numero,c1_emissao,pc_comprador')
+      .eq('c1_produto', codigo)
+      .neq('status_desc', 'Solicitação Totalmente Atendida')
+      .neq('status_desc', 'Elim. por Resíduo')
+      .neq('status_desc', 'Solicitação Rejeitada')
+      .neq('status_desc', 'Solicitação Rejeitada pelo Compras')
+      .range(off, off + 999);
+    if (!data || !data.length) break;
+    rows = rows.concat(data);
+    if (data.length < 1000) break;
+    off += 1000;
+  }
+  if (!rows.length) { alert('Nenhuma SC aberta encontrada para este item.'); return; }
+  // Buscar pedidos_compra para trazer status real do PC
+  const scNums = [...new Set(rows.map(r => (r.c1_num||'').trim()).filter(Boolean))];
+  let pcMap = {};
+  for (let i = 0; i < scNums.length; i += 50) {
+    const lote = scNums.slice(i, i+50);
+    const vars = lote.map(s => `c7_numsc.eq.${s}`).join(',');
+    const { data: pcs } = await db.from('pedidos_compra')
+      .select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador')
+      .or(vars)
+      .eq('c7_produto', codigo);
+    (pcs||[]).forEach(p => {
+      const k = (p.c7_numsc||'').trim();
+      if (!pcMap[k]) pcMap[k] = [];
+      pcMap[k].push(p);
+    });
+  }
+  const excelRows = rows.map(r => {
+    const sc = (r.c1_num||'').trim();
+    const pcs = pcMap[sc] || [];
+    const pcNums = pcs.map(p => p.c7_num).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
+    const pcStatus = pcs.length ? [...new Set(pcs.map(p=>p.status_desc))].join(', ') : 'Sem PC';
+    const qtdPedida = pcs.reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+    const valorPC = pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+    const dtEntrega = pcs.map(p=>p.dt_entrega).filter(Boolean).sort().pop() || '';
+    const fmtDt = d => { if(!d)return''; const s=String(d).replace(/-/g,''); return s.length===8?s.slice(6,8)+'/'+s.slice(4,6)+'/'+s.slice(0,4):d; };
+    return {
+      'SC': sc,
+      'Filial SC': (r.c1_filial||'').trim(),
+      'CC': (r.c1_cc||'').trim(),
+      'Código': codigo,
+      'Descrição': descricao,
+      'Qtd SC': Number(r.c1_quant)||0,
+      'Qtd Entregue': Number(r.c1_quje)||0,
+      'Status SC': r.status_desc||'',
+      'Emissão SC': fmtDt(r.c1_emissao),
+      'Nº PC': pcNums||'Sem PC',
+      'Qtd PC': qtdPedida||'',
+      'Valor PC (R$)': valorPC ? valorPC.toFixed(2) : '',
+      'Status PC': pcStatus,
+      'Previsão Entrega': fmtDt(dtEntrega),
+      'Comprador': r.pc_comprador||'',
+    };
+  });
+  const ws = XLSX.utils.json_to_sheet(excelRows);
+  ws['!cols'] = [{wch:10},{wch:8},{wch:12},{wch:12},{wch:50},{wch:8},{wch:10},{wch:30},{wch:12},{wch:14},{wch:8},{wch:12},{wch:30},{wch:14},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'SCs Abertas');
+  XLSX.writeFile(wb, `scs_abertas_${codigo}.xlsx`);
 }
 
 // ── POPUP ARMAZÉNS ───────────────────────────────────────
