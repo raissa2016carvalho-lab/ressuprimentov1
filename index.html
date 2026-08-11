@@ -2346,6 +2346,17 @@ function renderCardSC(sc, sols, pcs){
   const fmtBRL = v => v>0?'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';
   const fmtDt = d => { if(!d)return''; const s=String(d).replace(/-/g,''); return s.length===8?s.slice(6)+'/'+s.slice(4,6)+'/'+s.slice(0,4):d; };
 
+  // Agrupar por filial
+  const filialNomes={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiânia','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia'};
+  const porFilial = {};
+  pcs.forEach(p => {
+    const f = (p.c7_filial||'—').trim();
+    if(!porFilial[f]) porFilial[f] = {rec:0,total:0};
+    porFilial[f].total++;
+    if(isRec(p.status_desc)) porFilial[f].rec++;
+  });
+  const filiaisOrdenadas = Object.entries(porFilial).sort((a,b)=>b[1].total-a[1].total);
+
   // Pedidos únicos
   const pcUnicos = [...new Map(pcs.map(p=>[p.c7_num,p])).values()];
 
@@ -2358,6 +2369,17 @@ function renderCardSC(sc, sols, pcs){
         ${isFav?'⭐':'☆'}
       </button>
     </div>
+    ${filiaisOrdenadas.length?`<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      <span style="font-size:11px;font-weight:600;color:#64748b;margin-right:4px">📍 Filiais:</span>
+      ${filiaisOrdenadas.map(([f,v])=>{
+        const pct=Math.round(v.rec/v.total*100);
+        const cor=pct===100?'#16a34a':pct>0?'#f59e0b':'#64748b';
+        return `<span style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600">
+          <span style="color:#1e40af">${f}</span> <span style="color:#94a3b8;font-size:10px">${filialNomes[f]||''}</span>
+          <span style="color:${cor};margin-left:4px">${v.rec}/${v.total}</span>
+        </span>`;
+      }).join('')}
+    </div>`:''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px">
       <div style="background:#f8fafc;border-radius:8px;padding:10px;text-align:center">
         <div style="font-size:20px;font-weight:800;color:#1e40af">${qtdPcs}</div>
