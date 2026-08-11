@@ -425,23 +425,66 @@ async function baixarExcelSCsAbertas(btn) {
   const codigo = (r.codigo||'').trim();
   const descricao = r.descricao||'';
   if (!codigo) { alert('Código inválido.'); return; }
-  // Buscar sc_pedidos por produto e filial
-  let rows = [], off = 0;
+
+  // 1. Buscar solicitações da filial que têm este item (status aberto)
+  const statusAbertos = ['aprovada','parcial','aguardando_master','pendente'];
+  let solIds = [], off0 = 0;
   for (;;) {
-    const { data } = await db.from('sc_pedidos')
-      .select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,status_desc,pc_numero,c1_emissao,pc_comprador')
-      .eq('c1_produto', codigo)
-      .neq('status_desc', 'Solicitação Totalmente Atendida')
-      .neq('status_desc', 'Elim. por Resíduo')
-      .neq('status_desc', 'Solicitação Rejeitada')
-      .neq('status_desc', 'Solicitação Rejeitada pelo Compras')
-      .range(off, off + 999);
-    if (!data || !data.length) break;
-    rows = rows.concat(data);
-    if (data.length < 1000) break;
-    off += 1000;
+    let q = db.from('solicitacoes').select('id,sc_numero,cc,filial,status,observacao');
+    if (filial) q = q.eq('filial', filial);
+    q = q.in('status', statusAbertos).range(off0, off0+999);
+    const { data: sols } = await q;
+    if (!sols || !sols.length) break;
+    solIds = solIds.concat(sols);
+    if (sols.length < 1000) break;
+    off0 += 1000;
   }
-  if (!rows.length) { alert('Nenhuma SC aberta encontrada para este item.'); return; }
+  if (!solIds.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
+
+  // 2. Buscar itens dessas solicitações que contenham o produto
+  const ids = solIds.map(s => s.id);
+  let itensEnc = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const lote = ids.slice(i, i+200);
+    const { data: its } = await db.from('solicitacao_itens')
+      .select('solicitacao_id,codigo,quantidade,qtd_almoxarife,situacao')
+      .in('solicitacao_id', lote)
+      .eq('codigo', codigo)
+      .neq('situacao', 'recusado');
+    itensEnc = itensEnc.concat(its||[]);
+  }
+  if (!itensEnc.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
+
+  // Mapa solicitacao_id -> solicitacao
+  const solMap = {};
+  solIds.forEach(s => solMap[s.id] = s);
+
+  // 3. Buscar sc_pedidos para as SCs encontradas
+  const scNums = [...new Set(solIds.map(s => (s.sc_numero||'').trim()).filter(Boolean))];
+  let rows = [];
+  if (scNums.length > 0) {
+    for (let i = 0; i < scNums.length; i += 50) {
+      const lote = scNums.slice(i, i+50);
+      const { data } = await db.from('sc_pedidos')
+        .select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,status_desc,pc_numero,c1_emissao,pc_comprador')
+        .in('c1_num', lote)
+        .eq('c1_produto', codigo);
+      rows = rows.concat(data||[]);
+    }
+  }
+
+  // Montar linha por solicitação que tem o item
+  const linhasExcel = itensEnc.map(it => {
+    const sol = solMap[it.solicitacao_id] || {};
+    const sc = (sol.sc_numero||'').trim();
+    const pcRows = rows.filter(r2 => (r2.c1_num||'').trim() === sc);
+    return { sol, it, sc, pcRows };
+  });
+
+  if (!linhasExcel.length) { alert('Nenhuma SC aberta encontrada para este item nesta filial.'); return; }
+
+  // Variável rows para compatibilidade abaixo
+  const _linhas = linhasExcel;
   // Buscar pedidos_compra para trazer status real do PC
   const scNums = [...new Set(rows.map(r => (r.c1_num||'').trim()).filter(Boolean))];
   let pcMap = {};
@@ -458,31 +501,43 @@ async function baixarExcelSCsAbertas(btn) {
       pcMap[k].push(p);
     });
   }
-  const excelRows = rows.map(r => {
-    const sc = (r.c1_num||'').trim();
+  const fmtDt = d => { if(!d)return''; const s=String(d).replace(/-/g,''); return s.length===8?s.slice(6,8)+'/'+s.slice(4,6)+'/'+s.slice(0,4):d; };
+  // Buscar pedidos_compra para as SCs
+  const scNums2 = [...new Set(_linhas.map(l=>l.sc).filter(Boolean))];
+  let pcMap = {};
+  for (let i = 0; i < scNums2.length; i += 50) {
+    const lote = scNums2.slice(i, i+50);
+    const vars = lote.map(s=>`c7_numsc.eq.${s}`).join(',');
+    const { data: pcs } = await db.from('pedidos_compra')
+      .select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador')
+      .or(vars).eq('c7_produto', codigo);
+    (pcs||[]).forEach(p => { const k=(p.c7_numsc||'').trim(); if(!pcMap[k])pcMap[k]=[]; pcMap[k].push(p); });
+  }
+  const excelRows = _linhas.map(({sol, it, sc, pcRows}) => {
     const pcs = pcMap[sc] || [];
-    const pcNums = pcs.map(p => p.c7_num).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
+    const pcNums = pcs.map(p=>p.c7_num).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
     const pcStatus = pcs.length ? [...new Set(pcs.map(p=>p.status_desc))].join(', ') : 'Sem PC';
     const qtdPedida = pcs.reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
     const valorPC = pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
-    const dtEntrega = pcs.map(p=>p.dt_entrega).filter(Boolean).sort().pop() || '';
-    const fmtDt = d => { if(!d)return''; const s=String(d).replace(/-/g,''); return s.length===8?s.slice(6,8)+'/'+s.slice(4,6)+'/'+s.slice(0,4):d; };
+    const dtEntrega = pcs.map(p=>p.dt_entrega).filter(Boolean).sort().pop()||'';
+    const scRow = pcRows[0]||{};
     return {
-      'SC': sc,
-      'Filial SC': (r.c1_filial||'').trim(),
-      'CC': (r.c1_cc||'').trim(),
+      'SC': sc||'Sem SC',
+      'Filial': filial,
+      'CC': sol.cc||'',
+      'Status Sol.': sol.status||'',
+      'Obs': sol.observacao||'',
       'Código': codigo,
       'Descrição': descricao,
-      'Qtd SC': Number(r.c1_quant)||0,
-      'Qtd Entregue': Number(r.c1_quje)||0,
-      'Status SC': r.status_desc||'',
-      'Emissão SC': fmtDt(r.c1_emissao),
+      'Qtd Solicitada': Number(it.quantidade)||0,
+      'Qtd Almox': it.qtd_almoxarife!=null?it.qtd_almoxarife:'',
+      'Emissão SC': fmtDt(scRow.c1_emissao||''),
       'Nº PC': pcNums||'Sem PC',
       'Qtd PC': qtdPedida||'',
-      'Valor PC (R$)': valorPC ? valorPC.toFixed(2) : '',
+      'Valor PC (R$)': valorPC?valorPC.toFixed(2):'',
       'Status PC': pcStatus,
       'Previsão Entrega': fmtDt(dtEntrega),
-      'Comprador': r.pc_comprador||'',
+      'Comprador': scRow.pc_comprador||pcs[0]?.c7_comprador||'',
     };
   });
   const ws = XLSX.utils.json_to_sheet(excelRows);
