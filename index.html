@@ -2348,7 +2348,7 @@ async function buscarSC(){
 }
 window.buscarSC=buscarSC;
 
-function renderCardSC(sc, sols, pcs){
+function renderCardSC(sc, sols, pcs, scPeds){
   const isFav = _favoritosSC.includes(sc);
   const qtdPcs = pcs.length;
   const valor = pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
@@ -2372,6 +2372,7 @@ function renderCardSC(sc, sols, pcs){
 
   // Pedidos únicos
   const pcUnicos = [...new Map(pcs.map(p=>[p.c7_num,p])).values()];
+  const scPedsArr = scPeds||[];
 
   return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:12px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
@@ -2439,6 +2440,27 @@ function renderCardSC(sc, sols, pcs){
       }).join('')}</tbody>
     </table>`:
     '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:12px">Nenhum pedido de compra encontrado para esta SC.</div>'}
+    ${(scPedsArr||[]).length>0?`<div style="margin-top:12px;border-top:1px solid #f1f5f9;padding-top:12px">
+      <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase">Itens da SC</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f8fafc">
+          <th style="padding:5px 8px;text-align:left;color:#64748b">Filial</th>
+          <th style="padding:5px 8px;text-align:left;color:#64748b">CC</th>
+          <th style="padding:5px 8px;text-align:left;color:#64748b">Descrição</th>
+          <th style="padding:5px 8px;text-align:right;color:#64748b">Qtd</th>
+          <th style="padding:5px 8px;text-align:right;color:#64748b">Entregue</th>
+          <th style="padding:5px 8px;text-align:left;color:#64748b">Status SC</th>
+        </tr></thead>
+        <tbody>${scPedsArr.map(r=>`<tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:5px 8px;color:#64748b">${r.c1_filial||'—'}</td>
+          <td style="padding:5px 8px;font-size:11px">${r.c1_cc||'—'}</td>
+          <td style="padding:5px 8px">${r.c1_descri||'—'}</td>
+          <td style="padding:5px 8px;text-align:right">${r.c1_quant||0}</td>
+          <td style="padding:5px 8px;text-align:right">${r.c1_quje||0}</td>
+          <td style="padding:5px 8px;color:#64748b;font-size:11px">${r.status_desc||'—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`:''}
   </div>`;
 }
 window.renderCardSC=renderCardSC;
