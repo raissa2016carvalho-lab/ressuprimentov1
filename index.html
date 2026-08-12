@@ -2326,7 +2326,7 @@ window.debounceSearchSC=debounceSearchSC;
 async function salvarFavoritoDB(sc, adicionar, filial){
   if(!userEmail) return;
   if(adicionar){
-    await db.from('sc_favoritas').upsert({user_email:userEmail,sc_numero:sc,filial:filial||null},{onConflict:'user_email,sc_numero'});
+    await db.from('sc_favoritas').upsert({user_email:userEmail,sc_numero:sc,filial:filial||null},{onConflict:'user_email,sc_numero,filial'});
   } else {
     await db.from('sc_favoritas').delete().eq('user_email',userEmail).eq('sc_numero',sc);
   }
