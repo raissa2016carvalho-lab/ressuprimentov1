@@ -718,7 +718,12 @@ async function carregarComparativo(){
 
   // Adicionar posição de estoque e descrição
   const posMap={};
-  (posicao||[]).forEach(r=>{ posMap[key(r.filial,r.codigo)]=r; });
+  (posicao||[]).forEach(r=>{
+    posMap[key(r.filial,r.codigo)]=r;
+    // Garantir que itens com estoque mas sem movimento também apareçam
+    const k=key(r.filial,r.codigo);
+    if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.codigo,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0};
+  });
   Object.keys(mapa).forEach(k=>{
     const pos=posMap[k];
     mapa[k].descricao=pos?.descricao||'';
@@ -798,8 +803,9 @@ function filtrarComparativo(){
       <tbody>${lista.slice(0,500).map(r=>{
         const d=corDiverg(r.divergencia);
         const fmtQ=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2});
+        const FNOMES={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiânia','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia','44':'Brumado'};
         return `<tr style="border-bottom:1px solid #f1f5f9">
-          <td style="padding:7px 10px;color:#64748b;font-size:11px">${r.filial}</td>
+          <td style="padding:7px 10px;font-size:11px"><span style="color:#1e40af;font-weight:600">${r.filial}</span><br><span style="color:#64748b;font-size:10px">${FNOMES[r.filial]||''}</span></td>
           <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
           <td style="padding:7px 10px;font-size:11px">${r.descricao||'—'}</td>
           <td style="padding:7px 10px;text-align:right;color:#16a34a;font-weight:600">${fmtQ(r.qtd_entrada)}</td>
