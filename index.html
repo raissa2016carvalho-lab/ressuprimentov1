@@ -2488,7 +2488,7 @@ async function carregarFavoritosSC(){
   if(!el) return;
   // Carregar do banco
   if(userEmail){
-    const{data:favs}=await db.from('sc_favoritas').select('sc_numero').eq('user_email',userEmail).order('criado_em',{ascending:false});
+    const{data:favs}=await db.from('sc_favoritas').select('sc_numero,filial').eq('user_email',userEmail).order('criado_em',{ascending:false});
     _favoritosSC=(favs||[]).map(f=>({sc:f.sc_numero,filial:f.filial||''}));
   }
   if(!_favoritosSC.length){ el.innerHTML='<div class="vazio" style="font-size:12px">Nenhuma SC favorita ainda.</div>'; return; }
