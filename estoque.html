@@ -681,10 +681,22 @@ async function carregarComparativo(){
   let qPos = db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio');
   if(filial){ qEnt=qEnt.eq('filial',filial); qSai=qSai.eq('filial',filial); qPos=qPos.eq('filial',filial); }
 
-  const [{ data: entradas },{ data: saidas },{ data: posicao }] = await Promise.all([
-    qEnt.limit(100000),
-    qSai.limit(100000),
-    qPos.limit(50000),
+  // Buscar com paginação para não truncar em 1000 linhas
+  async function buscarTudo(q){
+    let todos=[], off=0;
+    for(;;){
+      const{data}=await q.range(off,off+999);
+      if(!data||!data.length)break;
+      todos=todos.concat(data);
+      if(data.length<1000)break;
+      off+=1000;
+    }
+    return todos;
+  }
+  const [entradas, saidas, posicao] = await Promise.all([
+    buscarTudo(qEnt),
+    buscarTudo(qSai),
+    buscarTudo(qPos),
   ]);
 
   // Consolidar por filial+produto
