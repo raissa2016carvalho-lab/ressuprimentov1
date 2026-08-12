@@ -717,11 +717,13 @@ async function carregarComparativo(){
   });
 
   // Adicionar posição de estoque e descrição
+  // Somar qtd_atual por filial+produto (múltiplos armazéns)
   const posMap={};
   (posicao||[]).forEach(r=>{
-    posMap[key(r.filial,r.codigo)]=r;
-    // Garantir que itens com estoque mas sem movimento também apareçam
     const k=key(r.filial,r.codigo);
+    if(!posMap[k]) posMap[k]={...r,qtd_atual:0};
+    posMap[k].qtd_atual+=Number(r.qtd_atual)||0;
+    // Garantir que itens com estoque mas sem movimento também apareçam
     if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.codigo,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0};
   });
   Object.keys(mapa).forEach(k=>{
