@@ -37,8 +37,19 @@
     <div style="font-size:14px;font-weight:700">🔍 Busca Rápida de SC</div>
   </div>
   <div class=corpo-aba>
-    <div style="display:flex;gap:8px;margin-bottom:20px">
-      <input id=busca-sc-input placeholder="Digite o número da SC (ex: 003231, REGZMP...)" style="flex:1;padding:10px 14px;font-size:14px;border:1px solid #e2e8f0;border-radius:8px" oninput="debounceSearchSC()" onkeydown="if(event.key==='Enter')buscarSC()">
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+      <input id=busca-sc-input placeholder="Nº da SC (ex: 003231, REGZMP...)" style="flex:1;min-width:200px;padding:10px 14px;font-size:14px;border:1px solid #e2e8f0;border-radius:8px" oninput="debounceSearchSC()" onkeydown="if(event.key==='Enter')buscarSC()">
+      <select id=busca-sc-filial style="padding:10px 12px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;min-width:180px">
+        <option value="">Todas as filiais</option>
+        <option value="01">01 — MATRIZ</option><option value="03">03 — PAU DOS FERROS</option><option value="04">04 — ITAPIPOCA</option>
+        <option value="06">06 — CURRAIS NOVOS</option><option value="07">07 — SOBRAL</option><option value="08">08 — APARECIDA DE GOIANIA</option>
+        <option value="09">09 — MARACANAU</option><option value="10">10 — MOSSORO</option><option value="11">11 — ANAPOLIS</option>
+        <option value="13">13 — ALAGOINHAS</option><option value="14">14 — RIBEIRA DO POMBAL</option><option value="15">15 — PAULO AFONSO</option>
+        <option value="22">22 — GOIANIA</option><option value="23">23 — BATURITE</option><option value="24">24 — MORRINHOS</option>
+        <option value="25">25 — CASCAVEL</option><option value="27">27 — CAUCAIA</option><option value="29">29 — HORIZONTE</option>
+        <option value="34">34 — SENHOR DO BONFIM</option><option value="36">36 — LUZIANIA</option><option value="37">37 — DIVINOPOLIS</option>
+        <option value="40">40 — GARANHUNS</option><option value="41">41 — FLORIANO</option><option value="42">42 — LIVRAMENTO</option><option value="43">43 — HORTOLANDIA</option>
+      </select>
       <button onclick="buscarSC()" style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Buscar</button>
     </div>
     <div id=busca-sc-resultado></div>
@@ -2322,13 +2333,15 @@ async function salvarFavoritoDB(sc, adicionar){
 
 async function buscarSC(){
   const q = (document.getElementById('busca-sc-input')?.value||'').trim().toUpperCase();
+  const filialFilt = (document.getElementById('busca-sc-filial')?.value||'').trim();
   const el = document.getElementById('busca-sc-resultado');
   if(!q){ el.innerHTML=''; return; }
   el.innerHTML = '<div class="vazio">Buscando...</div>';
-  // Buscar nas solicitações e também na sc_pedidos
+  let qPCs = db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc', q);
+  if(filialFilt) qPCs = qPCs.eq('c7_filial', filialFilt);
   let [{ data: sols }, { data: pcs }] = await Promise.all([
     db.from('solicitacoes').select('*').or(`sc_numero.ilike.%${q}%`).limit(10),
-    db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc', q).limit(200),
+    qPCs.limit(500),
   ]);
   if(!sols?.length && !pcs?.length){ el.innerHTML='<div class="vazio">Nenhuma SC encontrada.</div>'; return; }
   el.innerHTML = renderCardSC(q, sols||[], pcs||[]);
@@ -2400,6 +2413,7 @@ function renderCardSC(sc, sols, pcs){
     </div>
     ${pcUnicos.length?`<table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="background:#f8fafc">
+        <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600">SC</th>
         <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600">PC</th>
         <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600">Filial</th>
         <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600">Descrição</th>
@@ -2412,6 +2426,7 @@ function renderCardSC(sc, sols, pcs){
       <tbody>${pcUnicos.map(p=>{
         const cor = isRec(p.status_desc)?'#16a34a':(p.status_desc||'').toLowerCase().includes('aprov')?'#d97706':'#64748b';
         return `<tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:6px 10px;font-family:monospace;font-size:11px;color:#94a3b8">${(p.c7_numsc||'').trim()}</td>
           <td style="padding:6px 10px;font-family:monospace;font-weight:700">${p.c7_num}</td>
           <td style="padding:6px 10px;font-size:11px;color:#64748b">${p.c7_filial||'—'}</td>
           <td style="padding:6px 10px;font-size:11px">${p.c7_descri||'—'}</td>
