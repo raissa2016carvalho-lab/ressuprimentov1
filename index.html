@@ -2323,10 +2323,10 @@ function debounceSearchSC(){
 }
 window.debounceSearchSC=debounceSearchSC;
 
-async function salvarFavoritoDB(sc, adicionar){
+async function salvarFavoritoDB(sc, adicionar, filial){
   if(!userEmail) return;
   if(adicionar){
-    await db.from('sc_favoritas').upsert({user_email:userEmail,sc_numero:sc},{onConflict:'user_email,sc_numero'});
+    await db.from('sc_favoritas').upsert({user_email:userEmail,sc_numero:sc,filial:filial||null},{onConflict:'user_email,sc_numero'});
   } else {
     await db.from('sc_favoritas').delete().eq('user_email',userEmail).eq('sc_numero',sc);
   }
@@ -2348,12 +2348,12 @@ async function buscarSC(){
     qSCPeds.limit(500),
   ]);
   if(!sols?.length && !pcs?.length && !scPeds?.length){ el.innerHTML='<div class="vazio">Nenhuma SC encontrada.</div>'; return; }
-  el.innerHTML = renderCardSC(q, sols||[], pcs||[], scPeds||[]);
+  el.innerHTML = renderCardSC(q, sols||[], pcs||[], scPeds||[], filialFilt);
 }
 window.buscarSC=buscarSC;
 
-function renderCardSC(sc, sols, pcs, scPeds){
-  const isFav = _favoritosSC.includes(sc);
+function renderCardSC(sc, sols, pcs, scPeds, filialFiltAtual){
+  const isFav = _favoritosSC.find(f=>f.sc===sc);
   const qtdPcs = pcs.length;
   const valor = pcs.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
   const isRec = s => (s||'').toLowerCase().includes('receb')||(s||'').toLowerCase().includes('pré-nota');
@@ -2383,7 +2383,7 @@ function renderCardSC(sc, sols, pcs, scPeds){
       <div style="font-size:16px;font-weight:800;font-family:monospace;color:#1e40af">SC ${sc}</div>
       ${sol.cc?`<span style="font-size:12px;color:#64748b">${ccMap[sol.cc]?.nome||sol.cc}</span>`:''}
       ${sol.observacao?`<span style="font-size:11px;color:#94a3b8">· ${sol.observacao}</span>`:''}
-      <button onclick="toggleFavSC('${sc}')" id="fav-btn-${sc}" style="margin-left:auto;border:none;background:none;font-size:20px;cursor:pointer" title="${isFav?'Desfavoritar':'Favoritar'}">
+      <button onclick="toggleFavSC('${sc}','${filialFiltAtual||''}')" id="fav-btn-${sc}" style="margin-left:auto;border:none;background:none;font-size:20px;cursor:pointer" title="${isFav?'Desfavoritar':'Favoritar'}">
         ${isFav?'⭐':'☆'}
       </button>
     </div>
@@ -2469,14 +2469,14 @@ function renderCardSC(sc, sols, pcs, scPeds){
 }
 window.renderCardSC=renderCardSC;
 
-async function toggleFavSC(sc){
-  const isFav = _favoritosSC.includes(sc);
+async function toggleFavSC(sc, filial){
+  const isFav = _favoritosSC.find(f=>f.sc===sc);
   if(isFav){
-    _favoritosSC = _favoritosSC.filter(s=>s!==sc);
+    _favoritosSC = _favoritosSC.filter(f=>f.sc!==sc);
   } else {
-    _favoritosSC.push(sc);
+    _favoritosSC.push({sc,filial:filial||''});
   }
-  await salvarFavoritoDB(sc, !isFav);
+  await salvarFavoritoDB(sc, !isFav, filial);
   const btn = document.getElementById('fav-btn-'+sc);
   if(btn) btn.textContent = _favoritosSC.includes(sc)?'⭐':'☆';
   carregarFavoritosSC();
@@ -2489,28 +2489,29 @@ async function carregarFavoritosSC(){
   // Carregar do banco
   if(userEmail){
     const{data:favs}=await db.from('sc_favoritas').select('sc_numero').eq('user_email',userEmail).order('criado_em',{ascending:false});
-    _favoritosSC=(favs||[]).map(f=>f.sc_numero);
+    _favoritosSC=(favs||[]).map(f=>({sc:f.sc_numero,filial:f.filial||''}));
   }
   if(!_favoritosSC.length){ el.innerHTML='<div class="vazio" style="font-size:12px">Nenhuma SC favorita ainda.</div>'; return; }
   // Renderizar cards colapsáveis
-  el.innerHTML = _favoritosSC.map(sc=>`
+  el.innerHTML = _favoritosSC.map(fav=>`
     <div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden">
-      <div onclick="toggleFavCard('${sc}')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:#fff;transition:background .15s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+      <div onclick="toggleFavCard('${fav.sc}','${fav.filial||''}')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:#fff;transition:background .15s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
         <span style="font-size:14px">⭐</span>
-        <span style="font-family:monospace;font-weight:700;color:#1e40af;font-size:13px">SC ${sc}</span>
-        <span id="fav-resumo-${sc}" style="font-size:11px;color:#94a3b8;margin-left:4px"></span>
-        <span style="margin-left:auto;color:#94a3b8;font-size:12px" id="fav-seta-${sc}">▼</span>
-        <button onclick="event.stopPropagation();toggleFavSC('${sc}')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:4px;font-weight:600" title="Desfavoritar">✕</button>
+        <span style="font-family:monospace;font-weight:700;color:#1e40af;font-size:13px">SC ${fav.sc}</span>
+        ${fav.filial?`<span style="font-size:11px;background:#eff6ff;color:#1e40af;border-radius:4px;padding:1px 6px">${fav.filial}</span>`:''}
+        <span id="fav-resumo-${fav.sc}-${fav.filial||'x'}" style="font-size:11px;color:#94a3b8;margin-left:4px"></span>
+        <span style="margin-left:auto;color:#94a3b8;font-size:12px" id="fav-seta-${fav.sc}-${fav.filial||'x'}">▼</span>
+        <button onclick="event.stopPropagation();toggleFavSC('${fav.sc}','${fav.filial||''}')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:4px;font-weight:600" title="Desfavoritar">✕</button>
       </div>
-      <div id="fav-corpo-${sc}" style="display:none;border-top:1px solid #f1f5f9;padding:14px"></div>
+      <div id="fav-corpo-${fav.sc}-${fav.filial||'x'}" style="display:none;border-top:1px solid #f1f5f9;padding:14px"></div>
     </div>`).join('');
-  // Carregar resumo de cada favorito em background
-  _favoritosSC.forEach(sc=>_carregarResumoFav(sc));
+  _favoritosSC.forEach(fav=>_carregarResumoFav(fav.sc,fav.filial));
 }
 
-async function toggleFavCard(sc){
-  const corpo = document.getElementById('fav-corpo-'+sc);
-  const seta = document.getElementById('fav-seta-'+sc);
+async function toggleFavCard(sc,filial){
+  const key=sc+'-'+(filial||'x');
+  const corpo = document.getElementById('fav-corpo-'+key);
+  const seta = document.getElementById('fav-seta-'+key);
   if(!corpo) return;
   if(corpo.style.display==='none'){
     corpo.style.display='block';
@@ -2518,12 +2519,16 @@ async function toggleFavCard(sc){
     if(!corpo.dataset.loaded){
       corpo.dataset.loaded='1';
       corpo.innerHTML='<div class="vazio" style="font-size:12px">Carregando...</div>';
+      let qPCfav=db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc',sc);
+      if(filial)qPCfav=qPCfav.eq('c7_filial',filial);
+      let qSCfav=db.from('sc_pedidos').select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,c1_emissao,status_desc,pc_numero,pc_comprador').eq('c1_num',sc);
+      if(filial)qSCfav=qSCfav.eq('c1_filial',filial);
       const[{data:sols},{data:pcs},{data:scPeds}]=await Promise.all([
         db.from('solicitacoes').select('*').ilike('sc_numero',sc).limit(5),
-        db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc',sc).limit(200),
-        db.from('sc_pedidos').select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,c1_emissao,status_desc,pc_numero,pc_comprador').eq('c1_num',sc).limit(200),
+        qPCfav.limit(200),
+        qSCfav.limit(200),
       ]);
-      corpo.innerHTML=renderCardSC(sc,sols||[],pcs||[],scPeds||[]);
+      corpo.innerHTML=renderCardSC(sc,sols||[],pcs||[],scPeds||[],filial);
     }
   } else {
     corpo.style.display='none';
@@ -2532,10 +2537,12 @@ async function toggleFavCard(sc){
 }
 window.toggleFavCard=toggleFavCard;
 
-async function _carregarResumoFav(sc){
-  const el=document.getElementById('fav-resumo-'+sc);
+async function _carregarResumoFav(sc,filial){
+  const key=sc+'-'+(filial||'x');
+  const el=document.getElementById('fav-resumo-'+key);
   if(!el)return;
-  const{data:pcs}=await db.from('pedidos_compra').select('status_desc').ilike('c7_numsc',sc).limit(100);
+  let qRec=db.from('pedidos_compra').select('status_desc').ilike('c7_numsc',sc);if(filial)qRec=qRec.eq('c7_filial',filial);
+  const{data:pcs}=await qRec.limit(100);
   if(!pcs||!pcs.length){el.textContent='Sem PC';return;}
   const isRec=s=>(s||'').toLowerCase().includes('receb')||(s||'').toLowerCase().includes('pré-nota');
   const rec=pcs.filter(p=>isRec(p.status_desc)).length;
