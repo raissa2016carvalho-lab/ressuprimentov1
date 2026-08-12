@@ -2339,12 +2339,15 @@ async function buscarSC(){
   el.innerHTML = '<div class="vazio">Buscando...</div>';
   let qPCs = db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc', q);
   if(filialFilt) qPCs = qPCs.eq('c7_filial', filialFilt);
-  let [{ data: sols }, { data: pcs }] = await Promise.all([
+  let qSCPeds = db.from('sc_pedidos').select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,c1_emissao,status_desc,pc_numero,pc_comprador').eq('c1_num', q);
+  if(filialFilt) qSCPeds = qSCPeds.eq('c1_filial', filialFilt);
+  let [{ data: sols }, { data: pcs }, { data: scPeds }] = await Promise.all([
     db.from('solicitacoes').select('*').or(`sc_numero.ilike.%${q}%`).limit(10),
     qPCs.limit(500),
+    qSCPeds.limit(500),
   ]);
-  if(!sols?.length && !pcs?.length){ el.innerHTML='<div class="vazio">Nenhuma SC encontrada.</div>'; return; }
-  el.innerHTML = renderCardSC(q, sols||[], pcs||[]);
+  if(!sols?.length && !pcs?.length && !scPeds?.length){ el.innerHTML='<div class="vazio">Nenhuma SC encontrada.</div>'; return; }
+  el.innerHTML = renderCardSC(q, sols||[], pcs||[], scPeds||[]);
 }
 window.buscarSC=buscarSC;
 
