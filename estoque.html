@@ -677,7 +677,7 @@ async function carregarComparativo(){
 
   // Buscar entradas, saídas e posição de estoque em paralelo
   let qEnt = db.from('movimentos_entrada').select('filial,produto,mes,qtd_entrada,valor_entrada');
-  let qSai = db.from('movimentos_saida').select('filial,produto,mes,qtd_saida,valor_saida');
+  let qSai = db.from('consumo_mensal').select('filial,produto,descricao,mes,quantidade');
   let qPos = db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio');
   if(filial){ qEnt=qEnt.eq('filial',filial); qSai=qSai.eq('filial',filial); qPos=qPos.eq('filial',filial); }
 
@@ -712,8 +712,8 @@ async function carregarComparativo(){
   (saidas||[]).forEach(r=>{
     const k=key(r.filial,r.produto);
     if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.produto,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0};
-    mapa[k].qtd_saida+=Number(r.qtd_saida)||0;
-    mapa[k].valor_saida+=Number(r.valor_saida)||0;
+    mapa[k].qtd_saida+=Number(r.quantidade)||0;
+    // consumo_mensal não tem valor_saida
   });
 
   // Adicionar posição de estoque e descrição
@@ -790,7 +790,7 @@ function filtrarComparativo(){
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Código</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Descrição</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">Entradas (12m)</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">Saídas (12m)</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">Consumo SCP (12m)</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af">Saldo Calc.</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569">Estoque Atual</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626">Divergência</th>
