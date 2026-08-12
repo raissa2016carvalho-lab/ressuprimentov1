@@ -37,6 +37,11 @@
     <div style="font-size:14px;font-weight:700">🔍 Busca Rápida de SC</div>
   </div>
   <div class=corpo-aba>
+    <div id=favoritos-sc-section style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">⭐ SCs Favoritas</div>
+      <div id=favoritos-sc-lista><div class="vazio" style="font-size:12px">Nenhuma SC favorita ainda.</div></div>
+    </div>
+    <div style="border-top:1px solid #e2e8f0;margin-bottom:16px"></div>
     <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
       <input id=busca-sc-input placeholder="Nº da SC (ex: 003231, REGZMP...)" style="flex:1;min-width:200px;padding:10px 14px;font-size:14px;border:1px solid #e2e8f0;border-radius:8px" oninput="debounceSearchSC()" onkeydown="if(event.key==='Enter')buscarSC()">
       <select id=busca-sc-filial style="padding:10px 12px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;min-width:180px">
@@ -53,10 +58,6 @@
       <button onclick="buscarSC()" style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Buscar</button>
     </div>
     <div id=busca-sc-resultado></div>
-    <div id=favoritos-sc-section style="margin-top:24px">
-      <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">⭐ SCs Favoritas</div>
-      <div id=favoritos-sc-lista><div class=vazio>Nenhuma SC favorita ainda.</div></div>
-    </div>
   </div>
 </div>
 <div id=aba-settings style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>⚙ Configurações</div><div style=background:#f1f5f9;border-radius:8px;gap:4px;padding:3px;display:flex><button onclick="irSubSettings('bases')" style="color:#0f172a;cursor:pointer;background:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;box-shadow:0 1px 3px #00000014" id=sub-btn-bases>Bases</button><button onclick="irSubSettings('gerentes')" style="color:#64748b;cursor:pointer;background:0 0;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:500" id=sub-btn-gerentes>Gerentes</button><button onclick="irSubSettings('senhas')" style="color:#64748b;cursor:pointer;background:0 0;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:500" id=sub-btn-senhas>Redefinir Senhas</button><button onclick="irSubSettings('ccs')" style="color:#64748b;cursor:pointer;background:0 0;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:500" id=sub-btn-ccs>Consolidar CCs</button></div></div><div class=corpo-aba><div id=sub-bases><div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:10px;align-items:center;gap:12px;max-width:680px;margin-bottom:20px;padding:14px 16px;display:flex"><span style=font-size:22px>🤖</span><div><div style=color:#065f46;font-size:13px;font-weight:600>Sincronização automática ativa</div><div style=color:#047857;margin-top:2px;font-size:12.5px>Os dados são atualizados automaticamente todo dia às 07:00 via <code>sync_ressuprimento.py</code>. Não é necessário subir arquivos manualmente.</div></div></div><div style=grid-template-columns:repeat(2,1fr);gap:10px;max-width:680px;display:grid><div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px"><div style=color:#0f172a;margin-bottom:4px;font-size:13px;font-weight:600>📦 Itens — SB1</div><div style=color:#64748b;margin-bottom:10px;font-size:12px>Código, descrição, unidade e preço</div><div class=carimbo id=carimbo-itens>carregando...</div></div><div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px"><div style=color:#0f172a;margin-bottom:4px;font-size:13px;font-weight:600>🏢 Centros de Custo — CTT</div><div style=color:#64748b;margin-bottom:10px;font-size:12px>CCs bloqueados e desbloqueados</div><div class=carimbo id=carimbo-centros_custo>carregando...</div></div><div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px"><div style=color:#0f172a;margin-bottom:4px;font-size:13px;font-weight:600>👥 Pessoas — SRA</div><div style=color:#64748b;margin-bottom:10px;font-size:12px>Ativos por cargo por CC</div><div class=carimbo id=carimbo-sra>carregando...</div></div><div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px"><div style=color:#0f172a;margin-bottom:4px;font-size:13px;font-weight:600>📊 Consumo — SCP</div><div style=color:#64748b;margin-bottom:10px;font-size:12px>Consumo últimos 3 meses por item/CC</div><div class=carimbo id=carimbo-consumo>carregando...</div></div></div><div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;max-width:680px;margin-top:16px;padding:16px"><div style=margin-bottom:4px;font-size:14px;font-weight:700>📥 Importar Ressuprimentos — CSV</div><div style=color:#64748b;margin-bottom:12px;font-size:12.5px>Importa solicitações já existentes em massa. O CSV deve ter as colunas: <code>n_sc, produto, descricao, qtde, obs, solicitante, status_sc, emissao_sc, Descrição</code></div><label style="cursor:pointer;border:2px dashed #e2e8f0;border-radius:8px;align-items:center;gap:10px;margin-bottom:10px;padding:12px;display:flex" class=upload-area id=label-import-csv><span>📎</span> <span id=nome-import-csv style=color:#64748b;font-size:13px>Escolher arquivo (.csv)</span> <input onchange="document.getElementById('nome-import-csv').textContent=this.files[0]?.name||'Escolher arquivo';document.getElementById('btn-import-csv').disabled=!this.files[0]" accept=.csv id=arquivo-import-csv style=display:none type=file></label><button style="padding:8px 18px;font-size:13px" class=btn-salvar disabled id=btn-import-csv onclick=importarRessuprimentosCSV()>Importar</button><div id=log-import-csv style=margin-top:10px;font-size:12.5px></div></div></div><div id=sub-gerentes style=display:none><p style=color:#64748b;max-width:700px;margin-top:0;margin-bottom:14px;font-size:13px>Associe e-mails a centros de custo. Selecione vários CCs e associe um e-mail de uma vez. O gerente precisa ter login criado no Supabase (<b>Authentication → Users → Add user</b>).<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;max-width:700px;margin-bottom:16px;padding:16px"><div style=flex-wrap:wrap;gap:10px;margin-bottom:12px;display:flex><input placeholder="🔍 Buscar centro de custo..." style="flex:1;min-width:200px;margin:0;padding:9px 12px;font-size:13px" id=busca-cc oninput=filtrarCCs()><button style="color:#475569;white-space:nowrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600" onclick=selecionarTodosFiltrados()>Selecionar todos</button><button style="color:#94a3b8;white-space:nowrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px;font-size:12.5px" onclick=limparSelecao()>Limpar</button></div><div style=flex-wrap:wrap;align-items:center;gap:8px;display:flex><input style="flex:1;min-width:220px;margin:0;padding:9px 12px;font-size:13px" id=email-lote oninput=atualizarBtnLote() placeholder=email@empresa.com type=email><button style="color:#fff;white-space:nowrap;opacity:.4;cursor:not-allowed;background:#1e40af;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700" disabled id=btn-lote onclick=associarEmailLote()>+ Associar aos selecionados (<span id=count-sel>0</span>)</button></div><div id=msg-lote style=margin-top:8px;font-size:12.5px></div></div><div id=lista-gerentes><div class=vazio>Carregando...</div></div></div><div id=sub-ccs style=display:none><p style=color:#64748b;max-width:900px;margin-top:0;margin-bottom:14px;font-size:13px>Lista de todos os centros de custo. Quando dois CCs têm o mesmo nome, você pode consolidá-los para somar consumo e pessoas no formulário.<div style=gap:8px;max-width:900px;margin-bottom:12px;display:flex><input placeholder="🔍 Filtrar por nome ou código..." style="flex:1;margin:0;padding:8px 12px;font-size:13px" id=busca-cc-lista oninput=filtrarListaCC()><label style=color:#475569;cursor:pointer;white-space:nowrap;align-items:center;gap:6px;font-size:12.5px;font-weight:600;display:flex><input id=mostrar-duplicados onchange=filtrarListaCC() style=width:auto;margin:0 type=checkbox> Só duplicados</label></div><div id=eq-msg style=margin-bottom:8px;font-size:12.5px></div><div id=lista-ccs-eq style=max-width:900px><div class=vazio>Carregando...</div></div><div style=max-width:900px;margin-top:16px><div style=color:#0f172a;margin-bottom:8px;font-size:13px;font-weight:700>Equivalências cadastradas</div><div id=lista-equivalencias><div class=vazio>Carregando...</div></div></div></div><div id=sub-senhas style=display:none><p style=color:#64748b;max-width:700px;margin-top:0;margin-bottom:14px;font-size:13px>Pedidos de redefinição de senha enviados pelos gerentes. Aprove e defina uma senha temporária — ela vale por 10 minutos.<div id=lista-pedidos-senha><div class=vazio>Carregando...</div></div></div></div></div></main></div><script>// ===== conexão principal: dados do ressuprimento (login, solicitações) =====
@@ -2490,17 +2491,58 @@ async function carregarFavoritosSC(){
     const{data:favs}=await db.from('sc_favoritas').select('sc_numero').eq('user_email',userEmail).order('criado_em',{ascending:false});
     _favoritosSC=(favs||[]).map(f=>f.sc_numero);
   }
-  if(!_favoritosSC.length){ el.innerHTML='<div class="vazio">Nenhuma SC favorita ainda.</div>'; return; }
-  el.innerHTML = '<div class="vazio">Carregando favoritos...</div>';
-  let html = '';
-  for(const sc of _favoritosSC){
-    const [{ data: sols },{ data: pcs }] = await Promise.all([
-      db.from('solicitacoes').select('*').ilike('sc_numero', sc).limit(5),
-      db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc', sc).limit(200),
-    ]);
-    html += renderCardSC(sc, sols||[], pcs||[]);
+  if(!_favoritosSC.length){ el.innerHTML='<div class="vazio" style="font-size:12px">Nenhuma SC favorita ainda.</div>'; return; }
+  // Renderizar cards colapsáveis
+  el.innerHTML = _favoritosSC.map(sc=>`
+    <div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <div onclick="toggleFavCard('${sc}')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:#fff;transition:background .15s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+        <span style="font-size:14px">⭐</span>
+        <span style="font-family:monospace;font-weight:700;color:#1e40af;font-size:13px">SC ${sc}</span>
+        <span id="fav-resumo-${sc}" style="font-size:11px;color:#94a3b8;margin-left:4px"></span>
+        <span style="margin-left:auto;color:#94a3b8;font-size:12px" id="fav-seta-${sc}">▼</span>
+        <button onclick="event.stopPropagation();toggleFavSC('${sc}')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:4px;font-weight:600" title="Desfavoritar">✕</button>
+      </div>
+      <div id="fav-corpo-${sc}" style="display:none;border-top:1px solid #f1f5f9;padding:14px"></div>
+    </div>`).join('');
+  // Carregar resumo de cada favorito em background
+  _favoritosSC.forEach(sc=>_carregarResumoFav(sc));
+}
+
+async function toggleFavCard(sc){
+  const corpo = document.getElementById('fav-corpo-'+sc);
+  const seta = document.getElementById('fav-seta-'+sc);
+  if(!corpo) return;
+  if(corpo.style.display==='none'){
+    corpo.style.display='block';
+    seta.textContent='▲';
+    if(!corpo.dataset.loaded){
+      corpo.dataset.loaded='1';
+      corpo.innerHTML='<div class="vazio" style="font-size:12px">Carregando...</div>';
+      const[{data:sols},{data:pcs},{data:scPeds}]=await Promise.all([
+        db.from('solicitacoes').select('*').ilike('sc_numero',sc).limit(5),
+        db.from('pedidos_compra').select('c7_numsc,c7_num,c7_produto,c7_descri,c7_filial,c7_quant,c7_total,status_desc,dt_entrega,c7_comprador').ilike('c7_numsc',sc).limit(200),
+        db.from('sc_pedidos').select('c1_num,c1_filial,c1_cc,c1_produto,c1_descri,c1_quant,c1_quje,c1_emissao,status_desc,pc_numero,pc_comprador').eq('c1_num',sc).limit(200),
+      ]);
+      corpo.innerHTML=renderCardSC(sc,sols||[],pcs||[],scPeds||[]);
+    }
+  } else {
+    corpo.style.display='none';
+    seta.textContent='▼';
   }
-  el.innerHTML = html;
+}
+window.toggleFavCard=toggleFavCard;
+
+async function _carregarResumoFav(sc){
+  const el=document.getElementById('fav-resumo-'+sc);
+  if(!el)return;
+  const{data:pcs}=await db.from('pedidos_compra').select('status_desc').ilike('c7_numsc',sc).limit(100);
+  if(!pcs||!pcs.length){el.textContent='Sem PC';return;}
+  const isRec=s=>(s||'').toLowerCase().includes('receb')||(s||'').toLowerCase().includes('pré-nota');
+  const rec=pcs.filter(p=>isRec(p.status_desc)).length;
+  const pct=Math.round(rec/pcs.length*100);
+  const cor=pct===100?'#16a34a':pct>0?'#f59e0b':'#64748b';
+  el.textContent=`${rec}/${pcs.length} recebidos`;
+  el.style.color=cor;
 }
 window.carregarFavoritosSC=carregarFavoritosSC;async function renderConsolidado(consId,container){container.innerHTML=`<div style="padding:12px;color:#64748b;font-size:13px">Carregando...</div>`;let{data:links}=await db.from(`consolidado_scs`).select(`solicitacao_id`).eq(`consolidado_id`,consId);if(!links||!links.length){container.innerHTML=`<div style="padding:16px;color:#94a3b8;font-size:13px">Nenhuma SC vinculada.</div>`;return}let ids=links.map(l=>l.solicitacao_id),{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`id`,ids),{data:ccs}=await db.from(`centros_custo`).select(`cc,nome`),ccNomes={};(ccs||[]).forEach(c=>ccNomes[c.cc]=c.nome);
 // Buscar pedidos_compra por SC (fonte do status real — igual ao acompanhamento)
