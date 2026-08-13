@@ -734,8 +734,11 @@ async function carregarComparativo(){
   });
   Object.keys(mapa).forEach(k=>{
     const pos=posMap[k];
-    mapa[k].descricao=pos?.descricao||window.itensMap[mapa[k].produto]?.descricao||'';
-    mapa[k].grupo=pos?.grupo||window.itensMap[mapa[k].produto]?.grupo||'';
+    const _descPos = pos?.descricao||'';
+    const _grupoPos = pos?.grupo||'';
+    const _codTrim = (mapa[k].produto||'').trim();
+    mapa[k].descricao = _descPos || (window.itensMap[_codTrim]?.descricao)||'';
+    mapa[k].grupo = _grupoPos || (window.itensMap[_codTrim]?.grupo)||'';
     mapa[k].qtd_atual=Number(pos?.qtd_atual)||0;
     mapa[k].custo_medio=Number(pos?.custo_medio)||0;
     // Divergência: diferença entre saldo calculado (entrada-saída) e posição atual
