@@ -678,7 +678,7 @@ async function carregarComparativo(){
 
   // Buscar entradas, saídas e posição de estoque em paralelo
   let qEnt = db.from('movimentos_entrada').select('filial,produto,mes,qtd_entrada,valor_entrada');
-  let qSai = db.from('consumo_mensal_comp').select('filial,produto,descricao,mes,quantidade');
+  let qSai = db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade');
   let qPos = db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio');
   if(filial){ qEnt=qEnt.eq('filial',filial); qSai=qSai.eq('filial',filial); qPos=qPos.eq('filial',filial); }
 
@@ -700,6 +700,9 @@ async function carregarComparativo(){
     buscarTudo(qPos),
     buscarTudo(db.from('itens').select('codigo,descricao,grupo')),
   ]);
+  console.log('[comp] entradas (movimentos_entrada):', entradas.length);
+  console.log('[comp] saidas (consumo_mensal_comp):', saidas.length, saidas.slice(0,3));
+  console.log('[comp] posicao (estoque_sb2):', posicao.length);
   // Mapa código -> descrição da tabela itens
   window.itensMap={};
   (itensDesc||[]).forEach(r=>{if(r.codigo)window.itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});;
