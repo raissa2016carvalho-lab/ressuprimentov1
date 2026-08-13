@@ -664,7 +664,7 @@ function irAbaEstoque(aba){
 // ── COMPARATIVO ────────────────────────────────────────────────────────
 let _compDados = [];
 let _compCarregado = false;
-let itensMap = {};
+window.itensMap = {};
 
 async function carregarComparativo(){
   const filial = document.getElementById('comp-filial')?.value||'';
@@ -701,8 +701,8 @@ async function carregarComparativo(){
     buscarTudo(db.from('itens').select('codigo,descricao,grupo')),
   ]);
   // Mapa código -> descrição da tabela itens
-  itensMap={};
-  (itensDesc||[]).forEach(r=>{if(r.codigo)itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});
+  window.itensMap={};
+  (itensDesc||[]).forEach(r=>{if(r.codigo)window.itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});;
 
   // Consolidar por filial+produto
   const mapa = {};
@@ -733,8 +733,8 @@ async function carregarComparativo(){
   });
   Object.keys(mapa).forEach(k=>{
     const pos=posMap[k];
-    mapa[k].descricao=pos?.descricao||itensMap[mapa[k].produto]?.descricao||'';
-    mapa[k].grupo=pos?.grupo||itensMap[mapa[k].produto]?.grupo||'';
+    mapa[k].descricao=pos?.descricao||window.itensMap[mapa[k].produto]?.descricao||'';
+    mapa[k].grupo=pos?.grupo||window.itensMap[mapa[k].produto]?.grupo||'';
     mapa[k].qtd_atual=Number(pos?.qtd_atual)||0;
     mapa[k].custo_medio=Number(pos?.custo_medio)||0;
     // Divergência: diferença entre saldo calculado (entrada-saída) e posição atual
