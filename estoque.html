@@ -678,7 +678,7 @@ async function carregarComparativo(){
 
   // Buscar entradas, saídas e posição de estoque em paralelo
   let qEnt = db.from('movimentos_entrada').select('filial,produto,mes,qtd_entrada,valor_entrada');
-  let qSai = db.from('consumo_mensal').select('filial,produto,descricao,mes,quantidade');
+  let qSai = db.from('consumo_mensal_comp').select('filial,produto,descricao,mes,quantidade');
   let qPos = db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio');
   if(filial){ qEnt=qEnt.eq('filial',filial); qSai=qSai.eq('filial',filial); qPos=qPos.eq('filial',filial); }
 
@@ -805,8 +805,8 @@ function filtrarComparativo(){
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Filial</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Código</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Descrição</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">Entradas (12m)</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">Consumo SCP (12m)</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">Entradas (jan/25)</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">Consumo SCP (jan/25)</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af">Saldo Calc.</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569">Estoque Atual</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626">Divergência</th>
@@ -837,9 +837,9 @@ async function exportarComparativo(){
     'Código':r.produto,
     'Descrição':r.descricao,
     'Grupo':r.grupo,
-    'Entradas 12m':r.qtd_entrada,
+    'Entradas jan/25':r.qtd_entrada,
     'Valor Entradas':r.valor_entrada.toFixed(2),
-    'Saídas 12m':r.qtd_saida,
+    'Consumo SCP jan/25':r.qtd_saida,
     'Valor Saídas':r.valor_saida.toFixed(2),
     'Saldo Calculado':r.saldo_calc,
     'Estoque Atual':r.qtd_atual,
