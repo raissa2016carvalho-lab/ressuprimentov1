@@ -676,17 +676,11 @@ async function carregarComparativo(){
   resumo.innerHTML='';
   wrap.innerHTML='';
 
-  // Buscar entradas, saídas e posição de estoque em paralelo
-  let qEnt = db.from('movimentos_entrada').select('filial,produto,mes,qtd_entrada,valor_entrada');
-  let qSai = db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade');
-  let qPos = db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio');
-  if(filial){ qEnt=qEnt.eq('filial',filial); qSai=qSai.eq('filial',filial); qPos=qPos.eq('filial',filial); }
-
-  // Buscar com paginação para não truncar em 1000 linhas
-  async function buscarTudo(q){
+  // Buscar com paginação — factory fn recria a query a cada página (objeto query não é reutilizável)
+  async function buscarTudo(fnQ){
     let todos=[], off=0;
     for(;;){
-      const{data}=await q.range(off,off+999);
+      const{data}=await fnQ().range(off,off+999);
       if(!data||!data.length)break;
       todos=todos.concat(data);
       if(data.length<1000)break;
@@ -695,10 +689,10 @@ async function carregarComparativo(){
     return todos;
   }
   const [entradas, saidas, posicao, itensDesc] = await Promise.all([
-    buscarTudo(qEnt),
-    buscarTudo(qSai),
-    buscarTudo(qPos),
-    buscarTudo(db.from('itens').select('codigo,descricao,grupo')),
+    buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,mes,qtd_entrada,valor_entrada'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
   ]);
   console.log('[comp] entradas (movimentos_entrada):', entradas.length);
   console.log('[comp] saidas (consumo_mensal_comp):', saidas.length, saidas.slice(0,3));
