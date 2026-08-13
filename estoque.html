@@ -664,6 +664,7 @@ function irAbaEstoque(aba){
 // ── COMPARATIVO ────────────────────────────────────────────────────────
 let _compDados = [];
 let _compCarregado = false;
+window.itensMap = {};
 
 async function carregarComparativo(){
   const filial = document.getElementById('comp-filial')?.value||'';
@@ -693,11 +694,16 @@ async function carregarComparativo(){
     }
     return todos;
   }
-  const [entradas, saidas, posicao] = await Promise.all([
+  const [entradas, saidas, posicao, itensDesc] = await Promise.all([
     buscarTudo(qEnt),
     buscarTudo(qSai),
     buscarTudo(qPos),
+    buscarTudo(db.from('itens').select('codigo,descricao,grupo')),
   ]);
+  // Mapa código -> descrição da tabela itens
+  window.itensMap={};
+  (itensDesc||[]).forEach(r=>{if(r.codigo)window.itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});;
+  console.log('[comp] itensMap size:', Object.keys(window.itensMap).length, 'ex:', window.itensMap['400005067']);
 
   // Consolidar por filial+produto
   const mapa = {};
@@ -728,8 +734,8 @@ async function carregarComparativo(){
   });
   Object.keys(mapa).forEach(k=>{
     const pos=posMap[k];
-    mapa[k].descricao=pos?.descricao||'';
-    mapa[k].grupo=pos?.grupo||'';
+    mapa[k].descricao=pos?.descricao||window.itensMap[mapa[k].produto]?.descricao||'';
+    mapa[k].grupo=pos?.grupo||window.itensMap[mapa[k].produto]?.grupo||'';
     mapa[k].qtd_atual=Number(pos?.qtd_atual)||0;
     mapa[k].custo_medio=Number(pos?.custo_medio)||0;
     // Divergência: diferença entre saldo calculado (entrada-saída) e posição atual
