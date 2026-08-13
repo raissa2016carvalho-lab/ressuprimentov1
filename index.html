@@ -664,6 +664,7 @@ function irAbaEstoque(aba){
 // ── COMPARATIVO ────────────────────────────────────────────────────────
 let _compDados = [];
 let _compCarregado = false;
+let itensMap = {};
 
 async function carregarComparativo(){
   const filial = document.getElementById('comp-filial')?.value||'';
@@ -700,7 +701,7 @@ async function carregarComparativo(){
     buscarTudo(db.from('itens').select('codigo,descricao,grupo')),
   ]);
   // Mapa código -> descrição da tabela itens
-  const itensMap={};
+  itensMap={};
   (itensDesc||[]).forEach(r=>{if(r.codigo)itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});
 
   // Consolidar por filial+produto
