@@ -2571,7 +2571,7 @@ let solIds=(sols||[]).map(s=>s.id);
 for(let i=0;i<solIds.length;i+=100){
   let lote=solIds.slice(i,i+100),off=0;
   for(;;){
-    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,quantidade,situacao').in('solicitacao_id',lote).range(off,off+999);
+    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,descricao,quantidade,situacao').in('solicitacao_id',lote).range(off,off+999);
     if(!its||!its.length)break;
     its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
     if(its.length<1000)break;off+=1000;
@@ -2579,18 +2579,35 @@ for(let i=0;i<solIds.length;i+=100){
 }
 // Calcular métricas por SC usando pedidos_compra
 let totalSkus=0,totalRecebidos=0,valorTotalGeral=0,metPorSc={},metPorCC={};
+// Coletar itens eliminados/rejeitados separadamente
+let itensEliminados=[];
+function isEliminado(st){if(!st)return false;let s=(st||'').toLowerCase();return s.includes('elimin')||s.includes('rejeita')||s.includes('residuo')||s.includes('resíduo');}
 (sols||[]).forEach(sol=>{
   let sc=(sol.sc_numero||'').trim(),cc=sol.cc,nomeCC=ccNomes[cc]||cc,obs=(sol.observacao||'').trim();
   metPorSc[sc]||(metPorSc[sc]={nome:nomeCC,obs,label:nomeCC+(obs?' · '+obs:''),total:0,recebidos:0,valor:0});
   metPorCC[cc]||(metPorCC[cc]={nome:nomeCC,total:0,recebidos:0,valor:0});
   let pcs=pcPorSC[sc]||[];
-  let itens=(itensMap[sol.id]||[]).filter(it=>it.situacao!=='recusado');
-  // Usar itens da solicitação como base (produtos únicos)
+  let todosItens=itensMap[sol.id]||[];
+  // Separar eliminados/rejeitados — não entram no cálculo de %
+  todosItens.forEach(it=>{
+    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
+    let statusElim=pcsItem.find(p=>isEliminado(p.status_desc));
+    if(statusElim||isEliminado(it.situacao)){
+      itensEliminados.push({sc,cc,nomeCC,codigo:it.codigo,descricao:it.descricao||it.codigo,status:statusElim?.status_desc||it.situacao});
+    }
+  });
+  // Itens válidos para cálculo (excluindo recusado E eliminados/rejeitados via PC)
+  let itens=todosItens.filter(it=>{
+    if(it.situacao==='recusado')return false;
+    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
+    if(pcsItem.length>0&&pcsItem.every(p=>isEliminado(p.status_desc)))return false;
+    return true;
+  });
   let produtosVistos=new Set();
   itens.forEach(it=>{
     if(produtosVistos.has(it.codigo))return;
     produtosVistos.add(it.codigo);
-    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
+    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo&&!isEliminado(p.status_desc));
     let recebido=pcsItem.some(p=>isRecebido(p.status_desc));
     let valor=pcsItem.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
     totalSkus++;metPorSc[sc].total++;metPorCC[cc].total++;
@@ -2611,6 +2628,25 @@ let statusGroups={recebido:0,parcial:0,pendente:0,semPedido:0};
   else statusGroups.semPedido++;
 });
 let totalSols=(sols||[]).length||1;
+// Card de eliminados — lista os itens com SC e CC
+let cardEliminados=itensEliminados.length?`
+  <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 14px;margin-bottom:20px">
+    <div style="font-size:12px;font-weight:700;color:#be123c;margin-bottom:8px">❌ Eliminados / Rejeitados — ${itensEliminados.length} item(ns) — não impactam o % de atendimento</div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      ${itensEliminados.map(it=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:4px 0;border-bottom:1px solid #fecdd3">
+          <span style="color:#0f172a">${it.descricao} <span style="font-family:ui-monospace,monospace;color:#94a3b8;font-size:10.5px">${it.codigo}</span></span>
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;margin-left:12px">
+            <span style="font-size:10.5px;color:#64748b">${it.nomeCC}</span>
+            <span style="font-family:ui-monospace,monospace;font-size:10.5px;color:#94a3b8">SC ${it.sc}</span>
+            <span style="font-size:10.5px;font-weight:600;color:#be123c">${it.status||'Eliminado'}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+`:'';
+
 let resumoStatus=`
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">
     ${[
@@ -2625,7 +2661,8 @@ let resumoStatus=`
         <div style="font-size:11px;color:${s.cor};opacity:.8">${Math.round(s.val/totalSols*100)}% das SCs</div>
       </div>
     `).join('')}
-  </div>`;
+  </div>
+  ${cardEliminados}`;
 
 // Lista de SCs enriquecida
 let listaScs=(sols||[]).map(sol=>{
