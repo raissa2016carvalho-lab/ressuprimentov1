@@ -1197,8 +1197,8 @@ async function carregarAcompanhamento(){
 async function _carregarTodasEmParalelo(sols){
   // 1. Buscar itens em batch com paginação
   let todosIds=sols.map(s=>s.id);
-  for(let i=0;i<todosIds.length;i+=100){
-    let lote=todosIds.slice(i,i+100);
+  for(let i=0;i<todosIds.length;i+=20){
+    let lote=todosIds.slice(i,i+20);
     let off=0;
     for(;;){
       let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao').in('solicitacao_id',lote).range(off,off+999);
