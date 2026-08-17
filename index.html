@@ -2628,22 +2628,12 @@ let statusGroups={recebido:0,parcial:0,pendente:0,semPedido:0};
   else statusGroups.semPedido++;
 });
 let totalSols=(sols||[]).length||1;
-// Card de eliminados — lista os itens com SC e CC
+// Card de eliminados — apenas contador, igual aos outros cards
 let cardEliminados=itensEliminados.length?`
-  <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 14px;margin-bottom:20px">
-    <div style="font-size:12px;font-weight:700;color:#be123c;margin-bottom:8px">❌ Eliminados / Rejeitados — ${itensEliminados.length} item(ns) — não impactam o % de atendimento</div>
-    <div style="display:flex;flex-direction:column;gap:4px">
-      ${itensEliminados.map(it=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:4px 0;border-bottom:1px solid #fecdd3">
-          <span style="color:#0f172a">${it.descricao} <span style="font-family:ui-monospace,monospace;color:#94a3b8;font-size:10.5px">${it.codigo}</span></span>
-          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;margin-left:12px">
-            <span style="font-size:10.5px;color:#64748b">${it.nomeCC}</span>
-            <span style="font-family:ui-monospace,monospace;font-size:10.5px;color:#94a3b8">SC ${it.sc}</span>
-            <span style="font-size:10.5px;font-weight:600;color:#be123c">${it.status||'Eliminado'}</span>
-          </div>
-        </div>
-      `).join('')}
-    </div>
+  <div style="flex:1;min-width:110px;background:#fff1f2;border-radius:10px;padding:10px 14px">
+    <div style="font-size:11px;font-weight:700;color:#be123c">❌ Eliminados/Rejeitados</div>
+    <div style="font-size:22px;font-weight:800;color:#be123c;line-height:1.2">${itensEliminados.length}</div>
+    <div style="font-size:11px;color:#be123c;opacity:.8">itens — fora do cálculo</div>
   </div>
 `:'';
 
@@ -2661,8 +2651,8 @@ let resumoStatus=`
         <div style="font-size:11px;color:${s.cor};opacity:.8">${Math.round(s.val/totalSols*100)}% das SCs</div>
       </div>
     `).join('')}
-  </div>
-  ${cardEliminados}`;
+    ${cardEliminados}
+  </div>`;
 
 // Lista de SCs enriquecida
 let listaScs=(sols||[]).map(sol=>{
