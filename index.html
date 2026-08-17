@@ -2622,6 +2622,7 @@ function isEliminado(st){if(!st)return false;let s=(st||'').toLowerCase();return
   // Itens válidos para cálculo (excluindo recusado E eliminados/rejeitados via PC)
   let itens=todosItens.filter(it=>{
     if(it.situacao==='recusado')return false;
+    if(!it.quantidade||Number(it.quantidade)===0)return false;
     let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
     if(pcsItem.length>0&&pcsItem.every(p=>isEliminado(p.status_desc)))return false;
     return true;
@@ -2685,6 +2686,7 @@ let listaScs=(sols||[]).map(sol=>{
   let pcs=pcPorSC[sc]||[];
   let itensValidos=todosItensSol.filter(it=>{
     if(it.situacao==='recusado')return false;
+    if(!it.quantidade||Number(it.quantidade)===0)return false;
     let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
     if(pcsItem.length>0&&pcsItem.every(p=>isEliminado(p.status_desc)))return false;
     return true;
