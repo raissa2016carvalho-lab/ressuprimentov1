@@ -1212,54 +1212,26 @@ async function _carregarTodasEmParalelo(sols){
     }
   }
 
-  // 2. Buscar sc_pedidos — cruzar por c1_num + c1_cc (CC da solicitação)
-  // Isso evita conflito entre filiais com o mesmo número de SC
-  let _scPedidosMap={};
-  let todasSCs=[...new Set(sols.map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
+  // 2. Buscar sc_pedidos_v2 — cruzar por sc_numero + sc_cc (fonte da verdade: Protheus)
+  let _v2Map={}; // chave: sol.id → array de linhas sc_pedidos_v2
+  let solPares=sols.map(s=>({id:s.id,sc:(s.sc_numero||'').trim(),cc:(s.cc||'').trim()})).filter(s=>s.sc&&s.cc);
 
-  // Mapa sc -> cc da solicitação
-  let _scCcSol={};
-  sols.forEach(s=>{
-    let sc=(s.sc_numero||'').trim();
-    if(sc&&s.cc)_scCcSol[sc]=s.cc;
-  });
-
-  for(let i=0;i<todasSCs.length;i+=50){
-    let lote=todasSCs.slice(i,i+50);
-    let off=0;
-    for(;;){
-      let{data:rows}=await db.from('sc_pedidos').select('c1_num,c1_cc,c1_produto,pc_status,pc_total,pc_numero').in('c1_num',lote).range(off,off+999);
-      if(!rows||!rows.length)break;
-      rows.forEach(r=>{
-        let sc=(r.c1_num||'').trim();
-        let cc=(r.c1_cc||'').trim();
-        let solCC=_scCcSol[sc];
-        // Para SCs numéricas: só aceita se o CC bater com o da solicitação
-        // Para SCs alfanuméricas: aceita todas (cada SC é única por CC)
-        let ehNumerica=!isNaN(sc.replace(/^0+/,'')||'x')&&sc.replace(/^0+/,'')!=='';
-        if(ehNumerica&&solCC&&cc&&cc!==solCC)return;
-        if(!_scPedidosMap[sc])_scPedidosMap[sc]=[];
-        _scPedidosMap[sc].push(r);
-      });
-      if(rows.length<1000)break;
-      off+=1000;
-    }
-  }
-
-  // 3. Buscar valor total por SC
-  for(let i=0;i<todasSCs.length;i+=20){
-    let lote=todasSCs.slice(i,i+20);
-    await Promise.all(lote.map(async sc=>{
-      if(_valorMap[sc]!==undefined)return;
-      let off=0; let total=0;
+  for(let i=0;i<solPares.length;i+=20){
+    let lote=solPares.slice(i,i+20);
+    await Promise.all(lote.map(async par=>{
+      let off=0;
       for(;;){
-        let{data:pcs}=await db.from('pedidos_compra').select('c7_total').eq('c7_numsc',sc).range(off,off+999);
-        if(!pcs||!pcs.length)break;
-        total+=(pcs||[]).reduce((a,p)=>a+(Number(p.c7_total)||0),0);
-        if(pcs.length<1000)break;
+        let{data:rows}=await db.from('sc_pedidos_v2')
+          .select('sc_produto,sc_quant,sc_quje,sc_status,pc_numero,pc_status,pc_valor')
+          .eq('sc_numero',par.sc)
+          .eq('sc_cc',par.cc)
+          .range(off,off+999);
+        if(!rows||!rows.length)break;
+        if(!_v2Map[par.id])_v2Map[par.id]=[];
+        _v2Map[par.id]=_v2Map[par.id].concat(rows);
+        if(rows.length<1000)break;
         off+=1000;
       }
-      _valorMap[sc]=total;
     }));
   }
 
@@ -1268,24 +1240,32 @@ async function _carregarTodasEmParalelo(sols){
   function isRecebido(s){let u=(s||'').toLowerCase();return u.includes('receb')||u.includes('pre-nota')||u.includes('pré-nota');}
 
   sols.forEach(s=>{
-    let sc=(s.sc_numero||'').trim();
-    let fil=(s.filial||'').trim();
-    // sc_pedidos indexado apenas por c1_num (filial de compras ≠ filial da solicitação)
-    let scRows=_scPedidosMap[sc]||[];
-    let itens=(_itensMap[s.id]||[]).filter(i=>i.situacao!=='recusado');
-    let itensAtivos=itens.filter(i=>(Number(i.qtd_almoxarife!=null?i.qtd_almoxarife:i.quantidade)||0)>0);
+    let linhas=_v2Map[s.id]||[];
+    // Deduplicar por produto — pega melhor status
+    let prodMap={};
+    linhas.forEach(r=>{
+      if(!prodMap[r.sc_produto])prodMap[r.sc_produto]={quant:r.sc_quant||0,linhas:[]};
+      prodMap[r.sc_produto].linhas.push(r);
+    });
+    let produtos=Object.entries(prodMap);
+    // Filtrar quantidade 0
+    let prodAtivos=produtos.filter(([cod,p])=>Number(p.quant)>0);
+    let totalAtivos=prodAtivos.length;
 
-    // % pedido — produtos com PC válido nesta SC
-    let produtosComPc=new Set(scRows.filter(r=>r.pc_status&&!statusInvalido(r.pc_status)).map(r=>r.c1_produto));
-    let totalAtivos=itensAtivos.length;
-    let comPc=itensAtivos.filter(it=>produtosComPc.has(it.codigo)).length;
+    // % pedido — tem PC válido (não eliminado/rejeitado)
+    let comPc=prodAtivos.filter(([cod,p])=>p.linhas.some(l=>l.pc_numero&&!statusInvalido(l.pc_status))).length;
     _pctPedidoMap[s.id]=totalAtivos>0?Math.min(100,Math.round(comPc/totalAtivos*100)):0;
 
-    // % recebido
-    let produtosRecebidos=new Set(scRows.filter(r=>isRecebido(r.pc_status)).map(r=>r.c1_produto));
-    let totalQtd=itens.reduce((a,i)=>a+(Number(i.quantidade)||0),0);
-    let recQtd=itens.filter(it=>produtosRecebidos.has(it.codigo)).reduce((a,it)=>a+(Number(it.quantidade)||0),0);
-    _pctMap[s.id]=totalQtd>0?Math.min(100,Math.round(recQtd/totalQtd*100)):0;
+    // % recebido — tem PC recebido
+    let recebidos=prodAtivos.filter(([cod,p])=>p.linhas.some(l=>isRecebido(l.pc_status))).length;
+    _pctMap[s.id]=totalAtivos>0?Math.min(100,Math.round(recebidos/totalAtivos*100)):0;
+
+    // Valor total
+    let valor=0;
+    linhas.forEach(r=>{ if(r.pc_valor&&!statusInvalido(r.pc_status))valor+=Number(r.pc_valor)||0; });
+    let sc=(s.sc_numero||'').trim();
+    if(!_valorMap[sc])_valorMap[sc]=0;
+    _valorMap[sc]=valor;
 
     _atualizarBarrasCard(s);
   });
