@@ -2565,15 +2565,27 @@ async function _carregarResumoFav(sc,filial){
 window.carregarFavoritosSC=carregarFavoritosSC;async function renderConsolidado(consId,container){container.innerHTML=`<div style="padding:12px;color:#64748b;font-size:13px">Carregando...</div>`;let{data:links}=await db.from(`consolidado_scs`).select(`solicitacao_id`).eq(`consolidado_id`,consId);if(!links||!links.length){container.innerHTML=`<div style="padding:16px;color:#94a3b8;font-size:13px">Nenhuma SC vinculada.</div>`;return}let ids=links.map(l=>l.solicitacao_id),{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`id`,ids),{data:ccs}=await db.from(`centros_custo`).select(`cc,nome`),ccNomes={};(ccs||[]).forEach(c=>ccNomes[c.cc]=c.nome);
 // Buscar pedidos_compra por SC (fonte do status real — igual ao acompanhamento)
 function isRecebido(st){if(!st)return!1;let s=(st||'').toLowerCase();return s.includes('receb')||s.includes('pré-nota')||s.includes('pre-nota');}
-let todasSCs=[...new Set((sols||[]).map(s=>(s.sc_numero||'').trim()).filter(Boolean))];
+// Agrupar SCs por filial para filtrar pedidos_compra corretamente
+let scFilialMap={};
+(sols||[]).forEach(s=>{let sc=(s.sc_numero||'').trim();if(sc)scFilialMap[sc]=s.filial||'';});
+let scsPorFilial={};
+Object.entries(scFilialMap).forEach(([sc,filial])=>{
+  let f=filial||'__sem_filial__';
+  if(!scsPorFilial[f])scsPorFilial[f]=[];
+  scsPorFilial[f].push(sc);
+});
 let pcPorSC={};
-for(let i=0;i<todasSCs.length;i+=50){
-  let lote=todasSCs.slice(i,i+50),off=0;
-  for(;;){
-    let{data:pcs}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote).range(off,off+999);
-    if(!pcs||!pcs.length)break;
-    pcs.forEach(p=>{let sc=(p.c7_numsc||'').trim();if(!pcPorSC[sc])pcPorSC[sc]=[];pcPorSC[sc].push(p);});
-    if(pcs.length<1000)break;off+=1000;
+for(let[filial,scs]of Object.entries(scsPorFilial)){
+  for(let i=0;i<scs.length;i+=50){
+    let lote=scs.slice(i,i+50),off=0;
+    for(;;){
+      let q=db.from('pedidos_compra').select('c7_numsc,c7_filial,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote);
+      if(filial&&filial!=='__sem_filial__')q=q.eq('c7_filial',filial);
+      let{data:pcs}=await q.range(off,off+999);
+      if(!pcs||!pcs.length)break;
+      pcs.forEach(p=>{let sc=(p.c7_numsc||'').trim();if(!pcPorSC[sc])pcPorSC[sc]=[];pcPorSC[sc].push(p);});
+      if(pcs.length<1000)break;off+=1000;
+    }
   }
 }
 // Buscar itens das solicitações para saber quais produtos esperar
