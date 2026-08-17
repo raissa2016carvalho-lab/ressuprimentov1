@@ -2681,6 +2681,8 @@ let resumoStatus=`
 let listaScs=(sols||[]).map(sol=>{
   let sc=(sol.sc_numero||'').trim();
   let linhasV2Sol=v2PorSol[sol.id]||[];
+  // Filial real vem do Protheus via sc_pedidos_v2
+  let filialReal=(linhasV2Sol[0]?.filial||sol.filial||'').trim();
   // Deduplicar por produto
   let prodMap={};
   linhasV2Sol.forEach(r=>{
@@ -2706,7 +2708,7 @@ let listaScs=(sols||[]).map(sol=>{
   let bg=pct===100?`#f0fdf4`:pct>0?`#eff6ff`:totalItens>0?`#fffbeb`:`#f8fafc`;
   let statusLabel=pct===100?`✅ Recebido`:pct>0?`📦 Parcial`:totalItens>0?`⏳ Pendente`:`➖ Sem pedido`;
 
-  let filial=sol.filial?`<span style="font-size:10.5px;background:#f1f5f9;color:#475569;border-radius:4px;padding:1px 6px;margin-left:4px">Filial ${sol.filial}</span>`:'';
+  let filial=filialReal?`<span style="font-size:10.5px;background:#f1f5f9;color:#475569;border-radius:4px;padding:1px 6px;margin-left:4px">Filial ${filialReal}</span>`:'';
   let obs=sol.observacao?`<div style="font-size:11px;color:#64748b;margin-top:2px;font-style:italic">${sol.observacao}</div>`:'';
 
   let detalhes=`<div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
