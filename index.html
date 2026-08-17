@@ -1338,17 +1338,30 @@ async function expandirAcomp(solId, topo){
     return qtdAlm>0||qtdGer>0||it.situacao==='recusado';
   });
 
-  // Buscar pedidos de compra pela SC
+  // Buscar dados via sc_pedidos_v2 — filtra por sc_numero + sc_cc (fonte da verdade)
   let pcs=[];
   let dtEmissaoSC=null;
-  if(sol.sc_numero&&sol.sc_numero.trim()){
+  if(sol.sc_numero&&sol.sc_numero.trim()&&sol.cc){
     let sc=sol.sc_numero.trim();
-    let scTrim=sc.trim();
-    let{data:pcData}=await db.from('pedidos_compra').select('c7_numsc,c7_produto,c7_num,c7_quant,c7_total,status_desc,dt_entrega,c7_emissao,c7_comprador').ilike('c7_numsc',scTrim);
-    pcs=pcData||[];
-    // Buscar data de emissão da SC no sc_pedidos
-    let{data:scRow}=await db.from('sc_pedidos').select('c1_emissao').ilike('c1_num',scTrim).limit(1).maybeSingle();
-    if(scRow?.c1_emissao)dtEmissaoSC=scRow.c1_emissao;
+    let cc=(sol.cc||'').trim();
+    let{data:v2Rows}=await db.from('sc_pedidos_v2')
+      .select('sc_produto,sc_quant,sc_emissao,pc_numero,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_comprador,pc_emissao')
+      .eq('sc_numero',sc)
+      .eq('sc_cc',cc);
+    // Converter para formato compatível com o restante do código
+    pcs=(v2Rows||[]).filter(r=>r.pc_numero).map(r=>({
+      c7_produto: r.sc_produto,
+      c7_num:     r.pc_numero,
+      c7_quant:   r.pc_quant,
+      c7_total:   r.pc_valor,
+      status_desc:r.pc_status,
+      dt_entrega: r.pc_dt_entrega,
+      c7_emissao: r.pc_emissao,
+      c7_comprador:r.pc_comprador,
+    }));
+    // Data de emissão da SC
+    let emissaoRow=(v2Rows||[]).find(r=>r.sc_emissao);
+    if(emissaoRow?.sc_emissao)dtEmissaoSC=emissaoRow.sc_emissao;
   }
 
   // Calcular % atendido — por produto cruzado com itens da solicitação
