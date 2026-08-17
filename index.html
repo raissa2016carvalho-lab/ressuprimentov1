@@ -1497,7 +1497,7 @@ async function expandirAcomp(solId, topo){
           let isRec=it.situacao==='recusado';
           let qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
           let qtdGer=it.justificativa_gerente?it.quantidade:null;
-          let it.sc_status=scStatusPorProduto[it.codigo]||''; pcsItem=(pcPorProduto[it.codigo]||[]).filter(p=>{let s=(p.status_desc||'').toUpperCase();return!s.includes('ELIMINADO')&&!s.includes('REJEITADO')&&!s.includes('FORA DO PROTHEUS');});
+          it.sc_status=scStatusPorProduto[it.codigo]||''; let pcsItem=(pcPorProduto[it.codigo]||[]).filter(p=>{let s=(p.status_desc||'').toUpperCase();return!s.includes('ELIMINADO')&&!s.includes('REJEITADO')&&!s.includes('FORA DO PROTHEUS');});
           // Maior previsão de entrega dos PCs deste item
           let dtMaxEntrega=null;
           pcsItem.forEach(p=>{if(p.dt_entrega){let d=parseDt(p.dt_entrega);if(d&&(!dtMaxEntrega||d>dtMaxEntrega))dtMaxEntrega=d;}});
