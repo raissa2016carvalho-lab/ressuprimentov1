@@ -1375,6 +1375,18 @@ async function expandirAcomp(solId, topo){
   });
   let pct=totalQtd>0?Math.min(100,Math.round(recebidoQtd/totalQtd*100)):0;
 
+  // Montar mapa sc_status por produto (vem da sc_pedidos_v2)
+  let scStatusPorProduto={};
+  if(sol.sc_numero&&sol.cc){
+    let{data:v2Status}=await db.from('sc_pedidos_v2')
+      .select('sc_produto,sc_status')
+      .eq('sc_numero',sol.sc_numero.trim())
+      .eq('sc_cc',(sol.cc||'').trim());
+    (v2Status||[]).forEach(r=>{
+      if(!scStatusPorProduto[r.sc_produto])scStatusPorProduto[r.sc_produto]=r.sc_status;
+    });
+  }
+
   // Montar HTML
   let pcPorProduto={};
   pcs.forEach(p=>{(pcPorProduto[p.c7_produto]=pcPorProduto[p.c7_produto]||[]).push(p);});
@@ -1485,18 +1497,26 @@ async function expandirAcomp(solId, topo){
           let isRec=it.situacao==='recusado';
           let qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
           let qtdGer=it.justificativa_gerente?it.quantidade:null;
-          let pcsItem=(pcPorProduto[it.codigo]||[]).filter(p=>{let s=(p.status_desc||'').toUpperCase();return!s.includes('ELIMINADO')&&!s.includes('REJEITADO')&&!s.includes('FORA DO PROTHEUS');});
+          let it.sc_status=scStatusPorProduto[it.codigo]||''; pcsItem=(pcPorProduto[it.codigo]||[]).filter(p=>{let s=(p.status_desc||'').toUpperCase();return!s.includes('ELIMINADO')&&!s.includes('REJEITADO')&&!s.includes('FORA DO PROTHEUS');});
           // Maior previsão de entrega dos PCs deste item
           let dtMaxEntrega=null;
           pcsItem.forEach(p=>{if(p.dt_entrega){let d=parseDt(p.dt_entrega);if(d&&(!dtMaxEntrega||d>dtMaxEntrega))dtMaxEntrega=d;}});
           let dtEntregaItem=dtMaxEntrega?fmtDt(dtMaxEntrega.toISOString().slice(0,10)):null;
           let entregaAtrasada=dtMaxEntrega&&dtMaxEntrega<hoje&&it.situacao!=='recusado';
+          // Status da SC para este item (vem da sc_pedidos_v2)
+          let scStatusItem='';
+          if(it.sc_status){
+            let ss=(it.sc_status||'').toLowerCase();
+            let scCor=ss.includes('bloqueada')?'#d97706':ss.includes('atendida')?'#16a34a':ss.includes('pendente')?'#94a3b8':'#64748b';
+            let scBg=ss.includes('bloqueada')?'#fef3c7':ss.includes('atendida')?'#dcfce7':ss.includes('pendente')?'#f1f5f9':'#f8fafc';
+            scStatusItem=`<span style="font-size:10px;font-weight:600;color:${scCor};background:${scBg};border-radius:4px;padding:1px 5px;margin-left:4px">${it.sc_status}</span>`;
+          }
           let pcsHtml=pcsItem.length?pcsItem.map(p=>{
             let cor=stCor(p.status_desc);
             return `<span style="display:inline-flex;align-items:center;gap:4px;background:${cor.b};color:${cor.c};border-radius:6px;padding:2px 8px;font-size:11px;margin:2px;white-space:nowrap">
               PC ${p.c7_num} · ${p.c7_quant} un · ${p.status_desc||'—'}
             </span>`;
-          }).join(''):'<span style="color:#cbd5e1;font-size:11px">Sem PC</span>';
+          }).join(''):`<span style="color:#cbd5e1;font-size:11px">Sem PC</span>${scStatusItem}`;
           return `<tr style="border-bottom:1px solid #f1f5f9;${isRec?'opacity:0.45':''}">
             <td style="padding:8px 10px">
               ${isRec?'<span style="color:#ef4444;font-size:10px;font-weight:700">✕ </span>':''}
