@@ -2578,11 +2578,12 @@ for(let i=0;i<solPares.length;i+=50){
   for(let par of lote){
     let off=0;
     for(;;){
-      let{data:rows}=await db.from('sc_pedidos_v2')
+      let{data:rows,error:eV2}=await db.from('sc_pedidos_v2')
         .select('sc_numero,sc_produto,sc_descricao,sc_quant,sc_quje,sc_status,pc_numero,pc_status,pc_quant,pc_valor,pc_comprador,pc_dt_entrega')
         .eq('sc_numero',par.sc)
         .eq('sc_cc',par.cc)
         .range(off,off+999);
+      console.log('[v2] sc='+par.sc+' cc='+par.cc+' rows='+(rows?.length||0)+(eV2?' err:'+eV2.message:''));
       if(!rows||!rows.length)break;
       if(!v2PorSol[par.id])v2PorSol[par.id]=[];
       v2PorSol[par.id]=v2PorSol[par.id].concat(rows);
