@@ -2563,77 +2563,75 @@ async function _carregarResumoFav(sc,filial){
   el.style.color=cor;
 }
 window.carregarFavoritosSC=carregarFavoritosSC;async function renderConsolidado(consId,container){container.innerHTML=`<div style="padding:12px;color:#64748b;font-size:13px">Carregando...</div>`;let{data:links}=await db.from(`consolidado_scs`).select(`solicitacao_id`).eq(`consolidado_id`,consId);if(!links||!links.length){container.innerHTML=`<div style="padding:16px;color:#94a3b8;font-size:13px">Nenhuma SC vinculada.</div>`;return}let ids=links.map(l=>l.solicitacao_id),{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`id`,ids),{data:ccs}=await db.from(`centros_custo`).select(`cc,nome`),ccNomes={};(ccs||[]).forEach(c=>ccNomes[c.cc]=c.nome);
-// Buscar pedidos_compra por SC (fonte do status real — igual ao acompanhamento)
-function isRecebido(st){if(!st)return!1;let s=(st||'').toLowerCase();return s.includes('receb')||s.includes('pré-nota')||s.includes('pre-nota');}
-// Agrupar SCs por filial para filtrar pedidos_compra corretamente
-let scFilialMap={};
-(sols||[]).forEach(s=>{let sc=(s.sc_numero||'').trim();if(sc)scFilialMap[sc]=s.filial||'';});
-let scsPorFilial={};
-Object.entries(scFilialMap).forEach(([sc,filial])=>{
-  let f=filial||'__sem_filial__';
-  if(!scsPorFilial[f])scsPorFilial[f]=[];
-  scsPorFilial[f].push(sc);
-});
-let pcPorSC={};
-for(let[filial,scs]of Object.entries(scsPorFilial)){
-  for(let i=0;i<scs.length;i+=50){
-    let lote=scs.slice(i,i+50),off=0;
+// ── NOVA LÓGICA: usa sc_pedidos_v2 cruzando sc_numero + sc_cc ──────────────
+function isRecebido(st){if(!st)return false;let s=(st||'').toLowerCase();return s.includes('receb')||s.includes('pré-nota')||s.includes('pre-nota');}
+function isEliminado(st){if(!st)return false;let s=(st||'').toLowerCase();return s.includes('elimin')||s.includes('rejeita')||s.includes('residuo')||s.includes('resíduo');}
+
+// Buscar dados de sc_pedidos_v2 agrupados por solicitacao (sc_numero + sc_cc)
+// Cada solicitação tem sc_numero e cc — esse par identifica unicamente a SC no Protheus
+let v2PorSol={}; // chave: sol.id → array de linhas sc_pedidos_v2
+let solPares=(sols||[]).map(s=>({id:s.id,sc:(s.sc_numero||'').trim(),cc:(s.cc||'').trim()})).filter(s=>s.sc&&s.cc);
+
+for(let i=0;i<solPares.length;i+=50){
+  let lote=solPares.slice(i,i+50);
+  // Buscar cada par sc+cc separadamente para garantir isolamento
+  for(let par of lote){
+    let off=0;
     for(;;){
-      let q=db.from('pedidos_compra').select('c7_numsc,c7_filial,c7_produto,c7_quant,c7_total,status_desc').in('c7_numsc',lote);
-      if(filial&&filial!=='__sem_filial__')q=q.eq('c7_filial',filial);
-      let{data:pcs}=await q.range(off,off+999);
-      if(!pcs||!pcs.length)break;
-      pcs.forEach(p=>{let sc=(p.c7_numsc||'').trim();if(!pcPorSC[sc])pcPorSC[sc]=[];pcPorSC[sc].push(p);});
-      if(pcs.length<1000)break;off+=1000;
+      let{data:rows}=await db.from('sc_pedidos_v2')
+        .select('sc_numero,sc_produto,sc_descricao,sc_quant,sc_quje,sc_status,pc_numero,pc_status,pc_quant,pc_valor,pc_comprador,pc_dt_entrega')
+        .eq('sc_numero',par.sc)
+        .eq('sc_cc',par.cc)
+        .range(off,off+999);
+      if(!rows||!rows.length)break;
+      if(!v2PorSol[par.id])v2PorSol[par.id]=[];
+      v2PorSol[par.id]=v2PorSol[par.id].concat(rows);
+      if(rows.length<1000)break;
+      off+=1000;
     }
   }
 }
-// Buscar itens das solicitações para saber quais produtos esperar
-let itensMap={};
-let solIds=(sols||[]).map(s=>s.id);
-for(let i=0;i<solIds.length;i+=100){
-  let lote=solIds.slice(i,i+100),off=0;
-  for(;;){
-    let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,descricao,quantidade,situacao').in('solicitacao_id',lote).range(off,off+999);
-    if(!its||!its.length)break;
-    its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
-    if(its.length<1000)break;off+=1000;
-  }
-}
-// Calcular métricas por SC usando pedidos_compra
+// Calcular métricas por SC usando sc_pedidos_v2
 let totalSkus=0,totalRecebidos=0,valorTotalGeral=0,metPorSc={},metPorCC={};
-// Coletar itens eliminados/rejeitados separadamente
 let itensEliminados=[];
-function isEliminado(st){if(!st)return false;let s=(st||'').toLowerCase();return s.includes('elimin')||s.includes('rejeita')||s.includes('residuo')||s.includes('resíduo');}
 (sols||[]).forEach(sol=>{
   let sc=(sol.sc_numero||'').trim(),cc=sol.cc,nomeCC=ccNomes[cc]||cc,obs=(sol.observacao||'').trim();
   metPorSc[sc]||(metPorSc[sc]={nome:nomeCC,obs,label:nomeCC+(obs?' · '+obs:''),total:0,recebidos:0,valor:0});
   metPorCC[cc]||(metPorCC[cc]={nome:nomeCC,total:0,recebidos:0,valor:0});
-  let pcs=pcPorSC[sc]||[];
-  let todosItens=itensMap[sol.id]||[];
-  // Separar eliminados/rejeitados — não entram no cálculo de %
-  todosItens.forEach(it=>{
-    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
-    let statusElim=pcsItem.find(p=>isEliminado(p.status_desc));
-    if(statusElim||isEliminado(it.situacao)){
-      itensEliminados.push({sc,cc,nomeCC,codigo:it.codigo,descricao:it.descricao||it.codigo,status:statusElim?.status_desc||it.situacao});
+  let linhasV2=v2PorSol[sol.id]||[];
+  // Deduplicar por produto (pode ter múltiplos PCs por produto)
+  let produtosVistos=new Set();
+  let todosItens=[];
+  linhasV2.forEach(r=>{
+    if(!produtosVistos.has(r.sc_produto)){
+      produtosVistos.add(r.sc_produto);
+      // Pegar todas as linhas deste produto para verificar status dos PCs
+      let linhasProd=linhasV2.filter(x=>x.sc_produto===r.sc_produto);
+      todosItens.push({
+        codigo:r.sc_produto,
+        descricao:r.sc_descricao,
+        quantidade:r.sc_quant,
+        linhasProd
+      });
     }
   });
-  // Itens válidos para cálculo (excluindo recusado E eliminados/rejeitados via PC)
+  // Separar eliminados/rejeitados
+  todosItens.forEach(it=>{
+    let statusElim=it.linhasProd.find(l=>l.pc_status&&isEliminado(l.pc_status));
+    if(statusElim){
+      itensEliminados.push({sc,cc,nomeCC,codigo:it.codigo,descricao:it.descricao||it.codigo,status:statusElim.pc_status});
+    }
+  });
+  // Itens válidos — excluindo quantidade=0 e todos-eliminados
   let itens=todosItens.filter(it=>{
-    if(it.situacao==='recusado')return false;
     if(!it.quantidade||Number(it.quantidade)===0)return false;
-    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
-    if(pcsItem.length>0&&pcsItem.every(p=>isEliminado(p.status_desc)))return false;
+    if(it.linhasProd.every(l=>l.pc_status&&isEliminado(l.pc_status)))return false;
     return true;
   });
-  let produtosVistos=new Set();
   itens.forEach(it=>{
-    if(produtosVistos.has(it.codigo))return;
-    produtosVistos.add(it.codigo);
-    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo&&!isEliminado(p.status_desc));
-    let recebido=pcsItem.some(p=>isRecebido(p.status_desc));
-    let valor=pcsItem.reduce((a,p)=>a+(Number(p.c7_total)||0),0);
+    let linhasValidas=it.linhasProd.filter(l=>!l.pc_status||!isEliminado(l.pc_status));
+    let recebido=linhasValidas.some(l=>isRecebido(l.pc_status));
+    let valor=linhasValidas.reduce((a,l)=>a+(Number(l.pc_valor)||0),0);
     totalSkus++;metPorSc[sc].total++;metPorCC[cc].total++;
     if(recebido){totalRecebidos++;metPorSc[sc].recebidos++;metPorCC[cc].recebidos++;}
     valorTotalGeral+=valor;metPorSc[sc].valor+=valor;metPorCC[cc].valor+=valor;
@@ -2678,30 +2676,27 @@ let resumoStatus=`
     ${cardEliminados}
   </div>`;
 
-// Lista de SCs enriquecida
+// Lista de SCs enriquecida — usando sc_pedidos_v2
 let listaScs=(sols||[]).map(sol=>{
   let sc=(sol.sc_numero||'').trim();
-  let todosItensSol=(itensMap[sol.id]||[]);
-  // Total de itens válidos (excluindo recusados e eliminados via PC)
-  let pcs=pcPorSC[sc]||[];
-  let itensValidos=todosItensSol.filter(it=>{
-    if(it.situacao==='recusado')return false;
+  let linhasV2Sol=v2PorSol[sol.id]||[];
+  // Deduplicar por produto
+  let prodMap={};
+  linhasV2Sol.forEach(r=>{
+    if(!prodMap[r.sc_produto])prodMap[r.sc_produto]={codigo:r.sc_produto,descricao:r.sc_descricao,quantidade:r.sc_quant,linhas:[]};
+    prodMap[r.sc_produto].linhas.push(r);
+  });
+  let todosProd=Object.values(prodMap);
+  // Válidos: quantidade > 0 e não todos eliminados
+  let itensValidos=todosProd.filter(it=>{
     if(!it.quantidade||Number(it.quantidade)===0)return false;
-    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo);
-    if(pcsItem.length>0&&pcsItem.every(p=>isEliminado(p.status_desc)))return false;
+    if(it.linhas.every(l=>l.pc_status&&isEliminado(l.pc_status)))return false;
     return true;
   });
   let totalItens=itensValidos.length;
-  // Recebidos: itens com pelo menos 1 PC recebido
-  let recebidos=itensValidos.filter(it=>{
-    let pcsItem=pcs.filter(p=>p.c7_produto===it.codigo&&!isEliminado(p.status_desc));
-    return pcsItem.some(p=>isRecebido(p.status_desc));
-  }).length;
-  // Pendentes: itens sem nenhum PC recebido
+  let recebidos=itensValidos.filter(it=>it.linhas.some(l=>isRecebido(l.pc_status))).length;
   let pendentes=totalItens-recebidos;
-  // Sem PC
-  let semPc=itensValidos.filter(it=>!pcs.some(p=>p.c7_produto===it.codigo)).length;
-  // Eliminados desta SC
+  let semPc=itensValidos.filter(it=>it.linhas.every(l=>!l.pc_numero)).length;
   let eliminadosSc=itensEliminados.filter(it=>it.sc===sc).length;
 
   let m=metPorSc[sc]||{valor:0};
