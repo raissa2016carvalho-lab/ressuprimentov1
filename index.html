@@ -2626,7 +2626,7 @@ for(let i=0;i<solPares.length;i+=50){
     let off=0;
     for(;;){
       let{data:rows,error:eV2}=await db.from('sc_pedidos_v2')
-        .select('sc_numero,sc_produto,sc_descricao,sc_quant,sc_quje,sc_status,pc_numero,pc_status,pc_quant,pc_valor,pc_comprador,pc_dt_entrega')
+        .select('filial,sc_numero,sc_produto,sc_descricao,sc_quant,sc_quje,sc_status,pc_numero,pc_status,pc_quant,pc_valor,pc_comprador,pc_dt_entrega')
         .eq('sc_numero',par.sc)
         .eq('sc_cc',par.cc)
         .range(off,off+999);
