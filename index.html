@@ -1858,7 +1858,44 @@ if(elResumo){
     ${cats.recebido.length>0?`<span style="background:#dcfce7;color:#16a34a;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">✅ ${cats.recebido.length} recebido(s)</span>`:''}
     ${cats.estoque.length>0?`<span style="background:#dbeafe;color:#1e40af;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">📦 ${cats.estoque.length} estoque</span>`:''}
   `;
-}function baixarExcelCatMob(catKey){let linhas=({recebido:cats.recebido,pendente:cats.pendente,aprovacao:cats.aprovacao,semPedido:cats.semPedido}[catKey]||[]).flatMap(it=>it.linhas&&it.linhas.length>0?it.linhas.map(l=>({Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:l.c7_numsc,Status:l.status_desc,"Qtde PC":l.c7_quant})):[{Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:`-`,Status:catKey===`recebido`?`Recebido`:`Sem pedido`,"Qtde PC":``}]);if(!linhas.length){alert(`Nenhum item nesta categoria.`);return}let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,catKey),XLSX.writeFile(wb,`mobilizacao_${catKey}.xlsx`)}window.baixarExcelCatMob=baixarExcelCatMob;function toggleCatMob(mobId,catKey){let uid=`cat-`+mobId+`-`+catKey,el=document.getElementById(uid);if(!el)return;let aberto=el.style.display!==`none`;[`recebido`,`estoque`,`aprovacao`,`pendente`,`semPedido`].forEach(k=>{let outro=document.getElementById(`cat-`+mobId+`-`+k);outro&&(outro.style.display=`none`)}),aberto||(el.style.display=`block`)}window.toggleCatMob=toggleCatMob;function renderCardCat(catKey,label,cor,icone,itens){let uid=`cat-`+mobId+`-`+catKey,pct=Math.round(itens.length/total*100);return`
+}function baixarExcelCatMob(catKey){let linhas=({recebido:cats.recebido,pendente:cats.pendente,aprovacao:cats.aprovacao,semPedido:cats.semPedido}[catKey]||[]).flatMap(it=>it.linhas&&it.linhas.length>0?it.linhas.map(l=>({Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:l.c7_numsc,Status:l.status_desc,"Qtde PC":l.c7_quant})):[{Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:`-`,Status:catKey===`recebido`?`Recebido`:`Sem pedido`,"Qtde PC":``}]);if(!linhas.length){alert(`Nenhum item nesta categoria.`);return}let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,catKey),XLSX.writeFile(wb,`mobilizacao_${catKey}.xlsx`)}window.baixarExcelCatMob=baixarExcelCatMob;
+function baixarExcelMobCompleto(nomeArq){
+  // Exporta todos os itens de todas as categorias
+  let todasCats=[...cats.recebido,...cats.estoque,...cats.aprovacao,...cats.pendente,...cats.semPedido];
+  let linhas=todasCats.flatMap(it=>{
+    if(it.linhas&&it.linhas.length>0){
+      return it.linhas.map(l=>({
+        'Código':         it.codigo||'(manual)',
+        'Descrição':      it.descricao,
+        'Total Mob.':     it.total_mob,
+        'SC':             l.c7_numsc||'-',
+        'N° PC':          l.c7_num||'-',
+        'Status PC':      l.status_desc||'-',
+        'Qtde PC':        l.c7_quant||'',
+        'Valor PC':       l.c7_total||'',
+        'Comprador':      l.c7_comprador||'-',
+        'Prev. Entrega':  l.dt_entrega?l.dt_entrega.slice(6,8)+'/'+l.dt_entrega.slice(4,6)+'/'+l.dt_entrega.slice(0,4):'-',
+        'Situação':       cats.recebido.some(x=>x.codigo===it.codigo)?'Recebido':
+                          cats.estoque.some(x=>x.codigo===it.codigo)?'Via estoque':
+                          cats.aprovacao.some(x=>x.codigo===it.codigo)?'Em aprovação':
+                          cats.pendente.some(x=>x.codigo===it.codigo)?'Pendente':'Sem pedido',
+      }));
+    }
+    return [{
+      'Código':       it.codigo||'(manual)',
+      'Descrição':    it.descricao,
+      'Total Mob.':   it.total_mob,
+      'SC':           '-','N° PC':'-','Status PC':'-',
+      'Qtde PC':'','Valor PC':'','Comprador':'-','Prev. Entrega':'-',
+      'Situação':     cats.semPedido.some(x=>x.codigo===it.codigo)?'Sem pedido':'Via estoque',
+    }];
+  });
+  if(!linhas.length){alert('Nenhum item para exportar.');return;}
+  let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Mobilização');
+  XLSX.writeFile(wb,(nomeArq||'mobilizacao')+'.xlsx');
+}
+window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId,catKey){let uid=`cat-`+mobId+`-`+catKey,el=document.getElementById(uid);if(!el)return;let aberto=el.style.display!==`none`;[`recebido`,`estoque`,`aprovacao`,`pendente`,`semPedido`].forEach(k=>{let outro=document.getElementById(`cat-`+mobId+`-`+k);outro&&(outro.style.display=`none`)}),aberto||(el.style.display=`block`)}window.toggleCatMob=toggleCatMob;function renderCardCat(catKey,label,cor,icone,itens){let uid=`cat-`+mobId+`-`+catKey,pct=Math.round(itens.length/total*100);return`
         <div onclick="toggleCatMob('${mobId}','${catKey}')" style="border:2px solid ${cor}30;border-radius:12px;padding:18px 12px 14px;cursor:pointer;background:#fff;user-select:none;text-align:center;position:relative"
              onmouseover="this.style.boxShadow='0 4px 18px ${cor}28';this.style.borderColor='${cor}80'"
              onmouseout="this.style.boxShadow='none';this.style.borderColor='${cor}30'">
@@ -1910,6 +1947,9 @@ if(elResumo){
             <button onclick="removerScMob(${mobId}, ${s.id})" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:14px;line-height:1;padding:2px">✕</button>
           </span>
         `).join(``);container.innerHTML=avisoProtheus+`
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <button onclick="baixarExcelMobCompleto('mobilizacao_'+${mobId})" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12.5px;font-weight:700;cursor:pointer">⬇ Excel completo</button>
+      </div>
       <div style="margin-bottom:16px">
         <label style="font-size:11.5px;font-weight:600;color:#64748b;display:block;margin-bottom:8px">SCs desta mobilização</label>
         <div>${listaScsHtml}</div>
