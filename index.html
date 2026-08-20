@@ -1880,6 +1880,10 @@ function baixarExcelMobCompleto(nomeArq){
                           cats.estoque.some(x=>x.codigo===it.codigo)?'Via estoque':
                           cats.aprovacao.some(x=>x.codigo===it.codigo)?'Em aprovação':
                           cats.pendente.some(x=>x.codigo===it.codigo)?'Pendente':'Sem pedido',
+        'Saldo (PC+Est-Mob)': (()=>{
+          let qtdPcTot=it.linhas?it.linhas.reduce((a,l2)=>a+(Number(l2.c7_quant)||0),0):0;
+          return (qtdPcTot+(it.qtdEst||0))-(it.total_mob||0);
+        })(),
       }));
     }
     return [{
@@ -1887,6 +1891,7 @@ function baixarExcelMobCompleto(nomeArq){
       'Descrição':    it.descricao,
       'Total Mob.':   it.total_mob,
       'Estoque Disp.':it.qtdEst||0,
+      'Saldo (PC+Est-Mob)': (it.qtdEst||0)-(it.total_mob||0),
       'SC':           '-','N° PC':'-','Status PC':'-',
       'Qtde PC':'','Valor PC':'','Comprador':'-','Prev. Entrega':'-',
       'Situação':     cats.semPedido.some(x=>x.codigo===it.codigo)?'Sem pedido':'Via estoque',
