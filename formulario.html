@@ -4,7 +4,7 @@
 // Estado global
 let todosCCs=[],ccCarregado=!1,ccsSelecionados=[],consumoMap={},itensMap={},listaItens=[],itensPontuais=[],filialAtual=``,periodoMeses=3,consumoMapCC={},consumoMapMensal={};
 // Meses do início do ano atual até o mês atual — global para uso no popup e na média
-const MESES_FIXOS=(function(){var meses=[],d=new Date(),anoAtual=d.getFullYear(),mesAtual=d.getMonth();for(var m=0;m<=mesAtual;m++){meses.push(anoAtual.toString()+(m+1).toString().padStart(2,'0'))}return meses})();function onPeriodoChange(){
+var MESES_FIXOS=(function(){var meses=[],d=new Date(),anoAtual=d.getFullYear(),mesAtual=d.getMonth();for(var m=0;m<=mesAtual;m++){meses.push(anoAtual.toString()+(m+1).toString().padStart(2,'0'))}return meses})();function onPeriodoChange(){
 // Recalcular todos os totais já preenchidos sem perder os valores digitados
 periodoMeses=Number($(`periodo-meses`).value)||3,$(`periodo-label`).textContent=periodoMeses,Object.values(qtdMap).forEach(it=>{let totalEl=$(`total-`+it.codigo);totalEl&&(totalEl.textContent=it.qtd*periodoMeses)})}window.onPeriodoChange=onPeriodoChange;
 // ── FILIAL ──────────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ if(gruposEncontrados.length){
 let{data:todosHomonimos}=await db.from(`centros_custo`).select(`cc,nome`).in(`cc`,todosCodigosCC);
 // ── Cache de consumo (sessionStorage, válido 4h) ──────────────────────────
 let consumoData=null;
-const cacheKey=`consumo_cache_`+todosCodigosCC.slice().sort().join(`_`);
+const cacheKey=`consumo_cache_v2_`+todosCodigosCC.slice().sort().join(`_`);
 const cacheTTL=4*60*60*1e3;
 try{const raw=sessionStorage.getItem(cacheKey);if(raw){const{ts,data}=JSON.parse(raw);if(Date.now()-ts<cacheTTL){consumoData=data;console.log(`[consumo] cache hit (${data.length} linhas)`)}}}catch(e){}
 if(!consumoData){let rows=[],off2=0;for(;;){const{data:lote}=await db.from(`consumo_mensal`).select(`cc,produto,descricao,quantidade,mes`).in(`cc`,todosCodigosCC.length?todosCodigosCC:ccs).range(off2,off2+999);if(!lote||!lote.length){break}rows=rows.concat(lote);if(lote.length<1e3)break;off2+=1e3}consumoData=rows;try{sessionStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),data:rows}));console.log(`[consumo] cache salvo (${rows.length} linhas)`)}catch(e){}}
@@ -102,7 +102,7 @@ Object.keys(aggProdTotal).forEach(produto=>{
 });
 // Buscar itens dos grupos permitidos (cache sessionStorage 4h)
 let todosItens=[];
-const itensKey=`itens_cache`;
+const itensKey=`itens_cache_v2`;
 try{const raw=sessionStorage.getItem(itensKey);if(raw){const{ts,data}=JSON.parse(raw);if(Date.now()-ts<cacheTTL){todosItens=data;console.log(`[itens] cache hit (${data.length} itens)`)}}}catch(e){}
 if(!todosItens.length){let off=0;for(;;){let{data:lote}=await db.from(`itens`).select(`codigo,descricao,grupo`).range(off,off+999);if(!lote||!lote.length||(todosItens=todosItens.concat(lote),lote.length<1e3))break;off+=1e3}try{sessionStorage.setItem(itensKey,JSON.stringify({ts:Date.now(),data:todosItens}))}catch(e){}}
 // Filtrar grupos permitidos
