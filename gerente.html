@@ -135,6 +135,34 @@ atualizarBadges();
     return'<th style="min-width:70px">'+nomeShort+'<br><span style="font-size:10px;color:#94a3b8">'+s.cc+'</span></th>';
   }).join('');
 
+  // Buscar status de compra na sc_pedidos_v2 para os itens deste grupo
+  var v2StatusMap={}; // codigo -> [{pc_numero, pc_status, sc_numero}]
+  var codigosGrupo=[...new Set(itensList.map(function(item){return item.codigo}).filter(Boolean))];
+  var ccsGrupo=grupo.map(function(s){return s.cc});
+  if(codigosGrupo.length>0&&ccsGrupo.length>0){
+    // Buscar via sc_pedidos_v2 filtrando pelos CCs do grupo
+    var v2Rows=[];
+    for(var _vi=0;_vi<ccsGrupo.length;_vi++){
+      var _cc=ccsGrupo[_vi];
+      var _ccData=ccMap[_cc];
+      if(!_ccData)continue;
+      // Buscar pelo CC e pelos produtos
+      var _lotes=[];
+      for(var _ci=0;_ci<codigosGrupo.length;_ci+=50){
+        _lotes.push(codigosGrupo.slice(_ci,_ci+50));
+      }
+      for(var _li=0;_li<_lotes.length;_li++){
+        var _res=await db.from('sc_pedidos_v2').select('sc_numero,sc_produto,pc_numero,pc_status,pc_filial').eq('filial',s0.filial||'').in('sc_produto',_lotes[_li]).not('pc_numero','is',null);
+        if(_res.data&&_res.data.length){
+          _res.data.forEach(function(r){
+            if(!v2StatusMap[r.sc_produto])v2StatusMap[r.sc_produto]=[];
+            v2StatusMap[r.sc_produto].push(r);
+          });
+        }
+      }
+    }
+  }
+
   var linhas=itensList.map(function(item){
     var total=Object.values(item.porCC).reduce(function(acc,it){return acc+(it.quantidade||0)},0);
     // Total geral (todos os CCs do envio, incluindo os de outros gerentes)
@@ -172,6 +200,20 @@ atualizarBadges();
       +'<button class="'+aprCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
       +'<button class="'+recCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="recusado" onclick="decidirCC(this)">✗</button>'
       +'</td>'
+      +(function(){
+        var v2=v2StatusMap[item.codigo]||[];
+        if(!v2.length)return'<td style="font-size:10.5px;color:#cbd5e1">—</td>';
+        // Filtrar só PCs com status relevante (não eliminado/rejeitado)
+        var ativos=v2.filter(function(r){var s=(r.pc_status||'').toLowerCase();return!s.includes('elimin')&&!s.includes('rejeita')&&r.pc_numero;});
+        if(!ativos.length)return'<td style="font-size:10.5px;color:#cbd5e1">—</td>';
+        var html=ativos.slice(0,3).map(function(r){
+          var s=(r.pc_status||'').toLowerCase();
+          var cor=s.includes('receb')||s.includes('pré-nota')?'#16a34a':s.includes('aprova')||s.includes('pend')?'#d97706':'#64748b';
+          var bg=s.includes('receb')||s.includes('pré-nota')?'#dcfce7':s.includes('aprova')||s.includes('pend')?'#fef3c7':'#f1f5f9';
+          return'<div style="font-size:10px;font-weight:600;color:'+cor+';background:'+bg+';border-radius:4px;padding:1px 5px;margin-bottom:2px;white-space:nowrap">PC '+r.pc_numero+' · '+(r.pc_status||'—')+'</div>';
+        }).join('');
+        return'<td style="padding:4px 6px">'+html+'</td>';
+      })()
       +'<td id="just-td-'+item.codigo+'" style="display:none;padding:4px 8px"><textarea data-cod="'+item.codigo+'" rows="2" placeholder="Justificativa..." style="width:150px;padding:4px 6px;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-family:inherit;resize:none" oninput="justificativas_ger[this.dataset.cod]=this.value"></textarea></td>'
       +'</tr>';
   }).join('');
@@ -207,6 +249,7 @@ atualizarBadges();
     +'<th style="background:#f0fdf4;color:#166534;width:80px">Total<br>gerente</th>'
     +'<th style="text-align:right;width:90px">Valor est.</th>'
     +'<th style="text-align:center;width:80px">Decisão</th>'
+    +'<th style="width:120px">Em compra</th>'
     +'<th style="width:160px">Justificativa</th>'
     +'</tr></thead><tbody>'+linhas+'</tbody></table>'
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
