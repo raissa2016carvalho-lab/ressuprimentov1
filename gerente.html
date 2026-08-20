@@ -180,11 +180,21 @@ atualizarBadges();
   var nItems=itensList.length;
   var tituloCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(' · ');
   var camposSC='';
+  // Calcular valor total do grupo
+  var valorGrupo=0;
+  grupo.forEach(function(s){
+    (s.itens||[]).forEach(function(it){
+      var qtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:(it.quantidade||0);
+      var preco=it.codigo&&it.codigo!=='MANUAL'?precoMap[it.codigo]||0:0;
+      valorGrupo+=qtd*preco;
+    });
+  });
+  var valorStr=valorGrupo>0?'<span style="font-size:12px;font-weight:700;color:#1e40af;background:#eff6ff;border-radius:6px;padding:2px 8px;margin-left:8px">'+valorGrupo.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'</span>':'';
 
   return'<div class="card" style="margin-bottom:16px">'
     +'<div class="card-topo" onclick="toggleCardMat(this)">'
     +'<div style="flex:1">'
-    +'<div class="card-titulo">'+tituloCCs+'<span class="pill p-pendente" style="margin-left:6px">Pendente</span></div>'
+    +'<div class="card-titulo">'+tituloCCs+'<span class="pill p-pendente" style="margin-left:6px">Pendente</span>'+valorStr+'</div>'
     +'<div class="card-sub">'+nomeEnvio+' · mat. '+mat+' · '+dt+' · '+nItems+' item(ns) · 📅 '+periodo+'m'+(just?' · "'+just+'"':'')+' </div>'
     +'</div>'
     +'<div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>'
