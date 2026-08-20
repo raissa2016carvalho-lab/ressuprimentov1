@@ -1915,10 +1915,15 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
                   ${pcNum}
                   <span style="font-size:10.5px;font-weight:700;color:${cor}">${l.status_desc||`—`}</span>
                   ${(l.c7_comprador||``).trim()?`<span style="font-size:10px;color:#64748b;font-style:italic">${l.c7_comprador.trim()}</span>`:``}
-                </span>`}).join(``):`<span style="font-size:11px;color:#94a3b8">Sem PC gerado</span>`;return`<tr style="border-bottom:1px solid #f1f5f9">
+                </span>`}).join(``):`<span style="font-size:11px;color:#94a3b8">Sem PC gerado</span>`;let qtdPcTot=it.linhas?it.linhas.reduce((a,l2)=>a+(Number(l2.c7_quant)||0),0):0;
+          let saldo=(qtdPcTot+(it.qtdEst||0))-(it.total_mob||0);
+          let saldoCor=saldo>0?'#16a34a':saldo<0?'#ef4444':'#64748b';
+          let saldoTxt=saldo>0?'+'+saldo:String(saldo);
+          return`<tr style="border-bottom:1px solid #f1f5f9">
             <td style="padding:6px 10px;font-size:12px">${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-size:10.5px;font-family:ui-monospace,monospace">${it.codigo}</span>`:``}</td>
             <td style="padding:6px 10px;font-size:12px;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap">${it.total_mob}</td>
             <td style="padding:6px 10px;font-size:12px;flex-wrap:wrap">${scsDoItem}</td>
+            <td style="padding:6px 10px;font-size:12px;text-align:right;font-weight:700;color:${saldoCor};white-space:nowrap">${saldoTxt}</td>
           </tr>`}).join(``);return`<div id="${uid}" style="display:none;border:1px solid ${cor}40;border-radius:10px;overflow:hidden;margin-bottom:8px">
           <div style="padding:9px 14px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">
             <span style="font-size:13px;font-weight:600;color:#1e293b">${label} — ${itens.length} iten(s)</span>
@@ -1929,8 +1934,9 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
               <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">Item</th>
               <th style="padding:6px 10px;font-size:11px;text-align:right;color:#64748b;font-weight:600">Qtde</th>
               <th style="padding:6px 10px;font-size:11px;text-align:left;color:#64748b;font-weight:600">SC / Status</th>
+              <th style="padding:6px 10px;font-size:11px;text-align:right;color:#64748b;font-weight:600">Saldo</th>
             </tr>
-            ${linhasHtml||`<tr><td colspan="3" style="padding:12px;text-align:center;color:#94a3b8;font-size:12px">Nenhum item</td></tr>`}
+            ${linhasHtml||`<tr><td colspan="4" style="padding:12px;text-align:center;color:#94a3b8;font-size:12px">Nenhum item</td></tr>`}
           </table>
         </div>`}).join(``)}function pizzaCats(){let r=cats.recebido.length,e=cats.estoque.length,pe=cats.pendente.length,a=cats.aprovacao.length,s=cats.semPedido.length,t=total,graus=n=>Math.round(n/t*360),g1=graus(r),g2=graus(e),g3=graus(a),g4=graus(pe);return`
         <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#fff;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
