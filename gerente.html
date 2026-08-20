@@ -194,7 +194,7 @@ atualizarBadges();
         var v2=v2StatusMap[item.codigo]||[];
         if(!v2.length)return'<td style="font-size:10.5px;color:#cbd5e1">—</td>';
         // Filtrar só PCs com status relevante (não eliminado/rejeitado)
-        var ativos=v2.filter(function(r){var s=(r.pc_status||'').toLowerCase();return!s.includes('elimin')&&!s.includes('rejeita')&&r.pc_numero;});
+        var ativos=v2.filter(function(r){var s=(r.pc_status||'').toLowerCase();return r.pc_numero&&(s.includes('pend')||s.includes('aprova')||s.includes('pré-nota')||s.includes('pre-nota'));});
         if(!ativos.length)return'<td style="font-size:10.5px;color:#cbd5e1">—</td>';
         var html=ativos.slice(0,3).map(function(r){
           var s=(r.pc_status||'').toLowerCase();
