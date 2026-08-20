@@ -583,9 +583,19 @@ function atualizarBadges(){
     else if(s===`aguardando_master`)enviado++;
     else if(s===`recusada`)recusado++;
   });
+  // Calcular valor total de todas as solicitações pendentes
+  let valorTotal=solicitacoes.reduce((sum,s)=>{
+    return sum+(s.itens||[]).reduce((sv,it)=>{
+      let qtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:(it.quantidade||0);
+      let preco=it.codigo&&it.codigo!==`MANUAL`?precoMap[it.codigo]||0:0;
+      return sv+(qtd*preco);
+    },0);
+  },0);
   let el=$(`badges-status`);
   if(!el)return;
+  let valorFmt=valorTotal>0?`<span style="background:#eff6ff;color:#1e40af;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">💰 ${valorTotal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>`:``;
   el.innerHTML=[
+    valorFmt,
     pendente?`<span style="background:#fef3c7;color:#d97706;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">⏳ ${pendente} pendente(s)</span>`:``,
     enviado?`<span style="background:#dcfce7;color:#16a34a;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">✅ ${enviado} enviado(s)</span>`:``,
     recusado?`<span style="background:#fee2e2;color:#991b1b;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700">❌ ${recusado} recusado(s)</span>`:``,
