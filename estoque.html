@@ -691,7 +691,7 @@ async function carregarComparativo(){
   }
   const [entradas, saidas, posicao, itensDesc] = await Promise.all([
     buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,mes,qtd_entrada,valor_entrada'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>{ let q=db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade').gte('mes','202501'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade').gte('mes','202501'); return q; }),
     buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
   ]);
