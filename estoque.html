@@ -694,9 +694,12 @@ async function carregarComparativo(){
     buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
   ]);
-  console.log('[comp] entradas (movimentos_entrada):', entradas.length);
-  console.log('[comp] saidas (consumo_mensal_comp):', saidas.length, saidas.slice(0,3));
-  console.log('[comp] posicao (estoque_sb2):', posicao.length);
+  console.log('[comp] filial='+filial+' entradas:', entradas.length);
+  console.log('[comp] filial='+filial+' saidas:', saidas.length, saidas.slice(0,3));
+  console.log('[comp] filial='+filial+' posicao:', posicao.length);
+  // Debug: verificar produto 900000268
+  const _debugSaida=saidas.filter(r=>r.produto==='900000268');
+  if(_debugSaida.length)console.log('[comp] 900000268 saidas:', _debugSaida.reduce((a,r)=>a+r.quantidade,0), _debugSaida);
   // Mapa código -> descrição da tabela itens
   window.itensMap={};
   (itensDesc||[]).forEach(r=>{if(r.codigo)window.itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});;
