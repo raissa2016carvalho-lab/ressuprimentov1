@@ -1991,6 +1991,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
           <th style="width:175px">Pedidos</th>
           <th style="width:110px">Entrega</th>
           <th>Equipes atendidas</th>
+          <th style="text-align:right;width:70px">Saldo</th>
           <th style="width:150px">Observação</th>
           <th style="width:36px"></th>
         </tr>
@@ -2022,6 +2023,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
                 onblur="salvarDtEntregaManual(this)"/>
             </td>
             <td ${toggle}><div class="chips-wrap">${chips}</div></td>
+            <td style="padding:4px 8px;text-align:right;font-weight:700;font-size:12px;white-space:nowrap;color:${(()=>{let s=(qtdRecebidaPC+(mapaEstoque[codTrim]||0))-(it.total_mob||0);return s>0?'#16a34a':s<0?'#ef4444':'#94a3b8';})()}">${(()=>{let s=(qtdRecebidaPC+(mapaEstoque[codTrim]||0))-(it.total_mob||0);return s>0?'+'+s:String(s);})()}</td>
             <td style="padding:4px 8px"><input type="text" value="${it.observacao||``}" placeholder="Obs..." oninput="salvarObsItem(${mobId},${it.ids[0]},this.value)" style="width:130px;padding:3px 6px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px"/></td>
             <td onclick="event.stopPropagation()" class="somente-admin">
               <button onclick="excluirItemMob(${mobId},'${it.ids.join(`,`)}','${(it.descricao||``).replace(/'/g,`\\'`)}')"
