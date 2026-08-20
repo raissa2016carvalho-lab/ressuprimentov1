@@ -2,7 +2,9 @@
 </div></body></html>
 <script>const SUPABASE_URL=`https://vvwtqbehfwrgcmbjdniu.supabase.co`,SUPABASE_ANON_KEY=`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis`,db=window.supabase.createClient(`https://vvwtqbehfwrgcmbjdniu.supabase.co`,`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis`),$=id=>document.getElementById(id),GRUPOS_PERMITIDOS=new Set([`MATERIAIS DE EXPEDIENTE E CONSUMO ADM`,`MATERIAIS ELETRICOS`,`EPI / EPC E FERRAMENTAS`,`EQUIPAMENTOS DE INFORMATICA`,`MOVEIS & UTENSILIOS`,`MATERIAIS DE CONSUMO OBRA`,`MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA`,`MATERIAL P/ PERFURACAO DE ROCHAS`,`MATERIAL P/ LAVAGEM DE ISOLADORES`]);
 // Estado global
-let todosCCs=[],ccCarregado=!1,ccsSelecionados=[],consumoMap={},itensMap={},listaItens=[],itensPontuais=[],filialAtual=``,periodoMeses=3,consumoMapCC={},consumoMapMensal={};function onPeriodoChange(){
+let todosCCs=[],ccCarregado=!1,ccsSelecionados=[],consumoMap={},itensMap={},listaItens=[],itensPontuais=[],filialAtual=``,periodoMeses=3,consumoMapCC={},consumoMapMensal={};
+// Meses do início do ano atual até o mês atual — global para uso no popup e na média
+const MESES_FIXOS=(function(){var meses=[],d=new Date(),anoAtual=d.getFullYear(),mesAtual=d.getMonth();for(var m=0;m<=mesAtual;m++){meses.push(anoAtual.toString()+(m+1).toString().padStart(2,'0'))}return meses})();function onPeriodoChange(){
 // Recalcular todos os totais já preenchidos sem perder os valores digitados
 periodoMeses=Number($(`periodo-meses`).value)||3,$(`periodo-label`).textContent=periodoMeses,Object.values(qtdMap).forEach(it=>{let totalEl=$(`total-`+it.codigo);totalEl&&(totalEl.textContent=it.qtd*periodoMeses)})}window.onPeriodoChange=onPeriodoChange;
 // ── FILIAL ──────────────────────────────────────────────────────────────────
@@ -69,9 +71,6 @@ try{const raw=sessionStorage.getItem(cacheKey);if(raw){const{ts,data}=JSON.parse
 if(!consumoData){let rows=[],off2=0;for(;;){const{data:lote}=await db.from(`consumo_mensal`).select(`cc,produto,descricao,quantidade,mes`).in(`cc`,todosCodigosCC.length?todosCodigosCC:ccs).range(off2,off2+999);if(!lote||!lote.length){break}rows=rows.concat(lote);if(lote.length<1e3)break;off2+=1e3}consumoData=rows;try{sessionStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),data:rows}));console.log(`[consumo] cache salvo (${rows.length} linhas)`)}catch(e){}}
 let agg={};
 // Consumo individual por CC+produto
-// Meses fixos Jan-Jun 2026 — mesma janela usada no painel do gerente
-// Meses do início do ano atual até o mês atual
-const MESES_FIXOS=(function(){var meses=[],d=new Date(),anoAtual=d.getFullYear(),mesAtual=d.getMonth();for(var m=0;m<=mesAtual;m++){meses.push(anoAtual.toString()+(m+1).toString().padStart(2,'0'))}return meses})();
 let mapCcNome={};
 // Mapa cc -> grupo (se tiver grupo, usa grupo como chave; senão usa nome)
 let mapCcGrupo={};
@@ -87,17 +86,14 @@ consumoMap={};consumoMapCC={};consumoMapMensal={};let aggCC={};let aggCCMeses={}
 (consumoData||[]).forEach(r=>{if(!r.produto||!r.cc)return;let nome=mapCcNome[r.cc]||r.cc,k=nome+'|'+r.produto,qtd=Number(r.quantidade)||0;aggCC[k]=(aggCC[k]||0)+qtd;if(!aggCCMeses[k])aggCCMeses[k]=new Set();if(r.mes)aggCCMeses[k].add(r.mes);aggProdTotal[r.produto]=(aggProdTotal[r.produto]||0)+qtd;if(!aggProdMeses[r.produto])aggProdMeses[r.produto]=new Set();if(r.mes)aggProdMeses[r.produto].add(r.mes);if(r.mes&&r.produto){let km=nome+'|'+r.produto;if(!consumoMapMensal[km])consumoMapMensal[km]={};consumoMapMensal[km][r.mes]=(consumoMapMensal[km][r.mes]||0)+qtd}});
 Object.entries(aggCC).forEach(([k,total])=>{let nM=aggCCMeses[k]?.size||1;consumoMapCC[k]=total>0?Math.max(1,Math.round(total/nM)):0});
 // Média baseada apenas nos meses do ano atual (MESES_FIXOS)
+// aggProdMeses já tem os meses com consumo; filtrar só os do ano atual
 Object.keys(aggProdTotal).forEach(produto=>{
-  // Somar consumo apenas nos meses fixos do ano atual
-  let totalFixo=0;
-  let mesesComConsumo=0;
+  let totalFixo=0,mesesComConsumo=0;
   MESES_FIXOS.forEach(mes=>{
+    // Somar consumo de todos os CCs para este produto neste mês via aggCC temporário
     let qtdMes=0;
-    // Somar consumo de todos os CCs para este produto neste mês
-    Object.keys(consumoMapMensal).forEach(k=>{
-      if(k.endsWith('|'+produto)&&consumoMapMensal[k][mes]){
-        qtdMes+=consumoMapMensal[k][mes];
-      }
+    (consumoData||[]).forEach(r=>{
+      if(r.produto===produto&&r.mes===mes) qtdMes+=Number(r.quantidade)||0;
     });
     if(qtdMes>0){totalFixo+=qtdMes;mesesComConsumo++;}
   });
