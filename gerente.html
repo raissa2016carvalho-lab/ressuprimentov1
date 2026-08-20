@@ -105,7 +105,7 @@ var _filialTodos=[...new Set(solicitacoes.map(function(s){return s.filial}).filt
 if(_codigosTodos.length>0&&_filialTodos.length>0){
   for(var _fi=0;_fi<_filialTodos.length;_fi++){
     for(var _ci=0;_ci<_codigosTodos.length;_ci+=100){
-      let{data:_v2d}=await db.from('sc_pedidos_v2').select('sc_produto,sc_numero,sc_status,sc_cc,pc_numero,pc_status').eq('filial',_filialTodos[_fi]).in('sc_produto',_codigosTodos.slice(_ci,_ci+100));
+      let{data:_v2d}=await db.from('sc_pedidos_v2').select('sc_produto,sc_numero,sc_status,sc_cc,sc_quant,pc_numero,pc_status').eq('filial',_filialTodos[_fi]).in('sc_produto',_codigosTodos.slice(_ci,_ci+100));
       (_v2d||[]).forEach(function(r){
         if(!window._v2StatusMap[r.sc_produto])window._v2StatusMap[r.sc_produto]=[];
         window._v2StatusMap[r.sc_produto].push(r);
@@ -209,7 +209,8 @@ atualizarBadges();
           var s=(r.sc_status||'').toLowerCase();
           var cor=s.includes('bloqueada')?'#d97706':s.includes('pend')?'#f59e0b':'#64748b';
           var bg=s.includes('bloqueada')?'#fef3c7':s.includes('pend')?'#fffbeb':'#f1f5f9';
-          return'<div style="font-size:10px;font-weight:600;color:'+cor+';background:'+bg+';border-radius:4px;padding:1px 5px;margin-bottom:2px;white-space:nowrap">SC '+r.sc_numero+' · '+(r.sc_status||'—')+'</div>';
+          var qtd=r.sc_quant>0?(' · '+r.sc_quant+' un'):'';
+          return'<div style="font-size:10px;font-weight:600;color:'+cor+';background:'+bg+';border-radius:4px;padding:1px 5px;margin-bottom:2px;white-space:nowrap">SC '+r.sc_numero+qtd+' · '+(r.sc_status||'—')+'</div>';
         }).join('');
         return'<td style="padding:4px 6px">'+html+'</td>';
       })()
