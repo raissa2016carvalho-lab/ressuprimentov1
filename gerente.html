@@ -105,7 +105,7 @@ var _filialTodos=[...new Set(solicitacoes.map(function(s){return s.filial}).filt
 if(_codigosTodos.length>0&&_filialTodos.length>0){
   for(var _fi=0;_fi<_filialTodos.length;_fi++){
     for(var _ci=0;_ci<_codigosTodos.length;_ci+=100){
-      let{data:_v2d}=await db.from('sc_pedidos_v2').select('sc_produto,pc_numero,pc_status').eq('filial',_filialTodos[_fi]).in('sc_produto',_codigosTodos.slice(_ci,_ci+100)).not('pc_numero','is',null);
+      let{data:_v2d}=await db.from('sc_pedidos_v2').select('sc_produto,sc_numero,sc_status,sc_cc,pc_numero,pc_status').eq('filial',_filialTodos[_fi]).in('sc_produto',_codigosTodos.slice(_ci,_ci+100));
       (_v2d||[]).forEach(function(r){
         if(!window._v2StatusMap[r.sc_produto])window._v2StatusMap[r.sc_produto]=[];
         window._v2StatusMap[r.sc_produto].push(r);
@@ -194,13 +194,22 @@ atualizarBadges();
         var v2=v2StatusMap[item.codigo]||[];
         if(!v2.length)return'<td style="font-size:10.5px;color:#cbd5e1">—</td>';
         // Filtrar só PCs com status relevante (não eliminado/rejeitado)
-        var ativos=v2.filter(function(r){var s=(r.pc_status||'').toLowerCase();return r.pc_numero&&(s.includes('pend')||s.includes('aprova')||s.includes('pré-nota')||s.includes('pre-nota'));});
+        // Deduplicar por sc_numero — pegar status mais avançado de cada SC
+        var scMap={};
+        v2.forEach(function(r){
+          if(!r.sc_numero)return;
+          var sc_s=(r.sc_status||'').toLowerCase();
+          // Só SCs com processo ativo (pendente, em aprovação, bloqueada)
+          if(sc_s.includes('atendida')||sc_s.includes('cancelada'))return;
+          if(!scMap[r.sc_numero]||r.pc_numero)scMap[r.sc_numero]=r;
+        });
+        var ativos=Object.values(scMap);
         if(!ativos.length)return'<td style="font-size:10.5px;color:#cbd5e1">—</td>';
         var html=ativos.slice(0,3).map(function(r){
-          var s=(r.pc_status||'').toLowerCase();
-          var cor=s.includes('receb')||s.includes('pré-nota')?'#16a34a':s.includes('aprova')||s.includes('pend')?'#d97706':'#64748b';
-          var bg=s.includes('receb')||s.includes('pré-nota')?'#dcfce7':s.includes('aprova')||s.includes('pend')?'#fef3c7':'#f1f5f9';
-          return'<div style="font-size:10px;font-weight:600;color:'+cor+';background:'+bg+';border-radius:4px;padding:1px 5px;margin-bottom:2px;white-space:nowrap">PC '+r.pc_numero+' · '+(r.pc_status||'—')+'</div>';
+          var s=(r.sc_status||'').toLowerCase();
+          var cor=s.includes('bloqueada')?'#d97706':s.includes('pend')?'#f59e0b':'#64748b';
+          var bg=s.includes('bloqueada')?'#fef3c7':s.includes('pend')?'#fffbeb':'#f1f5f9';
+          return'<div style="font-size:10px;font-weight:600;color:'+cor+';background:'+bg+';border-radius:4px;padding:1px 5px;margin-bottom:2px;white-space:nowrap">SC '+r.sc_numero+' · '+(r.sc_status||'—')+'</div>';
         }).join('');
         return'<td style="padding:4px 6px">'+html+'</td>';
       })()
