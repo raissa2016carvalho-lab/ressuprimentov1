@@ -680,7 +680,8 @@ async function carregarComparativo(){
   async function buscarTudo(fnQ){
     let todos=[], off=0;
     for(;;){
-      const{data}=await fnQ().range(off,off+999);
+      const{data,error}=await fnQ().range(off,off+999);
+      if(error){console.error('[buscarTudo] erro pag '+off,error);break;}
       if(!data||!data.length)break;
       todos=todos.concat(data);
       if(data.length<1000)break;
