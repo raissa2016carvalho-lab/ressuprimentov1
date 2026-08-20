@@ -75,14 +75,18 @@ const cons=consLote;
   const nome=mapCcNomeGer[c.cc]||ccMap[c.cc]?.nome||c.cc;
   const k=nome+`|`+c.produto;
   aggCC[k]=(aggCC[k]||0)+(Number(c.quantidade)||0);
-  if(MESES_FIX.includes(c.mes)){aggFixo[k]=(aggFixo[k]||0)+(Number(c.quantidade)||0)}
+  if(MESES_FIX.includes(c.mes)){aggFixo[k]=(aggFixo[k]||0)+(Number(c.quantidade)||0);}
   if(c.mes&&c.produto){if(!consumoMensalMap[k])consumoMensalMap[k]={};consumoMensalMap[k][c.mes]=(consumoMensalMap[k][c.mes]||0)+(Number(c.quantidade)||0);}
 });
+// Média baseada nos meses do ano atual com consumo (igual ao formulário)
 Object.keys(aggCC).forEach(k=>{
-  const fixo=aggFixo[k]||0;
-  const total=aggCC[k]||0;
-  const media=fixo>0?fixo/6:total/6;
-  consumoMap[k]=media>=1?Math.round(media):media>0?-1:0;
+  let totalFixo=0,mesesComConsumo=0;
+  MESES_FIX.forEach(mes=>{
+    let qtdMes=consumoMensalMap[k]?.[mes]||0;
+    if(qtdMes>0){totalFixo+=qtdMes;mesesComConsumo++;}
+  });
+  let nM=mesesComConsumo||1;
+  consumoMap[k]=totalFixo>0?Math.max(1,Math.round(totalFixo/nM)):0;
 })}
 // Buscar preços da tabela itens (SB1)
 if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await db.from(`itens`).select(`codigo,preco`).in(`codigo`,codigos.slice(i,i+500));(precos||[]).forEach(p=>{p.preco>0&&(precoMap[p.codigo]=p.preco)})}if($(`subtitulo`).textContent=solicitacoes.length>0?solicitacoes.length+` solicitação(ões) aguardando sua avaliação`:`Nenhuma solicitação pendente`,solicitacoes.length===0){$(`lista`).innerHTML=`<div class="vazio">✓ Nenhuma solicitação pendente.</div>`;return}var grupos2={};
@@ -291,7 +295,7 @@ document.addEventListener('click',function(e){
       Object.keys(m).forEach(function(mes){mensal[mes]=(mensal[mes]||0)+m[mes]});
     });
     // Janela Jan-Jun fixa em ordem crescente
-    var mesesFixosGer=(function(){var r=[],d=new Date();for(var i=6;i>=1;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
+    var mesesFixosGer=MESES_FIX.slice(); // Jan até mês atual do ano corrente
     function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
     // Histórico por CC individual para tabela
     var mensalPorCC={};
@@ -305,8 +309,12 @@ document.addEventListener('click',function(e){
       var m=consumoMensalMap[n+'|'+codigo]||{};
       Object.keys(m).forEach(function(mes){mensal[mes]=(mensal[mes]||0)+m[mes]});
     });
-    var mesesAtivos=mesesFixosGer;// sempre Jan-Jun fixo, meses sem dados mostram —
+    var mesesAtivos=mesesFixosGer;
+    // Calcular média dos meses com consumo no ano atual
+    var mesesComDadosGer=mesesAtivos.filter(function(m){return mensal[m]>0});
+    var mediaGer=mesesComDadosGer.length>0?Math.round(mesesComDadosGer.reduce(function(s,m){return s+mensal[m]},0)/mesesComDadosGer.length):0;
     var html='<span class="pop-close" onclick="fecharPopupGer()">×</span>';
+    html+='<div style="background:#f0fdf4;border-radius:6px;padding:5px 10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:#166534;font-weight:600">Média mensal '+new Date().getFullYear()+'</span><span style="font-size:16px;font-weight:800;color:#16a34a">'+mediaGer+'</span></div>';
     html+='<h4 style="margin:0 0 8px;font-size:13px;color:#0f172a">'+(descricao||codigo).slice(0,40)+'</h4>';
     if(!Object.keys(mensal).some(function(m){return mesesAtivos.includes(m)&&mensal[m]>0;})){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico Jan-Jun.</div>';}
     else{
@@ -334,7 +342,7 @@ document.addEventListener('click',function(e){
         html+='</tbody></table>';
       } else {
         // Card com 1 CC — tabela simples
-        html+='<table>'+mesesAtivos.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td style="text-align:right;font-family:ui-monospace,monospace;color:#1e40af">'+( mensal[m]||0)+'</td></tr>';}).join('')+'</table>';
+        html+='<table>'+mesesAtivos.map(function(m){var qtd=mensal[m]||0;return'<tr><td>'+fmtMes(m)+'</td><td style="text-align:right;font-family:ui-monospace,monospace;font-weight:'+(qtd>0?'700':'400')+';color:'+(qtd>0?'#1e40af':'#cbd5e1')+'">'+qtd+'</td></tr>';}).join('')+'</table>';
       }
     }
     pop.innerHTML=html;pop.style.display='block';
