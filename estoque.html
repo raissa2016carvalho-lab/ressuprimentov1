@@ -260,6 +260,24 @@ async function carregarConsumo(rows) {
     _mapaConsumo[k] = { total: Number(r.total_ano) || 0 };
   });
 
+  // Buscar transferências recebidas (TES 041) da movimentos_entrada
+  let _mapaTransf = {};
+  let transfs = [], offT = 0;
+  for (;;) {
+    const { data: td } = await db.from('movimentos_entrada')
+      .select('filial,produto,qtd_entrada')
+      .eq('tes','041')
+      .gte('mes','202601')
+      .range(offT, offT+999);
+    if (!td || !td.length) break;
+    td.forEach(r => {
+      const k = `${(r.filial||'').trim()}|${(r.produto||'').trim()}`;
+      _mapaTransf[k] = (_mapaTransf[k]||0) + (Number(r.qtd_entrada)||0);
+    });
+    if (td.length < 1000) break;
+    offT += 1000;
+  }
+
   const mesesDecorridos = Math.max(1, new Date().getMonth() + 1);
   rows.forEach(r => {
     const k = `${(r.filial||'').trim()}|${(r.codigo||'').trim()}`;
@@ -274,6 +292,7 @@ async function carregarConsumo(rows) {
       r._consumo_media = 0;
       r._cobertura = null;
     }
+    r._transf_entrada = _mapaTransf[k] || 0;
   });
 }
 
@@ -399,6 +418,7 @@ function renderTabela() {
           'Média mensal: ' + (Number(r._consumo_media)||0).toFixed(1) + ' un/mês\n' +
           'Cálculo: ' + (Number(r.qtd_atual)||0) + ' ÷ ' + (Number(r._consumo_media)||0).toFixed(1) + ' = ' + Number(r._cobertura).toFixed(1) + ' meses'
           : 'Sem histórico de consumo em 2026'}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
+      <td style="padding:6px 10px;text-align:right;font-size:12px;color:${r._transf_entrada>0?'#7c3aed':'#94a3b8'};font-weight:${r._transf_entrada>0?'700':'400'}">${r._transf_entrada>0?(Number(r._transf_entrada)).toLocaleString('pt-BR'):'—'}</td>
     </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
@@ -412,6 +432,7 @@ function renderTabela() {
         ${th('custo_medio','Custo Médio')}
         ${th('dt_ult_movimento','Últ. Mov.')}
         ${th('_consumo_total','Consumo 2026')}
+        ${th('_transf_entrada','Transf. Recebidas')}
         ${th('_cobertura','Cobertura')}
       </tr></thead>
       <tbody>${linhas}</tbody>
