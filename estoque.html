@@ -693,7 +693,7 @@ async function carregarComparativo(){
   }
   const [entradas, saidas, posicao, itensDesc, compras, transfsRec, inventario, devolucoes] = await Promise.all([
     buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,descricao,mes,emissao,nota_fiscal,serie,fornecedor,qtd_entrada,preco_unit,valor_entrada'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade').gte('mes','202501')),
+    buscarTudo(()=>db.from('consumo_comp_agg').select('filial,produto,qtd_total')),
     buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
     buscarTudo(()=>{ let q=db.from('mov_compras_agg').select('filial,produto,qtd_total,valor_total'); if(filial)q=q.eq('filial',filial); return q; }),
@@ -739,12 +739,8 @@ async function carregarComparativo(){
   (saidas||[]).forEach(r=>{
     const k=key(r.filial,r.produto);
     if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.produto,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0};
-    mapa[k].qtd_saida+=Number(r.quantidade)||0;
-    // consumo_mensal não tem valor_saida
+    mapa[k].qtd_saida+=Number(r.qtd_total)||0;
   });
-  // DEBUG
-  const _dbgK='07|900000268';
-  if(mapa[_dbgK])console.log('[comp] mapa 07|900000268 qtd_saida=',mapa[_dbgK].qtd_saida,'saidas count=',saidas.filter(r=>key(r.filial,r.produto)===_dbgK).length);
 
   // Adicionar posição de estoque e descrição
   // Somar qtd_atual por filial+produto (múltiplos armazéns)
