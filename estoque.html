@@ -742,6 +742,9 @@ async function carregarComparativo(){
     mapa[k].qtd_saida+=Number(r.quantidade)||0;
     // consumo_mensal não tem valor_saida
   });
+  // DEBUG
+  const _dbgK='07|900000268';
+  if(mapa[_dbgK])console.log('[comp] mapa 07|900000268 qtd_saida=',mapa[_dbgK].qtd_saida,'saidas count=',saidas.filter(r=>key(r.filial,r.produto)===_dbgK).length);
 
   // Adicionar posição de estoque e descrição
   // Somar qtd_atual por filial+produto (múltiplos armazéns)
