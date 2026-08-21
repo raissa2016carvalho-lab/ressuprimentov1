@@ -262,21 +262,23 @@ async function carregarConsumo(rows) {
 
   // Buscar transferências recebidas (TES 041) da movimentos_entrada
   let _mapaTransf = {};
-  let transfs = [], offT = 0;
-  for (;;) {
-    const { data: td } = await db.from('movimentos_entrada')
-      .select('filial,produto,qtd_entrada')
-      .eq('tes','041')
-      .gte('mes','202601')
-      .range(offT, offT+999);
-    if (!td || !td.length) break;
-    td.forEach(r => {
-      const k = `${(r.filial||'').trim()}|${(r.produto||'').trim()}`;
-      _mapaTransf[k] = (_mapaTransf[k]||0) + (Number(r.qtd_entrada)||0);
-    });
-    if (td.length < 1000) break;
-    offT += 1000;
-  }
+  try {
+    let offT = 0;
+    for (;;) {
+      const { data: td, error: eT } = await db.from('movimentos_entrada')
+        .select('filial,produto,qtd_entrada')
+        .eq('tes','041')
+        .gte('mes','202601')
+        .range(offT, offT+499);
+      if (eT || !td || !td.length) break;
+      td.forEach(r => {
+        const k = `${(r.filial||'').trim()}|${(r.produto||'').trim()}`;
+        _mapaTransf[k] = (_mapaTransf[k]||0) + (Number(r.qtd_entrada)||0);
+      });
+      if (td.length < 500) break;
+      offT += 500;
+    }
+  } catch(e) { console.warn('Transf erro:', e); }
 
   const mesesDecorridos = Math.max(1, new Date().getMonth() + 1);
   rows.forEach(r => {
