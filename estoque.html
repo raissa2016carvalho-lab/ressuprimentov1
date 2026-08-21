@@ -829,7 +829,6 @@ function filtrarComparativo(){
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">🛒 Compras</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7c3aed">🔄 Transf. Rec.</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#0ea5e9">↩ Devoluções</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#f59e0b">📋 Inventário</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">📦 Consumo SCP</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af">Saldo Calc.</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569">Estoque Atual</th>
@@ -849,7 +848,6 @@ function filtrarComparativo(){
           </td>
           <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_transf||0)>0?'#7c3aed':'#cbd5e1'}">${(r.qtd_transf||0)>0?fmtQ(r.qtd_transf):'—'}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_devolucao||0)>0?'#0ea5e9':'#cbd5e1'}">${(r.qtd_devolucao||0)>0?fmtQ(r.qtd_devolucao):'—'}</td>
-          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_inventario||0)>0?'#f59e0b':'#cbd5e1'}" title="${(r.qtd_inventario||0)>0?'Ajuste de inventário — indica possível falha de processo':''}">${(r.qtd_inventario||0)>0?fmtQ(r.qtd_inventario):'—'}</td>
           <td style="padding:7px 10px;text-align:right;color:#d97706;font-weight:600">${fmtQ(r.qtd_saida)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtQ(r.saldo_calc)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:700">${fmtQ(r.qtd_atual)}</td>
