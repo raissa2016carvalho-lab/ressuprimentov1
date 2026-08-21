@@ -260,25 +260,7 @@ async function carregarConsumo(rows) {
     _mapaConsumo[k] = { total: Number(r.total_ano) || 0 };
   });
 
-  // Buscar transferências recebidas (TES 041) da movimentos_entrada
-  let _mapaTransf = {};
-  try {
-    let offT = 0;
-    for (;;) {
-      const { data: td, error: eT } = await db.from('movimentos_entrada')
-        .select('filial,produto,qtd_entrada')
-        .eq('tes','041')
-        .gte('mes','202601')
-        .range(offT, offT+499);
-      if (eT || !td || !td.length) break;
-      td.forEach(r => {
-        const k = `${(r.filial||'').trim()}|${(r.produto||'').trim()}`;
-        _mapaTransf[k] = (_mapaTransf[k]||0) + (Number(r.qtd_entrada)||0);
-      });
-      if (td.length < 500) break;
-      offT += 500;
-    }
-  } catch(e) { console.warn('Transf erro:', e); }
+
 
   const mesesDecorridos = Math.max(1, new Date().getMonth() + 1);
   rows.forEach(r => {
@@ -294,7 +276,6 @@ async function carregarConsumo(rows) {
       r._consumo_media = 0;
       r._cobertura = null;
     }
-    r._transf_entrada = _mapaTransf[k] || 0;
   });
 }
 
@@ -420,7 +401,6 @@ function renderTabela() {
           'Média mensal: ' + (Number(r._consumo_media)||0).toFixed(1) + ' un/mês\n' +
           'Cálculo: ' + (Number(r.qtd_atual)||0) + ' ÷ ' + (Number(r._consumo_media)||0).toFixed(1) + ' = ' + Number(r._cobertura).toFixed(1) + ' meses'
           : 'Sem histórico de consumo em 2026'}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
-      <td style="padding:6px 10px;text-align:right;font-size:12px;color:${r._transf_entrada>0?'#7c3aed':'#94a3b8'};font-weight:${r._transf_entrada>0?'700':'400'}">${r._transf_entrada>0?(Number(r._transf_entrada)).toLocaleString('pt-BR'):'—'}</td>
     </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
@@ -434,7 +414,6 @@ function renderTabela() {
         ${th('custo_medio','Custo Médio')}
         ${th('dt_ult_movimento','Últ. Mov.')}
         ${th('_consumo_total','Consumo 2026')}
-        ${th('_transf_entrada','Transf. Recebidas')}
         ${th('_cobertura','Cobertura')}
       </tr></thead>
       <tbody>${linhas}</tbody>
@@ -718,12 +697,22 @@ async function carregarComparativo(){
     buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
   ]);
-  console.log('[comp] filial='+filial+' entradas:', entradas.length);
-  console.log('[comp] filial='+filial+' saidas:', saidas.length, saidas.slice(0,3));
-  console.log('[comp] filial='+filial+' posicao:', posicao.length);
-  // Debug: verificar produto 900000268
-  const _debugSaida=saidas.filter(r=>r.produto==='900000268');
-  if(_debugSaida.length)console.log('[comp] 900000268 saidas:', _debugSaida.reduce((a,r)=>a+r.quantidade,0), _debugSaida);
+  // Buscar transferências recebidas (TES 041) para o comparativo
+  let transfsComp=[];
+  try{
+    let offT=0;
+    for(;;){
+      const{data:td,error:eT}=await db.from('movimentos_entrada')
+        .select('filial,produto,qtd_entrada')
+        .eq('tes','041')
+        .gte('mes','202501')
+        .range(offT,offT+499);
+      if(eT||!td||!td.length)break;
+      transfsComp=transfsComp.concat(td);
+      if(td.length<500)break;
+      offT+=500;
+    }
+  }catch(e){console.warn('Transf erro:',e);}
   // Mapa código -> descrição da tabela itens
   window.itensMap={};
   (itensDesc||[]).forEach(r=>{if(r.codigo)window.itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});;
@@ -733,11 +722,23 @@ async function carregarComparativo(){
   const mapa = {};
   const key = (f,p) => `${f}|${p}`;
 
+  // Mapa de transferências recebidas
+  const mapaTransf={};
+  (transfsComp||[]).forEach(r=>{
+    const k=key(r.filial,r.produto);
+    mapaTransf[k]=(mapaTransf[k]||0)+(Number(r.qtd_entrada)||0);
+  });
+
   (entradas||[]).forEach(r=>{
     const k=key(r.filial,r.produto);
-    if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.produto,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0};
+    if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.produto,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0,qtd_transf:0};
     mapa[k].qtd_entrada+=Number(r.qtd_entrada)||0;
     mapa[k].valor_entrada+=Number(r.valor_entrada)||0;
+  });
+  // Adicionar transferências ao mapa
+  Object.keys(mapaTransf).forEach(k=>{
+    if(!mapa[k])return;
+    mapa[k].qtd_transf=mapaTransf[k];
   });
   (saidas||[]).forEach(r=>{
     const k=key(r.filial,r.produto);
@@ -830,6 +831,7 @@ function filtrarComparativo(){
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Código</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Descrição</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">Entradas (jan/25)</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7c3aed">Transf. Recebidas</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">Consumo SCP (acumulado)</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af">Saldo Calc.</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569">Estoque Atual</th>
@@ -847,6 +849,7 @@ function filtrarComparativo(){
             ${fmtQ(r.qtd_entrada)}
             ${r.qtd_entrada>0?`<button onclick="baixarNotasEntrada('${r.filial}','${r.produto}')" style="display:block;margin:2px auto 0;background:#dcfce7;color:#166534;border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap">⬇ Notas</button>`:''}
           </td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${r.qtd_transf>0?'#7c3aed':'#cbd5e1'}">${r.qtd_transf>0?fmtQ(r.qtd_transf):'—'}</td>
           <td style="padding:7px 10px;text-align:right;color:#d97706;font-weight:600">${fmtQ(r.qtd_saida)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtQ(r.saldo_calc)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:700">${fmtQ(r.qtd_atual)}</td>
