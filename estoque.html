@@ -694,7 +694,7 @@ async function carregarComparativo(){
   const [entradas, saidas, posicao, itensDesc, compras, transfsRec, inventario, devolucoes] = await Promise.all([
     buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,descricao,mes,emissao,nota_fiscal,serie,fornecedor,qtd_entrada,preco_unit,valor_entrada'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade').gte('mes','202501')),
-    buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
     buscarTudo(()=>{ let q=db.from('mov_compras_agg').select('filial,produto,qtd_total,valor_total'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('mov_transf_rec_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
@@ -748,8 +748,9 @@ async function carregarComparativo(){
   const posMap={};
   (posicao||[]).forEach(r=>{
     const k=key(r.filial,r.codigo);
-    if(!posMap[k]) posMap[k]={...r,qtd_atual:0};
+    if(!posMap[k]) posMap[k]={...r,qtd_atual:0,_armazens:[]};
     posMap[k].qtd_atual+=Number(r.qtd_atual)||0;
+    if((r.armazem||'').trim())posMap[k]._armazens.push({armazem:(r.armazem||'').trim().replace(/^0+/,'')||'—',qtd:Number(r.qtd_atual)||0});
     // Garantir que itens com estoque mas sem movimento também apareçam
     if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.codigo,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0};
   });
@@ -762,6 +763,7 @@ async function carregarComparativo(){
     mapa[k].grupo = _grupoPos || (window.itensMap[_codTrim]?.grupo)||'';
     mapa[k].qtd_atual=Number(pos?.qtd_atual)||0;
     mapa[k].custo_medio=Number(pos?.custo_medio)||0;
+    mapa[k]._armazens=pos?._armazens||[];
     // Divergência: diferença entre saldo calculado (entrada-saída) e posição atual
     mapa[k].saldo_calc=mapa[k].qtd_entrada-mapa[k].qtd_saida;
     mapa[k].divergencia=mapa[k].qtd_atual-mapa[k].saldo_calc;
@@ -834,7 +836,7 @@ function filtrarComparativo(){
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569">Estoque Atual</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626">Divergência</th>
       </tr></thead>
-      <tbody>${lista.slice(0,500).map(r=>{
+      <tbody>${lista.slice(0,500).map((r,_ri)=>{
         const d=corDiverg(r.divergencia);
         const fmtQ=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2});
         const FNOMES={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiânia','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia','44':'Brumado'};
@@ -850,13 +852,52 @@ function filtrarComparativo(){
           <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_devolucao||0)>0?'#0ea5e9':'#cbd5e1'}">${(r.qtd_devolucao||0)>0?fmtQ(r.qtd_devolucao):'—'}</td>
           <td style="padding:7px 10px;text-align:right;color:#d97706;font-weight:600">${fmtQ(r.qtd_saida)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtQ(r.saldo_calc)}</td>
-          <td style="padding:7px 10px;text-align:right;font-weight:700">${fmtQ(r.qtd_atual)}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:700;${r._armazens&&r._armazens.length>1?'cursor:pointer;color:#1e40af;text-decoration:underline dotted':''}" ${r._armazens&&r._armazens.length>1?`onclick="abrirPopupComp(${_compDados.indexOf(r)})" title="Ver por armazém"`:''}>${fmtQ(r.qtd_atual)}</td>
           <td style="padding:7px 10px;text-align:right;background:${d.bg};color:${d.cor};font-weight:700">${r.divergencia>=0?'+':''}${fmtQ(r.divergencia)}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>
     ${lista.length>500?`<div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px">Mostrando 500 de ${lista.length} itens. Use os filtros para refinar.</div>`:''}`;
 }
+
+function abrirPopupComp(idx){
+  const r=_compDados[idx];
+  if(!r||!r._armazens||!r._armazens.length)return;
+  const old=document.getElementById('popup-arm-comp');if(old)old.remove();
+  const linhas=r._armazens.sort((a,b)=>b.qtd-a.qtd).map(a=>
+    `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;font-family:monospace">${a.armazem}</td>
+     <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">${a.qtd.toLocaleString('pt-BR')}</td></tr>`
+  ).join('');
+  const popup=document.createElement('div');
+  popup.id='popup-arm-comp';
+  popup.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.2);z-index:9999;min-width:280px;overflow:hidden';
+  popup.innerHTML=`
+    <div style="background:#0f172a;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700;font-size:13px">${(r.produto||'').trim()} — Filial ${(r.filial||'').trim()}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px">${(r.descricao||'').trim()}</div>
+      </div>
+      <button onclick="document.getElementById('popup-arm-comp').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1">✕</button>
+    </div>
+    <div style="padding:8px 0">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th style="padding:6px 12px;text-align:left;color:#64748b;font-size:11px;border-bottom:2px solid #e2e8f0">Armazém</th>
+          <th style="padding:6px 12px;text-align:right;color:#64748b;font-size:11px;border-bottom:2px solid #e2e8f0">Qtd</th>
+        </tr></thead>
+        <tbody>${linhas}</tbody>
+        <tfoot><tr>
+          <td style="padding:8px 12px;font-weight:700;border-top:2px solid #e2e8f0">Total</td>
+          <td style="padding:8px 12px;font-weight:700;text-align:right;border-top:2px solid #e2e8f0">${(Number(r.qtd_atual)||0).toLocaleString('pt-BR')}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+  document.body.appendChild(popup);
+  setTimeout(()=>document.addEventListener('click',function h(e){
+    if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);}
+  }),100);
+}
+window.abrirPopupComp=abrirPopupComp;
 
 async function baixarNotasEntrada(filial, produto){
   let{data:notas}=await db.from('movimentos_entrada')
