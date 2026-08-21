@@ -691,12 +691,15 @@ async function carregarComparativo(){
     }
     return todos;
   }
-  const [entradas, saidas, posicao, itensDesc, transfsComp] = await Promise.all([
+  const [entradas, saidas, posicao, itensDesc, compras, transfsRec, inventario, devolucoes] = await Promise.all([
     buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,descricao,mes,emissao,nota_fiscal,serie,fornecedor,qtd_entrada,preco_unit,valor_entrada'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>{ let q=db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade').gte('mes','202501'); return q; }),
+    buscarTudo(()=>db.from('consumo_mensal_comp').select('filial,produto,mes,quantidade').gte('mes','202501')),
     buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,descricao,grupo,qtd_atual,custo_medio'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
-    buscarTudo(()=>db.from('transf_recebidas_agg').select('filial,produto,qtd_total')),
+    buscarTudo(()=>{ let q=db.from('mov_compras_agg').select('filial,produto,qtd_total,valor_total'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('mov_transf_rec_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('mov_inventario_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('mov_devolucoes_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
   ]);
   // Mapa código -> descrição da tabela itens
   window.itensMap={};
@@ -707,12 +710,12 @@ async function carregarComparativo(){
   const mapa = {};
   const key = (f,p) => `${f}|${p}`;
 
-  // Mapa de transferências recebidas
-  const mapaTransf={};
-  (transfsComp||[]).forEach(r=>{
-    const k=key(r.filial,r.produto);
-    mapaTransf[k]=(mapaTransf[k]||0)+(Number(r.qtd_total||r.qtd_entrada)||0);
-  });
+  // Mapas por tipo de movimento
+  const mapaCompras={},mapaTransfRec={},mapaInventario={},mapaDevolucoes={};
+  (compras||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaCompras[k]={qtd:Number(r.qtd_total)||0,valor:Number(r.valor_total)||0};});
+  (transfsRec||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfRec[k]=Number(r.qtd_total)||0;});
+  (inventario||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaInventario[k]=Number(r.qtd_total)||0;});
+  (devolucoes||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaDevolucoes[k]=Number(r.qtd_total)||0;});
 
   (entradas||[]).forEach(r=>{
     const k=key(r.filial,r.produto);
@@ -720,10 +723,18 @@ async function carregarComparativo(){
     mapa[k].qtd_entrada+=Number(r.qtd_entrada)||0;
     mapa[k].valor_entrada+=Number(r.valor_entrada)||0;
   });
-  // Adicionar transferências ao mapa
-  Object.keys(mapaTransf).forEach(k=>{
-    if(!mapa[k])return;
-    mapa[k].qtd_transf=mapaTransf[k];
+  // Adicionar campos de cada tipo ao mapa
+  Object.keys({...mapaCompras,...mapaTransfRec,...mapaInventario,...mapaDevolucoes}).forEach(k=>{
+    if(!mapa[k]){
+      // Criar entrada no mapa se não existir (item que só tem posição de estoque)
+      const [f,p]=k.split('|');
+      mapa[k]={filial:f,produto:p,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0,qtd_transf:0};
+    }
+    mapa[k].qtd_compra    = mapaCompras[k]?.qtd||0;
+    mapa[k].valor_compra  = mapaCompras[k]?.valor||0;
+    mapa[k].qtd_transf    = mapaTransfRec[k]||0;
+    mapa[k].qtd_inventario= mapaInventario[k]||0;
+    mapa[k].qtd_devolucao = mapaDevolucoes[k]||0;
   });
   (saidas||[]).forEach(r=>{
     const k=key(r.filial,r.produto);
@@ -815,9 +826,11 @@ function filtrarComparativo(){
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Filial</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Código</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Descrição</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">Entradas (jan/25)</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7c3aed">Transf. Recebidas</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">Consumo SCP (acumulado)</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">🛒 Compras</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7c3aed">🔄 Transf. Rec.</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#0ea5e9">↩ Devoluções</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#f59e0b">📋 Inventário</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">📦 Consumo SCP</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af">Saldo Calc.</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569">Estoque Atual</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626">Divergência</th>
@@ -831,10 +844,12 @@ function filtrarComparativo(){
           <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
           <td style="padding:7px 10px;font-size:11px">${r.descricao||'—'}</td>
           <td style="padding:7px 10px;text-align:right;color:#16a34a;font-weight:600">
-            ${fmtQ(r.qtd_entrada)}
-            ${r.qtd_entrada>0?`<button onclick="baixarNotasEntrada('${r.filial}','${r.produto}')" style="display:block;margin:2px auto 0;background:#dcfce7;color:#166534;border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap">⬇ Notas</button>`:''}
+            ${fmtQ(r.qtd_compra||0)}
+            ${(r.qtd_compra||0)>0?`<button onclick="baixarNotasEntrada('${r.filial}','${r.produto}')" style="display:block;margin:2px auto 0;background:#dcfce7;color:#166534;border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap">⬇ Notas</button>`:''}
           </td>
-          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${r.qtd_transf>0?'#7c3aed':'#cbd5e1'}">${r.qtd_transf>0?fmtQ(r.qtd_transf):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_transf||0)>0?'#7c3aed':'#cbd5e1'}">${(r.qtd_transf||0)>0?fmtQ(r.qtd_transf):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_devolucao||0)>0?'#0ea5e9':'#cbd5e1'}">${(r.qtd_devolucao||0)>0?fmtQ(r.qtd_devolucao):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_inventario||0)>0?'#f59e0b':'#cbd5e1'}" title="${(r.qtd_inventario||0)>0?'Ajuste de inventário — indica possível falha de processo':''}">${(r.qtd_inventario||0)>0?fmtQ(r.qtd_inventario):'—'}</td>
           <td style="padding:7px 10px;text-align:right;color:#d97706;font-weight:600">${fmtQ(r.qtd_saida)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtQ(r.saldo_calc)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:700">${fmtQ(r.qtd_atual)}</td>
