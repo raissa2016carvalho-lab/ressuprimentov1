@@ -691,7 +691,7 @@ async function carregarComparativo(){
     }
     return todos;
   }
-  const [entradas, saidas, posicao, itensDesc, compras, transfsRec, devolucoes, inventario] = await Promise.all([
+  const [entradas, saidas, posicao, itensDesc, compras, transfsRec, _invMovAgg, devolucoes, inventario] = await Promise.all([
     buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,descricao,mes,emissao,nota_fiscal,serie,fornecedor,qtd_entrada,preco_unit,valor_entrada'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('consumo_comp_agg').select('filial,produto,qtd_total')),
     buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual'); if(filial)q=q.eq('filial',filial); return q; }),
@@ -715,6 +715,8 @@ async function carregarComparativo(){
   const mapaCompras={},mapaTransfRec={},mapaInventario={},mapaDevolucoes={};
   (compras||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaCompras[k]={qtd:Number(r.qtd_total)||0,valor:Number(r.valor_total)||0};});
   (transfsRec||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfRec[k]=Number(r.qtd_total)||0;});
+  // _invMovAgg = mov_inventario_agg (TES 021/016 — serviços/ativos, não usar)
+  // inventario = inventario_agg (SD3 TM=999 — ajuste real de inventário)
   (inventario||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaInventario[k]=Number(r.qtd_total)||0;});
   (devolucoes||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaDevolucoes[k]=Number(r.qtd_total)||0;});
 
