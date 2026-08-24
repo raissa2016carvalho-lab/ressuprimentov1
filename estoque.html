@@ -700,7 +700,7 @@ async function carregarComparativo(){
     buscarTudo(()=>{ let q=db.from('mov_transf_rec_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('mov_inventario_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('mov_devolucoes_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>{ let q=db.from('inventario_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('inventario_agg').select('filial,produto,qtd_total,ultimo_inventario'); if(filial)q=q.eq('filial',filial); return q; }),
   ]);
   // Mapa código -> descrição da tabela itens
   window.itensMap={};
@@ -717,7 +717,15 @@ async function carregarComparativo(){
   (transfsRec||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfRec[k]=Number(r.qtd_total)||0;});
   // _invMovAgg = mov_inventario_agg (TES 021/016 — serviços/ativos, não usar)
   // inventario = inventario_agg (SD3 TM=999 — ajuste real de inventário)
-  (inventario||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaInventario[k]=Number(r.qtd_total)||0;});
+  const mapaUltimoInventario={};
+  (inventario||[]).forEach(r=>{
+    const k=key(r.filial,r.produto);
+    mapaInventario[k]=(mapaInventario[k]||0)+Number(r.qtd_total)||0;
+    if(r.ultimo_inventario){
+      if(!mapaUltimoInventario[k]||r.ultimo_inventario>mapaUltimoInventario[k])
+        mapaUltimoInventario[k]=r.ultimo_inventario;
+    }
+  });
   (devolucoes||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaDevolucoes[k]=Number(r.qtd_total)||0;});
 
   (entradas||[]).forEach(r=>{
@@ -737,6 +745,7 @@ async function carregarComparativo(){
     mapa[k].valor_compra  = mapaCompras[k]?.valor||0;
     mapa[k].qtd_transf    = mapaTransfRec[k]||0;
     mapa[k].qtd_inventario= mapaInventario[k]||0;
+    mapa[k].ultimo_inventario=mapaUltimoInventario[k]||null;
     mapa[k].qtd_devolucao = mapaDevolucoes[k]||0;
   });
   (saidas||[]).forEach(r=>{
@@ -875,11 +884,14 @@ function abrirPopupComp(idx){
   const popup=document.createElement('div');
   popup.id='popup-arm-comp';
   popup.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.2);z-index:9999;min-width:280px;overflow:hidden';
+  const invDate=r.ultimo_inventario?new Date(r.ultimo_inventario).toLocaleDateString('pt-BR'):'—';
+  const invBadge=r.ultimo_inventario?`<div style="font-size:11px;color:#f59e0b;margin-top:4px">📋 Último inventário: ${invDate}</div>`:'';
   popup.innerHTML=`
     <div style="background:#0f172a;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-weight:700;font-size:13px">${(r.produto||'').trim()} — Filial ${(r.filial||'').trim()}</div>
         <div style="font-size:11px;color:#94a3b8;margin-top:2px">${(r.descricao||'').trim()}</div>
+        ${invBadge}
       </div>
       <button onclick="document.getElementById('popup-arm-comp').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1">✕</button>
     </div>
