@@ -629,6 +629,12 @@ carregar();
       <input id="comp-busca" placeholder="Código ou descrição..." oninput="filtrarComparativo()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;width:240px">
     </div>
     <div>
+      <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">GRUPO</label>
+      <select id="comp-grupo" onchange="filtrarComparativo()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:180px">
+        <option value="">Todos os grupos</option>
+      </select>
+    </div>
+    <div>
       <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">DIVERGÊNCIAS</label>
       <select id="comp-diverg" onchange="filtrarComparativo()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px">
         <option value="">Todos</option>
@@ -781,6 +787,13 @@ async function carregarComparativo(){
   });
 
   _compDados = Object.values(mapa).sort((a,b)=>Math.abs(b.divergencia)-Math.abs(a.divergencia));
+  // Popular select de grupos
+  const selGrupo=document.getElementById('comp-grupo');
+  if(selGrupo){
+    const grupos=[...new Set(_compDados.map(r=>r.grupo).filter(Boolean))].sort();
+    const valAtual=selGrupo.value;
+    selGrupo.innerHTML='<option value="">Todos os grupos</option>'+grupos.map(g=>`<option value="${g}" ${g===valAtual?'selected':''}>${g}</option>`).join('');
+  }
   _compCarregado = true;
   loading.style.display='none';
   filtrarComparativo();
@@ -789,8 +802,10 @@ async function carregarComparativo(){
 function filtrarComparativo(){
   const busca=(document.getElementById('comp-busca')?.value||'').toLowerCase();
   const diverg=document.getElementById('comp-diverg')?.value||'';
+  const grupo=(document.getElementById('comp-grupo')?.value||'').trim();
   let lista=_compDados.filter(r=>{
     if(busca&&!(r.produto.toLowerCase().includes(busca)||r.descricao.toLowerCase().includes(busca)))return false;
+    if(grupo&&r.grupo!==grupo)return false;
     if(diverg==='pos'&&r.qtd_atual<=0)return false;
     if(diverg==='neg'&&r.qtd_atual>=0)return false;
     if(diverg==='zero'&&r.qtd_atual!==0)return false;
