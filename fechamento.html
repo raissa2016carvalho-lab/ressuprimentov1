@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fechamento de Consumo — B&Q</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#f0f2f5;color:#1e293b;min-height:100vh}
+/* HEADER */
+.header{background:#0f172a;color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.header-title{font-size:15px;font-weight:700;letter-spacing:-.3px}
+.header-sub{font-size:11px;color:#64748b}
+.btn-voltar{background:#1e293b;border:none;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.btn-voltar:hover{background:#334155}
+
+/* FILTROS */
+.filtros{background:#fff;border-bottom:1px solid #e2e8f0;padding:12px 24px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.f-group{display:flex;flex-direction:column;gap:4px}
+.f-group label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
+.f-group select,.f-group input{border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;font-size:13px;background:#fff;color:#1e293b;min-width:160px}
+.btn-aplicar{background:#1e40af;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-aplicar:hover{background:#1d4ed8}
+.btn-excel{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-excel:hover{background:#15803d}
+
+/* ABAS */
+.abas{background:#fff;border-bottom:1px solid #e2e8f0;padding:0 24px;display:flex;gap:4px}
+.aba-btn{border:none;background:none;padding:12px 16px;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;border-bottom:3px solid transparent;transition:.2s}
+.aba-btn.ativa{color:#1e40af;border-bottom-color:#1e40af;font-weight:700}
+.aba-btn:hover{color:#1e40af}
+
+/* CONTENT */
+.content{padding:20px 24px;max-width:1600px;margin:0 auto}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:16px;border:1px solid #e2e8f0}
+.kpi-valor{font-size:22px;font-weight:800;line-height:1}
+.kpi-label{font-size:11px;color:#64748b;margin-top:4px}
+.kpi-sub{font-size:11px;color:#94a3b8;margin-top:2px}
+.kpi.vermelho .kpi-valor{color:#dc2626}
+.kpi.amarelo .kpi-valor{color:#d97706}
+.kpi.verde .kpi-valor{color:#16a34a}
+.kpi.azul .kpi-valor{color:#1e40af}
+
+/* TABELAS */
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:16px}
+.card-header{padding:14px 18px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center}
+.card-title{font-size:14px;font-weight:700;color:#1e293b}
+.card-sub{font-size:12px;color:#64748b}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;background:#f8fafc;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+th.num{text-align:right}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;white-space:nowrap}
+td.num{text-align:right;font-family:ui-monospace,monospace}
+tr:hover td{background:#f8fafc}
+tr.alerta td{background:#fef9c3}
+tr.alerta:hover td{background:#fef08a}
+
+/* ALERTA CUSTO ZERO */
+.badge-zero{background:#dc2626;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700}
+.badge-ok{background:#dcfce7;color:#16a34a;border-radius:4px;padding:1px 6px;font-size:10px}
+
+/* GRAFICOS */
+.graficos{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.grafico-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px}
+.grafico-title{font-size:13px;font-weight:700;margin-bottom:12px;color:#1e293b}
+.grafico-wrap{position:relative;height:260px}
+@media(max-width:900px){.graficos{grid-template-columns:1fr}}
+
+/* PAGINADOR */
+.paginador{display:flex;gap:6px;align-items:center;padding:10px 0;justify-content:flex-end}
+.paginador button{border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+.paginador button.ativa{background:#1e40af;color:#fff;border-color:#1e40af}
+.paginador button:hover:not(.ativa){background:#f1f5f9}
+
+/* LOADING */
+.loading{text-align:center;padding:40px;color:#64748b;font-size:13px}
+.spinner{display:inline-block;width:20px;height:20px;border:3px solid #e2e8f0;border-top-color:#1e40af;border-radius:50%;animation:spin .8s linear infinite;margin-right:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* MESES GRID */
+.meses-grid{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+.mes-chip{padding:5px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;transition:.15s}
+.mes-chip.sel{background:#1e40af;color:#fff;border-color:#1e40af}
+.mes-chip:hover:not(.sel){background:#e0e7ff;border-color:#818cf8}
+
+/* ALERTA CUSTO ZERO BANNER */
+.alerta-banner{background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.alerta-banner .icon{font-size:20px}
+.alerta-banner strong{font-size:13px;color:#92400e}
+.alerta-banner span{font-size:12px;color:#b45309}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button class="btn-voltar" onclick="history.back()">← Voltar</button>
+  <div>
+    <div class="header-title">📦 Fechamento de Consumo</div>
+    <div class="header-sub" id="sub-header">Carregando...</div>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
+  </div>
+</div>
+
+<!-- FILTROS -->
+<div class="filtros">
+  <div class="f-group">
+    <label>Filial</label>
+    <select id="f-filial">
+      <option value="">Todas as filiais</option>
+      <option value="01">01 — Matriz</option>
+      <option value="03">03 — Pau dos Ferros</option>
+      <option value="04">04 — Itapipoca</option>
+      <option value="06">06 — Currais Novos</option>
+      <option value="07">07 — Sobral</option>
+      <option value="08">08 — Aparecida de Goiânia</option>
+      <option value="09">09 — Maracanau</option>
+      <option value="10">10 — Mossoro</option>
+      <option value="11">11 — Anapolis</option>
+      <option value="13">13 — Alagoinhas</option>
+      <option value="14">14 — Ribeira do Pombal</option>
+      <option value="15">15 — Paulo Afonso</option>
+      <option value="22">22 — Goiania</option>
+      <option value="23">23 — Baturite</option>
+      <option value="24">24 — Morrinhos</option>
+      <option value="25">25 — Cascavel</option>
+      <option value="27">27 — Caucaia</option>
+      <option value="29">29 — Horizonte</option>
+      <option value="34">34 — Senhor do Bonfim</option>
+      <option value="36">36 — Luziania</option>
+      <option value="37">37 — Divinopolis</option>
+      <option value="40">40 — Garanhuns</option>
+      <option value="41">41 — Floriano</option>
+      <option value="42">42 — Livramento</option>
+      <option value="43">43 — Hortolandia</option>
+      <option value="44">44 — Brumado</option>
+    </select>
+  </div>
+  <div class="f-group">
+    <label>Grupo</label>
+    <select id="f-grupo"><option value="">Todos os grupos</option></select>
+  </div>
+  <div class="f-group">
+    <label>Centro de Custo</label>
+    <select id="f-cc"><option value="">Todos os CCs</option></select>
+  </div>
+  <div class="f-group">
+    <label>Período</label>
+    <select id="f-periodo">
+      <option value="2026">2026</option>
+      <option value="2025">2025</option>
+      <option value="todos">2025 + 2026</option>
+    </select>
+  </div>
+  <div class="f-group">
+    <label>Custo Zero</label>
+    <select id="f-custo-zero">
+      <option value="">Todos</option>
+      <option value="sim">Apenas custo zero</option>
+      <option value="nao">Apenas com custo</option>
+    </select>
+  </div>
+  <div class="f-group">
+    <label>Buscar</label>
+    <input type="text" id="f-busca" placeholder="Código ou descrição...">
+  </div>
+  <button class="btn-aplicar" onclick="aplicarFiltros()">🔍 Aplicar</button>
+</div>
+
+<!-- ABAS -->
+<div class="abas">
+  <button class="aba-btn ativa" onclick="irParaAba('resumo',this)">📊 Resumo</button>
+  <button class="aba-btn" onclick="irParaAba('por-grupo',this)">🏷️ Por Grupo</button>
+  <button class="aba-btn" onclick="irParaAba('por-filial',this)">🏢 Por Filial</button>
+  <button class="aba-btn" onclick="irParaAba('por-cc',this)">👥 Por CC</button>
+  <button class="aba-btn" onclick="irParaAba('mensal',this)">📅 Mensal</button>
+  <button class="aba-btn" onclick="irParaAba('custo-zero',this)">⚠️ Custo Zero</button>
+  <button class="aba-btn" onclick="irParaAba('itens',this)">📋 Itens</button>
+</div>
+
+<!-- CONTENT -->
+<div class="content" id="content">
+  <div class="loading"><span class="spinner"></span>Carregando dados...</div>
+</div>
+
+<script>
+const SUPABASE_URL='https://vvwtqbehfwrgcmbjdniu.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2d3RxYmVoZndyZ2NtYmpkbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Mjg3NTcsImV4cCI6MjA5NzEwNDc1N30.jHxva16Nae109RiWDlgl21saOJ6gBihstMmlKRRBXis';
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+let _dados=[], _filtrados=[], _abaAtual='resumo', _ccMap={};
+let _chartMes=null, _chartGrupo=null, _chartFilial=null;
+
+const FNOMES={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiânia','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia','44':'Brumado'};
+
+function fmtVal(v){return'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function fmtQtd(v){return(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2})}
+function fmtMes(m){const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return meses[Number(m.slice(4,6))-1]+'/'+m.slice(2,4)}
+
+async function carregar(){
+  document.getElementById('content').innerHTML='<div class="loading"><span class="spinner"></span>Carregando dados de consumo...</div>';
+
+  // Carregar CCs
+  const{data:ccs}=await db.from('centros_custo').select('cc,nome');
+  (ccs||[]).forEach(c=>{_ccMap[c.cc]=c.nome});
+
+  // Carregar dados com paginação
+  let todos=[],off=0;
+  for(;;){
+    const{data,error}=await db.from('consumo_scp').select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,valor_total,custo_zero').range(off,off+999);
+    if(error||!data||!data.length)break;
+    todos=todos.concat(data);
+    if(data.length<1000)break;
+    off+=1000;
+  }
+  _dados=todos;
+
+  // Popular selects
+  const grupos=[...new Set(todos.map(r=>r.grupo).filter(Boolean))].sort();
+  const selGrupo=document.getElementById('f-grupo');
+  selGrupo.innerHTML='<option value="">Todos os grupos</option>'+grupos.map(g=>`<option value="${g}">${g}</option>`).join('');
+
+  const ccsUniq=[...new Set(todos.map(r=>r.cc).filter(Boolean))].sort();
+  const selCC=document.getElementById('f-cc');
+  selCC.innerHTML='<option value="">Todos os CCs</option>'+ccsUniq.map(c=>`<option value="${c}">${c}${_ccMap[c]?' — '+_ccMap[c]:''}</option>`).join('');
+
+  document.getElementById('sub-header').textContent=`${todos.length.toLocaleString('pt-BR')} registros • ${[...new Set(todos.map(r=>r.mes))].length} meses`;
+
+  aplicarFiltros();
+}
+
+function aplicarFiltros(){
+  const filial=document.getElementById('f-filial').value;
+  const grupo=document.getElementById('f-grupo').value;
+  const cc=document.getElementById('f-cc').value;
+  const periodo=document.getElementById('f-periodo').value;
+  const custoZero=document.getElementById('f-custo-zero').value;
+  const busca=(document.getElementById('f-busca').value||'').toLowerCase().trim();
+
+  _filtrados=_dados.filter(r=>{
+    if(filial&&r.filial!==filial)return false;
+    if(grupo&&r.grupo!==grupo)return false;
+    if(cc&&r.cc!==cc)return false;
+    if(periodo==='2026'&&!r.mes.startsWith('2026'))return false;
+    if(periodo==='2025'&&!r.mes.startsWith('2025'))return false;
+    if(custoZero==='sim'&&!r.custo_zero)return false;
+    if(custoZero==='nao'&&r.custo_zero)return false;
+    if(busca&&!(r.produto?.toLowerCase().includes(busca)||r.descricao?.toLowerCase().includes(busca)))return false;
+    return true;
+  });
+
+  renderAba(_abaAtual);
+}
+
+function irParaAba(aba,btn){
+  _abaAtual=aba;
+  document.querySelectorAll('.aba-btn').forEach(b=>b.classList.remove('ativa'));
+  btn.classList.add('ativa');
+  renderAba(aba);
+}
+
+function renderAba(aba){
+  if(aba==='resumo')renderResumo();
+  else if(aba==='por-grupo')renderPorGrupo();
+  else if(aba==='por-filial')renderPorFilial();
+  else if(aba==='por-cc')renderPorCC();
+  else if(aba==='mensal')renderMensal();
+  else if(aba==='custo-zero')renderCustoZero();
+  else if(aba==='itens')renderItens();
+}
+
+function kpisHTML(){
+  const totalVal=_filtrados.reduce((a,r)=>a+(r.valor_total||0),0);
+  const totalQtd=_filtrados.reduce((a,r)=>a+(r.quantidade||0),0);
+  const custoZeroCount=_filtrados.filter(r=>r.custo_zero).length;
+  const custoZeroVal=_filtrados.filter(r=>r.custo_zero).reduce((a,r)=>a+(r.quantidade||0),0);
+  const itensUniq=new Set(_filtrados.map(r=>r.produto)).size;
+  const mesesUniq=[...new Set(_filtrados.map(r=>r.mes))].sort();
+  const mediaM=mesesUniq.length>0?totalVal/mesesUniq.length:0;
+  return `<div class="kpis">
+    <div class="kpi azul"><div class="kpi-valor">${fmtVal(totalVal)}</div><div class="kpi-label">Valor total consumido</div><div class="kpi-sub">${mesesUniq.length} meses</div></div>
+    <div class="kpi azul"><div class="kpi-valor">${fmtVal(mediaM)}</div><div class="kpi-label">Média mensal</div><div class="kpi-sub">por mês do período</div></div>
+    <div class="kpi verde"><div class="kpi-valor">${fmtQtd(totalQtd)}</div><div class="kpi-label">Quantidade total</div><div class="kpi-sub">${itensUniq} itens distintos</div></div>
+    <div class="kpi ${custoZeroCount>0?'vermelho':'verde'}"><div class="kpi-valor">${custoZeroCount.toLocaleString('pt-BR')}</div><div class="kpi-label">Registros custo zero</div><div class="kpi-sub">${fmtQtd(custoZeroVal)} unidades sem custo</div></div>
+  </div>`;
+}
+
+function renderResumo(){
+  const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
+  const valPorMes=meses.map(m=>_filtrados.filter(r=>r.mes===m).reduce((a,r)=>a+(r.valor_total||0),0));
+
+  // Top grupos
+  const grupoMap={};
+  _filtrados.forEach(r=>{const g=r.grupo||'SEM GRUPO';grupoMap[g]=(grupoMap[g]||0)+(r.valor_total||0);});
+  const topGrupos=Object.entries(grupoMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  // Top filiais
+  const filialMap={};
+  _filtrados.forEach(r=>{filialMap[r.filial]=(filialMap[r.filial]||0)+(r.valor_total||0);});
+  const topFiliais=Object.entries(filialMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  const content=document.getElementById('content');
+  content.innerHTML=kpisHTML()+`
+  <div class="graficos">
+    <div class="grafico-card">
+      <div class="grafico-title">📅 Consumo mensal (R$)</div>
+      <div class="grafico-wrap"><canvas id="chart-mes"></canvas></div>
+    </div>
+    <div class="grafico-card">
+      <div class="grafico-title">🏷️ Top grupos por valor</div>
+      <div class="grafico-wrap"><canvas id="chart-grupo"></canvas></div>
+    </div>
+  </div>
+  <div class="graficos">
+    <div class="grafico-card">
+      <div class="grafico-title">🏢 Consumo por filial (R$)</div>
+      <div class="grafico-wrap"><canvas id="chart-filial"></canvas></div>
+    </div>
+    <div class="grafico-card">
+      <div class="grafico-title">⚠️ Alertas de custo zero por mês</div>
+      <div class="grafico-wrap"><canvas id="chart-zero"></canvas></div>
+    </div>
+  </div>`;
+
+  setTimeout(()=>{
+    // Gráfico mensal
+    const ctxM=document.getElementById('chart-mes').getContext('2d');
+    if(_chartMes)_chartMes.destroy();
+    _chartMes=new Chart(ctxM,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:'Valor (R$)',data:valPorMes,backgroundColor:'#3b82f6',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtVal(v)}}}}});
+
+    // Gráfico grupos
+    const ctxG=document.getElementById('chart-grupo').getContext('2d');
+    new Chart(ctxG,{type:'doughnut',data:{labels:topGrupos.map(g=>g[0].slice(0,25)),datasets:[{data:topGrupos.map(g=>g[1]),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12}}}}});
+
+    // Gráfico filiais
+    const ctxF=document.getElementById('chart-filial').getContext('2d');
+    new Chart(ctxF,{type:'bar',data:{labels:topFiliais.map(f=>FNOMES[f[0]]||f[0]),datasets:[{label:'Valor (R$)',data:topFiliais.map(f=>f[1]),backgroundColor:'#10b981',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmtVal(v)}}}}});
+
+    // Gráfico custo zero
+    const zeroPorMes=meses.map(m=>_filtrados.filter(r=>r.mes===m&&r.custo_zero).length);
+    const ctxZ=document.getElementById('chart-zero').getContext('2d');
+    new Chart(ctxZ,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:'Registros',data:zeroPorMes,backgroundColor:'#ef4444',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+  },100);
+}
+
+function renderPorGrupo(){
+  const grupoMap={};
+  _filtrados.forEach(r=>{
+    const g=r.grupo||'SEM GRUPO';
+    if(!grupoMap[g])grupoMap[g]={grupo:g,qtd:0,valor:0,zero:0,itens:new Set()};
+    grupoMap[g].qtd+=r.quantidade||0;
+    grupoMap[g].valor+=r.valor_total||0;
+    if(r.custo_zero)grupoMap[g].zero++;
+    grupoMap[g].itens.add(r.produto);
+  });
+  const lista=Object.values(grupoMap).sort((a,b)=>b.valor-a.valor);
+  const total=lista.reduce((a,r)=>a+r.valor,0);
+
+  document.getElementById('content').innerHTML=kpisHTML()+`
+  <div class="card">
+    <div class="card-header"><div class="card-title">Consumo por Grupo</div><div class="card-sub">${lista.length} grupos</div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Grupo</th><th class="num">Qtd Total</th><th class="num">Valor Total</th><th class="num">% do Total</th><th class="num">Itens Distintos</th><th class="num">Custo Zero</th></tr></thead>
+      <tbody>${lista.map(r=>`<tr class="${r.zero>0?'alerta':''}">
+        <td>${r.grupo}</td>
+        <td class="num">${fmtQtd(r.qtd)}</td>
+        <td class="num"><strong>${fmtVal(r.valor)}</strong></td>
+        <td class="num">${total>0?(r.valor/total*100).toFixed(1)+'%':'—'}</td>
+        <td class="num">${r.itens.size}</td>
+        <td class="num">${r.zero>0?`<span class="badge-zero">⚠ ${r.zero}</span>`:'<span class="badge-ok">✓</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderPorFilial(){
+  const filialMap={};
+  _filtrados.forEach(r=>{
+    const f=r.filial;
+    if(!filialMap[f])filialMap[f]={filial:f,qtd:0,valor:0,zero:0,itens:new Set()};
+    filialMap[f].qtd+=r.quantidade||0;
+    filialMap[f].valor+=r.valor_total||0;
+    if(r.custo_zero)filialMap[f].zero++;
+    filialMap[f].itens.add(r.produto);
+  });
+  const lista=Object.values(filialMap).sort((a,b)=>b.valor-a.valor);
+  const total=lista.reduce((a,r)=>a+r.valor,0);
+
+  document.getElementById('content').innerHTML=kpisHTML()+`
+  <div class="card">
+    <div class="card-header"><div class="card-title">Consumo por Filial</div><div class="card-sub">${lista.length} filiais</div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Filial</th><th>Nome</th><th class="num">Qtd Total</th><th class="num">Valor Total</th><th class="num">% do Total</th><th class="num">Itens Distintos</th><th class="num">Custo Zero</th></tr></thead>
+      <tbody>${lista.map(r=>`<tr class="${r.zero>0?'alerta':''}">
+        <td><strong>${r.filial}</strong></td>
+        <td>${FNOMES[r.filial]||'—'}</td>
+        <td class="num">${fmtQtd(r.qtd)}</td>
+        <td class="num"><strong>${fmtVal(r.valor)}</strong></td>
+        <td class="num">${total>0?(r.valor/total*100).toFixed(1)+'%':'—'}</td>
+        <td class="num">${r.itens.size}</td>
+        <td class="num">${r.zero>0?`<span class="badge-zero">⚠ ${r.zero}</span>`:'<span class="badge-ok">✓</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderPorCC(){
+  const ccMap={};
+  _filtrados.forEach(r=>{
+    const c=r.cc||'SEM CC';
+    if(!ccMap[c])ccMap[c]={cc:c,qtd:0,valor:0,zero:0,itens:new Set()};
+    ccMap[c].qtd+=r.quantidade||0;
+    ccMap[c].valor+=r.valor_total||0;
+    if(r.custo_zero)ccMap[c].zero++;
+    ccMap[c].itens.add(r.produto);
+  });
+  const lista=Object.values(ccMap).sort((a,b)=>b.valor-a.valor);
+
+  document.getElementById('content').innerHTML=kpisHTML()+`
+  <div class="card">
+    <div class="card-header"><div class="card-title">Consumo por Centro de Custo</div><div class="card-sub">${lista.length} CCs</div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>CC</th><th>Nome</th><th class="num">Qtd Total</th><th class="num">Valor Total</th><th class="num">Itens</th><th class="num">Custo Zero</th></tr></thead>
+      <tbody>${lista.slice(0,200).map(r=>`<tr class="${r.zero>0?'alerta':''}">
+        <td><strong>${r.cc}</strong></td>
+        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis">${_ccMap[r.cc]||'—'}</td>
+        <td class="num">${fmtQtd(r.qtd)}</td>
+        <td class="num"><strong>${fmtVal(r.valor)}</strong></td>
+        <td class="num">${r.itens.size}</td>
+        <td class="num">${r.zero>0?`<span class="badge-zero">⚠ ${r.zero}</span>`:'<span class="badge-ok">✓</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderMensal(){
+  const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
+  const grupos=[...new Set(_filtrados.map(r=>r.grupo||'SEM GRUPO'))].sort();
+
+  // Tabela cruzada: meses x grupos
+  const cross={};
+  _filtrados.forEach(r=>{
+    const g=r.grupo||'SEM GRUPO';
+    if(!cross[g])cross[g]={};
+    cross[g][r.mes]=(cross[g][r.mes]||0)+(r.valor_total||0);
+  });
+
+  const totalPorMes={};
+  meses.forEach(m=>{totalPorMes[m]=grupos.reduce((a,g)=>a+(cross[g]?.[m]||0),0);});
+
+  document.getElementById('content').innerHTML=kpisHTML()+`
+  <div class="card">
+    <div class="card-header"><div class="card-title">Consumo Mensal por Grupo (R$)</div><div class="card-sub">${meses.length} meses × ${grupos.length} grupos</div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Grupo</th>${meses.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}<th class="num" style="background:#e0e7ff">Total</th></tr></thead>
+      <tbody>
+        ${grupos.map(g=>{
+          const totalG=meses.reduce((a,m)=>a+(cross[g]?.[m]||0),0);
+          return`<tr>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${g}</td>
+            ${meses.map(m=>{const v=cross[g]?.[m]||0;return`<td class="num" style="color:${v>0?'#1e293b':'#cbd5e1'}">${v>0?fmtVal(v):'—'}</td>`;}).join('')}
+            <td class="num" style="font-weight:700;background:#f0f4ff">${fmtVal(totalG)}</td>
+          </tr>`;
+        }).join('')}
+        <tr style="background:#f0f4ff;font-weight:700">
+          <td>TOTAL</td>
+          ${meses.map(m=>`<td class="num">${fmtVal(totalPorMes[m])}</td>`).join('')}
+          <td class="num">${fmtVal(meses.reduce((a,m)=>a+totalPorMes[m],0))}</td>
+        </tr>
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderCustoZero(){
+  const zeros=_filtrados.filter(r=>r.custo_zero).sort((a,b)=>b.quantidade-a.quantidade);
+  const totalItens=new Set(zeros.map(r=>r.produto)).size;
+  const totalQtd=zeros.reduce((a,r)=>a+(r.quantidade||0),0);
+
+  document.getElementById('content').innerHTML=`
+  ${zeros.length>0?`<div class="alerta-banner"><span class="icon">⚠️</span><div><strong>${zeros.length.toLocaleString('pt-BR')} registros com custo zero encontrados</strong><br><span>${totalItens} itens distintos • ${fmtQtd(totalQtd)} unidades sem custo registrado</span></div></div>`:''}
+  <div class="card">
+    <div class="card-header"><div class="card-title">⚠️ Itens com Custo Zero</div><div class="card-sub">${zeros.length} registros — possível falha de custeio</div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Filial</th><th>Código</th><th>Descrição</th><th>Grupo</th><th>CC</th><th class="num">Mês</th><th class="num">Qtd</th><th class="num">Custo Unit.</th></tr></thead>
+      <tbody>${zeros.slice(0,500).map(r=>`<tr class="alerta">
+        <td><strong>${r.filial}</strong> <span style="color:#94a3b8;font-size:10px">${FNOMES[r.filial]||''}</span></td>
+        <td style="font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.descricao||'—'}</td>
+        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;font-size:11px">${r.grupo||'—'}</td>
+        <td style="font-size:11px">${r.cc||'—'}</td>
+        <td class="num">${fmtMes(r.mes)}</td>
+        <td class="num">${fmtQtd(r.quantidade)}</td>
+        <td class="num"><span class="badge-zero">R$ 0,00</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${zeros.length>500?`<div style="padding:10px;text-align:center;font-size:12px;color:#94a3b8">Mostrando 500 de ${zeros.length} registros. Use filtros para refinar.</div>`:''}
+  </div>`;
+}
+
+function renderItens(){
+  const itemMap={};
+  _filtrados.forEach(r=>{
+    const k=r.produto;
+    if(!itemMap[k])itemMap[k]={produto:r.produto,descricao:r.descricao,grupo:r.grupo,qtd:0,valor:0,zero:0,meses:new Set()};
+    itemMap[k].qtd+=r.quantidade||0;
+    itemMap[k].valor+=r.valor_total||0;
+    if(r.custo_zero)itemMap[k].zero+=r.quantidade||0;
+    itemMap[k].meses.add(r.mes);
+  });
+  const lista=Object.values(itemMap).sort((a,b)=>b.valor-a.valor);
+
+  document.getElementById('content').innerHTML=kpisHTML()+`
+  <div class="card">
+    <div class="card-header"><div class="card-title">Consumo por Item</div><div class="card-sub">${lista.length} itens</div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Código</th><th>Descrição</th><th>Grupo</th><th class="num">Qtd Total</th><th class="num">Valor Total</th><th class="num">Meses</th><th class="num">Custo Zero (qtd)</th></tr></thead>
+      <tbody>${lista.slice(0,300).map(r=>`<tr class="${r.zero>0?'alerta':''}">
+        <td style="font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
+        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis">${r.descricao||'—'}</td>
+        <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis">${r.grupo||'—'}</td>
+        <td class="num">${fmtQtd(r.qtd)}</td>
+        <td class="num"><strong>${fmtVal(r.valor)}</strong></td>
+        <td class="num">${r.meses.size}</td>
+        <td class="num">${r.zero>0?`<span class="badge-zero">⚠ ${fmtQtd(r.zero)}</span>`:'<span class="badge-ok">✓</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${lista.length>300?`<div style="padding:10px;text-align:center;font-size:12px;color:#94a3b8">Mostrando 300 de ${lista.length} itens. Use filtros para refinar.</div>`:''}
+  </div>`;
+}
+
+function exportarExcel(){
+  if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
+  const rows=_filtrados.map(r=>({
+    'Filial':r.filial,'Nome Filial':FNOMES[r.filial]||'',
+    'Produto':r.produto,'Descrição':r.descricao||'',
+    'Grupo':r.grupo||'','CC':r.cc||'','Nome CC':_ccMap[r.cc]||'',
+    'Mês':r.mes,'Quantidade':r.quantidade||0,
+    'Custo Unit.':r.custo_unit||0,'Valor Total':r.valor_total||0,
+    'Custo Zero':r.custo_zero?'SIM':'NÃO',
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Consumo SCP');
+  const dt=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  XLSX.writeFile(wb,'fechamento_consumo_'+dt+'.xlsx');
+}
+
+window.irParaAba=irParaAba;
+window.aplicarFiltros=aplicarFiltros;
+window.exportarExcel=exportarExcel;
+
+carregar();
+</script>
+</body>
+</html>
