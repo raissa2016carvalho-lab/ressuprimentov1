@@ -611,7 +611,7 @@ carregar();
   <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
     <div>
       <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">FILIAL</label>
-      <select id="comp-filial" onchange="carregarComparativo()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:180px">
+      <select id="comp-filial" onchange="filtrarComparativo()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:180px">
         <option value="">Todas as filiais</option>
         <option value="01">01 — MATRIZ</option><option value="03">03 — PAU DOS FERROS</option><option value="04">04 — ITAPIPOCA</option>
         <option value="06">06 — CURRAIS NOVOS</option><option value="07">07 — SOBRAL</option><option value="08">08 — APARECIDA DE GOIANIA</option>
@@ -644,7 +644,7 @@ carregar();
         <option value="diverg">Com divergência (&gt;10%)</option>
       </select>
     </div>
-    <button onclick="exportarComparativo()" style="background:#166534;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;margin-left:auto">⬇ Excel</button>
+    <div style="display:flex;gap:8px;margin-left:auto"><button onclick="exportarComparativoCompleto()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">⬇ Excel completo</button><button onclick="exportarComparativo()" style="background:#166534;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">⬇ Excel resumido</button></div>
   </div>
   <div id="comp-loading" style="text-align:center;padding:32px;color:#64748b">Selecione uma filial para carregar o comparativo.</div>
   <div id="comp-resumo" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap"></div>
@@ -803,7 +803,9 @@ function filtrarComparativo(){
   const busca=(document.getElementById('comp-busca')?.value||'').toLowerCase();
   const diverg=document.getElementById('comp-diverg')?.value||'';
   const grupo=(document.getElementById('comp-grupo')?.value||'').trim();
+  const filialFiltro=(document.getElementById('comp-filial')?.value||'').trim();
   let lista=_compDados.filter(r=>{
+    if(filialFiltro&&r.filial!==filialFiltro)return false;
     if(busca&&!(r.produto.toLowerCase().includes(busca)||r.descricao.toLowerCase().includes(busca)))return false;
     if(grupo&&r.grupo!==grupo)return false;
     if(diverg==='pos'&&r.qtd_atual<=0)return false;
@@ -929,6 +931,45 @@ function abrirPopupComp(idx){
   }),100);
 }
 window.abrirPopupComp=abrirPopupComp;
+
+function exportarComparativoCompleto(){
+  const busca=(document.getElementById('comp-busca')?.value||'').toLowerCase();
+  const filialFiltro=(document.getElementById('comp-filial')?.value||'').trim();
+  const grupo=(document.getElementById('comp-grupo')?.value||'').trim();
+  const diverg=document.getElementById('comp-diverg')?.value||'';
+  const FNOMES={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiania','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia','44':'Brumado'};
+  let lista=_compDados.filter(r=>{
+    if(filialFiltro&&r.filial!==filialFiltro)return false;
+    if(busca&&!(r.produto.toLowerCase().includes(busca)||r.descricao.toLowerCase().includes(busca)))return false;
+    if(grupo&&r.grupo!==grupo)return false;
+    if(diverg==='diverg'&&Math.abs(r.divergencia)<=(r.saldo_calc*0.1))return false;
+    return true;
+  });
+  if(!lista.length){alert('Nenhum item para exportar.');return;}
+  const rows=lista.map(r=>({
+    'Filial':         r.filial,
+    'Nome Filial':    FNOMES[r.filial]||r.filial,
+    'Código':         r.produto,
+    'Descrição':      r.descricao||'',
+    'Grupo':          r.grupo||'',
+    'Compras':        r.qtd_compra||0,
+    'Valor Compras':  r.valor_compra||0,
+    'Transf. Rec.':   r.qtd_transf||0,
+    'Devoluções':     r.qtd_devolucao||0,
+    'Inventário':     r.qtd_inventario||0,
+    'Consumo SCP':    r.qtd_saida||0,
+    'Saldo Calc.':    r.saldo_calc||0,
+    'Estoque Atual':  r.qtd_atual||0,
+    'Divergência':    r.divergencia||0,
+    'Ult. Inventário':r.ultimo_inventario||'',
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Comparativo');
+  const dt=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  XLSX.writeFile(wb,'comparativo_estoque_'+dt+'.xlsx');
+}
+window.exportarComparativoCompleto=exportarComparativoCompleto;
 
 async function baixarNotasEntrada(filial, produto){
   let{data:notas}=await db.from('movimentos_entrada')
