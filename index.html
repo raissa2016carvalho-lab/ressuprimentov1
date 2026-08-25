@@ -1903,7 +1903,7 @@ function baixarExcelMobCompleto(nomeArq){
   XLSX.utils.book_append_sheet(wb,ws,'Mobilização');
   XLSX.writeFile(wb,(nomeArq||'mobilizacao')+'.xlsx');
 }
-window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId,catKey){let uid=`cat-`+mobId+`-`+catKey,el=document.getElementById(uid);if(!el)return;let aberto=el.style.display!==`none`;[`recebido`,`estoque`,`aprovacao`,`pendente`,`semPedido`].forEach(k=>{let outro=document.getElementById(`cat-`+mobId+`-`+k);outro&&(outro.style.display=`none`)}),aberto||(el.style.display=`block`)}window.toggleCatMob=toggleCatMob;function renderCardCat(catKey,label,cor,icone,itens){let uid=`cat-`+mobId+`-`+catKey,pct=Math.round(itens.length/total*100);return`
+window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId,catKey){let uid=`cat-`+mobId+`-`+catKey,el=document.getElementById(uid);if(!el)return;let aberto=el.style.display!==`none`;[`recebido`,`estoque`,`aprovacao`,`pendente`,`semPedido`,`eliminado`].forEach(k=>{let outro=document.getElementById(`cat-`+mobId+`-`+k);outro&&(outro.style.display=`none`)}),aberto||(el.style.display=`block`)}window.toggleCatMob=toggleCatMob;function renderCardCat(catKey,label,cor,icone,itens){let uid=`cat-`+mobId+`-`+catKey,pct=Math.round(itens.length/total*100);return`
         <div onclick="toggleCatMob('${mobId}','${catKey}')" style="border:2px solid ${cor}30;border-radius:12px;padding:18px 12px 14px;cursor:pointer;background:#fff;user-select:none;text-align:center;position:relative"
              onmouseover="this.style.boxShadow='0 4px 18px ${cor}28';this.style.borderColor='${cor}80'"
              onmouseout="this.style.boxShadow='none';this.style.borderColor='${cor}30'">
@@ -1911,7 +1911,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
           <div style="font-size:32px;font-weight:800;color:${cor};line-height:1">${itens.length}</div>
           <div style="font-size:12px;font-weight:600;color:#475569;margin-top:6px">${label}</div>
           <div style="font-size:11px;color:#94a3b8;margin-top:2px">${pct}% do total</div>
-        </div>`}function renderPaineisCat(){return[`recebido`,`estoque`,`aprovacao`,`pendente`,`semPedido`].map(catKey=>{let mapCats={recebido:cats.recebido,estoque:cats.estoque,aprovacao:cats.aprovacao,pendente:cats.pendente,semPedido:cats.semPedido},mapLabels={recebido:`Recebidos (PC)`,estoque:`Via estoque`,aprovacao:`Em aprovação`,pendente:`Pendentes`,semPedido:`Sem pedido`},mapCores={recebido:`#22c55e`,estoque:`#6366f1`,aprovacao:`#f59e0b`,pendente:`#ef4444`,semPedido:`#94a3b8`},itens=mapCats[catKey],cor=mapCores[catKey],label=mapLabels[catKey],uid=`cat-`+mobId+`-`+catKey,linhasHtml=itens.map(it=>{function corStatus(st){if(!st)return`#94a3b8`;let s=st.toLowerCase();return s.includes(`receb`)?`#16a34a`:s.includes(`pré-nota`)||s.includes(`pre-nota`)?`#0d9488`:s.includes(`pend`)||s.includes(`aprova`)?`#d97706`:s.includes(`elimin`)||s.includes(`rejeita`)?`#ef4444`:`#64748b`}let scsDoItem=it.linhas&&it.linhas.length?it.linhas.map(l=>{let cor=corStatus(l.status_desc),pcNum=l.c7_num?`<span style="font-family:ui-monospace,monospace;font-size:11px;background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 5px;font-weight:600;margin-right:2px">PC `+l.c7_num+`</span>`:``;return`<span style="display:inline-flex;align-items:center;gap:3px;margin:1px 3px 1px 0;flex-wrap:wrap">
+        </div>`}function renderPaineisCat(){return[`recebido`,`estoque`,`aprovacao`,`pendente`,`semPedido`,`eliminado`].map(catKey=>{let mapCats={recebido:cats.recebido,estoque:cats.estoque,aprovacao:cats.aprovacao,pendente:cats.pendente,semPedido:cats.semPedido,eliminado:cats.eliminado},mapLabels={recebido:`Recebidos (PC)`,estoque:`Via estoque`,aprovacao:`Em aprovação`,pendente:`Pendentes`,semPedido:`Sem pedido`,eliminado:`Elim. por Resíduo`},mapCores={recebido:`#22c55e`,estoque:`#6366f1`,aprovacao:`#f59e0b`,pendente:`#ef4444`,semPedido:`#94a3b8`,eliminado:`#78716c`},itens=mapCats[catKey],cor=mapCores[catKey],label=mapLabels[catKey],uid=`cat-`+mobId+`-`+catKey,linhasHtml=itens.map(it=>{function corStatus(st){if(!st)return`#94a3b8`;let s=st.toLowerCase();return s.includes(`receb`)?`#16a34a`:s.includes(`pré-nota`)||s.includes(`pre-nota`)?`#0d9488`:s.includes(`pend`)||s.includes(`aprova`)?`#d97706`:s.includes(`elimin`)||s.includes(`rejeita`)?`#ef4444`:`#64748b`}let scsDoItem=it.linhas&&it.linhas.length?it.linhas.map(l=>{let cor=corStatus(l.status_desc),pcNum=l.c7_num?`<span style="font-family:ui-monospace,monospace;font-size:11px;background:#dbeafe;color:#1e40af;border-radius:3px;padding:1px 5px;font-weight:600;margin-right:2px">PC `+l.c7_num+`</span>`:``;return`<span style="display:inline-flex;align-items:center;gap:3px;margin:1px 3px 1px 0;flex-wrap:wrap">
                   <span style="font-family:ui-monospace,monospace;font-size:11px;background:#f1f5f9;color:#334155;border-radius:3px;padding:1px 5px;font-weight:600">SC ${l.c7_numsc}</span>
                   ${pcNum}
                   <span style="font-size:10.5px;font-weight:700;color:${cor}">${l.status_desc||`—`}</span>
@@ -1939,14 +1939,14 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
             </tr>
             ${linhasHtml||`<tr><td colspan="4" style="padding:12px;text-align:center;color:#94a3b8;font-size:12px">Nenhum item</td></tr>`}
           </table>
-        </div>`}).join(``)}function pizzaCats(){let r=cats.recebido.length,e=cats.estoque.length,pe=cats.pendente.length,a=cats.aprovacao.length,s=cats.semPedido.length,t=total,graus=n=>Math.round(n/t*360),g1=graus(r),g2=graus(e),g3=graus(a),g4=graus(pe);return`
+        </div>`}).join(``)}function pizzaCats(){let r=cats.recebido.length,e=cats.estoque.length,pe=cats.pendente.length,a=cats.aprovacao.length,s=cats.semPedido.length,el=cats.eliminado.length,t=total,graus=n=>Math.round(n/t*360),g1=graus(r),g2=graus(e),g3=graus(a),g4=graus(pe),g5=graus(s);return`
         <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#fff;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
           <div style="flex-shrink:0">
-            <div style="width:96px;height:96px;border-radius:50%;background:${`conic-gradient(#22c55e 0deg ${g1}deg, #6366f1 ${g1}deg ${g1+g2}deg, #f59e0b ${g1+g2}deg ${g1+g2+g3}deg, #ef4444 ${g1+g2+g3}deg ${g1+g2+g3+g4}deg, #94a3b8 ${g1+g2+g3+g4}deg 360deg)`}"></div>
+            <div style="width:96px;height:96px;border-radius:50%;background:${`conic-gradient(#22c55e 0deg ${g1}deg, #6366f1 ${g1}deg ${g1+g2}deg, #f59e0b ${g1+g2}deg ${g1+g2+g3}deg, #ef4444 ${g1+g2+g3}deg ${g1+g2+g3+g4}deg, #94a3b8 ${g1+g2+g3+g4}deg ${g1+g2+g3+g4+g5}deg, #78716c ${g1+g2+g3+g4+g5}deg 360deg)`}"></div>
           </div>
           <div>
             <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:10px">Atendimento da mobilização</div>
-            <div style="display:flex;flex-direction:column;gap:6px">${[{cor:`#22c55e`,label:`Recebidos (PC)`,n:r},{cor:`#6366f1`,label:`Via estoque`,n:e},{cor:`#f59e0b`,label:`Em aprovação`,n:a},{cor:`#ef4444`,label:`Pendentes`,n:pe},{cor:`#94a3b8`,label:`Sem pedido`,n:s}].map(l=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569">
+            <div style="display:flex;flex-direction:column;gap:6px">${[{cor:`#22c55e`,label:`Recebidos (PC)`,n:r},{cor:`#6366f1`,label:`Via estoque`,n:e},{cor:`#f59e0b`,label:`Em aprovação`,n:a},{cor:`#ef4444`,label:`Pendentes`,n:pe},{cor:`#94a3b8`,label:`Sem pedido`,n:s},{cor:`#78716c`,label:`Elim. por resíduo`,n:el}].map(l=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569">
         <span style="width:10px;height:10px;border-radius:50%;background:${l.cor};flex-shrink:0"></span>
         ${l.label}: <strong>${l.n}</strong> (${Math.round(l.n/t*100)}%)
       </div>`).join(``)}</div>
@@ -1980,6 +1980,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
         ${renderCardCat(`aprovacao`,`Em aprovação`,`#f59e0b`,`⏳`,cats.aprovacao)}
         ${renderCardCat(`pendente`,`Pendentes`,`#ef4444`,`🔴`,cats.pendente)}
         ${renderCardCat(`semPedido`,`Sem pedido`,`#94a3b8`,`⚪`,cats.semPedido)}
+        ${cats.eliminado.length>0?renderCardCat(`eliminado`,`Elim. por Resíduo`,`#78716c`,`🗑️`,cats.eliminado):''}
       </div>
       <div style="margin-bottom:10px">${renderPaineisCat()}</div>
       <div style="margin-bottom:20px">${pizzaCats()}</div>
