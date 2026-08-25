@@ -1844,7 +1844,19 @@ let qtdRecPC=linhasPc.filter(p=>statusRecebido(p.status_desc)).reduce((a,p)=>a+(
 let qtdTotal=qtdRecPC+qtdEst;
 // Se soma de recebido+estoque cobre o total_mob → recebido ou estoque
 if(qtdRecPC>0){cats.recebido.push({...it,linhas:linhasPc,qtdEst});return;}
-if(qtdEst>0){if(qtdEst>=it.total_mob){cats.estoque.push({...it,linhas:linhasPc,qtdEst});return}else{cats.pendente.push({...it,linhas:linhasPc,qtdEst});return}}if(!codTrim||!temDadosNoBanco){cats.semPedido.push({...it,linhas:[]});return}let linhas=pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc)));linhas.length===0?cats.semPedido.push({...it,linhas:[]}):linhas.some(p=>{let s=(p.status_desc||'').toLowerCase();return s.includes('elimin')&&(s.includes('residu')||s.includes('resíduo'));})?cats.eliminado.push({...it,linhas}):linhas.every(p=>statusRecebido(p.status_desc))?cats.recebido.push({...it,linhas}):linhas.some(p=>(p.status_desc||``).toLowerCase().includes(`aprov`))?cats.aprovacao.push({...it,linhas}):cats.pendente.push({...it,linhas})});let total=(itensConsolidados.length-cats.eliminado.length)||1,pctPend=Math.round(cats.pendente.length/total*100),pctAprov=Math.round(cats.aprovacao.length/total*100),pctSem=Math.round(cats.semPedido.length/total*100);
+if(qtdEst>0){if(qtdEst>=it.total_mob){cats.estoque.push({...it,linhas:linhasPc,qtdEst});return}else{cats.pendente.push({...it,linhas:linhasPc,qtdEst});return}}if(!codTrim||!temDadosNoBanco){cats.semPedido.push({...it,linhas:[]});return}let linhas=pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc)));if(linhas.length===0){cats.semPedido.push({...it,linhas:[]});}else{
+  const isResiduo=p=>{let s=(p.status_desc||p.pc_status||'').toLowerCase();return s.includes('elimin')&&(s.includes('residu')||s.includes('resíduo'));};
+  const temResiduo=linhas.some(p=>isResiduo(p));
+  if(temResiduo){
+    cats.eliminado.push({...it,linhas});
+  } else if(linhas.every(p=>statusRecebido(p.status_desc))){
+    cats.recebido.push({...it,linhas});
+  } else if(linhas.some(p=>(p.status_desc||'').toLowerCase().includes('aprov'))){
+    cats.aprovacao.push({...it,linhas});
+  } else {
+    cats.pendente.push({...it,linhas});
+  }
+}});let total=(itensConsolidados.length-cats.eliminado.length)||1,pctPend=Math.round(cats.pendente.length/total*100),pctAprov=Math.round(cats.aprovacao.length/total*100),pctSem=Math.round(cats.semPedido.length/total*100);
 // Atualizar resumo no card fechado
 let elResumo=document.getElementById('mob-resumo-'+mobId);
 if(elResumo){
