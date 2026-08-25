@@ -235,7 +235,7 @@ async function carregar(){
   // Buscar data da última sincronização
   let ultimoSync='';
   try{
-    const{data:log}=await db.from('sync_log').select('atualizado_em,total').eq('chave','consumo_scp').single();
+    const{data:log}=await db.from('sync_log').select('atualizado_em,total').eq('chave','consumo_scp').maybeSingle();
     if(log?.atualizado_em){
       const d=new Date(log.atualizado_em);
       ultimoSync=` • Atualizado em ${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
