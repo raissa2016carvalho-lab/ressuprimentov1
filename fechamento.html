@@ -600,7 +600,8 @@ function renderMensal(){
 }
 
 function renderCustoZero(){
-  const zeros=_filtrados.filter(r=>r.custo_zero).sort((a,b)=>b.quantidade-a.quantidade);
+  // Apenas registros com custo zero E emissão a partir de 2025
+  const zeros=_filtrados.filter(r=>r.custo_zero && (r.mes||'') >= '202501').sort((a,b)=>b.quantidade-a.quantidade);
   const totalItens=new Set(zeros.map(r=>r.produto)).size;
   const totalQtd=zeros.reduce((a,r)=>a+(r.quantidade||0),0);
 
