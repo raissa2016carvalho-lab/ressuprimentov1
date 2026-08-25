@@ -564,7 +564,6 @@ function renderMensal(){
   const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
   const grupos=[...new Set(_filtrados.map(r=>r.grupo||'SEM GRUPO'))].sort();
 
-  // Tabela cruzada: meses x grupos
   const cross={};
   _filtrados.forEach(r=>{
     const g=r.grupo||'SEM GRUPO';
@@ -575,23 +574,39 @@ function renderMensal(){
   const totalPorMes={};
   meses.forEach(m=>{totalPorMes[m]=grupos.reduce((a,g)=>a+(cross[g]?.[m]||0),0);});
 
+  function seta(atual, anterior){
+    if(!anterior||anterior===0)return'';
+    const pct=((atual-anterior)/anterior*100);
+    if(Math.abs(pct)<1)return`<span style="color:#94a3b8;font-size:10px"> ➡ ${pct.toFixed(0)}%</span>`;
+    if(pct>0)return`<span style="color:#dc2626;font-size:10px;font-weight:700"> ▲ ${pct.toFixed(0)}%</span>`;
+    return`<span style="color:#16a34a;font-size:10px;font-weight:700"> ▼ ${Math.abs(pct).toFixed(0)}%</span>`;
+  }
+
   document.getElementById('content').innerHTML=kpisHTML()+`
   <div class="card">
-    <div class="card-header"><div class="card-title">Consumo Mensal por Grupo (${semV?'Qtd':'R$'})</div><div class="card-sub">${meses.length} meses × ${grupos.length} grupos${semV?' • custo indisponível, exibindo quantidade':''}</div></div>
+    <div class="card-header"><div class="card-title">Consumo Mensal por Grupo (${semV?'Qtd':'R$'})</div><div class="card-sub">${meses.length} meses × ${grupos.length} grupos</div></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Grupo</th>${meses.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}<th class="num" style="background:#e0e7ff">Total</th></tr></thead>
+      <thead><tr><th>Grupo</th>${meses.map((m,i)=>`<th class="num">${fmtMes(m)}</th>`).join('')}<th class="num" style="background:#e0e7ff">Total</th></tr></thead>
       <tbody>
         ${grupos.map(g=>{
           const totalG=meses.reduce((a,m)=>a+(cross[g]?.[m]||0),0);
           return`<tr>
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${g}</td>
-            ${meses.map(m=>{const v=cross[g]?.[m]||0;return`<td class="num" style="color:${v>0?'#1e293b':'#cbd5e1'}">${v>0?fmtM(v):'—'}</td>`;}).join('')}
+            ${meses.map((m,i)=>{
+              const v=cross[g]?.[m]||0;
+              const vant=i>0?cross[g]?.[meses[i-1]]||0:null;
+              return`<td class="num" style="color:${v>0?'#1e293b':'#cbd5e1'}">${v>0?fmtM(v)+''+seta(v,vant):'—'}</td>`;
+            }).join('')}
             <td class="num" style="font-weight:700;background:#f0f4ff">${fmtM(totalG)}</td>
           </tr>`;
         }).join('')}
         <tr style="background:#f0f4ff;font-weight:700">
           <td>TOTAL</td>
-          ${meses.map(m=>`<td class="num">${fmtM(totalPorMes[m])}</td>`).join('')}
+          ${meses.map((m,i)=>{
+            const v=totalPorMes[m];
+            const vant=i>0?totalPorMes[meses[i-1]]:null;
+            return`<td class="num">${fmtM(v)}${seta(v,vant)}</td>`;
+          }).join('')}
           <td class="num">${fmtM(meses.reduce((a,m)=>a+totalPorMes[m],0))}</td>
         </tr>
       </tbody>
