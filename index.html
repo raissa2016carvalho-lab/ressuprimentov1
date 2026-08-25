@@ -1808,13 +1808,17 @@ let recebidos=0,estoque=0,eliminados=0;
 itensAgrupados.forEach(it=>{
   let cod=(it.codigo||'').trim();
   let qtdEst=mapaEst[cod]||0;
+  let totalMob=it.total_mob||0;
   let pcsItem=pcsR.filter(p=>(p.c7_produto||'').trim()===cod);
   let pcsResiduo=pcsItem.filter(p=>stResiduo(p.status_desc));
   let pcsValidos=pcsItem.filter(p=>!stResiduo(p.status_desc));
   if(pcsResiduo.length>0&&pcsValidos.length===0){eliminados++;return;}
   let qtdRec=pcsValidos.filter(p=>stRec(p.status_desc)).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
-  if(qtdRec>0)recebidos++;
-  else if(qtdEst>=it.total_mob)estoque++;
+  let qtdCoberta=qtdRec+qtdEst;
+  if(qtdCoberta>=totalMob){
+    if(qtdRec>=totalMob)recebidos++;
+    else estoque++;
+  }
 });
 let total=(itensAgrupados.length-eliminados)||1;
 let totalAtend=recebidos+estoque;let pct=Math.round(totalAtend/total*100);let cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';el.innerHTML=`<span style="font-weight:800;font-size:15px;color:${cor}">${pct}%</span><span style="color:#94a3b8;font-size:11px">atendimento</span>`;} catch(e){console.error('resumo mob',e);}}}
@@ -1861,31 +1865,47 @@ async function renderDetalheMob(mobId,container){container.innerHTML=`<div style
     }
   }
 }
-ePcs&&(avisoProtheus=`<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${ePcs.message}</div>`)}let temDadosNoBanco=pcsEncontrados.length>0,statusRecebido=s=>{let st=(s||``).toLowerCase();return st.includes(`receb`)||st.includes(`pré-nota`)||st.includes(`pre-nota`)},statusPendente=s=>{let st=(s||``).toLowerCase();return st.includes(`pendente`)||st.includes(`aprova`)||st.includes(`em receb`)};function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNorm=normalizarCodigo(codigo);return pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===codNorm&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))&&statusRecebido(p.status_desc)).reduce((acc,p)=>acc+(Number(p.c7_quant)||0),0)}function itemEstaRecebido(codigo){return qtdRecebidaDoItem(codigo)>0}function isEliminadoPorResiduo(it){if(!it.linhas||it.linhas.length===0)return false;return it.linhas.every(l=>{let s=(l.status_desc||l.pc_status||'').toLowerCase();return s.includes('elimin')||s.includes('residu')||s.includes('resíduo');});}let cats={recebido:[],estoque:[],pendente:[],aprovacao:[],semPedido:[],eliminado:[]};itensConsolidados.forEach(it=>{let codTrim=(it.codigo||``).trim(),qtdEst=codTrim&&mapaEstoque[codTrim]||0;
-// Verificar PCs primeiro — recebido via PC tem prioridade sobre estoque
-let linhasPc=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[];
-const isResiduo=p=>{let s=(p.status_desc||p.pc_status||'').toLowerCase();return s.includes('elimin')&&(s.includes('residu')||s.includes('resíduo'));};
-const linhasValidas=linhasPc.filter(p=>!isResiduo(p));
-const linhasResiduo=linhasPc.filter(p=>isResiduo(p));
-// Só vai para eliminado se NÃO tem nenhum PC válido (recebido ou outro)
-if(linhasResiduo.length>0&&linhasValidas.length===0){cats.eliminado.push({...it,linhas:linhasPc,qtdEst});return;}
-let qtdRecPC=linhasValidas.filter(p=>statusRecebido(p.status_desc)).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
-let qtdTotal=qtdRecPC+qtdEst;
-// Se soma de recebido+estoque cobre o total_mob → recebido ou estoque
-if(qtdRecPC>0){cats.recebido.push({...it,linhas:linhasValidas,qtdEst});return;}
-if(qtdEst>0){if(qtdEst>=it.total_mob){cats.estoque.push({...it,linhas:linhasValidas,qtdEst});return}else{cats.pendente.push({...it,linhas:linhasValidas,qtdEst});return}}if(!codTrim||!temDadosNoBanco){cats.semPedido.push({...it,linhas:[]});return}let linhas=linhasValidas;if(linhas.length===0){cats.semPedido.push({...it,linhas:[]});}else{
-  const isResiduo=p=>{let s=(p.status_desc||p.pc_status||'').toLowerCase();return s.includes('elimin')&&(s.includes('residu')||s.includes('resíduo'));};
-  const temResiduo=linhas.some(p=>isResiduo(p));
-  if(temResiduo){
-    cats.eliminado.push({...it,linhas});
-  } else if(linhas.every(p=>statusRecebido(p.status_desc))){
-    cats.recebido.push({...it,linhas});
-  } else if(linhas.some(p=>(p.status_desc||'').toLowerCase().includes('aprov'))){
-    cats.aprovacao.push({...it,linhas});
-  } else {
-    cats.pendente.push({...it,linhas});
+ePcs&&(avisoProtheus=`<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${ePcs.message}</div>`)}
+let temDadosNoBanco=pcsEncontrados.length>0;
+const statusRecebido=s=>{let st=(s||``).toLowerCase();return st.includes(`receb`)||st.includes(`pré-nota`)||st.includes(`pre-nota`);};
+const statusPendente=s=>{let st=(s||``).toLowerCase();return st.includes(`pendente`)||st.includes(`aprova`)||st.includes(`em receb`);};
+const isResiduoFn=p=>{let s=(p.status_desc||p.pc_status||'').toLowerCase();return s.includes('elimin')&&(s.includes('residu')||s.includes('resíduo'));};
+function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNorm=normalizarCodigo(codigo);return pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===codNorm&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))&&statusRecebido(p.status_desc)).reduce((acc,p)=>acc+(Number(p.c7_quant)||0),0);}
+function itemEstaRecebido(codigo){return qtdRecebidaDoItem(codigo)>0;}
+let cats={recebido:[],estoque:[],pendente:[],aprovacao:[],semPedido:[],eliminado:[]};
+itensConsolidados.forEach(it=>{
+  let codTrim=(it.codigo||``).trim();
+  let qtdEst=codTrim&&mapaEstoque[codTrim]||0;
+  let totalMob=it.total_mob||0;
+  let linhasPc=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[];
+  let linhasResiduo=linhasPc.filter(p=>isResiduoFn(p));
+  let linhasValidas=linhasPc.filter(p=>!isResiduoFn(p));
+  // Só resíduo, sem PC válido → eliminado
+  if(linhasResiduo.length>0&&linhasValidas.length===0){cats.eliminado.push({...it,linhas:linhasPc,qtdEst});return;}
+  // Opção C: qtd recebida + estoque cobre total_mob?
+  let qtdRecPC=linhasValidas.filter(p=>statusRecebido(p.status_desc)).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+  let qtdCoberta=qtdRecPC+qtdEst;
+  if(!codTrim||!temDadosNoBanco){
+    if(qtdEst>=totalMob)cats.estoque.push({...it,linhas:[],qtdEst});
+    else cats.semPedido.push({...it,linhas:[],qtdEst});
+    return;
   }
-}});let total=(itensConsolidados.length-cats.eliminado.length)||1,pctPend=Math.round(cats.pendente.length/total*100),pctAprov=Math.round(cats.aprovacao.length/total*100),pctSem=Math.round(cats.semPedido.length/total*100);
+  if(linhasValidas.length===0&&linhasResiduo.length===0){
+    if(qtdEst>=totalMob)cats.estoque.push({...it,linhas:[],qtdEst});
+    else cats.semPedido.push({...it,linhas:[],qtdEst});
+    return;
+  }
+  if(qtdCoberta>=totalMob){
+    if(qtdRecPC>=totalMob)cats.recebido.push({...it,linhas:linhasValidas,qtdEst});
+    else cats.estoque.push({...it,linhas:linhasValidas,qtdEst});
+  } else if(linhasValidas.some(p=>statusRecebido(p.status_desc))){
+    cats.pendente.push({...it,linhas:linhasValidas,qtdEst});
+  } else if(linhasValidas.some(p=>(p.status_desc||'').toLowerCase().includes('aprov'))){
+    cats.aprovacao.push({...it,linhas:linhasValidas,qtdEst});
+  } else {
+    cats.pendente.push({...it,linhas:linhasValidas,qtdEst});
+  }
+});let total=(itensConsolidados.length-cats.eliminado.length)||1,pctPend=Math.round(cats.pendente.length/total*100),pctAprov=Math.round(cats.aprovacao.length/total*100),pctSem=Math.round(cats.semPedido.length/total*100);
 // Atualizar resumo no card fechado
 let elResumo=document.getElementById('mob-resumo-'+mobId);
 if(elResumo){
