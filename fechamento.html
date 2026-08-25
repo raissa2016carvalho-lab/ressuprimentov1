@@ -492,31 +492,50 @@ function renderPorFilial(){
 
 function renderPorCC(){
   const semV=_semValorGlobal();
+  const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
   const ccMap={};
   _filtrados.forEach(r=>{
     const c=r.cc||'SEM CC';
-    if(!ccMap[c])ccMap[c]={cc:c,qtd:0,valor:0,zero:0,itens:new Set()};
-    ccMap[c].qtd+=r.quantidade||0;
-    ccMap[c].valor+=r.valor_total||0;
-    if(r.custo_zero)ccMap[c].zero++;
-    ccMap[c].itens.add(r.produto);
+    const nome=_ccMap[c]||'—';
+    if(!ccMap[c])ccMap[c]={cc:c,nome,meses:{},total:0};
+    const v=(semV?r.quantidade:r.valor_total)||0;
+    ccMap[c].meses[r.mes]=(ccMap[c].meses[r.mes]||0)+v;
+    ccMap[c].total+=v;
   });
-  const lista=Object.values(ccMap).sort((a,b)=>semV?(b.qtd-a.qtd):(b.valor-a.valor));
+  const lista=Object.values(ccMap).sort((a,b)=>b.total-a.total);
+  const fmt=v=>semV?fmtQtd(v):fmtVal(v);
+  const totalPorMes={};
+  meses.forEach(m=>{totalPorMes[m]=lista.reduce((a,r)=>a+(r.meses[m]||0),0);});
+  const totalGeral=lista.reduce((a,r)=>a+r.total,0);
 
   document.getElementById('content').innerHTML=kpisHTML()+`
   <div class="card">
-    <div class="card-header"><div class="card-title">Consumo por Centro de Custo</div><div class="card-sub">${lista.length} CCs${semV?' • ordenado por quantidade (custo indisponível)':''}</div></div>
+    <div class="card-header">
+      <div class="card-title">Consumo por CC × Mês (${semV?'Qtd':'R$'})</div>
+      <div class="card-sub">${lista.length} CCs × ${meses.length} meses</div>
+    </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>CC</th><th>Nome</th><th class="num">Qtd Total</th><th class="num">${semV?'Qtd (sem custo)':'Valor Total'}</th><th class="num">Itens</th><th class="num">Custo Zero</th></tr></thead>
-      <tbody>${lista.slice(0,200).map(r=>`<tr class="${r.zero>0?'alerta':''}">
-        <td><strong>${r.cc}</strong></td>
-        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis">${_ccMap[r.cc]||'—'}</td>
-        <td class="num">${fmtQtd(r.qtd)}</td>
-        <td class="num"><strong>${semV?fmtQtd(r.qtd):fmtVal(r.valor)}</strong></td>
-        <td class="num">${r.itens.size}</td>
-        <td class="num">${r.zero>0?`<span class="badge-zero">⚠ ${r.zero}</span>`:'<span class="badge-ok">✓</span>'}</td>
-      </tr>`).join('')}</tbody>
+      <thead><tr>
+        <th>CC</th>
+        <th>Nome</th>
+        ${meses.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}
+        <th class="num" style="background:#e0e7ff">Total</th>
+      </tr></thead>
+      <tbody>
+        ${lista.map(r=>`<tr>
+          <td><strong>${r.cc}</strong></td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.nome}</td>
+          ${meses.map(m=>{const v=r.meses[m]||0;return`<td class="num" style="color:${v>0?'#1e293b':'#cbd5e1'}">${v>0?fmt(v):'—'}</td>`;}).join('')}
+          <td class="num" style="font-weight:700;background:#f0f4ff">${fmt(r.total)}</td>
+        </tr>`).join('')}
+        <tr style="background:#f0f4ff;font-weight:700">
+          <td colspan="2">TOTAL</td>
+          ${meses.map(m=>`<td class="num">${fmt(totalPorMes[m])}</td>`).join('')}
+          <td class="num">${fmt(totalGeral)}</td>
+        </tr>
+      </tbody>
     </table></div>
+    ${lista.length>200?`<div style="padding:10px;text-align:center;font-size:12px;color:#94a3b8">Mostrando ${lista.length} CCs. Use filtros para refinar.</div>`:''}
   </div>`;
 }
 
