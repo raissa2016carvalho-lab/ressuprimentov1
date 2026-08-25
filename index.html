@@ -1841,12 +1841,15 @@ ePcs&&(avisoProtheus=`<div class="msg erro" style="margin-bottom:12px">Não foi 
 // Verificar PCs primeiro — recebido via PC tem prioridade sobre estoque
 let linhasPc=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[];
 const isResiduo=p=>{let s=(p.status_desc||p.pc_status||'').toLowerCase();return s.includes('elimin')&&(s.includes('residu')||s.includes('resíduo'));};
-if(linhasPc.some(p=>isResiduo(p))){cats.eliminado.push({...it,linhas:linhasPc,qtdEst});return;}
-let qtdRecPC=linhasPc.filter(p=>statusRecebido(p.status_desc)).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
+const linhasValidas=linhasPc.filter(p=>!isResiduo(p));
+const linhasResiduo=linhasPc.filter(p=>isResiduo(p));
+// Só vai para eliminado se NÃO tem nenhum PC válido (recebido ou outro)
+if(linhasResiduo.length>0&&linhasValidas.length===0){cats.eliminado.push({...it,linhas:linhasPc,qtdEst});return;}
+let qtdRecPC=linhasValidas.filter(p=>statusRecebido(p.status_desc)).reduce((a,p)=>a+(Number(p.c7_quant)||0),0);
 let qtdTotal=qtdRecPC+qtdEst;
 // Se soma de recebido+estoque cobre o total_mob → recebido ou estoque
-if(qtdRecPC>0){cats.recebido.push({...it,linhas:linhasPc,qtdEst});return;}
-if(qtdEst>0){if(qtdEst>=it.total_mob){cats.estoque.push({...it,linhas:linhasPc,qtdEst});return}else{cats.pendente.push({...it,linhas:linhasPc,qtdEst});return}}if(!codTrim||!temDadosNoBanco){cats.semPedido.push({...it,linhas:[]});return}let linhas=pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc)));if(linhas.length===0){cats.semPedido.push({...it,linhas:[]});}else{
+if(qtdRecPC>0){cats.recebido.push({...it,linhas:linhasValidas,qtdEst});return;}
+if(qtdEst>0){if(qtdEst>=it.total_mob){cats.estoque.push({...it,linhas:linhasValidas,qtdEst});return}else{cats.pendente.push({...it,linhas:linhasValidas,qtdEst});return}}if(!codTrim||!temDadosNoBanco){cats.semPedido.push({...it,linhas:[]});return}let linhas=linhasValidas;if(linhas.length===0){cats.semPedido.push({...it,linhas:[]});}else{
   const isResiduo=p=>{let s=(p.status_desc||p.pc_status||'').toLowerCase();return s.includes('elimin')&&(s.includes('residu')||s.includes('resíduo'));};
   const temResiduo=linhas.some(p=>isResiduo(p));
   if(temResiduo){
