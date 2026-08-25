@@ -600,30 +600,117 @@ function renderMensal(){
 }
 
 function renderCustoZero(){
-  // Apenas registros com custo zero E emissão a partir de 2025
-  const zeros=_filtrados.filter(r=>r.custo_zero && (r.mes||'') >= '202501').sort((a,b)=>b.quantidade-a.quantidade);
-  const totalItens=new Set(zeros.map(r=>r.produto)).size;
-  const totalQtd=zeros.reduce((a,r)=>a+(r.quantidade||0),0);
+  const zeros=_filtrados.filter(r=>r.custo_zero && (r.mes||'')>='202501');
+  const meses=[...new Set(zeros.map(r=>r.mes))].sort();
+  const filiais=[...new Set(zeros.map(r=>r.filial))].sort();
+
+  if(!zeros.length){
+    document.getElementById('content').innerHTML='<div class="loading">Nenhum item com custo zero encontrado.</div>';
+    return;
+  }
+
+  // Agrupa por filial+mes → lista de itens
+  const cross={};
+  zeros.forEach(r=>{
+    if(!cross[r.filial])cross[r.filial]={};
+    if(!cross[r.filial][r.mes])cross[r.filial][r.mes]=[];
+    cross[r.filial][r.mes].push(r);
+  });
+
+  const totalPorMes={};
+  meses.forEach(m=>{totalPorMes[m]=filiais.reduce((a,f)=>a+(cross[f]?.[m]?.length||0),0);});
+  const totalGeral=zeros.length;
+
+  const rows=filiais.map(f=>{
+    const totalF=meses.reduce((a,m)=>a+(cross[f]?.[m]?.length||0),0);
+    if(!totalF)return'';
+    return`<tr>
+      <td><strong>${f}</strong></td>
+      <td>${FNOMES[f]||'—'}</td>
+      ${meses.map(m=>{
+        const itens=cross[f]?.[m]||[];
+        if(!itens.length)return`<td class="num" style="color:#cbd5e1">—</td>`;
+        return`<td class="num">
+          <button onclick="abrirDrilldown('${f}','${m}')" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;padding:2px 8px;font-size:12px;font-weight:700;color:#92400e;cursor:pointer">
+            ${itens.length}
+          </button>
+        </td>`;
+      }).join('')}
+      <td class="num" style="font-weight:700;background:#fef9c3">${totalF}</td>
+    </tr>`;
+  }).join('');
+
+  const totalGeral2=meses.reduce((a,m)=>a+totalPorMes[m],0);
 
   document.getElementById('content').innerHTML=`
-  ${zeros.length>0?`<div class="alerta-banner"><span class="icon">⚠️</span><div><strong>${zeros.length.toLocaleString('pt-BR')} registros com custo zero encontrados</strong><br><span>${totalItens} itens distintos • ${fmtQtd(totalQtd)} unidades sem custo registrado</span></div></div>`:''}
+  <div class="alerta-banner" style="margin-bottom:14px">
+    <span class="icon">⚠️</span>
+    <div><strong>${zeros.length.toLocaleString('pt-BR')} registros com custo zero</strong>
+    <span style="display:block;font-size:12px;color:#b45309">${new Set(zeros.map(r=>r.produto)).size} itens distintos • Clique nos números para ver o detalhe</span></div>
+  </div>
   <div class="card">
-    <div class="card-header"><div class="card-title">⚠️ Itens com Custo Zero</div><div class="card-sub">${zeros.length} registros — possível falha de custeio</div></div>
+    <div class="card-header">
+      <div class="card-title">⚠️ Itens com Custo Zero — Filial × Mês</div>
+      <div class="card-sub">Quantidade de registros zerados por filial e mês</div>
+    </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Filial</th><th>Código</th><th>Descrição</th><th>Grupo</th><th>CC</th><th class="num">Mês</th><th class="num">Qtd</th><th class="num">Custo Unit.</th></tr></thead>
-      <tbody>${zeros.slice(0,500).map(r=>`<tr class="alerta">
-        <td><strong>${r.filial}</strong> <span style="color:#94a3b8;font-size:10px">${FNOMES[r.filial]||''}</span></td>
-        <td style="font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
-        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${r.descricao||'—'}</td>
-        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;font-size:11px">${r.grupo||'—'}</td>
-        <td style="font-size:11px">${r.cc||'—'}</td>
-        <td class="num">${fmtMes(r.mes)}</td>
-        <td class="num">${fmtQtd(r.quantidade)}</td>
-        <td class="num"><span class="badge-zero">R$ 0,00</span></td>
-      </tr>`).join('')}</tbody>
+      <thead><tr>
+        <th>Fil.</th><th>Nome</th>
+        ${meses.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}
+        <th class="num" style="background:#fef9c3">Total</th>
+      </tr></thead>
+      <tbody>
+        ${rows}
+        <tr style="background:#fef9c3;font-weight:700">
+          <td colspan="2">TOTAL</td>
+          ${meses.map(m=>`<td class="num">${totalPorMes[m]||'—'}</td>`).join('')}
+          <td class="num">${totalGeral2}</td>
+        </tr>
+      </tbody>
     </table></div>
-    ${zeros.length>500?`<div style="padding:10px;text-align:center;font-size:12px;color:#94a3b8">Mostrando 500 de ${zeros.length} registros. Use filtros para refinar.</div>`:''}
+  </div>
+
+  <!-- Modal drilldown -->
+  <div id="modal-zero" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;overflow-y:auto">
+    <div style="background:#fff;border-radius:12px;max-width:900px;margin:40px auto;padding:24px;position:relative">
+      <button onclick="document.getElementById('modal-zero').style.display='none'"
+        style="position:absolute;top:12px;right:16px;background:#f1f5f9;border:none;border-radius:6px;padding:4px 12px;font-size:13px;cursor:pointer">✕ Fechar</button>
+      <div id="modal-zero-content"></div>
+    </div>
   </div>`;
+
+  // Guarda referência para o drilldown
+  window._zeroCross=cross;
+  window._zeroMeses=meses;
+}
+
+window.abrirDrilldown=function(filial,mes){
+  const itens=(window._zeroCross?.[filial]?.[mes]||[]).sort((a,b)=>b.quantidade-a.quantidade);
+  const modal=document.getElementById('modal-zero');
+  const content=document.getElementById('modal-zero-content');
+  content.innerHTML=`
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">⚠️ Custo Zero — ${FNOMES[filial]||filial} / ${fmtMes(mes)}</h3>
+    <p style="font-size:12px;color:#64748b;margin-bottom:16px">${itens.length} registros sem custo</p>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:#f8fafc">
+        <th style="padding:8px;text-align:left;border-bottom:2px solid #e2e8f0">Código</th>
+        <th style="padding:8px;text-align:left;border-bottom:2px solid #e2e8f0">Descrição</th>
+        <th style="padding:8px;text-align:left;border-bottom:2px solid #e2e8f0">Grupo</th>
+        <th style="padding:8px;text-align:left;border-bottom:2px solid #e2e8f0">CC</th>
+        <th style="padding:8px;text-align:right;border-bottom:2px solid #e2e8f0">Qtd</th>
+        <th style="padding:8px;text-align:right;border-bottom:2px solid #e2e8f0">Motivo</th>
+      </tr></thead>
+      <tbody>${itens.map(r=>`<tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:7px 8px;font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
+        <td style="padding:7px 8px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.descricao||'—'}</td>
+        <td style="padding:7px 8px;font-size:11px">${r.grupo||'—'}</td>
+        <td style="padding:7px 8px;font-size:11px">${r.cc||'—'} <span style="color:#94a3b8">${_ccMap[r.cc]||''}</span></td>
+        <td style="padding:7px 8px;text-align:right;font-weight:600">${fmtQtd(r.quantidade)}</td>
+        <td style="padding:7px 8px;text-align:right"><span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${r.motivo||'—'}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  modal.style.display='block';
+};
 }
 
 function renderItens(){
