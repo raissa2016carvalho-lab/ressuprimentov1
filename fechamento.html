@@ -90,7 +90,24 @@ tr.alerta:hover td{background:#fef08a}
 .mes-chip.sel{background:#1e40af;color:#fff;border-color:#1e40af}
 .mes-chip:hover:not(.sel){background:#e0e7ff;border-color:#818cf8}
 
-/* ALERTA CUSTO ZERO BANNER */
+/* ANÁLISE */
+.analise-section{margin-bottom:20px}
+.analise-section-title{font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.var-badge{border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700;white-space:nowrap}
+.var-up{background:#fce8e8;color:#dc2626}
+.var-down{background:#dcfce7;color:#16a34a}
+.var-neu{background:#f1f5f9;color:#64748b}
+.motivo-bar{height:8px;border-radius:4px;background:#3b82f6;display:inline-block;vertical-align:middle}
+.just-btn{background:#e0e7ff;color:#1e40af;border:none;border-radius:5px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer}
+.just-btn:hover{background:#c7d2fe}
+.just-box{background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:6px}
+.just-box textarea{width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:8px;font-size:12px;resize:vertical;min-height:60px;font-family:inherit}
+.just-box .save-btn{background:#1e40af;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px}
+.just-saved{color:#16a34a;font-size:11px;margin-left:8px}
+.sub-tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:2px solid #e2e8f0;padding-bottom:0}
+.sub-tab{border:none;background:none;padding:8px 14px;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.sub-tab.ativa{color:#1e40af;border-bottom-color:#1e40af}
+.sub-tab:hover{color:#1e40af}
 .alerta-banner{background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .alerta-banner .icon{font-size:20px}
 .alerta-banner strong{font-size:13px;color:#92400e}
@@ -188,6 +205,7 @@ tr.alerta:hover td{background:#fef08a}
   <button class="aba-btn" onclick="irParaAba('mensal',this)">📅 Mensal</button>
   <button class="aba-btn" onclick="irParaAba('custo-zero',this)">⚠️ Custo Zero</button>
   <button class="aba-btn" onclick="irParaAba('itens',this)">📋 Itens</button>
+  <button class="aba-btn" onclick="irParaAba('analise',this)">🔍 Análise</button>
 </div>
 
 <!-- CONTENT -->
@@ -248,6 +266,7 @@ async function carregar(){
   document.getElementById('sub-header').textContent=`${todos.length.toLocaleString('pt-BR')} registros • ${[...new Set(todos.map(r=>r.mes))].length} meses`;
 
   atualizarMeses();
+  await carregarJustificativas();
   aplicarFiltros();
 }
 
@@ -304,6 +323,7 @@ function renderAba(aba){
   else if(aba==='mensal')renderMensal();
   else if(aba==='custo-zero')renderCustoZero();
   else if(aba==='itens')renderItens();
+  else if(aba==='analise')renderAnalise();
 }
 
 function kpisHTML(){
@@ -638,7 +658,310 @@ function renderItens(){
   </div>`;
 }
 
-function exportarExcel(){
+let _justificativas={};
+let _analiseSubAba='estouros';
+
+async function carregarJustificativas(){
+  try{
+    const{data}=await db.from('justificativas_consumo').select('*');
+    (data||[]).forEach(j=>{_justificativas[j.chave]=j;});
+  }catch(e){}
+}
+
+async function salvarJustificativa(chave,texto,btnEl,spanEl){
+  const partes=chave.split('|');
+  const rec={chave,cc:partes[0],mes:partes[1],texto,atualizado_em:new Date().toISOString()};
+  try{
+    await db.from('justificativas_consumo').upsert(rec,{onConflict:'chave'});
+    _justificativas[chave]=rec;
+    spanEl.textContent='✓ Salvo!';
+    setTimeout(()=>{spanEl.textContent='';},2000);
+  }catch(e){spanEl.textContent='Erro ao salvar';}
+}
+
+function renderAnalise(){
+  const content=document.getElementById('content');
+  content.innerHTML=`
+  <div class="sub-tabs">
+    <button class="sub-tab ${_analiseSubAba==='estouros'?'ativa':''}" onclick="setSubAba('estouros',this)">🚨 Top Estouros por CC</button>
+    <button class="sub-tab ${_analiseSubAba==='motivo'?'ativa':''}" onclick="setSubAba('motivo',this)">🏷️ Análise por Motivo</button>
+    <button class="sub-tab ${_analiseSubAba==='justificativas'?'ativa':''}" onclick="setSubAba('justificativas',this)">📝 Justificativas</button>
+  </div>
+  <div id="analise-content"></div>`;
+  renderSubAba(_analiseSubAba);
+}
+
+function setSubAba(aba,btn){
+  _analiseSubAba=aba;
+  document.querySelectorAll('.sub-tab').forEach(b=>b.classList.remove('ativa'));
+  btn.classList.add('ativa');
+  renderSubAba(aba);
+}
+
+function renderSubAba(aba){
+  if(aba==='estouros')renderEstouros();
+  else if(aba==='motivo')renderMotivo();
+  else if(aba==='justificativas')renderJustificativas();
+}
+
+function renderEstouros(){
+  const semV=_semValorGlobal();
+  const fmt=v=>semV?fmtQtd(v):fmtVal(v);
+
+  // Agrupa por CC + mês
+  const ccMesMap={};
+  _filtrados.forEach(r=>{
+    const k=r.cc+'|'+r.mes;
+    if(!ccMesMap[k])ccMesMap[k]={cc:r.cc,mes:r.mes,valor:0,qtd:0};
+    ccMesMap[k].valor+=r.valor_total||0;
+    ccMesMap[k].qtd+=r.quantidade||0;
+  });
+
+  // Agrupa por CC — calcula média dos meses anteriores e último mês
+  const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
+  const ultimoMes=meses[meses.length-1];
+  const mesesAnt=meses.slice(0,-1);
+
+  const ccMap={};
+  Object.values(ccMesMap).forEach(r=>{
+    if(!ccMap[r.cc])ccMap[r.cc]={cc:r.cc,nome:_ccMap[r.cc]||'—',ultimo:0,media:0,meses:{}};
+    ccMap[r.cc].meses[r.mes]=semV?r.qtd:r.valor;
+    if(r.mes===ultimoMes)ccMap[r.cc].ultimo=semV?r.qtd:r.valor;
+  });
+
+  // Calcula média dos meses anteriores
+  Object.values(ccMap).forEach(c=>{
+    const vals=mesesAnt.map(m=>c.meses[m]||0).filter(v=>v>0);
+    c.media=vals.length>0?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+    c.variacao=c.media>0?((c.ultimo-c.media)/c.media*100):null;
+    c.absoluto=c.ultimo-c.media;
+  });
+
+  // Ordena pelos maiores estouros absolutos no último mês
+  const lista=Object.values(ccMap)
+    .filter(c=>c.ultimo>0)
+    .sort((a,b)=>b.absoluto-a.absoluto)
+    .slice(0,50);
+
+  const rows=lista.map((c,i)=>{
+    const varPct=c.variacao!=null?c.variacao.toFixed(1)+'%':'N/A';
+    const varClass=c.variacao==null?'var-neu':c.variacao>20?'var-up':c.variacao<-20?'var-down':'var-neu';
+    const seta=c.variacao==null?'—':c.variacao>0?'▲':'▼';
+    const chave=c.cc+'|'+ultimoMes;
+    const just=_justificativas[chave];
+    return`<tr>
+      <td style="color:#94a3b8;font-size:11px">${i+1}</td>
+      <td><strong>${c.cc}</strong></td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${c.nome}</td>
+      <td class="num">${fmt(c.media||0)}</td>
+      <td class="num"><strong>${fmt(c.ultimo)}</strong></td>
+      <td class="num"><span class="var-badge ${varClass}">${seta} ${varPct}</span></td>
+      <td class="num" style="color:${c.absoluto>0?'#dc2626':'#16a34a'}">${c.absoluto>0?'+':''}${fmt(c.absoluto)}</td>
+      <td>
+        <button class="just-btn" onclick="toggleJust('just-${i}')">
+          ${just?'✏️ Ver/Editar':'+ Justificar'}
+        </button>
+        <span class="just-saved" id="saved-${i}"></span>
+        <div id="just-${i}" style="display:none" class="just-box">
+          <div style="font-size:11px;color:#64748b;margin-bottom:4px">Justificativa — <strong>${c.cc}</strong> / ${fmtMes(ultimoMes)}</div>
+          <textarea id="txt-${i}" placeholder="Descreva o motivo do estouro...">${just?just.texto:''}</textarea>
+          <button class="save-btn" onclick="salvarJust('${chave}','txt-${i}','saved-${i}')">💾 Salvar</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('analise-content').innerHTML=`
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🚨 Top 50 Estouros por CC — ${fmtMes(ultimoMes)} vs Média anterior</div>
+      <div class="card-sub">Comparando ${fmtMes(ultimoMes)} com média de ${mesesAnt.length} meses anteriores</div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>#</th><th>CC</th><th>Nome</th>
+        <th class="num">Média Ant.</th>
+        <th class="num">${fmtMes(ultimoMes)}</th>
+        <th class="num">Variação</th>
+        <th class="num">Diferença</th>
+        <th>Justificativa</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderMotivo(){
+  const semV=_semValorGlobal();
+  const fmt=v=>semV?fmtQtd(v):fmtVal(v);
+  const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
+
+  // Por motivo agregado
+  const motivoMap={};
+  _filtrados.forEach(r=>{
+    const m=r.motivo||'NÃO CLASSIFICADO';
+    if(!motivoMap[m])motivoMap[m]={motivo:m,valor:0,qtd:0,registros:0,meses:{}};
+    motivoMap[m].valor+=r.valor_total||0;
+    motivoMap[m].qtd+=r.quantidade||0;
+    motivoMap[m].registros++;
+    motivoMap[m].meses[r.mes]=(motivoMap[m].meses[r.mes]||0)+(semV?r.quantidade:r.valor_total)||0;
+  });
+
+  const lista=Object.values(motivoMap).sort((a,b)=>semV?(b.qtd-a.qtd):(b.valor-a.valor));
+  const totalGeral=lista.reduce((a,r)=>a+(semV?r.qtd:r.valor),0);
+  const maxVal=lista[0]?semV?lista[0].qtd:lista[0].valor:1;
+
+  // Cores por motivo
+  const CORES={'CONSUMO':'#3b82f6','MANUTENÇÃO':'#f59e0b','DESGASTE':'#8b5cf6',
+    'DEFEITO':'#ef4444','MAL USO':'#dc2626','PERDA':'#f97316','ROUBO':'#ec4899',
+    'MOBILIZAÇÃO':'#06b6d4','TRANSFERÊNCIA':'#10b981','ADMISSIONAL':'#84cc16','COMPLEMENTAÇÃO':'#6366f1','NÃO CLASSIFICADO':'#94a3b8'};
+
+  // Tabela cruzada motivo x mes
+  const crossRows=lista.map(r=>{
+    const ref=semV?r.qtd:r.valor;
+    const pct=totalGeral>0?(ref/totalGeral*100).toFixed(1)+'%':'—';
+    const cor=CORES[r.motivo]||'#94a3b8';
+    const barW=Math.round((ref/maxVal)*120);
+    return`<tr>
+      <td>
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cor};margin-right:6px;vertical-align:middle"></span>
+        <strong>${r.motivo}</strong>
+      </td>
+      <td class="num">${r.registros.toLocaleString('pt-BR')}</td>
+      <td class="num">${fmtQtd(r.qtd)}</td>
+      <td class="num"><strong>${fmt(semV?r.qtd:r.valor)}</strong></td>
+      <td class="num">${pct}</td>
+      ${meses.map(m=>{const v=r.meses[m]||0;return`<td class="num" style="color:${v>0?'#1e293b':'#cbd5e1'}">${v>0?fmt(v):'—'}</td>`;}).join('')}
+    </tr>`;
+  }).join('');
+
+  // Top CCs por motivo crítico (MAL USO + PERDA + ROUBO)
+  const motivosCriticos=['MAL USO','PERDA','ROUBO','DEFEITO'];
+  const criticos=_filtrados.filter(r=>motivosCriticos.includes(r.motivo));
+  const ccCriticoMap={};
+  criticos.forEach(r=>{
+    const k=r.cc;
+    if(!ccCriticoMap[k])ccCriticoMap[k]={cc:k,nome:_ccMap[k]||'—',valor:0,qtd:0,motivos:{}};
+    ccCriticoMap[k].valor+=r.valor_total||0;
+    ccCriticoMap[k].qtd+=r.quantidade||0;
+    ccCriticoMap[k].motivos[r.motivo]=(ccCriticoMap[k].motivos[r.motivo]||0)+1;
+  });
+  const topCriticos=Object.values(ccCriticoMap).sort((a,b)=>semV?(b.qtd-a.qtd):(b.valor-a.valor)).slice(0,15);
+
+  document.getElementById('analise-content').innerHTML=`
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><div class="card-title">🏷️ Consumo por Motivo</div><div class="card-sub">${lista.length} motivos distintos</div></div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Motivo</th><th class="num">Registros</th><th class="num">Qtd Total</th>
+        <th class="num">${semV?'Qtd':'Valor'} Total</th><th class="num">% do Total</th>
+        ${meses.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}
+      </tr></thead>
+      <tbody>${crossRows}</tbody>
+    </table></div>
+  </div>
+  ${topCriticos.length>0?`
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">⚠️ Top CCs com Motivos Críticos (Mal Uso / Perda / Roubo / Defeito)</div>
+      <div class="card-sub">${topCriticos.length} CCs com ocorrências críticas</div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>CC</th><th>Nome</th><th class="num">${semV?'Qtd':'Valor'}</th>
+        ${motivosCriticos.map(m=>`<th class="num">${m}</th>`).join('')}
+      </tr></thead>
+      <tbody>${topCriticos.map(c=>`<tr>
+        <td><strong>${c.cc}</strong></td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${c.nome}</td>
+        <td class="num"><strong style="color:#dc2626">${fmt(semV?c.qtd:c.valor)}</strong></td>
+        ${motivosCriticos.map(m=>`<td class="num">${c.motivos[m]?`<span class="badge-zero">${c.motivos[m]}</span>`:'—'}</td>`).join('')}
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`:''}`;
+}
+
+function renderJustificativas(){
+  const semV=_semValorGlobal();
+  const fmt=v=>semV?fmtQtd(v):fmtVal(v);
+  const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
+  const ultimoMes=meses[meses.length-1];
+
+  // Todos os CCs do período filtrado
+  const ccMap={};
+  _filtrados.forEach(r=>{
+    if(!ccMap[r.cc])ccMap[r.cc]={cc:r.cc,nome:_ccMap[r.cc]||'—',meses:{}};
+    ccMap[r.cc].meses[r.mes]=(ccMap[r.cc].meses[r.mes]||0)+(semV?r.quantidade:r.valor_total)||0;
+  });
+  const lista=Object.values(ccMap).sort((a,b)=>(b.meses[ultimoMes]||0)-(a.meses[ultimoMes]||0));
+
+  const rows=lista.map((c,i)=>{
+    const chave=c.cc+'|'+ultimoMes;
+    const just=_justificativas[chave];
+    const val=c.meses[ultimoMes]||0;
+    return`<tr>
+      <td><strong>${c.cc}</strong></td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${c.nome}</td>
+      <td class="num">${val>0?fmt(val):'—'}</td>
+      <td style="min-width:300px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="text" id="jinput-${i}" value="${just?just.texto.replace(/"/g,'&quot;'):''}"
+            placeholder="Justificativa para ${fmtMes(ultimoMes)}..."
+            style="flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:5px 9px;font-size:12px">
+          <button class="just-btn" onclick="salvarJustInline('${chave}','jinput-${i}','jsaved-${i}')">💾</button>
+          <span class="just-saved" id="jsaved-${i}"></span>
+        </div>
+      </td>
+      <td style="font-size:11px;color:#94a3b8">${just?just.atualizado_em?.slice(0,10):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Justificativas já salvas
+  const salvas=Object.values(_justificativas).sort((a,b)=>b.atualizado_em?.localeCompare(a.atualizado_em));
+
+  document.getElementById('analise-content').innerHTML=`
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <div class="card-title">📝 Justificativas por CC — ${fmtMes(ultimoMes)}</div>
+      <div class="card-sub">Registre observações para cada centro de custo</div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>CC</th><th>Nome</th><th class="num">${fmtMes(ultimoMes)}</th><th>Justificativa</th><th>Atualizado</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>
+  ${salvas.length>0?`
+  <div class="card">
+    <div class="card-header"><div class="card-title">📋 Histórico de Justificativas Salvas</div><div class="card-sub">${salvas.length} registros</div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>CC</th><th>Mês</th><th>Texto</th><th>Salvo em</th></tr></thead>
+      <tbody>${salvas.map(j=>`<tr>
+        <td><strong>${j.cc}</strong> <span style="color:#94a3b8;font-size:11px">${_ccMap[j.cc]||''}</span></td>
+        <td>${fmtMes(j.mes)}</td>
+        <td style="max-width:400px">${j.texto}</td>
+        <td style="font-size:11px;color:#94a3b8">${j.atualizado_em?.slice(0,16).replace('T',' ')||'—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`:''}`;
+}
+
+function toggleJust(id){
+  const el=document.getElementById(id);
+  if(el)el.style.display=el.style.display==='none'?'block':'none';
+}
+
+async function salvarJust(chave,inputId,savedId){
+  const txt=document.getElementById(inputId)?.value?.trim();
+  const spanEl=document.getElementById(savedId);
+  if(!txt){spanEl.textContent='Digite algo!';return;}
+  await salvarJustificativa(chave,txt,null,spanEl);
+}
+
+async function salvarJustInline(chave,inputId,savedId){
+  const txt=document.getElementById(inputId)?.value?.trim();
+  const spanEl=document.getElementById(savedId);
+  if(!txt){spanEl.textContent='Digite algo!';return;}
+  await salvarJustificativa(chave,txt,null,spanEl);
+}
   if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
   const rows=_filtrados.map(r=>({
     'Filial':r.filial,'Nome Filial':FNOMES[r.filial]||'',
@@ -659,6 +982,10 @@ window.irParaAba=irParaAba;
 window.aplicarFiltros=aplicarFiltros;
 window.exportarExcel=exportarExcel;
 window.atualizarMeses=atualizarMeses;
+window.setSubAba=setSubAba;
+window.toggleJust=toggleJust;
+window.salvarJust=salvarJust;
+window.salvarJustInline=salvarJustInline;
 
 carregar();
 </script>
