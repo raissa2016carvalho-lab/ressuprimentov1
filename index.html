@@ -1796,8 +1796,16 @@ if(scNums.length>0){
 }let scSet=new Set(scNums.map(s=>s.replace(/^0+/,'')||'0'));
 function stRec(s){let u=(s||'').toLowerCase();return u.includes('receb')||u.includes('pré-nota')||u.includes('pre-nota');}
 function stResiduo(s){let u=(s||'').toLowerCase();return u.includes('elimin')&&(u.includes('residu')||u.includes('resíduo'));}
-let recebidos=0,estoque=0,eliminados=0;
+// Agrupar itens igual ao detalhe (por código)
+let gruposR={};
 (itensMob||[]).forEach(it=>{
+  let chave=it.codigo&&it.codigo.trim()?it.codigo.trim():`desc:${(it.descricao||'').trim()}`;
+  if(!gruposR[chave])gruposR[chave]={codigo:it.codigo,total_mob:0};
+  gruposR[chave].total_mob+=Number(it.total_mob)||0;
+});
+let itensAgrupados=Object.values(gruposR);
+let recebidos=0,estoque=0,eliminados=0;
+itensAgrupados.forEach(it=>{
   let cod=(it.codigo||'').trim();
   let qtdEst=mapaEst[cod]||0;
   let pcsItem=pcsR.filter(p=>(p.c7_produto||'').trim()===cod);
@@ -1808,7 +1816,7 @@ let recebidos=0,estoque=0,eliminados=0;
   if(qtdRec>0)recebidos++;
   else if(qtdEst>=it.total_mob)estoque++;
 });
-let total=((itensMob||[]).length-eliminados)||1;
+let total=(itensAgrupados.length-eliminados)||1;
 let totalAtend=recebidos+estoque;let pct=Math.round(totalAtend/total*100);let cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';el.innerHTML=`<span style="font-weight:800;font-size:15px;color:${cor}">${pct}%</span><span style="color:#94a3b8;font-size:11px">atendimento</span>`;} catch(e){console.error('resumo mob',e);}}}
 async function renderDetalheMob(mobId,container){container.innerHTML=`<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>`;let[{data:mob},{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([db.from(`mobilizacoes`).select(`*`).eq(`id`,mobId).single(),db.from(`mobilizacao_itens`).select(`*`).eq(`mobilizacao_id`,mobId).order(`descricao`),db.from(`mobilizacao_scs`).select(`*`).eq(`mobilizacao_id`,mobId).order(`criado_em`),db.from(`mobilizacao_estoque`).select(`*`).eq(`mobilizacao_id`,mobId)]),mapaEstoque={};(estoqueData||[]).forEach(e=>{e.codigo&&(mapaEstoque[e.codigo.trim()]=Number(e.qtd_estoque)||0)});let numEquipes=mob.num_equipes,grupos={};(itens||[]).forEach(it=>{let chave=it.codigo&&it.codigo.trim()?`cod:`+it.codigo.trim():`desc:`+(it.descricao||``).trim();grupos[chave]||(grupos[chave]={descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],observacao:it.observacao||null,dt_entrega_manual:it.dt_entrega_manual||null}),grupos[chave].total_mob+=Number(it.total_mob)||0,grupos[chave].ids.push(it.id),it.observacao&&(grupos[chave].observacao=it.observacao),it.dt_entrega_manual&&(grupos[chave].dt_entrega_manual=it.dt_entrega_manual)});let itensConsolidados=Object.values(grupos),numerosSc=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);function normalizarSc(sc){let s=String(sc||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function normalizarCodigo(cod){let s=String(cod||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function variantesSc(sc){let v=new Set([sc]);return/^\d+$/.test(sc)&&v.add(normalizarSc(sc)),[...v]}let numerosScNormalizados=new Set(numerosSc.map(normalizarSc)),pcsEncontrados=[],avisoProtheus=``;if(numerosSc.length>0){let _scFilialMob={};(scsLista||[]).forEach(s=>{if(s.sc_numero&&s.filial)_scFilialMob[s.sc_numero.trim()]=s.filial;});let _scsPorFilial={};numerosSc.forEach(sc=>{let f=_scFilialMob[sc]||'';if(!_scsPorFilial[f])_scsPorFilial[f]=[];_scsPorFilial[f].push(sc);});let ePcs=null;// Buscar via sc_pedidos_v2 usando sc_numero + filial de cada SC da mobilização
 {
