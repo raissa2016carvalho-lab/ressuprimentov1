@@ -232,12 +232,21 @@ async function carregar(){
   const{data:ccs}=await db.from('centros_custo').select('cc,nome');
   (ccs||[]).forEach(c=>{_ccMap[c.cc]=c.nome});
 
+  // Buscar data da última sincronização
+  let ultimoSync='';
+  try{
+    const{data:log}=await db.from('sync_log').select('atualizado_em,total').eq('chave','consumo_scp').single();
+    if(log?.atualizado_em){
+      const d=new Date(log.atualizado_em);
+      ultimoSync=` • Atualizado em ${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+    }
+  }catch(e){}
+
   // Carregar dados com paginação
   let todos=[],off=0;
   for(;;){
-    const{data,error}=await db.from('consumo_scp').select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,valor_total,custo_zero').range(off,off+999);
+    const{data,error}=await db.from('consumo_scp').select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,valor_total,custo_zero,motivo').range(off,off+999);
     if(error||!data||!data.length)break;
-    // Normalizar valor_total: se for nulo/zero mas tem custo_unit e quantidade, calcular
     data.forEach(r=>{
       const vt=Number(r.valor_total)||0;
       const cu=Number(r.custo_unit)||0;
@@ -261,7 +270,8 @@ async function carregar(){
   const selCC=document.getElementById('f-cc');
   selCC.innerHTML='<option value="">Todos os CCs</option>'+ccsUniq.map(c=>`<option value="${c}">${c}${_ccMap[c]?' — '+_ccMap[c]:''}</option>`).join('');
 
-  document.getElementById('sub-header').textContent=`${todos.length.toLocaleString('pt-BR')} registros • ${[...new Set(todos.map(r=>r.mes))].length} meses`;
+  const mesesUniq=[...new Set(todos.map(r=>r.mes))];
+  document.getElementById('sub-header').textContent=`${todos.length.toLocaleString('pt-BR')} registros • ${mesesUniq.length} meses${ultimoSync}`;
 
   atualizarMeses();
   await carregarJustificativas();
