@@ -708,6 +708,14 @@ function renderEstouros(){
   const semV=_semValorGlobal();
   const fmt=v=>semV?fmtQtd(v):fmtVal(v);
 
+  const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
+  if(!meses.length){
+    document.getElementById('analise-content').innerHTML='<div class="loading">Nenhum dado disponível com os filtros atuais.</div>';
+    return;
+  }
+  const ultimoMes=meses[meses.length-1];
+  const mesesAnt=meses.slice(0,-1);
+
   // Agrupa por CC + mês
   const ccMesMap={};
   _filtrados.forEach(r=>{
@@ -718,10 +726,6 @@ function renderEstouros(){
   });
 
   // Agrupa por CC — calcula média dos meses anteriores e último mês
-  const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
-  const ultimoMes=meses[meses.length-1];
-  const mesesAnt=meses.slice(0,-1);
-
   const ccMap={};
   Object.values(ccMesMap).forEach(r=>{
     if(!ccMap[r.cc])ccMap[r.cc]={cc:r.cc,nome:_ccMap[r.cc]||'—',ultimo:0,media:0,meses:{}};
