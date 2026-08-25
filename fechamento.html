@@ -962,6 +962,8 @@ async function salvarJustInline(chave,inputId,savedId){
   if(!txt){spanEl.textContent='Digite algo!';return;}
   await salvarJustificativa(chave,txt,null,spanEl);
 }
+
+function exportarExcel(){
   if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
   const rows=_filtrados.map(r=>({
     'Filial':r.filial,'Nome Filial':FNOMES[r.filial]||'',
