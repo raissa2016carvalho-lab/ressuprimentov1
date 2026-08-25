@@ -154,11 +154,15 @@ tr.alerta:hover td{background:#fef08a}
   </div>
   <div class="f-group">
     <label>Período</label>
-    <select id="f-periodo">
+    <select id="f-periodo" onchange="atualizarMeses()">
       <option value="2026">2026</option>
       <option value="2025">2025</option>
       <option value="todos">2025 + 2026</option>
     </select>
+  </div>
+  <div class="f-group">
+    <label>Mês</label>
+    <select id="f-mes"><option value="">Todos os meses</option></select>
   </div>
   <div class="f-group">
     <label>Custo Zero</label>
@@ -217,6 +221,15 @@ async function carregar(){
   for(;;){
     const{data,error}=await db.from('consumo_scp').select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,valor_total,custo_zero').range(off,off+999);
     if(error||!data||!data.length)break;
+    // Normalizar valor_total: se for nulo/zero mas tem custo_unit e quantidade, calcular
+    data.forEach(r=>{
+      const vt=Number(r.valor_total)||0;
+      const cu=Number(r.custo_unit)||0;
+      const qt=Number(r.quantidade)||0;
+      r.valor_total = vt!==0 ? vt : (cu>0 ? cu*qt : 0);
+      r.quantidade = qt;
+      r.custo_unit = cu;
+    });
     todos=todos.concat(data);
     if(data.length<1000)break;
     off+=1000;
@@ -234,7 +247,21 @@ async function carregar(){
 
   document.getElementById('sub-header').textContent=`${todos.length.toLocaleString('pt-BR')} registros • ${[...new Set(todos.map(r=>r.mes))].length} meses`;
 
+  atualizarMeses();
   aplicarFiltros();
+}
+
+function atualizarMeses(){
+  const periodo=document.getElementById('f-periodo').value;
+  const ano=periodo==='todos'?null:periodo;
+  const mesesDisp=[...new Set(_dados.filter(r=>!ano||r.mes.startsWith(ano)).map(r=>r.mes))].sort();
+  const MNOMES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const selMes=document.getElementById('f-mes');
+  selMes.innerHTML='<option value="">Todos os meses</option>'+mesesDisp.map(m=>{
+    const num=Number(m.slice(4,6))-1;
+    const label=MNOMES[num]+'/'+m.slice(0,4);
+    return`<option value="${m}">${label}</option>`;
+  }).join('');
 }
 
 function aplicarFiltros(){
@@ -242,6 +269,7 @@ function aplicarFiltros(){
   const grupo=document.getElementById('f-grupo').value;
   const cc=document.getElementById('f-cc').value;
   const periodo=document.getElementById('f-periodo').value;
+  const mes=document.getElementById('f-mes').value;
   const custoZero=document.getElementById('f-custo-zero').value;
   const busca=(document.getElementById('f-busca').value||'').toLowerCase().trim();
 
@@ -249,8 +277,9 @@ function aplicarFiltros(){
     if(filial&&r.filial!==filial)return false;
     if(grupo&&r.grupo!==grupo)return false;
     if(cc&&r.cc!==cc)return false;
-    if(periodo==='2026'&&!r.mes.startsWith('2026'))return false;
-    if(periodo==='2025'&&!r.mes.startsWith('2025'))return false;
+    if(mes&&r.mes!==mes)return false;
+    else if(!mes&&periodo==='2026'&&!r.mes.startsWith('2026'))return false;
+    else if(!mes&&periodo==='2025'&&!r.mes.startsWith('2025'))return false;
     if(custoZero==='sim'&&!r.custo_zero)return false;
     if(custoZero==='nao'&&r.custo_zero)return false;
     if(busca&&!(r.produto?.toLowerCase().includes(busca)||r.descricao?.toLowerCase().includes(busca)))return false;
@@ -557,6 +586,7 @@ function exportarExcel(){
 window.irParaAba=irParaAba;
 window.aplicarFiltros=aplicarFiltros;
 window.exportarExcel=exportarExcel;
+window.atualizarMeses=atualizarMeses;
 
 carregar();
 </script>
