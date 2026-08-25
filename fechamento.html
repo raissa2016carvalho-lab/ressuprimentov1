@@ -324,33 +324,47 @@ function kpisHTML(){
 
 function renderResumo(){
   const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
-  const valPorMes=meses.map(m=>_filtrados.filter(r=>r.mes===m).reduce((a,r)=>a+(r.valor_total||0),0));
+
+  // Detectar se valor está todo zerado → usar quantidade como fallback
+  const totalValCheck=_filtrados.reduce((a,r)=>a+(r.valor_total||0),0);
+  const semValor=totalValCheck===0;
+  const metrica=r=>semValor?(r.quantidade||0):(r.valor_total||0);
+  const fmtMetrica=v=>semValor?fmtQtd(v):fmtVal(v);
+  const labelMetrica=semValor?'Quantidade':'Valor (R$)';
+
+  const valPorMes=meses.map(m=>_filtrados.filter(r=>r.mes===m).reduce((a,r)=>a+metrica(r),0));
 
   // Top grupos
   const grupoMap={};
-  _filtrados.forEach(r=>{const g=r.grupo||'SEM GRUPO';grupoMap[g]=(grupoMap[g]||0)+(r.valor_total||0);});
+  _filtrados.forEach(r=>{const g=r.grupo||'SEM GRUPO';grupoMap[g]=(grupoMap[g]||0)+metrica(r);});
   const topGrupos=Object.entries(grupoMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
 
   // Top filiais
   const filialMap={};
-  _filtrados.forEach(r=>{filialMap[r.filial]=(filialMap[r.filial]||0)+(r.valor_total||0);});
+  _filtrados.forEach(r=>{filialMap[r.filial]=(filialMap[r.filial]||0)+metrica(r);});
   const topFiliais=Object.entries(filialMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
 
+  const avisoValor=semValor?`<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;margin-bottom:14px">
+    <span style="font-size:18px">⚠️</span>
+    <div><strong style="font-size:13px;color:#92400e">Custo não disponível nos dados</strong>
+    <span style="font-size:12px;color:#b45309;display:block">Os campos custo_unit e valor_total estão zerados na tabela consumo_scp. Verifique o sync_consumo_scp.py (campo CP_VUNIT do Protheus). Os gráficos abaixo mostram <strong>quantidade</strong> como alternativa.</span></div>
+  </div>`:'';
+
   const content=document.getElementById('content');
-  content.innerHTML=kpisHTML()+`
+  content.innerHTML=kpisHTML()+avisoValor+`
   <div class="graficos">
     <div class="grafico-card">
-      <div class="grafico-title">📅 Consumo mensal (R$)</div>
+      <div class="grafico-title">📅 Consumo mensal (${labelMetrica})</div>
       <div class="grafico-wrap"><canvas id="chart-mes"></canvas></div>
     </div>
     <div class="grafico-card">
-      <div class="grafico-title">🏷️ Top grupos por valor</div>
+      <div class="grafico-title">🏷️ Top grupos por ${semValor?'quantidade':'valor'}</div>
       <div class="grafico-wrap"><canvas id="chart-grupo"></canvas></div>
     </div>
   </div>
   <div class="graficos">
     <div class="grafico-card">
-      <div class="grafico-title">🏢 Consumo por filial (R$)</div>
+      <div class="grafico-title">🏢 Consumo por filial (${labelMetrica})</div>
       <div class="grafico-wrap"><canvas id="chart-filial"></canvas></div>
     </div>
     <div class="grafico-card">
@@ -360,27 +374,59 @@ function renderResumo(){
   </div>`;
 
   setTimeout(()=>{
+    // Plugin de rótulos inline (Chart.js nativo via afterDraw)
+    const labelPlugin={
+      id:'barLabels',
+      afterDatasetsDraw(chart){
+        const{ctx,data,chartArea:{top,bottom,left,right},scales}=chart;
+        ctx.save();
+        chart.data.datasets.forEach((ds,di)=>{
+          chart.getDatasetMeta(di).data.forEach((bar,i)=>{
+            const val=ds.data[i];
+            if(!val)return;
+            const txt=ds._labelFmt?ds._labelFmt(val):val.toLocaleString('pt-BR');
+            ctx.font='bold 11px Inter,system-ui,sans-serif';
+            ctx.fillStyle='#1e293b';
+            ctx.textAlign='center';
+            ctx.textBaseline='middle';
+            // horizontal bar → label à direita da barra
+            if(chart.config.options?.indexAxis==='y'){
+              ctx.textAlign='left';
+              ctx.fillText(txt, bar.x+5, bar.y);
+            } else {
+              // vertical bar → label acima da barra
+              ctx.fillText(txt, bar.x, bar.y-8);
+            }
+          });
+        });
+        ctx.restore();
+      }
+    };
+
     // Gráfico mensal
     const ctxM=document.getElementById('chart-mes').getContext('2d');
     if(_chartMes)_chartMes.destroy();
-    _chartMes=new Chart(ctxM,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:'Valor (R$)',data:valPorMes,backgroundColor:'#3b82f6',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtVal(v)}}}}});
+    _chartMes=new Chart(ctxM,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:labelMetrica,data:valPorMes,backgroundColor:'#3b82f6',borderRadius:4,_labelFmt:fmtMetrica}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMetrica(v)}}}},plugins:[labelPlugin]});
 
-    // Gráfico grupos
+    // Gráfico grupos (doughnut — usa tooltip, não precisa de plugin)
     const ctxG=document.getElementById('chart-grupo').getContext('2d');
-    new Chart(ctxG,{type:'doughnut',data:{labels:topGrupos.map(g=>g[0].slice(0,25)),datasets:[{data:topGrupos.map(g=>g[1]),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12}}}}});
+    new Chart(ctxG,{type:'doughnut',data:{labels:topGrupos.map(g=>g[0].slice(0,25)),datasets:[{data:topGrupos.map(g=>g[1]),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtMetrica(ctx.raw)} (${topGrupos[ctx.dataIndex]?((topGrupos[ctx.dataIndex][1]/topGrupos.reduce((a,g)=>a+g[1],0))*100).toFixed(1)+'%'):''})`}}}}});
 
-    // Gráfico filiais
+    // Gráfico filiais (horizontal — rótulo à direita)
     const ctxF=document.getElementById('chart-filial').getContext('2d');
-    new Chart(ctxF,{type:'bar',data:{labels:topFiliais.map(f=>FNOMES[f[0]]||f[0]),datasets:[{label:'Valor (R$)',data:topFiliais.map(f=>f[1]),backgroundColor:'#10b981',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmtVal(v)}}}}});
+    new Chart(ctxF,{type:'bar',data:{labels:topFiliais.map(f=>FNOMES[f[0]]||f[0]),datasets:[{label:labelMetrica,data:topFiliais.map(f=>f[1]),backgroundColor:'#10b981',borderRadius:4,_labelFmt:fmtMetrica}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{right:120}},indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmtMetrica(v)}}}},plugins:[labelPlugin]});
 
     // Gráfico custo zero
     const zeroPorMes=meses.map(m=>_filtrados.filter(r=>r.mes===m&&r.custo_zero).length);
     const ctxZ=document.getElementById('chart-zero').getContext('2d');
-    new Chart(ctxZ,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:'Registros',data:zeroPorMes,backgroundColor:'#ef4444',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    new Chart(ctxZ,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:'Registros',data:zeroPorMes,backgroundColor:'#ef4444',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false}}},plugins:[labelPlugin]});
   },100);
 }
 
+function _semValorGlobal(){return _filtrados.reduce((a,r)=>a+(r.valor_total||0),0)===0;}
+
 function renderPorGrupo(){
+  const semV=_semValorGlobal();
   const grupoMap={};
   _filtrados.forEach(r=>{
     const g=r.grupo||'SEM GRUPO';
@@ -390,27 +436,29 @@ function renderPorGrupo(){
     if(r.custo_zero)grupoMap[g].zero++;
     grupoMap[g].itens.add(r.produto);
   });
-  const lista=Object.values(grupoMap).sort((a,b)=>b.valor-a.valor);
-  const total=lista.reduce((a,r)=>a+r.valor,0);
+  const lista=Object.values(grupoMap).sort((a,b)=>semV?(b.qtd-a.qtd):(b.valor-a.valor));
+  const total=lista.reduce((a,r)=>a+(semV?r.qtd:r.valor),0);
+  const colValor=semV?'Qtd Total (sem custo)':'Valor Total';
 
   document.getElementById('content').innerHTML=kpisHTML()+`
   <div class="card">
-    <div class="card-header"><div class="card-title">Consumo por Grupo</div><div class="card-sub">${lista.length} grupos</div></div>
+    <div class="card-header"><div class="card-title">Consumo por Grupo</div><div class="card-sub">${lista.length} grupos${semV?' • ordenado por quantidade (custo indisponível)':''}</div></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Grupo</th><th class="num">Qtd Total</th><th class="num">Valor Total</th><th class="num">% do Total</th><th class="num">Itens Distintos</th><th class="num">Custo Zero</th></tr></thead>
-      <tbody>${lista.map(r=>`<tr class="${r.zero>0?'alerta':''}">
+      <thead><tr><th>Grupo</th><th class="num">Qtd Total</th><th class="num">${colValor}</th><th class="num">% do Total</th><th class="num">Itens Distintos</th><th class="num">Custo Zero</th></tr></thead>
+      <tbody>${lista.map(r=>{const ref=semV?r.qtd:r.valor;return`<tr class="${r.zero>0?'alerta':''}">
         <td>${r.grupo}</td>
         <td class="num">${fmtQtd(r.qtd)}</td>
-        <td class="num"><strong>${fmtVal(r.valor)}</strong></td>
-        <td class="num">${total>0?(r.valor/total*100).toFixed(1)+'%':'—'}</td>
+        <td class="num"><strong>${semV?fmtQtd(r.qtd):fmtVal(r.valor)}</strong></td>
+        <td class="num">${total>0?(ref/total*100).toFixed(1)+'%':'—'}</td>
         <td class="num">${r.itens.size}</td>
         <td class="num">${r.zero>0?`<span class="badge-zero">⚠ ${r.zero}</span>`:'<span class="badge-ok">✓</span>'}</td>
-      </tr>`).join('')}</tbody>
+      </tr>`;}).join('')}</tbody>
     </table></div>
   </div>`;
 }
 
 function renderPorFilial(){
+  const semV=_semValorGlobal();
   const filialMap={};
   _filtrados.forEach(r=>{
     const f=r.filial;
@@ -420,28 +468,29 @@ function renderPorFilial(){
     if(r.custo_zero)filialMap[f].zero++;
     filialMap[f].itens.add(r.produto);
   });
-  const lista=Object.values(filialMap).sort((a,b)=>b.valor-a.valor);
-  const total=lista.reduce((a,r)=>a+r.valor,0);
+  const lista=Object.values(filialMap).sort((a,b)=>semV?(b.qtd-a.qtd):(b.valor-a.valor));
+  const total=lista.reduce((a,r)=>a+(semV?r.qtd:r.valor),0);
 
   document.getElementById('content').innerHTML=kpisHTML()+`
   <div class="card">
-    <div class="card-header"><div class="card-title">Consumo por Filial</div><div class="card-sub">${lista.length} filiais</div></div>
+    <div class="card-header"><div class="card-title">Consumo por Filial</div><div class="card-sub">${lista.length} filiais${semV?' • ordenado por quantidade (custo indisponível)':''}</div></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Filial</th><th>Nome</th><th class="num">Qtd Total</th><th class="num">Valor Total</th><th class="num">% do Total</th><th class="num">Itens Distintos</th><th class="num">Custo Zero</th></tr></thead>
-      <tbody>${lista.map(r=>`<tr class="${r.zero>0?'alerta':''}">
+      <thead><tr><th>Filial</th><th>Nome</th><th class="num">Qtd Total</th><th class="num">${semV?'Qtd (sem custo)':'Valor Total'}</th><th class="num">% do Total</th><th class="num">Itens Distintos</th><th class="num">Custo Zero</th></tr></thead>
+      <tbody>${lista.map(r=>{const ref=semV?r.qtd:r.valor;return`<tr class="${r.zero>0?'alerta':''}">
         <td><strong>${r.filial}</strong></td>
         <td>${FNOMES[r.filial]||'—'}</td>
         <td class="num">${fmtQtd(r.qtd)}</td>
-        <td class="num"><strong>${fmtVal(r.valor)}</strong></td>
-        <td class="num">${total>0?(r.valor/total*100).toFixed(1)+'%':'—'}</td>
+        <td class="num"><strong>${semV?fmtQtd(r.qtd):fmtVal(r.valor)}</strong></td>
+        <td class="num">${total>0?(ref/total*100).toFixed(1)+'%':'—'}</td>
         <td class="num">${r.itens.size}</td>
         <td class="num">${r.zero>0?`<span class="badge-zero">⚠ ${r.zero}</span>`:'<span class="badge-ok">✓</span>'}</td>
-      </tr>`).join('')}</tbody>
+      </tr>`;}).join('')}</tbody>
     </table></div>
   </div>`;
 }
 
 function renderPorCC(){
+  const semV=_semValorGlobal();
   const ccMap={};
   _filtrados.forEach(r=>{
     const c=r.cc||'SEM CC';
@@ -451,18 +500,18 @@ function renderPorCC(){
     if(r.custo_zero)ccMap[c].zero++;
     ccMap[c].itens.add(r.produto);
   });
-  const lista=Object.values(ccMap).sort((a,b)=>b.valor-a.valor);
+  const lista=Object.values(ccMap).sort((a,b)=>semV?(b.qtd-a.qtd):(b.valor-a.valor));
 
   document.getElementById('content').innerHTML=kpisHTML()+`
   <div class="card">
-    <div class="card-header"><div class="card-title">Consumo por Centro de Custo</div><div class="card-sub">${lista.length} CCs</div></div>
+    <div class="card-header"><div class="card-title">Consumo por Centro de Custo</div><div class="card-sub">${lista.length} CCs${semV?' • ordenado por quantidade (custo indisponível)':''}</div></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>CC</th><th>Nome</th><th class="num">Qtd Total</th><th class="num">Valor Total</th><th class="num">Itens</th><th class="num">Custo Zero</th></tr></thead>
+      <thead><tr><th>CC</th><th>Nome</th><th class="num">Qtd Total</th><th class="num">${semV?'Qtd (sem custo)':'Valor Total'}</th><th class="num">Itens</th><th class="num">Custo Zero</th></tr></thead>
       <tbody>${lista.slice(0,200).map(r=>`<tr class="${r.zero>0?'alerta':''}">
         <td><strong>${r.cc}</strong></td>
         <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis">${_ccMap[r.cc]||'—'}</td>
         <td class="num">${fmtQtd(r.qtd)}</td>
-        <td class="num"><strong>${fmtVal(r.valor)}</strong></td>
+        <td class="num"><strong>${semV?fmtQtd(r.qtd):fmtVal(r.valor)}</strong></td>
         <td class="num">${r.itens.size}</td>
         <td class="num">${r.zero>0?`<span class="badge-zero">⚠ ${r.zero}</span>`:'<span class="badge-ok">✓</span>'}</td>
       </tr>`).join('')}</tbody>
@@ -471,6 +520,9 @@ function renderPorCC(){
 }
 
 function renderMensal(){
+  const semV=_semValorGlobal();
+  const metrica=r=>semV?(r.quantidade||0):(r.valor_total||0);
+  const fmtM=v=>semV?fmtQtd(v):fmtVal(v);
   const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
   const grupos=[...new Set(_filtrados.map(r=>r.grupo||'SEM GRUPO'))].sort();
 
@@ -479,7 +531,7 @@ function renderMensal(){
   _filtrados.forEach(r=>{
     const g=r.grupo||'SEM GRUPO';
     if(!cross[g])cross[g]={};
-    cross[g][r.mes]=(cross[g][r.mes]||0)+(r.valor_total||0);
+    cross[g][r.mes]=(cross[g][r.mes]||0)+metrica(r);
   });
 
   const totalPorMes={};
@@ -487,7 +539,7 @@ function renderMensal(){
 
   document.getElementById('content').innerHTML=kpisHTML()+`
   <div class="card">
-    <div class="card-header"><div class="card-title">Consumo Mensal por Grupo (R$)</div><div class="card-sub">${meses.length} meses × ${grupos.length} grupos</div></div>
+    <div class="card-header"><div class="card-title">Consumo Mensal por Grupo (${semV?'Qtd':'R$'})</div><div class="card-sub">${meses.length} meses × ${grupos.length} grupos${semV?' • custo indisponível, exibindo quantidade':''}</div></div>
     <div class="table-wrap"><table>
       <thead><tr><th>Grupo</th>${meses.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}<th class="num" style="background:#e0e7ff">Total</th></tr></thead>
       <tbody>
@@ -495,14 +547,14 @@ function renderMensal(){
           const totalG=meses.reduce((a,m)=>a+(cross[g]?.[m]||0),0);
           return`<tr>
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${g}</td>
-            ${meses.map(m=>{const v=cross[g]?.[m]||0;return`<td class="num" style="color:${v>0?'#1e293b':'#cbd5e1'}">${v>0?fmtVal(v):'—'}</td>`;}).join('')}
-            <td class="num" style="font-weight:700;background:#f0f4ff">${fmtVal(totalG)}</td>
+            ${meses.map(m=>{const v=cross[g]?.[m]||0;return`<td class="num" style="color:${v>0?'#1e293b':'#cbd5e1'}">${v>0?fmtM(v):'—'}</td>`;}).join('')}
+            <td class="num" style="font-weight:700;background:#f0f4ff">${fmtM(totalG)}</td>
           </tr>`;
         }).join('')}
         <tr style="background:#f0f4ff;font-weight:700">
           <td>TOTAL</td>
-          ${meses.map(m=>`<td class="num">${fmtVal(totalPorMes[m])}</td>`).join('')}
-          <td class="num">${fmtVal(meses.reduce((a,m)=>a+totalPorMes[m],0))}</td>
+          ${meses.map(m=>`<td class="num">${fmtM(totalPorMes[m])}</td>`).join('')}
+          <td class="num">${fmtM(meses.reduce((a,m)=>a+totalPorMes[m],0))}</td>
         </tr>
       </tbody>
     </table></div>
