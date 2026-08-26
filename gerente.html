@@ -585,9 +585,9 @@ function renderCard_ORIGINAL(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.c
         </div>
       </div>
     </div>`}function onQtdChange(solId,itemId,qtdOrig,preco,valor){let nova=Number(valor)||0;qtdEditadas[itemId]=nova;let input=$(`qtd-`+itemId),just=$(`just-`+itemId);
-let sol=solicitacoes.find(s=>s.id===solId);
-let it=sol&&sol.itens.find(i=>i.id===itemId);
-let qtdOriginal=it&&it._qtdOriginal!==undefined?it._qtdOriginal:qtdOrig;
+let _solRef=solicitacoes.find(s=>s.id===solId);
+let _itRef=_solRef&&_solRef.itens.find(i=>i.id===itemId);
+let qtdOriginal=_itRef&&_itRef._qtdOriginal!==undefined?_itRef._qtdOriginal:qtdOrig;
 if(nova>qtdOriginal){
   input.classList.add(`aumentada`);
   if(just){just.classList.add(`visivel`);just.placeholder=`Observação obrigatória (motivo do aumento)`;just.style.borderColor=`#f59e0b`;}
