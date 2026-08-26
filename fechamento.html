@@ -284,15 +284,12 @@ async function carregar(){
     }
   }catch(e){}
 
-  // Carregar dados com progresso real
+  // Carregar dados via RPC (sem limite de 1000 rows do REST API)
   let todos=[],off=0,totalEstimado=200000;
   for(;;){
     const pctAtual=Math.min(88,25+Math.round((todos.length/totalEstimado)*63));
     setProgresso(pctAtual,`Baixando registros... ${todos.length.toLocaleString('pt-BR')} de ~${totalEstimado.toLocaleString('pt-BR')}`);
-    const{data,error}=await db
-      .from('consumo_scp')
-      .select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,valor_total,custo_zero,motivo')
-      .range(off,off+2999);
+    const{data,error}=await db.rpc('get_consumo_scp_pag',{p_offset:off,p_limit:5000});
     if(error||!data||!data.length)break;
     data.forEach(r=>{
       const vt=Number(r.valor_total)||0;
@@ -303,8 +300,8 @@ async function carregar(){
       r.custo_unit=cu;
     });
     todos=todos.concat(data);
-    if(data.length<3000)break;
-    off+=3000;
+    if(data.length<5000)break;
+    off+=5000;
   }
   _dados=todos;
 
