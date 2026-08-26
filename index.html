@@ -549,7 +549,7 @@ function renderCardMatricial(grupo,readonly){
     var qtdGerente=Object.values(item.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);
     var alterada=qtdGerente!==qtdTotal;
     // Pré-popular masterQtd com qtd do gerente por item (usado no Excel se master não editar)
-    Object.values(item.porCC).forEach(function(it){if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.quantidade||0;});
+    Object.values(item.porCC).forEach(function(it){if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.situacao==='recusado'?0:(it.quantidade||0);});
     // Justificativas do gerente (pode haver uma por CC)
     var justsGer=Object.values(item.porCC).map(function(it){return it.justificativa_gerente||''}).filter(Boolean).join(' / ');
 
@@ -634,7 +634,7 @@ function renderCardMatricial(grupo,readonly){
           return '<td style="text-align:center;background:#f0fdf4;padding:6px;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+display+'</td>';
         }
         return '<td style="text-align:center;background:#f0fdf4;padding:6px">'
-          +'<input type="number" min="0" id="'+inputId+'" value="'+qtdGerente+'"'
+          +'<input type="number" min="0" id="'+inputId+'" value="'+(it.situacao==="recusado"?0:qtdGerente)+'"'
           +' data-ids="'+idsRateio+'" data-qtds="'+qtdsRateio+'" data-ccs="'+ccsRateio+'" data-codigo="'+item.codigo+'"'
           +' style="width:72px;text-align:right;padding:4px 6px;border:1px solid #d1fae5;border-radius:6px;font-family:ui-monospace,monospace;font-size:13px;font-weight:700"'
           +' oninput="ratearMasterQtd(this)"/>'
@@ -930,7 +930,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
                   ${(()=>{let _nomeCCInd=ccMap[s.cc]?.nome||s.cc;let k=_nomeCCInd+`|`+it.codigo,k2=s.cc+`|`+it.codigo,_pedsRaw=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])],_seenInd=new Set(),peds=_pedsRaw.filter(p=>{let _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seenInd.has(_id))return false;_seenInd.add(_id);return true;}).sort((a,b)=>(b.c1_emissao||'').localeCompare(a.c1_emissao||''));return peds.length?peds.slice(0,2).map(p=>{let st=(p.pc_status||``).toLowerCase(),recebido=st.includes(`receb`)||st.includes(`pré-nota`),pendente=!recebido,cor=recebido?`#16a34a`:`#d97706`;let dataEmissao=p.c1_emissao?p.c1_emissao.slice(0,7):``;return`<div style="margin-bottom:2px;padding:2px 4px;border-radius:4px;background:`+(recebido?`#f0fdf4`:`#fff7ed`)+`">`+(recebido?`✅`:`⏳`)+` <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC `+(p.c1_num||``)+`</span>`+(dataEmissao?` <span style="font-size:9.5px;color:#94a3b8">`+dataEmissao+`</span>`:``)+` <span style="font-weight:700;color:`+cor+`;font-size:10.5px">`+(recebido?`Recebido`:(p.pc_status||`Pendente`))+`</span>`+(p.c1_quant?` <span style="font-size:10px;color:#64748b">`+p.c1_quant+` un</span>`:``)+`</div>`+(()=>{const scNum=(p.c1_num||``).trim();const qtdPend=scItensMap[scNum+`|`+(it.codigo||``).trim()]||0;return qtdPend>0?` <span style="font-size:10px;color:#94a3b8">(${qtdPend} un. pend.)</span>`:``;})() +`</div>`}).join(``)+(peds.length>2?`<div style="color:#94a3b8;font-size:10px">+`+(peds.length-2)+` mais</div>`:``):`<span style="color:#cbd5e1">—</span>`})()}
                 </td>
                 <td style="text-align:center">
-                  <input type="number" min="0" value="${qtdGerente}"
+                  <input type="number" min="0" value="${isRecusadoGer?0:qtdGerente}"
                     style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
                     oninput="masterQtd[${it.id}]=Number(this.value)||0"/>
                   ${isAdmin?`<button onclick="removerItemSol(${s.id},${it.id})" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;padding:2px;margin-left:4px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>`:``}
