@@ -903,7 +903,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
-            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:(it.qtd_sugerida!=null?it.qtd_sugerida:it.quantidade),qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao==='recusado',alterada=!!(justGer&&qtdAlmox!==qtdGerente)||qtdAlmox!==qtdGerente,gerenteAlterou=!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente;let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
+            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:(it.qtd_sugerida!=null?it.qtd_sugerida:it.quantidade),qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=it.qtd_almoxarife!=null,alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
                 <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
@@ -917,15 +917,12 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
   // Gerente cell - show delta vs almoxarife
   let delta=qtdGerente-qtdAlmox;
   let deltaHtml='';
-  if(alterada&&!isRecusadoGer){
+  if(alterada){
     if(delta>0) deltaHtml='<span style="font-size:10px;color:#16a34a;font-weight:700;display:block">▲+'+delta+'</span>';
     else if(delta<0) deltaHtml='<span style="font-size:10px;color:#dc2626;font-weight:700;display:block">▼'+delta+'</span>';
   }
   let gerenteColor=!alterada?'#0f172a':delta>0?'#16a34a':'#dc2626';
-  let gerenteCell=isRecusadoGer
-    ?'<td style="text-align:center;font-size:11px;background:#fee2e2;font-weight:700;color:#dc2626">✕ Recusado</td>'
-    :gerenteAlterou?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#f0fdf4;font-weight:700;color:'+gerenteColor+'">'+qtdGerente+deltaHtml+'</td>'
-    :'<td style="text-align:center;font-size:12px;color:#cbd5e1;background:#f0fdf4">—</td>';
+  let gerenteCell=gerenteAlterou?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#f0fdf4;font-weight:700;color:'+gerenteColor+'">'+qtdGerente+deltaHtml+'</td>':'<td style="text-align:center;font-size:12px;color:#cbd5e1;background:#f0fdf4">—</td>';
   return almoxCell+gerenteCell;
 })())+`
                 <td style="font-size:11.5px;color:#64748b;font-style:${justGer?`italic`:`normal`}">${justGer||`—`}</td>
