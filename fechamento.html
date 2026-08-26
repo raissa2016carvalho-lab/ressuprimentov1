@@ -226,24 +226,13 @@ function fmtQtd(v){return(Number(v)||0).toLocaleString('pt-BR',{minimumFractionD
 function fmtMes(m){const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return meses[Number(m.slice(4,6))-1]+'/'+m.slice(2,4)}
 
 async function carregar(){
-  const cacheKey='consumo_scp_agg_v1';
-  const cacheTS='consumo_scp_agg_ts';
+  const cacheKey='consumo_resumo_v1';
+  const cacheTS='consumo_resumo_ts';
   const CACHE_HORAS=4;
 
-  document.getElementById('content').innerHTML='<div class="loading"><span class="spinner"></span>Carregando dados de consumo...</div>';
+  document.getElementById('content').innerHTML='<div class="loading"><span class="spinner"></span>Carregando...</div>';
 
-  // Carregar CCs
-  setProgresso(10,'Carregando centros de custo...');
-  const{data:ccs}=await db.from('centros_custo').select('cc,nome');
-  (ccs||[]).forEach(c=>{_ccMap[c.cc]=c.nome});
-
-  // Tenta cache local
-  const cacheStr=localStorage.getItem(cacheKey);
-  const cacheTSVal=localStorage.getItem(cacheTS);
-  const agora=Date.now();
-  const cacheValido=cacheStr&&cacheTSVal&&(agora-Number(cacheTSVal))<CACHE_HORAS*3600*1000;
-
-  function setProgresso(pct, msg){
+  function setProgresso(pct,msg){
     document.getElementById('content').innerHTML=`
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:20px">
       <div style="font-size:13px;color:#64748b;font-weight:500">${msg}</div>
@@ -251,11 +240,18 @@ async function carregar(){
         <div style="height:100%;border-radius:999px;background:linear-gradient(90deg,#1e40af,#3b82f6);width:${pct}%;transition:width .4s ease"></div>
       </div>
       <div style="font-size:22px;font-weight:800;color:#1e40af">${pct}%</div>
-      <div style="font-size:11px;color:#94a3b8">Aguarde, carregando dados do Supabase...</div>
+      <div style="font-size:11px;color:#94a3b8">Aguarde, carregando dados...</div>
     </div>`;
   }
 
-  setProgresso(5, 'Conectando ao banco de dados...');
+  setProgresso(5,'Conectando...');
+  const{data:ccs}=await db.from('centros_custo').select('cc,nome');
+  (ccs||[]).forEach(c=>{_ccMap[c.cc]=c.nome});
+
+  const cacheStr=localStorage.getItem(cacheKey);
+  const cacheTSVal=localStorage.getItem(cacheTS);
+  const agora=Date.now();
+  const cacheValido=cacheStr&&cacheTSVal&&(agora-Number(cacheTSVal))<CACHE_HORAS*3600*1000;
 
   if(cacheValido&&cacheStr){
     try{
@@ -273,8 +269,7 @@ async function carregar(){
     }catch(e){localStorage.removeItem(cacheKey);}
   }
 
-  // Buscar data do último sync
-  setProgresso(20, 'Verificando última sincronização...');
+  setProgresso(15,'Verificando última sincronização...');
   let ultimoSync='';
   try{
     const{data:log}=await db.from('sync_log').select('atualizado_em,total').eq('chave','consumo_scp').maybeSingle();
@@ -284,48 +279,50 @@ async function carregar(){
     }
   }catch(e){}
 
-  // Carregar dados via RPC (sem limite de 1000 rows do REST API)
-  let todos=[],off=0,totalEstimado=200000;
+  // Carregar resumo agregado (~8000 linhas, ~8 requests de 1000)
+  let todos=[],off=0;
   for(;;){
-    const pctAtual=Math.min(88,25+Math.round((todos.length/totalEstimado)*63));
-    setProgresso(pctAtual,`Baixando registros... ${todos.length.toLocaleString('pt-BR')} de ~${totalEstimado.toLocaleString('pt-BR')}`);
-    const{data,error}=await db.rpc('get_consumo_scp_pag',{p_offset:off,p_limit:5000});
+    const pct=Math.min(88,25+Math.round((off/8000)*63));
+    setProgresso(pct,`Carregando... ${todos.length.toLocaleString('pt-BR')} registros`);
+    const{data,error}=await db
+      .from('consumo_scp_resumo')
+      .select('filial,cc,mes,grupo,motivo,valor_total,quantidade,custo_zero_count')
+      .range(off,off+999);
     if(error||!data||!data.length)break;
-    data.forEach(r=>{
-      const vt=Number(r.valor_total)||0;
-      const cu=Number(r.custo_unit)||0;
-      const qt=Number(r.quantidade)||0;
-      r.valor_total=vt!==0?vt:(cu>0?cu*qt:0);
-      r.quantidade=qt;
-      r.custo_unit=cu;
-    });
     todos=todos.concat(data);
-    if(data.length<5000)break;
-    off+=5000;
+    if(data.length<1000)break;
+    off+=1000;
   }
-  _dados=todos;
 
-  setProgresso(92,'Salvando cache local...');
-  // Tenta salvar cache (pode falhar se > 5MB)
+  _dados=todos.map(r=>({
+    filial:           r.filial,
+    cc:               r.cc,
+    mes:              r.mes,
+    grupo:            r.grupo,
+    motivo:           r.motivo,
+    valor_total:      Number(r.valor_total)||0,
+    quantidade:       Number(r.quantidade)||0,
+    custo_zero:       (r.custo_zero_count||0)>0,
+    custo_zero_count: r.custo_zero_count||0,
+    produto:'', descricao:'', custo_unit:0,
+  }));
+
+  setProgresso(93,'Salvando cache...');
   try{
-    const compacto=todos.map(r=>({
-      f:r.filial,p:r.produto,d:r.descricao,g:r.grupo,c:r.cc,
-      m:r.mes,q:r.quantidade,cu:r.custo_unit,v:r.valor_total,
-      z:r.custo_zero,mo:r.motivo
-    }));
-    localStorage.setItem(cacheKey,JSON.stringify(compacto));
+    localStorage.setItem(cacheKey,JSON.stringify(_dados));
     localStorage.setItem(cacheTS,String(Date.now()));
-  }catch(e){console.warn('Cache cheio, continuando sem cache:',e);}
+  }catch(e){console.warn('Cache:',e);}
 
-  setProgresso(97,'Preparando visualização...');
-  const mesesUniq=[...new Set(todos.map(r=>r.mes))];
-  document.getElementById('sub-header').textContent=`${todos.length.toLocaleString('pt-BR')} registros • ${mesesUniq.length} meses${ultimoSync}`;
-  popularSelects(todos);
+  setProgresso(98,'Preparando visualização...');
+  const mesesUniq=[...new Set(_dados.map(r=>r.mes))];
+  document.getElementById('sub-header').textContent=`${_dados.length.toLocaleString('pt-BR')} registros • ${mesesUniq.length} meses${ultimoSync}`;
+  popularSelects(_dados);
   atualizarMeses();
   await carregarJustificativas();
   setProgresso(100,'Pronto! ✅');
-  aplicarFiltros();
+  setTimeout(()=>aplicarFiltros(),300);
 }
+
 
 function _expandirCache(compacto){
   // Expande chaves compactas de volta ao formato normal
