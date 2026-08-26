@@ -118,11 +118,19 @@ if(_codigosTodos.length>0&&_filialTodos.length>0){
 $(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``)
   // Marcar todos os botões como aprovado após renderizar
   setTimeout(()=>{
+    // Botões individuais (renderCard)
     solicitacoes.forEach(s=>s.itens.forEach(it=>{
       let ap=$(`ap-`+it.id),re=$(`re-`+it.id);
       if(ap)ap.className=`btn-dec aprovado`;
       if(re)re.className=`btn-dec`;
     }));
+    // Botões matriciais (renderCardMatricial) - data-dec="aprovado"
+    document.querySelectorAll('button[data-dec="aprovado"]').forEach(function(btn){
+      btn.classList.add('aprovado');
+      var cod=btn.dataset.cod;
+      var idsCC=(btn.dataset.ids||'').split(',').map(Number);
+      idsCC.forEach(function(id){decisoes[id]='aprovado';});
+    });
   },100);
 // Adicionar data-status e data-busca nos cards para filtro
 document.querySelectorAll('#lista .card').forEach(function(card,i){
@@ -265,7 +273,6 @@ atualizarBadges();
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-'+cardId+'"></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px">'
-    +'<button style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer" onclick="aprovarTodosMatricial(\''+cardId+'\')">✓ Aprovar todos</button>'
     +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-cardid="'+cardId+'" onclick="aprovarGerente(this)">✔ Enviar para master</button>'
     +'</div>'
     +'</div>'
