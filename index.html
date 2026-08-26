@@ -917,12 +917,15 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
   // Gerente cell - show delta vs almoxarife
   let delta=qtdGerente-qtdAlmox;
   let deltaHtml='';
-  if(alterada){
+  if(alterada&&!isRecusadoGer){
     if(delta>0) deltaHtml='<span style="font-size:10px;color:#16a34a;font-weight:700;display:block">▲+'+delta+'</span>';
     else if(delta<0) deltaHtml='<span style="font-size:10px;color:#dc2626;font-weight:700;display:block">▼'+delta+'</span>';
   }
   let gerenteColor=!alterada?'#0f172a':delta>0?'#16a34a':'#dc2626';
-  let gerenteCell=gerenteAlterou?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#f0fdf4;font-weight:700;color:'+gerenteColor+'">'+qtdGerente+deltaHtml+'</td>':'<td style="text-align:center;font-size:12px;color:#cbd5e1;background:#f0fdf4">—</td>';
+  let gerenteCell=isRecusadoGer
+    ?'<td style="text-align:center;font-size:11px;background:#fee2e2;font-weight:700;color:#dc2626">✕ Recusado</td>'
+    :gerenteAlterou?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#f0fdf4;font-weight:700;color:'+gerenteColor+'">'+qtdGerente+deltaHtml+'</td>'
+    :'<td style="text-align:center;font-size:12px;color:#cbd5e1;background:#f0fdf4">—</td>';
   return almoxCell+gerenteCell;
 })())+`
                 <td style="font-size:11.5px;color:#64748b;font-style:${justGer?`italic`:`normal`}">${justGer||`—`}</td>
