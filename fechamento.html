@@ -226,42 +226,122 @@ function fmtQtd(v){return(Number(v)||0).toLocaleString('pt-BR',{minimumFractionD
 function fmtMes(m){const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return meses[Number(m.slice(4,6))-1]+'/'+m.slice(2,4)}
 
 async function carregar(){
+  const cacheKey='consumo_scp_agg_v1';
+  const cacheTS='consumo_scp_agg_ts';
+  const CACHE_HORAS=4;
+
   document.getElementById('content').innerHTML='<div class="loading"><span class="spinner"></span>Carregando dados de consumo...</div>';
 
   // Carregar CCs
+  setProgresso(10,'Carregando centros de custo...');
   const{data:ccs}=await db.from('centros_custo').select('cc,nome');
   (ccs||[]).forEach(c=>{_ccMap[c.cc]=c.nome});
 
-  // Buscar data da última sincronização
+  // Tenta cache local
+  const cacheStr=localStorage.getItem(cacheKey);
+  const cacheTSVal=localStorage.getItem(cacheTS);
+  const agora=Date.now();
+  const cacheValido=cacheStr&&cacheTSVal&&(agora-Number(cacheTSVal))<CACHE_HORAS*3600*1000;
+
+  function setProgresso(pct, msg){
+    document.getElementById('content').innerHTML=`
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:20px">
+      <div style="font-size:13px;color:#64748b;font-weight:500">${msg}</div>
+      <div style="width:380px;background:#e2e8f0;border-radius:999px;height:10px;overflow:hidden">
+        <div style="height:100%;border-radius:999px;background:linear-gradient(90deg,#1e40af,#3b82f6);width:${pct}%;transition:width .4s ease"></div>
+      </div>
+      <div style="font-size:22px;font-weight:800;color:#1e40af">${pct}%</div>
+      <div style="font-size:11px;color:#94a3b8">Aguarde, carregando dados do Supabase...</div>
+    </div>`;
+  }
+
+  setProgresso(5, 'Conectando ao banco de dados...');
+
+  if(cacheValido&&cacheStr){
+    try{
+      const cached=JSON.parse(cacheStr);
+      _dados=cached;
+      const tsDate=new Date(Number(cacheTSVal));
+      const tsStr=` • Cache ${tsDate.toLocaleDateString('pt-BR')} ${tsDate.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+      const mesesUniq=[...new Set(cached.map(r=>r.mes))];
+      document.getElementById('sub-header').textContent=`${cached.length.toLocaleString('pt-BR')} registros • ${mesesUniq.length} meses${tsStr}`;
+      popularSelects(cached);
+      atualizarMeses();
+      await carregarJustificativas();
+      aplicarFiltros();
+      return;
+    }catch(e){localStorage.removeItem(cacheKey);}
+  }
+
+  // Buscar data do último sync
+  setProgresso(20, 'Verificando última sincronização...');
   let ultimoSync='';
   try{
     const{data:log}=await db.from('sync_log').select('atualizado_em,total').eq('chave','consumo_scp').maybeSingle();
     if(log?.atualizado_em){
       const d=new Date(log.atualizado_em);
-      ultimoSync=` • Atualizado em ${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+      ultimoSync=` • Sync ${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
     }
   }catch(e){}
 
-  // Carregar dados com paginação
-  let todos=[],off=0;
+  // Carregar dados com progresso real
+  let todos=[],off=0,totalEstimado=200000;
   for(;;){
-    const{data,error}=await db.from('consumo_scp').select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,valor_total,custo_zero,motivo').range(off,off+999);
+    const pctAtual=Math.min(88,25+Math.round((todos.length/totalEstimado)*63));
+    setProgresso(pctAtual,`Baixando registros... ${todos.length.toLocaleString('pt-BR')} de ~${totalEstimado.toLocaleString('pt-BR')}`);
+    const{data,error}=await db
+      .from('consumo_scp')
+      .select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,valor_total,custo_zero,motivo')
+      .range(off,off+2999);
     if(error||!data||!data.length)break;
     data.forEach(r=>{
       const vt=Number(r.valor_total)||0;
       const cu=Number(r.custo_unit)||0;
       const qt=Number(r.quantidade)||0;
-      r.valor_total = vt!==0 ? vt : (cu>0 ? cu*qt : 0);
-      r.quantidade = qt;
-      r.custo_unit = cu;
+      r.valor_total=vt!==0?vt:(cu>0?cu*qt:0);
+      r.quantidade=qt;
+      r.custo_unit=cu;
     });
     todos=todos.concat(data);
-    if(data.length<1000)break;
-    off+=1000;
+    if(data.length<3000)break;
+    off+=3000;
   }
   _dados=todos;
 
-  // Popular selects
+  setProgresso(92,'Salvando cache local...');
+  // Tenta salvar cache (pode falhar se > 5MB)
+  try{
+    const compacto=todos.map(r=>({
+      f:r.filial,p:r.produto,d:r.descricao,g:r.grupo,c:r.cc,
+      m:r.mes,q:r.quantidade,cu:r.custo_unit,v:r.valor_total,
+      z:r.custo_zero,mo:r.motivo
+    }));
+    localStorage.setItem(cacheKey,JSON.stringify(compacto));
+    localStorage.setItem(cacheTS,String(Date.now()));
+  }catch(e){console.warn('Cache cheio, continuando sem cache:',e);}
+
+  setProgresso(97,'Preparando visualização...');
+  const mesesUniq=[...new Set(todos.map(r=>r.mes))];
+  document.getElementById('sub-header').textContent=`${todos.length.toLocaleString('pt-BR')} registros • ${mesesUniq.length} meses${ultimoSync}`;
+  popularSelects(todos);
+  atualizarMeses();
+  await carregarJustificativas();
+  setProgresso(100,'Pronto! ✅');
+  aplicarFiltros();
+}
+
+function _expandirCache(compacto){
+  // Expande chaves compactas de volta ao formato normal
+  if(!compacto||!compacto.length)return[];
+  if(compacto[0].filial!==undefined)return compacto; // já expandido
+  return compacto.map(r=>({
+    filial:r.f,produto:r.p,descricao:r.d,grupo:r.g,cc:r.c,
+    mes:r.m,quantidade:r.q,custo_unit:r.cu,valor_total:r.v,
+    custo_zero:r.z,motivo:r.mo
+  }));
+}
+
+function popularSelects(todos){
   const grupos=[...new Set(todos.map(r=>r.grupo).filter(Boolean))].sort();
   const selGrupo=document.getElementById('f-grupo');
   selGrupo.innerHTML='<option value="">Todos os grupos</option>'+grupos.map(g=>`<option value="${g}">${g}</option>`).join('');
@@ -269,13 +349,6 @@ async function carregar(){
   const ccsUniq=[...new Set(todos.map(r=>r.cc).filter(Boolean))].sort();
   const selCC=document.getElementById('f-cc');
   selCC.innerHTML='<option value="">Todos os CCs</option>'+ccsUniq.map(c=>`<option value="${c}">${c}${_ccMap[c]?' — '+_ccMap[c]:''}</option>`).join('');
-
-  const mesesUniq=[...new Set(todos.map(r=>r.mes))];
-  document.getElementById('sub-header').textContent=`${todos.length.toLocaleString('pt-BR')} registros • ${mesesUniq.length} meses${ultimoSync}`;
-
-  atualizarMeses();
-  await carregarJustificativas();
-  aplicarFiltros();
 }
 
 function atualizarMeses(){
