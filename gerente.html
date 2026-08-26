@@ -585,6 +585,9 @@ function renderCard_ORIGINAL(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.c
         </div>
       </div>
     </div>`}function onQtdChange(solId,itemId,qtdOrig,preco,valor){let nova=Number(valor)||0;qtdEditadas[itemId]=nova;let input=$(`qtd-`+itemId),just=$(`just-`+itemId);
+  // Desativar botão "Aprovar todos" quando quantidade for alterada
+  let btnAprovarTodas=document.querySelector(`[onclick="aprovarTodas(${solId})"]`);
+  if(btnAprovarTodas&&nova!==qtdOrig){btnAprovarTodas.disabled=true;btnAprovarTodas.style.opacity='0.4';btnAprovarTodas.title='Desativado pois há alterações individuais';}
 let _solRef=solicitacoes.find(s=>s.id===solId);
 let _itRef=_solRef&&_solRef.itens.find(i=>i.id===itemId);
 let qtdOriginal=_itRef&&_itRef._qtdOriginal!==undefined?_itRef._qtdOriginal:qtdOrig;
@@ -602,7 +605,9 @@ let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let total=0;sol.itens.
   decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor;
   $(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``)
   $(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)
-  // Travar/destravar input de quantidade
+  // Desativar botão "Aprovar todos" quando qualquer decisão individual for tomada
+  let btnAprovarTodas=document.querySelector(`[onclick="aprovarTodas(${solId})"]`);
+  if(btnAprovarTodas){btnAprovarTodas.disabled=true;btnAprovarTodas.style.opacity='0.4';btnAprovarTodas.title='Desativado pois há decisões individuais — use Enviar para master';}
   let qtdEl=$(`qtd-`+itemId);
   if(qtdEl){
     if(decisoes[itemId]===`recusado`){
