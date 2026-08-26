@@ -27,7 +27,7 @@ async function mostrarApp(email){
   solicitacoes.length=0;
   meusCC.length=0;
   let{data:{user}}=await db.auth.getUser();if(user?.user_metadata?.senha_trocada!==!0){$(`tela-login`).style.display=`none`,$(`tela-esqueci-senha`).style.display=`none`,$(`tela-trocar-senha`).style.display=`grid`;return}$(`tela-trocar-senha`).style.display=`none`,userEmail=email.toLowerCase().trim();let{data:gc,error:gcErr}=await db.from(`gerentes_cc`).select(`cc`).eq(`email`,userEmail);if(gcErr){$(`tela-login`).innerHTML=`<div class="vazio">Erro: `+gcErr.message+`</div>`;return}meusCC=(gc||[]).map(g=>g.cc);let{data:ccs}=await db.from(`centros_custo`).select(`*`);if((ccs||[]).forEach(c=>ccMap[c.cc]=c),$(`user-info`).textContent=userEmail+(meusCC.length?` · `+meusCC.length+` CC(s)`:` · sem CCs`),$(`tela-login`).style.display=`none`,$(`app`).style.display=`flex`,meusCC.length===0){$(`subtitulo`).textContent=`Nenhum centro de custo associado`,$(`lista`).innerHTML=`<div class="vazio">Você não tem centros de custo associados.</div>`;return}await carregarSolicitacoes()}
-async function carregarSolicitacoes(){if(meusCC.length===0)return;$(`lista`).innerHTML=`<div class="vazio">Carregando...</div>`;let{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`cc`,meusCC).eq(`status`,`pendente`).order(`criado_em`,{ascending:!1}),ids=(sols||[]).map(s=>s.id),itensMap={};if(ids.length>0){let{data:itens}=await db.from(`solicitacao_itens`).select(`*`).in(`solicitacao_id`,ids);(itens||[]).forEach(i=>{(itensMap[i.solicitacao_id]=itensMap[i.solicitacao_id]||[]).push(i)})}solicitacoes=(sols||[]).map(s=>({...s,itens:itensMap[s.id]||[]}));
+async function carregarSolicitacoes(){if(meusCC.length===0)return;$(`lista`).innerHTML=`<div class="vazio">Carregando...</div>`;let{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`cc`,meusCC).eq(`status`,`pendente`).order(`criado_em`,{ascending:!1}),ids=(sols||[]).map(s=>s.id),itensMap={};if(ids.length>0){let{data:itens}=await db.from(`solicitacao_itens`).select(`*`).in(`solicitacao_id`,ids);(itens||[]).forEach(i=>{(itensMap[i.solicitacao_id]=itensMap[i.solicitacao_id]||[]).push(i)})}solicitacoes=(sols||[]).map(s=>({...s,itens:(itensMap[s.id]||[]).map(it=>({...it,_qtdOriginal:it.quantidade}))}));
 // Buscar solicitações irmãs (mesmo envio, outros CCs) para calcular total geral
 let matriculas=[...new Set(solicitacoes.map(s=>s.solicitante_matricula).filter(Boolean))];
 totalGeralMap={};// chave: matricula|minuto|codigo -> total geral
@@ -585,7 +585,10 @@ function renderCard_ORIGINAL(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.c
         </div>
       </div>
     </div>`}function onQtdChange(solId,itemId,qtdOrig,preco,valor){let nova=Number(valor)||0;qtdEditadas[itemId]=nova;let input=$(`qtd-`+itemId),just=$(`just-`+itemId);
-if(nova>qtdOrig){
+let sol=solicitacoes.find(s=>s.id===solId);
+let it=sol&&sol.itens.find(i=>i.id===itemId);
+let qtdOriginal=it&&it._qtdOriginal!==undefined?it._qtdOriginal:qtdOrig;
+if(nova>qtdOriginal){
   input.classList.add(`aumentada`);
   if(just){just.classList.add(`visivel`);just.placeholder=`Observação obrigatória (motivo do aumento)`;just.style.borderColor=`#f59e0b`;}
 } else {
@@ -599,6 +602,19 @@ let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let total=0;sol.itens.
   decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor;
   $(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``)
   $(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)
+  // Travar/destravar input de quantidade
+  let qtdEl=$(`qtd-`+itemId);
+  if(qtdEl){
+    if(decisoes[itemId]===`recusado`){
+      qtdEl.disabled=true;
+      qtdEl.style.opacity='0.4';
+      qtdEl.style.background='#fee2e2';
+    } else {
+      qtdEl.disabled=false;
+      qtdEl.style.opacity='';
+      qtdEl.style.background='';
+    }
+  }
   // Mostrar campo de observação obrigatório ao recusar
   let jEl=$(`just-`+itemId);
   if(jEl){
@@ -668,11 +684,12 @@ window._progresso = _progresso;
 async function salvar(solId){let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let msgEl=$(`msg-`+solId);
 // Validar justificativas para itens aumentados OU recusados
 for(let it of sol.itens){
-  let novaQtd=qtdEditadas[it.id]===void 0?it.quantidade:qtdEditadas[it.id];
+  let qtdOriginal=it._qtdOriginal!==undefined?it._qtdOriginal:it.quantidade;
+  let novaQtd=qtdEditadas[it.id]===void 0?qtdOriginal:qtdEditadas[it.id];
   let decisao=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id];
   let just=(justificativas[it.id]||``).trim();
-  if(novaQtd>it.quantidade&&!just){
-    msgEl.innerHTML=`<span style="color:#991b1b">⚠ Observação obrigatória para "<strong>${it.descricao||it.codigo}</strong>" — quantidade aumentada.</span>`;
+  if(novaQtd>qtdOriginal&&!just){
+    msgEl.innerHTML=`<span style="color:#991b1b">⚠ Observação obrigatória para "<strong>${it.descricao||it.codigo}</strong>" — quantidade aumentada de ${qtdOriginal} para ${novaQtd}.</span>`;
     let jEl=$(`just-`+it.id);if(jEl){jEl.classList.add(`visivel`);jEl.focus();}
     return;
   }
@@ -683,7 +700,19 @@ for(let it of sol.itens){
   }
 }_progresso(msgEl, 0, sol.itens.length, 'Salvando');
 let _salvIdx=0;
-for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id],novaQtd=qtdEditadas[it.id]===void 0?null:qtdEditadas[it.id],just=(justificativas[it.id]||``).trim(),upd={situacao:valor};upd.qtd_almoxarife=it.quantidade,novaQtd!==null&&(upd.quantidade=novaQtd),just&&(upd.justificativa_gerente=just),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id);_salvIdx++;_progresso(msgEl,_salvIdx,sol.itens.length,'Salvando');}
+for(let it of sol.itens){
+  let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id];
+  let qtdOriginal=it._qtdOriginal!==undefined?it._qtdOriginal:it.quantidade; // quantidade original do solicitante
+  let novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:qtdOriginal;
+  let just=(justificativas[it.id]||``).trim();
+  let upd={situacao:valor};
+  upd.qtd_almoxarife=qtdOriginal; // o que o solicitante pediu
+  if(valor===`recusado`){upd.quantidade=0;}
+  else{upd.quantidade=novaQtd;} // o que o gerente aprovou
+  just&&(upd.justificativa_gerente=just);
+  await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id);
+  _salvIdx++;_progresso(msgEl,_salvIdx,sol.itens.length,'Salvando');
+}
 let{error}=await db.from(`solicitacoes`).update({status:`aguardando_master`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId);if(error){msgEl.innerHTML=`<span style="color:#991b1b">Erro: `+error.message+`</span>`;return;}
 msgEl.innerHTML=`<span style="color:#065f46">✓ Enviado para aprovação final!</span>`;
 // Remove o card do DOM sem recarregar tudo
