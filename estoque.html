@@ -875,9 +875,15 @@ async function carregarComparativo(){
     }
     return todos;
   }
-  // Buscar posição SB2 com dt_inventario por item
+  // Buscar posição SB2 com dt_inventario por item — SEMPRE filtra por filial
+  if(!filial){
+    loading.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8">Selecione uma filial para carregar o comparativo.</div>';
+    loading.style.display='block';
+    return;
+  }
+
   const [posicao, itensDesc] = await Promise.all([
-    buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,custo_medio,dt_inventario,dt_ult_movimento'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,custo_medio,dt_inventario,dt_ult_movimento').eq('filial',filial)),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
   ]);
 
