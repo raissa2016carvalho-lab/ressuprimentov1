@@ -944,11 +944,11 @@ async function carregarComparativo(){
   (transfsRec||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfRec[k]=Number(r.qtd_total)||0;});
   (devolucoes||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaDevolucoes[k]=Number(r.qtd_total)||0;});
 
-  // Inicializar mapa a partir do SB2 (cada item usa sua dt_inventario ou a moda da filial)
+  // Inicializar mapa a partir do SB2 — todos os itens usam a data mais recente da filial
   Object.values(posMap).forEach(pos=>{
     const k=key(pos.filial,pos.codigo);
-    const dtModa=modaInvPorFilial[pos.filial]?.dt||'20250101';
-    const dt=pos.dt_inventario||dtModa; // fallback para moda da filial
+    const dtFilial=modaInvPorFilial[pos.filial]?.dt||'20250101'; // data mais recente da filial
+    const dt=dtFilial; // força a mesma data para todos os itens da filial
     mapa[k]={
       filial:pos.filial, produto:pos.codigo,
       dt_inventario:dt,
