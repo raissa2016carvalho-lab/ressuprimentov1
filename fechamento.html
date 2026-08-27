@@ -204,6 +204,7 @@ tr.alerta:hover td{background:#fef08a}
   <button class="aba-btn" onclick="irParaAba('custo-zero',this)">⚠️ Custo Zero</button>
   <button class="aba-btn" onclick="irParaAba('itens',this)">📋 Itens</button>
   <button class="aba-btn" onclick="irParaAba('analise',this)">🔍 Análise</button>
+  <button class="aba-btn" onclick="irParaAba('auditoria',this)">🧮 Auditoria</button>
 </div>
 
 <!-- CONTENT -->
@@ -399,6 +400,7 @@ function renderAba(aba){
   else if(aba==='custo-zero')renderCustoZero();
   else if(aba==='itens')renderItens();
   else if(aba==='analise')renderAnalise();
+  else if(aba==='auditoria')renderAuditoria();
 }
 
 function kpisHTML(){
@@ -1144,7 +1146,128 @@ async function salvarJustInline(chave,inputId,savedId){
   await salvarJustificativa(chave,txt,null,spanEl);
 }
 
-function exportarExcel(){
+async function renderAuditoria(){
+  const content=document.getElementById('content');
+  content.innerHTML='<div class="loading"><span class="spinner"></span>Carregando auditoria de custo...</div>';
+
+  // Busca dados brutos de auditoria do Supabase
+  let auditoria=[],off=0;
+  for(;;){
+    const{data,error}=await db
+      .from('consumo_scp')
+      .select('produto,descricao,grupo,cc,mes,filial,quantidade,custo_unit,valor_total,custo_fonte,custo_zero')
+      .range(off,off+999);
+    if(error||!data||!data.length)break;
+    auditoria=auditoria.concat(data);
+    if(data.length<1000)break;
+    off+=1000;
+  }
+
+  if(!auditoria.length){
+    content.innerHTML='<div class="loading">Nenhum dado de auditoria disponível. Rode o sync atualizado.</div>';
+    return;
+  }
+
+  // Aplicar filtros dos selects
+  const filial=document.getElementById('f-filial').value;
+  const grupo=document.getElementById('f-grupo').value;
+  const cc=document.getElementById('f-cc').value;
+  const periodo=document.getElementById('f-periodo').value;
+  const mes=document.getElementById('f-mes').value;
+
+  const filtrado=auditoria.filter(r=>{
+    if(filial&&r.filial!==filial)return false;
+    if(grupo&&r.grupo!==grupo)return false;
+    if(cc&&r.cc!==cc)return false;
+    if(mes&&r.mes!==mes)return false;
+    else if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
+    return true;
+  });
+
+  // 1. Distribuição por fonte de custo
+  const fontes={};
+  filtrado.forEach(r=>{
+    const f=r.custo_fonte||'ZERO';
+    if(!fontes[f])fontes[f]={count:0,valor:0,qtd:0};
+    fontes[f].count++;
+    fontes[f].valor+=Number(r.valor_total)||0;
+    fontes[f].qtd+=Number(r.quantidade)||0;
+  });
+
+  const totalReg=filtrado.length;
+  const CORES_FONTE={'B2_CM1':'#16a34a','CP_YCUSTD':'#f59e0b','CP_VUNIT':'#3b82f6','SD1_ULTIMO_PRECO':'#8b5cf6','ZERO':'#ef4444'};
+  const LABELS_FONTE={'B2_CM1':'✅ Custo Médio (B2_CM1)','CP_YCUSTD':'🟡 Custo do Lote (CP_YCUSTD)','CP_VUNIT':'🔵 Custo Unit. Protheus','SD1_ULTIMO_PRECO':'🟣 Último Preço Compra (SD1)','ZERO':'🔴 Sem Custo'};
+
+  const fontesRows=Object.entries(fontes).sort((a,b)=>b[1].count-a[1].count).map(([f,d])=>`
+    <tr>
+      <td><span style="display:inline-flex;align-items:center;gap:8px">
+        <span style="width:12px;height:12px;border-radius:50%;background:${CORES_FONTE[f]||'#94a3b8'}"></span>
+        <strong>${LABELS_FONTE[f]||f}</strong>
+      </span></td>
+      <td class="num">${d.count.toLocaleString('pt-BR')}</td>
+      <td class="num">${((d.count/totalReg)*100).toFixed(1)}%</td>
+      <td class="num">${fmtVal(d.valor)}</td>
+      <td class="num">${fmtQtd(d.qtd)}</td>
+    </tr>`).join('');
+
+  // 2. Itens zerados (top 30 por quantidade)
+  const zerados=filtrado.filter(r=>r.custo_zero||r.custo_fonte==='ZERO');
+  const zeradosPorProd={};
+  zerados.forEach(r=>{
+    const k=r.produto;
+    if(!zeradosPorProd[k])zeradosPorProd[k]={produto:k,descricao:r.descricao,grupo:r.grupo,qtd:0,registros:0,filiais:new Set(),meses:new Set()};
+    zeradosPorProd[k].qtd+=Number(r.quantidade)||0;
+    zeradosPorProd[k].registros++;
+    zeradosPorProd[k].filiais.add(r.filial);
+    zeradosPorProd[k].meses.add(r.mes);
+  });
+  const topZerados=Object.values(zeradosPorProd).sort((a,b)=>b.qtd-a.qtd).slice(0,30);
+
+  content.innerHTML=kpisHTML()+`
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <div class="card-title">🧮 Distribuição por Fonte de Custo</div>
+      <div class="card-sub">${totalReg.toLocaleString('pt-BR')} registros analisados</div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Fonte</th>
+        <th class="num">Registros</th>
+        <th class="num">% Total</th>
+        <th class="num">Valor Total</th>
+        <th class="num">Quantidade</th>
+      </tr></thead>
+      <tbody>${fontesRows}</tbody>
+    </table></div>
+  </div>
+
+  ${topZerados.length>0?`
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔴 Top Itens Sem Custo (${topZerados.length} produtos)</div>
+      <div class="card-sub">Produtos sem custo em nenhuma fonte — precisam de atenção</div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Código</th><th>Descrição</th><th>Grupo</th>
+        <th class="num">Qtd Total</th>
+        <th class="num">Registros</th>
+        <th class="num">Filiais</th>
+        <th class="num">Meses</th>
+      </tr></thead>
+      <tbody>${topZerados.map(r=>`<tr class="alerta">
+        <td style="font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
+        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis">${r.descricao||'—'}</td>
+        <td style="font-size:11px">${r.grupo||'—'}</td>
+        <td class="num"><strong>${fmtQtd(r.qtd)}</strong></td>
+        <td class="num">${r.registros}</td>
+        <td class="num">${r.filiais.size}</td>
+        <td class="num">${r.meses.size}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`:''}`;
+}
+window.renderAuditoria=renderAuditoria;
   if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
   const rows=_filtrados.map(r=>({
     'Filial':r.filial,'Nome Filial':FNOMES[r.filial]||'',
@@ -1169,6 +1292,7 @@ window.setSubAba=setSubAba;
 window.toggleJust=toggleJust;
 window.salvarJust=salvarJust;
 window.salvarJustInline=salvarJustInline;
+window.renderAuditoria=renderAuditoria;
 
 carregar();
 </script>
