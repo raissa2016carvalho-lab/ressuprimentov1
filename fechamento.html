@@ -287,7 +287,7 @@ async function carregar(){
     setProgresso(pct,`Carregando... ${todos.length.toLocaleString('pt-BR')} registros`);
     const{data,error}=await db
       .from('consumo_scp_resumo')
-      .select('filial,cc,mes,grupo,motivo,valor_total,quantidade,custo_zero_count')
+      .select('filial,cc,mes,grupo,motivo,valor_total,quantidade,custo_zero_count,ycustd_zero_count')
       .range(off,off+999);
     if(error||!data||!data.length)break;
     todos=todos.concat(data);
@@ -303,8 +303,8 @@ async function carregar(){
     motivo:           r.motivo,
     valor_total:      Number(r.valor_total)||0,
     quantidade:       Number(r.quantidade)||0,
-    custo_zero:       (r.custo_zero_count||0)>0,
-    custo_zero_count: r.custo_zero_count||0,
+    custo_zero:       (r.ycustd_zero_count||0)>0,
+    custo_zero_count: r.ycustd_zero_count||0,
     produto:'', descricao:'', custo_unit:0,
   }));
 
