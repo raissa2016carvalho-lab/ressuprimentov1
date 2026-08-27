@@ -1210,18 +1210,29 @@ async function renderAuditoria(){
       <td class="num">${fmtQtd(d.qtd)}</td>
     </tr>`).join('');
 
-  // 2. Itens zerados (top 30 por quantidade)
-  const zerados=filtrado.filter(r=>r.custo_zero||r.custo_fonte==='ZERO');
-  const zeradosPorProd={};
-  zerados.forEach(r=>{
-    const k=r.produto;
-    if(!zeradosPorProd[k])zeradosPorProd[k]={produto:k,descricao:r.descricao,grupo:r.grupo,qtd:0,registros:0,filiais:new Set(),meses:new Set()};
-    zeradosPorProd[k].qtd+=Number(r.quantidade)||0;
-    zeradosPorProd[k].registros++;
-    zeradosPorProd[k].filiais.add(r.filial);
-    zeradosPorProd[k].meses.add(r.mes);
+  // 2. Busca detalhes dos itens zerados direto da consumo_scp
+  let zeradosDetalhe=[],offZ=0;
+  for(;;){
+    const{data,error}=await db
+      .from('consumo_scp')
+      .select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,custo_fonte,custo_zero')
+      .eq('custo_fonte','ZERO')
+      .range(offZ,offZ+999);
+    if(error||!data||!data.length)break;
+    zeradosDetalhe=zeradosDetalhe.concat(data);
+    if(data.length<1000)break;
+    offZ+=1000;
+  }
+
+  // Aplicar filtros
+  const zeradosFilt=zeradosDetalhe.filter(r=>{
+    if(filial&&r.filial!==filial)return false;
+    if(grupo&&r.grupo!==grupo)return false;
+    if(cc&&r.cc!==cc)return false;
+    if(mes&&r.mes!==mes)return false;
+    else if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
+    return true;
   });
-  const topZerados=Object.values(zeradosPorProd).sort((a,b)=>b.qtd-a.qtd).slice(0,30);
 
   content.innerHTML=kpisHTML()+`
   <div class="card" style="margin-bottom:16px">
@@ -1241,33 +1252,40 @@ async function renderAuditoria(){
     </table></div>
   </div>
 
-  ${topZerados.length>0?`
+  ${zeradosFilt.length>0?`
   <div class="card">
     <div class="card-header">
-      <div class="card-title">🔴 Top Itens Sem Custo (${topZerados.length} produtos)</div>
-      <div class="card-sub">Produtos sem custo em nenhuma fonte — precisam de atenção</div>
+      <div class="card-title">🔴 Itens Sem Custo em Nenhuma Fonte (${zeradosFilt.length} registros)</div>
+      <div class="card-sub">Precisam de atenção — não há CP_YCUSTD, B2_CM1 nem SD1 disponível</div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>Código</th><th>Descrição</th><th>Grupo</th>
-        <th class="num">Qtd Total</th>
-        <th class="num">Registros</th>
-        <th class="num">Filiais</th>
-        <th class="num">Meses</th>
+        <th>Filial</th>
+        <th>Código</th>
+        <th>Descrição</th>
+        <th>Grupo</th>
+        <th>CC</th>
+        <th class="num">Mês</th>
+        <th class="num">Qtd</th>
+        <th class="num">CP_YCUSTD</th>
+        <th class="num">B2_CM1</th>
+        <th class="num">SD1</th>
       </tr></thead>
-      <tbody>${topZerados.map(r=>`<tr class="alerta">
+      <tbody>${zeradosFilt.sort((a,b)=>b.quantidade-a.quantidade).map(r=>`<tr class="alerta">
+        <td><strong>${r.filial}</strong> <span style="font-size:10px;color:#94a3b8">${FNOMES[r.filial]||''}</span></td>
         <td style="font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
-        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis">${r.descricao||'—'}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.descricao||'—'}</td>
         <td style="font-size:11px">${r.grupo||'—'}</td>
-        <td class="num"><strong>${fmtQtd(r.qtd)}</strong></td>
-        <td class="num">${r.registros}</td>
-        <td class="num">${r.filiais.size}</td>
-        <td class="num">${r.meses.size}</td>
+        <td style="font-size:11px">${r.cc||'—'}</td>
+        <td class="num">${fmtMes(r.mes)}</td>
+        <td class="num"><strong>${fmtQtd(r.quantidade)}</strong></td>
+        <td class="num"><span class="badge-zero">R$ 0,00</span></td>
+        <td class="num"><span class="badge-zero">Sem registro</span></td>
+        <td class="num"><span class="badge-zero">Sem NF entrada</span></td>
       </tr>`).join('')}</tbody>
     </table></div>
-  </div>`:''}`;
+  </div>`:'<div class="card"><div style="padding:20px;text-align:center;color:#16a34a;font-weight:600">✅ Nenhum item sem custo encontrado!</div></div>'}`;
 }
-window.renderAuditoria=renderAuditoria;
 
 function exportarExcel(){
   if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
