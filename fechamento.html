@@ -1281,7 +1281,7 @@ async function renderAuditoria(){
   <div class="card" style="margin-top:16px">
     <div class="card-header">
       <div class="card-title">📊 Variação de Custo Unitário por Mês</div>
-      <div class="card-sub">Top 30 itens com maior oscilação de custo • variação mín/máx > 20%</div>
+      <div class="card-sub">Top 30 itens com maior oscilação • clique na linha para ver detalhes</div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
@@ -1289,7 +1289,7 @@ async function renderAuditoria(){
         ${mesesFilt.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}
         <th class="num">Variação</th>
       </tr></thead>
-      <tbody>${prodList.map(p=>{
+      <tbody>${prodList.map((p,idx)=>{
         let prev=null;
         const cells=mesesFilt.map(m=>{
           const d=p.meses[m];
@@ -1304,16 +1304,25 @@ async function renderAuditoria(){
           if(cu!==null)prev=cu;
           return cu!==null?`<td class="num" style="white-space:nowrap">${fmtVal(cu)}${icone}</td>`:`<td class="num" style="color:#cbd5e1">—</td>`;
         }).join('');
-        return`<tr>
+        const detalheRows=mesesFilt.map(m=>{
+          const d=p.meses[m];
+          if(!d||!d.totalQtd)return'';
+          const cu=d.totalCusto/d.totalQtd;
+          return`<tr style="background:#f8fafc"><td style="padding:4px 16px;font-size:11px;color:#64748b">${fmtMes(m)}</td><td style="padding:4px 8px;font-size:11px">Qtd: <strong>${fmtQtd(d.totalQtd)}</strong></td><td style="padding:4px 8px;font-size:11px">Custo unit.: <strong>${fmtVal(cu)}</strong></td><td style="padding:4px 8px;font-size:11px">Total: ${fmtVal(d.totalCusto)}</td><td colspan="${mesesFilt.length}"></td></tr>`;
+        }).join('');
+        return`<tr style="cursor:pointer" onclick="toggleVarRow('var-${idx}',this)">
           <td><strong>${p.filial}</strong></td>
           <td style="font-family:monospace;font-size:11px;color:#1e40af">${p.produto}</td>
           <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:11px">${p.descricao||'—'}</td>
           ${cells}
           <td class="num"><span class="var-badge var-up">▲ ${p.maxVar.toFixed(0)}%</span></td>
-        </tr>`;
+        </tr>
+        <tr id="var-${idx}" style="display:none;background:#f0f4ff"><td colspan="${mesesFilt.length+4}" style="padding:0"><table style="width:100%;border-collapse:collapse"><tr style="background:#e0e7ff"><td colspan="2" style="padding:6px 16px;font-weight:600;color:#1e40af">📅 ${p.produto} — ${p.filial} — ${p.grupo||''}</td><td colspan="${mesesFilt.length+2}"></td></tr>${detalheRows}</table></td></tr>`;
       }).join('')}</tbody>
     </table></div>
   </div>`:'';
+
+  window.toggleVarRow=function(id,tr){const el=document.getElementById(id);if(!el)return;const open=el.style.display!=='none';el.style.display=open?'none':'table-row';tr.style.background=open?'':'#dbeafe';};
 
   content.innerHTML=kpisHTML()+`
   <div class="card" style="margin-bottom:16px">
