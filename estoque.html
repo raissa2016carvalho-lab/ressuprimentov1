@@ -893,20 +893,19 @@ async function carregarComparativo(){
       posMap[k].dt_inventario=r.dt_inventario;
   });
 
-  // Para cada filial, pega a data de inventário que mais se repete (moda)
-  // Essa é a data do inventário coletivo da filial
+  // Para cada filial, pega a data de inventário mais recente
   const modaInvPorFilial={};
-  const contadorDatas={};
   Object.values(posMap).forEach(pos=>{
     if(!pos.dt_inventario)return;
-    const k=`${pos.filial}|${pos.dt_inventario}`;
-    contadorDatas[k]=(contadorDatas[k]||0)+1;
+    const fil=pos.filial;
+    if(!modaInvPorFilial[fil]||pos.dt_inventario>modaInvPorFilial[fil].dt)
+      modaInvPorFilial[fil]={dt:pos.dt_inventario,cnt:(modaInvPorFilial[fil]?.cnt||0)+1};
   });
-  // Para cada filial, pega a data com mais ocorrências
-  Object.entries(contadorDatas).forEach(([k,cnt])=>{
-    const [fil,dt]=k.split('|');
-    if(!modaInvPorFilial[fil]||cnt>modaInvPorFilial[fil].cnt)
-      modaInvPorFilial[fil]={dt,cnt};
+  // Contar quantos itens têm essa data
+  Object.values(posMap).forEach(pos=>{
+    if(!pos.dt_inventario)return;
+    if(modaInvPorFilial[pos.filial]?.dt===pos.dt_inventario)
+      modaInvPorFilial[pos.filial].cnt=(modaInvPorFilial[pos.filial].cnt||0)+1;
   });
 
   // Mostrar info de inventário por filial
