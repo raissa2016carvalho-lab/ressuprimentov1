@@ -893,24 +893,37 @@ async function carregarComparativo(){
       posMap[k].dt_inventario=r.dt_inventario;
   });
 
-  // Mostrar info de inventário
-  const itensPorData={};
-  Object.values(posMap).forEach(p=>{
-    const dt=p.dt_inventario||'20250101';
-    itensPorData[dt]=(itensPorData[dt]||0)+1;
+  // Para cada filial, pega a data de inventário que mais se repete (moda)
+  // Essa é a data do inventário coletivo da filial
+  const modaInvPorFilial={};
+  const contadorDatas={};
+  Object.values(posMap).forEach(pos=>{
+    if(!pos.dt_inventario)return;
+    const k=`${pos.filial}|${pos.dt_inventario}`;
+    contadorDatas[k]=(contadorDatas[k]||0)+1;
   });
-  const datasUnicas=Object.keys(itensPorData).sort();
-  if(filial && datasUnicas.length){
-    const dtMaisRecente=datasUnicas[datasUnicas.length-1];
-    const dtFmtInv=dtMaisRecente.slice(6)+'/'+dtMaisRecente.slice(4,6)+'/'+dtMaisRecente.slice(0,4);
+  // Para cada filial, pega a data com mais ocorrências
+  Object.entries(contadorDatas).forEach(([k,cnt])=>{
+    const [fil,dt]=k.split('|');
+    if(!modaInvPorFilial[fil]||cnt>modaInvPorFilial[fil].cnt)
+      modaInvPorFilial[fil]={dt,cnt};
+  });
+
+  // Mostrar info de inventário por filial
+  if(filial && modaInvPorFilial[filial]){
+    const dtModa=modaInvPorFilial[filial].dt;
+    const dtFmtInv=dtModa.slice(6)+'/'+dtModa.slice(4,6)+'/'+dtModa.slice(0,4);
+    const totalItensFilial=Object.values(posMap).filter(p=>p.filial===filial).length;
     loading.innerHTML=`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px">
-      📅 <strong>Inventário mais recente:</strong> ${dtFmtInv} — ${itensPorData[dtMaisRecente]} itens
-      ${datasUnicas.length>1?` <span style="color:#94a3b8">(${datasUnicas.length} datas distintas)</span>`:''}
-    </div><br><span style="color:#94a3b8">Carregando movimentos após inventário...</span>`;
+      📅 <strong>Data do inventário (Filial ${filial}):</strong> ${dtFmtInv}
+      <span style="color:#64748b">${modaInvPorFilial[filial].cnt} de ${totalItensFilial} itens inventariados nessa data</span>
+    </div><br><span style="color:#94a3b8">Carregando movimentos após ${dtFmtInv}...</span>`;
   }
 
-  // Data de corte global = data mais antiga de inventário (para buscar todos os movimentos necessários)
-  const dataCorteGlobal = datasUnicas[0] || '20250101';
+  // Data de corte = moda da filial selecionada, ou mínimo global
+  const dataCorteGlobal = filial && modaInvPorFilial[filial]
+    ? modaInvPorFilial[filial].dt
+    : Object.values(modaInvPorFilial).map(v=>v.dt).sort()[0] || '20250101';
 
   // Buscar movimentos após data de corte (tabelas brutas com filtro de data)
   const [entradas, saidas, transfsEnv, transfsRec, devolucoes] = await Promise.all([
@@ -932,10 +945,11 @@ async function carregarComparativo(){
   (transfsRec||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfRec[k]=Number(r.qtd_total)||0;});
   (devolucoes||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaDevolucoes[k]=Number(r.qtd_total)||0;});
 
-  // Inicializar mapa a partir do SB2 (cada item tem sua dt_inventario)
+  // Inicializar mapa a partir do SB2 (cada item usa sua dt_inventario ou a moda da filial)
   Object.values(posMap).forEach(pos=>{
     const k=key(pos.filial,pos.codigo);
-    const dt=pos.dt_inventario||'20250101';
+    const dtModa=modaInvPorFilial[pos.filial]?.dt||'20250101';
+    const dt=pos.dt_inventario||dtModa; // fallback para moda da filial
     mapa[k]={
       filial:pos.filial, produto:pos.codigo,
       dt_inventario:dt,
