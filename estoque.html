@@ -187,7 +187,7 @@ async function carregar() {
 
   // Última atualização
   try {
-    const { data: st } = await db.from('bases_status').select('atualizado_em,registros').eq('base','estoque_sb2').single();
+    const { data: st } = await db.from('bases_status').select('atualizado_em,registros').eq('base','estoque_sb2').maybeSingle();
     if (st && st.atualizado_em) {
       const dt = new Date(st.atualizado_em);
       const fmt = dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
