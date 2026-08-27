@@ -876,21 +876,7 @@ async function carregarComparativo(){
   const resumo = document.getElementById('comp-resumo');
   const wrap = document.getElementById('comp-tabela-wrap');
   loading.style.display='block';
-
-  // Mostrar data do inventário cadastrada
-  const invDataComp = filial && _invDatas[filial];
-  if(invDataComp){
-    const dtFmt = new Date(invDataComp.data_inventario+'T00:00:00').toLocaleDateString('pt-BR');
-    loading.innerHTML=`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px">
-      📅 <strong>Inventário da Filial ${filial}:</strong> ${dtFmt}${invDataComp.observacao?` — ${invDataComp.observacao}`:''}
-    </div><br><span style="color:#94a3b8">Carregando movimentos...</span>`;
-  } else if(filial){
-    loading.innerHTML=`<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px">
-      ⚠️ <strong>Filial ${filial}</strong> sem data de inventário cadastrada. Cadastre acima para filtrar movimentos.
-    </div><br><span style="color:#94a3b8">Carregando movimentos...</span>`;
-  } else {
-    loading.textContent='Carregando movimentos...';
-  }
+  loading.innerHTML='<span style="color:#94a3b8">Carregando posição de estoque...</span>';
   resumo.innerHTML='';
   wrap.innerHTML='';
 
@@ -907,18 +893,49 @@ async function carregarComparativo(){
     }
     return todos;
   }
-  // Data de inventário da filial selecionada (para filtrar movimentos)
-  const invDataFilial = filial ? _invDatas[filial] : null;
-  const dataInv = invDataFilial ? invDataFilial.data_inventario.replace(/-/g,'') : '20250101';
-
-  const [entradas, saidas, posicao, itensDesc, compras, transfsRec, transfsEnv, devolucoes] = await Promise.all([
-    buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,descricao,mes,emissao,nota_fiscal,serie,fornecedor,qtd_entrada,preco_unit,valor_entrada'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>db.from('consumo_comp_agg').select('filial,produto,qtd_total')),
-    buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual'); if(filial)q=q.eq('filial',filial); return q; }),
+  // Buscar posição SB2 com dt_inventario por item
+  const [posicao, itensDesc] = await Promise.all([
+    buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,custo_medio,dt_inventario,dt_ult_movimento'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
-    buscarTudo(()=>{ let q=db.from('mov_compras_agg').select('filial,produto,qtd_total,valor_total'); if(filial)q=q.eq('filial',filial); return q; }),
+  ]);
+
+  // Agrupar SB2 por filial+produto — pega dt_inventario mais recente
+  const posMap={};
+  (posicao||[]).forEach(r=>{
+    const k=`${r.filial}|${r.codigo}`;
+    if(!posMap[k]) posMap[k]={filial:r.filial,codigo:r.codigo,qtd_atual:0,custo_medio:r.custo_medio,dt_inventario:null,dt_ult_movimento:r.dt_ult_movimento,_armazens:[]};
+    posMap[k].qtd_atual+=Number(r.qtd_atual)||0;
+    if((r.armazem||'').trim())posMap[k]._armazens.push({armazem:(r.armazem||'').trim().replace(/^0+/,'')||'—',qtd:Number(r.qtd_atual)||0});
+    // Pega a data de inventário mais recente entre os armazéns
+    if(r.dt_inventario&&(!posMap[k].dt_inventario||r.dt_inventario>posMap[k].dt_inventario))
+      posMap[k].dt_inventario=r.dt_inventario;
+  });
+
+  // Mostrar info de inventário
+  const itensPorData={};
+  Object.values(posMap).forEach(p=>{
+    const dt=p.dt_inventario||'20250101';
+    itensPorData[dt]=(itensPorData[dt]||0)+1;
+  });
+  const datasUnicas=Object.keys(itensPorData).sort();
+  if(filial && datasUnicas.length){
+    const dtMaisRecente=datasUnicas[datasUnicas.length-1];
+    const dtFmtInv=dtMaisRecente.slice(6)+'/'+dtMaisRecente.slice(4,6)+'/'+dtMaisRecente.slice(0,4);
+    loading.innerHTML=`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px">
+      📅 <strong>Inventário mais recente:</strong> ${dtFmtInv} — ${itensPorData[dtMaisRecente]} itens
+      ${datasUnicas.length>1?` <span style="color:#94a3b8">(${datasUnicas.length} datas distintas)</span>`:''}
+    </div><br><span style="color:#94a3b8">Carregando movimentos após inventário...</span>`;
+  }
+
+  // Data de corte global = data mais antiga de inventário (para buscar todos os movimentos necessários)
+  const dataCorteGlobal = datasUnicas[0] || '20250101';
+
+  // Buscar movimentos após data de corte (tabelas brutas com filtro de data)
+  const [entradas, saidas, transfsEnv, transfsRec, devolucoes] = await Promise.all([
+    buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,emissao,qtd_entrada,preco_unit,valor_entrada').gte('emissao',dataCorteGlobal); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('consumo_scp').select('filial,produto,emissao,quantidade,valor_total').gte('emissao',dataCorteGlobal); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('mov_transf_env').select('filial,produto,emissao,qtd_total').gte('emissao',dataCorteGlobal); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('mov_transf_rec_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>{ let q=db.from('mov_transf_env_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('mov_devolucoes_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
   ]);
   // Mapa código -> descrição da tabela itens
@@ -930,62 +947,68 @@ async function carregarComparativo(){
   const mapa = {};
   const key = (f,p) => `${f}|${p}`;
 
-  // Mapas por tipo de movimento
-  const mapaCompras={},mapaTransfRec={},mapaTransfEnv={},mapaDevolucoes={};
-  (compras||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaCompras[k]={qtd:Number(r.qtd_total)||0,valor:Number(r.valor_total)||0};});
+  // Consolidar mapa por filial+produto com filtro por dt_inventario POR ITEM
+  const mapa = {};
+  const key = (f,p) => `${(f||'').trim()}|${(p||'').trim()}`;
+  const mapaTransfRec={}, mapaDevolucoes={};
   (transfsRec||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfRec[k]=Number(r.qtd_total)||0;});
-  (transfsEnv||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfEnv[k]=Number(r.qtd_total)||0;});
   (devolucoes||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaDevolucoes[k]=Number(r.qtd_total)||0;});
 
-  (entradas||[]).forEach(r=>{
-    const k=key(r.filial,r.produto);
-    if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.produto,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0,qtd_transf:0};
-    mapa[k].qtd_entrada+=Number(r.qtd_entrada)||0;
-    mapa[k].valor_entrada+=Number(r.valor_entrada)||0;
-  });
-  // Adicionar campos de cada tipo ao mapa
-  Object.keys({...mapaCompras,...mapaTransfRec,...mapaTransfEnv,...mapaDevolucoes}).forEach(k=>{
-    if(!mapa[k]){
-      // Criar entrada no mapa se não existir (item que só tem posição de estoque)
-      const [f,p]=k.split('|');
-      mapa[k]={filial:f,produto:p,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0,qtd_transf:0};
-    }
-    mapa[k].qtd_compra    = mapaCompras[k]?.qtd||0;
-    mapa[k].valor_compra  = mapaCompras[k]?.valor||0;
-    mapa[k].qtd_transf_rec= mapaTransfRec[k]||0;
-    mapa[k].qtd_transf_env= mapaTransfEnv[k]||0;
-    mapa[k].qtd_devolucao = mapaDevolucoes[k]||0;
-  });
-  (saidas||[]).forEach(r=>{
-    const k=key(r.filial,r.produto);
-    if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.produto,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0};
-    mapa[k].qtd_saida+=Number(r.qtd_total)||0;
+  // Inicializar mapa a partir do SB2 (cada item tem sua dt_inventario)
+  Object.values(posMap).forEach(pos=>{
+    const k=key(pos.filial,pos.codigo);
+    const dt=pos.dt_inventario||'20250101';
+    mapa[k]={
+      filial:pos.filial, produto:pos.codigo,
+      dt_inventario:dt,
+      qtd_inventario:pos.qtd_atual, // saldo no momento do inventário
+      qtd_atual:pos.qtd_atual,
+      custo_medio:pos.custo_medio,
+      _armazens:pos._armazens,
+      qtd_entrada:0, valor_entrada:0,
+      qtd_saida:0, qtd_transf_env:0, qtd_devolucao:0,
+    };
   });
 
-  // Adicionar posição de estoque e descrição
-  // Somar qtd_atual por filial+produto (múltiplos armazéns)
-  const posMap={};
-  (posicao||[]).forEach(r=>{
-    const k=key(r.filial,r.codigo);
-    if(!posMap[k]) posMap[k]={...r,qtd_atual:0,_armazens:[]};
-    posMap[k].qtd_atual+=Number(r.qtd_atual)||0;
-    if((r.armazem||'').trim())posMap[k]._armazens.push({armazem:(r.armazem||'').trim().replace(/^0+/,'')||'—',qtd:Number(r.qtd_atual)||0});
-    // Garantir que itens com estoque mas sem movimento também apareçam
-    if(!mapa[k]) mapa[k]={filial:r.filial,produto:r.codigo,qtd_entrada:0,valor_entrada:0,qtd_saida:0,valor_saida:0};
+  // Entradas APÓS dt_inventario do item
+  (entradas||[]).forEach(r=>{
+    const k=key(r.filial,r.produto);
+    const dt=mapa[k]?.dt_inventario||'20250101';
+    if((r.emissao||'')>=dt){
+      if(!mapa[k]) return;
+      mapa[k].qtd_entrada+=Number(r.qtd_entrada)||0;
+      mapa[k].valor_entrada+=Number(r.preco_unit||0)*Number(r.qtd_entrada||0);
+    }
   });
+
+  // Consumo SCP APÓS dt_inventario do item
+  (saidas||[]).forEach(r=>{
+    const k=key(r.filial,r.produto);
+    const dt=mapa[k]?.dt_inventario||'20250101';
+    if((r.emissao||'')>=dt){
+      if(!mapa[k]) return;
+      mapa[k].qtd_saida+=Number(r.quantidade)||0;
+    }
+  });
+
+  // Transf. Enviadas APÓS dt_inventario do item
+  (transfsEnv||[]).forEach(r=>{
+    const k=key(r.filial,r.produto);
+    const dt=mapa[k]?.dt_inventario||'20250101';
+    if((r.emissao||'')>=dt){
+      if(!mapa[k]) return;
+      mapa[k].qtd_transf_env+=Number(r.qtd_total)||0;
+    }
+  });
+
+  // Calcular saldo esperado e divergência por item
   Object.keys(mapa).forEach(k=>{
     const pos=posMap[k];
-    const _descPos = pos?.descricao||'';
-    const _grupoPos = pos?.grupo||'';
-    const _codTrim = (mapa[k].produto||'').trim();
-    mapa[k].descricao = _descPos || (window.itensMap[_codTrim]?.descricao)||'';
-    mapa[k].grupo = _grupoPos || (window.itensMap[_codTrim]?.grupo)||'';
-    mapa[k].qtd_atual=Number(pos?.qtd_atual)||0;
-    mapa[k].custo_medio=Number(pos?.custo_medio)||0;
-    mapa[k]._armazens=pos?._armazens||[];
-    // Divergência: diferença entre saldo calculado (entrada-saída) e posição atual
-    // Saldo = Compras + Transf.Recebidas + Devoluções - Consumo SCP - Transf.Enviadas
-    mapa[k].saldo_calc=(mapa[k].qtd_compra||0)+(mapa[k].qtd_transf_rec||0)+(mapa[k].qtd_devolucao||0)-(mapa[k].qtd_saida||0)-(mapa[k].qtd_transf_env||0);
+    const _codTrim=(mapa[k].produto||'').trim();
+    mapa[k].descricao=pos?.descricao||(window.itensMap[_codTrim]?.descricao)||'';
+    mapa[k].grupo=pos?.grupo||(window.itensMap[_codTrim]?.grupo)||'';
+    // Saldo esperado = inventário + entradas após - consumo após - transf. enviadas após
+    mapa[k].saldo_calc=mapa[k].qtd_inventario+mapa[k].qtd_entrada-mapa[k].qtd_saida-mapa[k].qtd_transf_env;
     mapa[k].divergencia=mapa[k].qtd_atual-mapa[k].saldo_calc;
   });
 
@@ -1059,34 +1082,38 @@ function filtrarComparativo(){
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Filial</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Código</th>
         <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Descrição</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">🛒 Compras</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7c3aed">🔄 Transf. Rec.</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#0ea5e9">↩ Devoluções</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#f59e0b">📋 Inventário</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#0369a1">📋 Inventário</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">🛒 Entradas</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626">📤 Transf.Env.</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">📦 Consumo SCP</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af">Saldo Calc.</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af">Saldo Esperado</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569">Estoque Atual</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626">Divergência</th>
+        <th style="padding:8px 10px;text-align:center;font-weight:600;color:#64748b">Excel</th>
       </tr></thead>
       <tbody>${lista.slice(0,500).map((r,_ri)=>{
         const d=corDiverg(r.divergencia);
         const fmtQ=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2});
         const FNOMES={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiânia','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia','44':'Brumado'};
+        const dtInv=r.dt_inventario?r.dt_inventario.slice(6)+'/'+r.dt_inventario.slice(4,6)+'/'+r.dt_inventario.slice(0,4):'—';
         return `<tr style="border-bottom:1px solid #f1f5f9">
           <td style="padding:7px 10px;font-size:11px"><span style="color:#1e40af;font-weight:600">${r.filial}</span><br><span style="color:#64748b;font-size:10px">${FNOMES[r.filial]||''}</span></td>
           <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
           <td style="padding:7px 10px;font-size:11px">${r.descricao||'—'}</td>
-          <td style="padding:7px 10px;text-align:right;color:#16a34a;font-weight:600">
-            ${fmtQ(r.qtd_compra||0)}
-            ${(r.qtd_compra||0)>0?`<button onclick="baixarNotasEntrada('${r.filial}','${r.produto}')" style="display:block;margin:2px auto 0;background:#dcfce7;color:#166534;border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap">⬇ Notas</button>`:''}
+          <td style="padding:7px 10px;text-align:right;color:#0369a1;font-weight:600;white-space:nowrap">
+            <div style="font-size:10px;color:#64748b">${dtInv}</div>
+            <strong>${fmtQ(r.qtd_inventario||0)}</strong>
           </td>
-          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_transf||0)>0?'#7c3aed':'#cbd5e1'}">${(r.qtd_transf||0)>0?fmtQ(r.qtd_transf):'—'}</td>
-          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_devolucao||0)>0?'#0ea5e9':'#cbd5e1'}">${(r.qtd_devolucao||0)>0?fmtQ(r.qtd_devolucao):'—'}</td>
-          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_inventario||0)>0?'#f59e0b':'#cbd5e1'}" title="${(r.qtd_inventario||0)>0?'Ajuste de inventário registrado':''}">${(r.qtd_inventario||0)>0?fmtQ(r.qtd_inventario):'—'}</td>
-          <td style="padding:7px 10px;text-align:right;color:#d97706;font-weight:600">${fmtQ(r.qtd_saida)}</td>
-          <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtQ(r.saldo_calc)}</td>
+          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_entrada||0)>0?'#16a34a':'#cbd5e1'};font-weight:600">
+            ${(r.qtd_entrada||0)>0?fmtQ(r.qtd_entrada):'—'}
+            ${(r.qtd_entrada||0)>0?`<button onclick="baixarNotasEntrada('${r.filial}','${r.produto}')" style="display:block;margin:2px auto 0;background:#dcfce7;color:#166534;border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap">⬇ Notas</button>`:''}
+          </td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_transf_env||0)>0?'#dc2626':'#cbd5e1'}">${(r.qtd_transf_env||0)>0?'-'+fmtQ(r.qtd_transf_env):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:#d97706;font-weight:600">${fmtQ(r.qtd_saida||0)}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:700;color:#1e40af">${fmtQ(r.saldo_calc)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:700;${r._armazens&&r._armazens.length>1?'cursor:pointer;color:#1e40af;text-decoration:underline dotted':''}" ${r._armazens&&r._armazens.length>1?`onclick="abrirPopupComp(${_compDados.indexOf(r)})" title="Ver por armazém"`:''}>${fmtQ(r.qtd_atual)}</td>
           <td style="padding:7px 10px;text-align:right;background:${d.bg};color:${d.cor};font-weight:700">${r.divergencia>=0?'+':''}${fmtQ(r.divergencia)}</td>
+          <td style="padding:7px 10px;text-align:center"><button onclick="exportarItemExcel('${r.filial}','${r.produto}','${(r.descricao||'').replace(/'/g,'')}','${r.dt_inventario||''}')" style="background:#e0f2fe;color:#0369a1;border:none;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer">⬇</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table>
