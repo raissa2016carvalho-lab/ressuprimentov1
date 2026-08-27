@@ -608,6 +608,31 @@ window.carregar=carregar; window.abrirPopup=abrirPopup;
 carregar();
 </script>
 <div id="aba-comparativo" style="display:none;padding:24px">
+
+  <!-- CADASTRO DATA INVENTÁRIO -->
+  <div id="inv-cadastro-wrap" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#0369a1">📅 Data do Inventário</span>
+      <select id="inv-filial-sel" style="padding:7px 10px;border:1px solid #bae6fd;border-radius:7px;font-size:13px;background:#fff">
+        <option value="">Selecione a filial...</option>
+        <option value="01">01 — MATRIZ</option><option value="03">03 — PAU DOS FERROS</option><option value="04">04 — ITAPIPOCA</option>
+        <option value="06">06 — CURRAIS NOVOS</option><option value="07">07 — SOBRAL</option><option value="08">08 — APARECIDA DE GOIANIA</option>
+        <option value="09">09 — MARACANAU</option><option value="10">10 — MOSSORO</option><option value="11">11 — ANAPOLIS</option>
+        <option value="13">13 — ALAGOINHAS</option><option value="14">14 — RIBEIRA DO POMBAL</option><option value="15">15 — PAULO AFONSO</option>
+        <option value="22">22 — GOIANIA</option><option value="23">23 — BATURITE</option><option value="24">24 — MORRINHOS</option>
+        <option value="25">25 — CASCAVEL</option><option value="27">27 — CAUCAIA</option><option value="29">29 — HORIZONTE</option>
+        <option value="34">34 — SENHOR DO BONFIM</option><option value="36">36 — LUZIANIA</option><option value="37">37 — DIVINOPOLIS</option>
+        <option value="40">40 — GARANHUNS</option><option value="41">41 — FLORIANO</option><option value="42">42 — LIVRAMENTO</option>
+        <option value="43">43 — HORTOLANDIA</option><option value="44">44 — BRUMADO</option>
+      </select>
+      <input type="date" id="inv-data-input" style="padding:7px 10px;border:1px solid #bae6fd;border-radius:7px;font-size:13px;background:#fff">
+      <input type="text" id="inv-obs-input" placeholder="Observação (opcional)" style="padding:7px 10px;border:1px solid #bae6fd;border-radius:7px;font-size:13px;background:#fff;width:220px">
+      <button onclick="salvarDataInventario()" style="background:#0369a1;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer">💾 Salvar</button>
+      <span id="inv-msg" style="font-size:12px;color:#16a34a;font-weight:600"></span>
+    </div>
+    <div id="inv-historico" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px"></div>
+  </div>
+
   <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
     <div>
       <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">FILIAL</label>
@@ -652,6 +677,69 @@ carregar();
 </div>
 
 <script>
+// ── INVENTÁRIO DATAS ──────────────────────────────────────────────────────
+let _invDatas = {}; // filial -> {data_inventario, observacao, cadastrado_em}
+
+async function carregarDatasInventario(){
+  const {data} = await db.from('inventario_datas').select('*').order('cadastrado_em',{ascending:false});
+  _invDatas = {};
+  (data||[]).forEach(r=>{
+    // Só guarda a mais recente por filial
+    if(!_invDatas[r.filial]) _invDatas[r.filial] = r;
+  });
+  renderHistoricoInventario();
+}
+
+function renderHistoricoInventario(){
+  const wrap = document.getElementById('inv-historico');
+  if(!wrap) return;
+  const itens = Object.values(_invDatas).sort((a,b)=>a.filial.localeCompare(b.filial));
+  if(!itens.length){wrap.innerHTML='<span style="font-size:11px;color:#94a3b8">Nenhuma data cadastrada ainda.</span>';return;}
+  wrap.innerHTML = itens.map(r=>`
+    <div style="background:#fff;border:1px solid #bae6fd;border-radius:7px;padding:6px 12px;display:flex;align-items:center;gap:8px;font-size:12px">
+      <strong style="color:#0369a1">Filial ${r.filial}</strong>
+      <span style="color:#475569">${new Date(r.data_inventario+'T00:00:00').toLocaleDateString('pt-BR')}</span>
+      ${r.observacao?`<span style="color:#94a3b8">${r.observacao}</span>`:''}
+      <button onclick="editarDataInventario('${r.filial}','${r.data_inventario}','${r.observacao||''}')" 
+        style="background:#e0f2fe;color:#0369a1;border:none;border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer;font-weight:600">✏️ Alterar</button>
+    </div>`).join('');
+}
+
+function editarDataInventario(filial, data, obs){
+  document.getElementById('inv-filial-sel').value = filial;
+  document.getElementById('inv-data-input').value = data;
+  document.getElementById('inv-obs-input').value = obs;
+}
+
+async function salvarDataInventario(){
+  const filial = document.getElementById('inv-filial-sel').value;
+  const data = document.getElementById('inv-data-input').value;
+  const obs = document.getElementById('inv-obs-input').value.trim();
+  const msg = document.getElementById('inv-msg');
+
+  if(!filial){msg.textContent='⚠ Selecione uma filial!';msg.style.color='#dc2626';return;}
+  if(!data){msg.textContent='⚠ Informe a data!';msg.style.color='#dc2626';return;}
+
+  msg.textContent='Salvando...';msg.style.color='#94a3b8';
+
+  const {error} = await db.from('inventario_datas').insert({
+    filial, data_inventario: data, observacao: obs||null
+  });
+
+  if(error){msg.textContent='❌ Erro ao salvar!';msg.style.color='#dc2626';return;}
+
+  msg.textContent='✅ Salvo!';msg.style.color='#16a34a';
+  setTimeout(()=>{msg.textContent='';},3000);
+
+  // Recarrega e atualiza comparativo se filial estiver selecionada
+  await carregarDatasInventario();
+  const compFilial = document.getElementById('comp-filial').value;
+  if(compFilial === filial) carregarComparativo();
+}
+
+window.salvarDataInventario=salvarDataInventario;
+window.editarDataInventario=editarDataInventario;
+
 // ── ABA NAVEGAÇÃO ──────────────────────────────────────────────────────
 let _abaAtual = 'posicao';
 function irAbaEstoque(aba){
@@ -667,6 +755,7 @@ function irAbaEstoque(aba){
   document.getElementById('btn-aba-comp').style.background = aba==='comparativo'?'#1e40af':'#f1f5f9';
   document.getElementById('btn-aba-comp').style.color = aba==='comparativo'?'#fff':'#64748b';
   if(aba==='comparativo' && !_compCarregado) carregarComparativo();
+  if(aba==='comparativo') carregarDatasInventario();
 }
 
 // ── COMPARATIVO ────────────────────────────────────────────────────────
@@ -680,7 +769,21 @@ async function carregarComparativo(){
   const resumo = document.getElementById('comp-resumo');
   const wrap = document.getElementById('comp-tabela-wrap');
   loading.style.display='block';
-  loading.textContent='Carregando movimentos...';
+
+  // Mostrar data do inventário cadastrada
+  const invData = filial && _invDatas[filial];
+  if(invData){
+    const dtFmt = new Date(invData.data_inventario+'T00:00:00').toLocaleDateString('pt-BR');
+    loading.innerHTML=`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px">
+      📅 <strong>Inventário da Filial ${filial}:</strong> ${dtFmt}${invData.observacao?` — ${invData.observacao}`:''}
+    </div><br><span style="color:#94a3b8">Carregando movimentos...</span>`;
+  } else if(filial){
+    loading.innerHTML=`<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px">
+      ⚠️ <strong>Filial ${filial}</strong> sem data de inventário cadastrada. Cadastre acima para filtrar movimentos.
+    </div><br><span style="color:#94a3b8">Carregando movimentos...</span>`;
+  } else {
+    loading.textContent='Carregando movimentos...';
+  }
   resumo.innerHTML='';
   wrap.innerHTML='';
 
