@@ -925,12 +925,12 @@ async function carregarComparativo(){
     : Object.values(modaInvPorFilial).map(v=>v.dt).sort()[0] || '20250101';
 
   // Buscar movimentos após data de corte (tabelas brutas com filtro de data)
-  const [entradas, saidas, transfsEnv, transfsRec, devolucoes] = await Promise.all([
+  const [entradas, saidas, transfsEnv, sd3Entrada, sd3Saida] = await Promise.all([
     buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,emissao,qtd_entrada,preco_unit,valor_entrada').gte('emissao',dataCorteGlobal); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('consumo_scp').select('filial,produto,emissao,quantidade,valor_total').gte('emissao',dataCorteGlobal); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('mov_transf_env').select('filial,produto,emissao,qtd_total').gte('emissao',dataCorteGlobal); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>{ let q=db.from('mov_transf_rec_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>{ let q=db.from('mov_devolucoes_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('mov_sd3_entrada').select('filial,produto,emissao,qtd_total').gte('emissao',dataCorteGlobal); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('mov_sd3_saida').select('filial,produto,emissao,qtd_total').gte('emissao',dataCorteGlobal); if(filial)q=q.eq('filial',filial); return q; }),
   ]);
   // Mapa código -> descrição da tabela itens
   window.itensMap={};
@@ -952,12 +952,13 @@ async function carregarComparativo(){
     mapa[k]={
       filial:pos.filial, produto:pos.codigo,
       dt_inventario:dt,
-      qtd_inventario:pos.qtd_atual, // saldo no momento do inventário
+      qtd_inventario:pos.qtd_atual,
       qtd_atual:pos.qtd_atual,
       custo_medio:pos.custo_medio,
       _armazens:pos._armazens,
       qtd_entrada:0, valor_entrada:0,
-      qtd_saida:0, qtd_transf_env:0, qtd_devolucao:0,
+      qtd_saida:0, qtd_transf_env:0,
+      qtd_sd3_entrada:0, qtd_sd3_saida:0,
     };
   });
 
@@ -992,6 +993,26 @@ async function carregarComparativo(){
     }
   });
 
+  // SD3 Entradas (TM 005/503/999) APÓS dt_inventario
+  (sd3Entrada||[]).forEach(r=>{
+    const k=key(r.filial,r.produto);
+    const dt=mapa[k]?.dt_inventario||'20250101';
+    if((r.emissao||'')>=dt){
+      if(!mapa[k]) return;
+      mapa[k].qtd_sd3_entrada+=Number(r.qtd_total)||0;
+    }
+  });
+
+  // SD3 Saídas (TM 499/001/004/006) APÓS dt_inventario
+  (sd3Saida||[]).forEach(r=>{
+    const k=key(r.filial,r.produto);
+    const dt=mapa[k]?.dt_inventario||'20250101';
+    if((r.emissao||'')>=dt){
+      if(!mapa[k]) return;
+      mapa[k].qtd_sd3_saida+=Number(r.qtd_total)||0;
+    }
+  });
+
   // Calcular saldo esperado e divergência por item
   Object.keys(mapa).forEach(k=>{
     const pos=posMap[k];
@@ -999,7 +1020,7 @@ async function carregarComparativo(){
     mapa[k].descricao=pos?.descricao||(window.itensMap[_codTrim]?.descricao)||'';
     mapa[k].grupo=pos?.grupo||(window.itensMap[_codTrim]?.grupo)||'';
     // Saldo esperado = inventário + entradas após - consumo após - transf. enviadas após
-    mapa[k].saldo_calc=mapa[k].qtd_inventario+mapa[k].qtd_entrada-mapa[k].qtd_saida-mapa[k].qtd_transf_env;
+    mapa[k].saldo_calc=mapa[k].qtd_inventario+mapa[k].qtd_entrada+mapa[k].qtd_sd3_entrada-mapa[k].qtd_saida-mapa[k].qtd_transf_env-mapa[k].qtd_sd3_saida;
     mapa[k].divergencia=mapa[k].qtd_atual-mapa[k].saldo_calc;
   });
 
