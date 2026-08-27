@@ -1036,13 +1036,19 @@ function filtrarComparativo(){
   const resumo=document.getElementById('comp-resumo');
   const totalItems=lista.length;
   const comDiverg=lista.filter(r=>Math.abs(r.divergencia)>0.01).length;
+  const semDiverg=totalItems-comDiverg;
+  const acuracia=totalItems>0?(semDiverg/totalItems*100).toFixed(1):0;
   const totalEntradas=lista.reduce((a,r)=>a+r.qtd_entrada,0);
   const totalSaidas=lista.reduce((a,r)=>a+r.qtd_saida,0);
   const fmtN=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:1});
   resumo.innerHTML=`
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 20px;text-align:center;min-width:120px">
       <div style="font-size:22px;font-weight:800;color:#1e40af">${totalItems}</div>
-      <div style="font-size:11px;color:#64748b">Itens</div>
+      <div style="font-size:11px;color:#64748b">SKUs</div>
+    </div>
+    <div style="background:${Number(acuracia)>=95?'#f0fdf4':Number(acuracia)>=80?'#fffbeb':'#fef2f2'};border:1px solid ${Number(acuracia)>=95?'#bbf7d0':Number(acuracia)>=80?'#fed7aa':'#fecaca'};border-radius:10px;padding:14px 20px;text-align:center;min-width:140px">
+      <div style="font-size:22px;font-weight:800;color:${Number(acuracia)>=95?'#16a34a':Number(acuracia)>=80?'#d97706':'#dc2626'}">${acuracia}%</div>
+      <div style="font-size:11px;color:#64748b">Acurácia (${semDiverg}/${totalItems} SKUs)</div>
     </div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 20px;text-align:center;min-width:120px">
       <div style="font-size:22px;font-weight:800;color:#16a34a">${fmtN(totalEntradas)}</div>
