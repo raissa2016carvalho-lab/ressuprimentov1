@@ -615,30 +615,6 @@ carregar();
 </script>
 <div id="aba-comparativo" style="display:none;padding:24px">
 
-  <!-- CADASTRO DATA INVENTÁRIO -->
-  <div id="inv-cadastro-wrap" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px;margin-bottom:20px">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:700;color:#0369a1">📅 Data do Inventário</span>
-      <select id="inv-filial-sel" style="padding:7px 10px;border:1px solid #bae6fd;border-radius:7px;font-size:13px;background:#fff">
-        <option value="">Selecione a filial...</option>
-        <option value="01">01 — MATRIZ</option><option value="03">03 — PAU DOS FERROS</option><option value="04">04 — ITAPIPOCA</option>
-        <option value="06">06 — CURRAIS NOVOS</option><option value="07">07 — SOBRAL</option><option value="08">08 — APARECIDA DE GOIANIA</option>
-        <option value="09">09 — MARACANAU</option><option value="10">10 — MOSSORO</option><option value="11">11 — ANAPOLIS</option>
-        <option value="13">13 — ALAGOINHAS</option><option value="14">14 — RIBEIRA DO POMBAL</option><option value="15">15 — PAULO AFONSO</option>
-        <option value="22">22 — GOIANIA</option><option value="23">23 — BATURITE</option><option value="24">24 — MORRINHOS</option>
-        <option value="25">25 — CASCAVEL</option><option value="27">27 — CAUCAIA</option><option value="29">29 — HORIZONTE</option>
-        <option value="34">34 — SENHOR DO BONFIM</option><option value="36">36 — LUZIANIA</option><option value="37">37 — DIVINOPOLIS</option>
-        <option value="40">40 — GARANHUNS</option><option value="41">41 — FLORIANO</option><option value="42">42 — LIVRAMENTO</option>
-        <option value="43">43 — HORTOLANDIA</option><option value="44">44 — BRUMADO</option>
-      </select>
-      <input type="date" id="inv-data-input" style="padding:7px 10px;border:1px solid #bae6fd;border-radius:7px;font-size:13px;background:#fff">
-      <input type="text" id="inv-obs-input" placeholder="Observação (opcional)" style="padding:7px 10px;border:1px solid #bae6fd;border-radius:7px;font-size:13px;background:#fff;width:220px">
-      <button onclick="salvarDataInventario()" style="background:#0369a1;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer">💾 Salvar</button>
-      <span id="inv-msg" style="font-size:12px;color:#16a34a;font-weight:600"></span>
-    </div>
-    <div id="inv-historico" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px"></div>
-  </div>
-
   <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
     <div>
       <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">FILIAL</label>
@@ -1070,9 +1046,13 @@ function filtrarComparativo(){
 
   // Ordenar
   lista.sort((a,b)=>{
-    const va=Number(a[_compSortCol])||0;
-    const vb=Number(b[_compSortCol])||0;
-    return _compSortDir*(vb-va);
+    const va=a[_compSortCol]||'';
+    const vb=b[_compSortCol]||'';
+    // String (data, descrição, filial, produto)
+    if(typeof va==='string'&&isNaN(Number(va))){
+      return _compSortDir*(vb.localeCompare(va));
+    }
+    return _compSortDir*(Number(vb)-Number(va));
   });
 
   // Tabela
