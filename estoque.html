@@ -908,7 +908,7 @@ async function carregarComparativo(){
       modaInvPorFilial[pos.filial].cnt=(modaInvPorFilial[pos.filial].cnt||0)+1;
   });
 
-  // Mostrar info de inventário por filial
+  window._modaInvPorFilial=modaInvPorFilial;
   if(filial && modaInvPorFilial[filial]){
     const dtModa=modaInvPorFilial[filial].dt;
     const dtFmtInv=dtModa.slice(6)+'/'+dtModa.slice(4,6)+'/'+dtModa.slice(0,4);
@@ -1004,6 +1004,8 @@ async function carregarComparativo(){
   });
 
   _compDados = Object.values(mapa).sort((a,b)=>Math.abs(b.divergencia)-Math.abs(a.divergencia));
+  _compCarregado = true;
+  loading.style.display='none';
   // Popular select de grupos
   const selGrupo=document.getElementById('comp-grupo');
   if(selGrupo){
@@ -1011,8 +1013,6 @@ async function carregarComparativo(){
     const valAtual=selGrupo.value;
     selGrupo.innerHTML='<option value="">Todos os grupos</option>'+grupos.map(g=>`<option value="${g}" ${g===valAtual?'selected':''}>${g}</option>`).join('');
   }
-  _compCarregado = true;
-  loading.style.display='none';
   filtrarComparativo();
 }
 
