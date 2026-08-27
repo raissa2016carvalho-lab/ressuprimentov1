@@ -1268,6 +1268,8 @@ async function renderAuditoria(){
   </div>`:''}`;
 }
 window.renderAuditoria=renderAuditoria;
+
+function exportarExcel(){
   if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
   const rows=_filtrados.map(r=>({
     'Filial':r.filial,'Nome Filial':FNOMES[r.filial]||'',
