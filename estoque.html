@@ -837,7 +837,7 @@ async function carregarComparativo(){
     mapa[k].valor_entrada+=Number(r.valor_entrada)||0;
   });
   // Adicionar campos de cada tipo ao mapa
-  Object.keys({...mapaCompras,...mapaTransfRec,...mapaInventario,...mapaDevolucoes}).forEach(k=>{
+  Object.keys({...mapaCompras,...mapaTransfRec,...mapaTransfEnv,...mapaDevolucoes}).forEach(k=>{
     if(!mapa[k]){
       // Criar entrada no mapa se não existir (item que só tem posição de estoque)
       const [f,p]=k.split('|');
