@@ -941,8 +941,6 @@ async function carregarComparativo(){
   const mapa = {};
   const key = (f,p) => `${(f||'').trim()}|${(p||'').trim()}`;
   const mapaTransfRec={}, mapaDevolucoes={};
-  (transfsRec||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfRec[k]=Number(r.qtd_total)||0;});
-  (devolucoes||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaDevolucoes[k]=Number(r.qtd_total)||0;});
 
   // Inicializar mapa a partir do SB2 — todos os itens usam a data mais recente da filial
   Object.values(posMap).forEach(pos=>{
