@@ -1234,12 +1234,12 @@ async function renderAuditoria(){
     return true;
   });
 
-  // 3. Busca itens com maior variação CP_YCUSTD vs B2_CM1
+  // 3. Tabela cruzada: produto × mês com custo unitário e variação
   let variacoes=[],offV=0;
   for(;;){
     const{data,error}=await db
       .from('consumo_scp')
-      .select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_ycustd,custo_b2cm1,custo_fonte')
+      .select('produto,descricao,grupo,filial,mes,quantidade,custo_ycustd,custo_b2cm1,custo_fonte')
       .gt('custo_ycustd',0)
       .gt('custo_b2cm1',0)
       .range(offV,offV+999);
@@ -1249,60 +1249,67 @@ async function renderAuditoria(){
     offV+=1000;
   }
 
-  // Aplica filtros e calcula variação %
-  const varFilt=variacoes
-    .filter(r=>{
-      if(filial&&r.filial!==filial)return false;
-      if(grupo&&r.grupo!==grupo)return false;
-      if(cc&&r.cc!==cc)return false;
-      if(mes&&r.mes!==mes)return false;
-      else if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
-      return true;
-    })
-    .map(r=>{
-      const yc=Number(r.custo_ycustd)||0;
-      const b2=Number(r.custo_b2cm1)||0;
-      const diff=yc-b2;
-      const pct=b2>0?((diff/b2)*100):0;
-      return{...r,diff,pct};
-    })
-    .filter(r=>Math.abs(r.pct)>20) // só mostra variações acima de 20%
-    .sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct))
-    .slice(0,50);
+  // Agrupa por produto+filial × mês — calcula custo médio ponderado por mês
+  const prodMesMap={};
+  variacoes.filter(r=>{
+    if(filial&&r.filial!==filial)return false;
+    if(grupo&&r.grupo!==grupo)return false;
+    if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
+    return true;
+  }).forEach(r=>{
+    const chave=`${r.filial}|${r.produto}`;
+    if(!prodMesMap[chave])prodMesMap[chave]={filial:r.filial,produto:r.produto,descricao:r.descricao,grupo:r.grupo,meses:{}};
+    if(!prodMesMap[chave].meses[r.mes])prodMesMap[chave].meses[r.mes]={totalCusto:0,totalQtd:0};
+    prodMesMap[chave].meses[r.mes].totalCusto+=r.custo_ycustd*(r.quantidade||1);
+    prodMesMap[chave].meses[r.mes].totalQtd+=(r.quantidade||1);
+  });
 
-  const variacaoHTML=varFilt.length>0?`
+  // Calcula variação máxima por produto e filtra top 30
+  const mesesDisp=[...new Set(variacoes.map(r=>r.mes))].sort();
+  const mesesFilt=mes?[mes]:mesesDisp.filter(m=>periodo==='todos'||m.startsWith(periodo));
+
+  const prodList=Object.values(prodMesMap).map(p=>{
+    const custos=mesesFilt.map(m=>{
+      const d=p.meses[m];
+      return d&&d.totalQtd>0?d.totalCusto/d.totalQtd:null;
+    }).filter(v=>v!==null);
+    const maxVar=custos.length>1?((Math.max(...custos)-Math.min(...custos))/Math.min(...custos)*100):0;
+    return{...p,maxVar};
+  }).filter(p=>p.maxVar>20).sort((a,b)=>b.maxVar-a.maxVar).slice(0,30);
+
+  const variacaoHTML=prodList.length>0?`
   <div class="card" style="margin-top:16px">
     <div class="card-header">
-      <div class="card-title">📊 Análise de Variação de Custo (CP_YCUSTD vs B2_CM1)</div>
-      <div class="card-sub">Top 50 itens com variação acima de 20% entre o custo da baixa e o custo médio</div>
+      <div class="card-title">📊 Variação de Custo Unitário por Mês</div>
+      <div class="card-sub">Top 30 itens com maior oscilação de custo • variação mín/máx > 20%</div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>Filial</th>
-        <th>Código</th>
-        <th>Descrição</th>
-        <th>Grupo</th>
-        <th class="num">Mês</th>
-        <th class="num">Qtd</th>
-        <th class="num">CP_YCUSTD/un</th>
-        <th class="num">B2_CM1</th>
-        <th class="num">Diferença</th>
-        <th class="num">Variação %</th>
+        <th>Filial</th><th>Código</th><th>Descrição</th>
+        ${mesesFilt.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}
+        <th class="num">Variação</th>
       </tr></thead>
-      <tbody>${varFilt.map(r=>{
-        const cor=r.pct>0?'#dc2626':'#16a34a';
-        const seta=r.pct>0?'▲':'▼';
-        return`<tr class="${Math.abs(r.pct)>50?'alerta':''}">
-          <td><strong>${r.filial}</strong> <span style="font-size:10px;color:#94a3b8">${FNOMES[r.filial]||''}</span></td>
-          <td style="font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
-          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${r.descricao||'—'}</td>
-          <td style="font-size:11px">${r.grupo||'—'}</td>
-          <td class="num">${fmtMes(r.mes)}</td>
-          <td class="num">${fmtQtd(r.quantidade)}</td>
-          <td class="num">${fmtVal(r.custo_ycustd)}</td>
-          <td class="num">${fmtVal(r.custo_b2cm1)}</td>
-          <td class="num" style="color:${cor}">${r.diff>0?'+':''}${fmtVal(r.diff)}</td>
-          <td class="num"><span class="var-badge ${r.pct>0?'var-up':'var-down'}">${seta} ${Math.abs(r.pct).toFixed(1)}%</span></td>
+      <tbody>${prodList.map(p=>{
+        let prev=null;
+        const cells=mesesFilt.map(m=>{
+          const d=p.meses[m];
+          const cu=d&&d.totalQtd>0?d.totalCusto/d.totalQtd:null;
+          let icone='';
+          if(cu!==null&&prev!==null){
+            const v=((cu-prev)/prev*100);
+            if(v>10)icone=`<span style="color:#dc2626;font-size:10px"> ▲${v.toFixed(0)}%</span>`;
+            else if(v<-10)icone=`<span style="color:#16a34a;font-size:10px"> ▼${Math.abs(v).toFixed(0)}%</span>`;
+            else icone=`<span style="color:#94a3b8;font-size:10px"> ≈</span>`;
+          }
+          if(cu!==null)prev=cu;
+          return cu!==null?`<td class="num" style="white-space:nowrap">${fmtVal(cu)}${icone}</td>`:`<td class="num" style="color:#cbd5e1">—</td>`;
+        }).join('');
+        return`<tr>
+          <td><strong>${p.filial}</strong></td>
+          <td style="font-family:monospace;font-size:11px;color:#1e40af">${p.produto}</td>
+          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:11px">${p.descricao||'—'}</td>
+          ${cells}
+          <td class="num"><span class="var-badge var-up">▲ ${p.maxVar.toFixed(0)}%</span></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>
