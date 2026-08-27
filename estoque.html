@@ -877,7 +877,7 @@ async function carregarComparativo(){
   }
   // Buscar posição SB2 com dt_inventario por item
   const [posicao, itensDesc] = await Promise.all([
-    buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,custo_medio,dt_inventario,dt_ult_movimento'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,qtd_fim,custo_medio,dt_inventario,dt_ult_movimento'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
   ]);
 
@@ -887,6 +887,7 @@ async function carregarComparativo(){
     const k=`${r.filial}|${r.codigo}`;
     if(!posMap[k]) posMap[k]={filial:r.filial,codigo:r.codigo,qtd_atual:0,custo_medio:r.custo_medio,dt_inventario:null,dt_ult_movimento:r.dt_ult_movimento,_armazens:[]};
     posMap[k].qtd_atual+=Number(r.qtd_atual)||0;
+    posMap[k].qtd_fim+=Number(r.qtd_fim)||0;
     if((r.armazem||'').trim())posMap[k]._armazens.push({armazem:(r.armazem||'').trim().replace(/^0+/,'')||'—',qtd:Number(r.qtd_atual)||0});
     // Pega a data de inventário mais recente entre os armazéns
     if(r.dt_inventario&&(!posMap[k].dt_inventario||r.dt_inventario>posMap[k].dt_inventario))
@@ -942,15 +943,16 @@ async function carregarComparativo(){
   const key = (f,p) => `${(f||'').trim()}|${(p||'').trim()}`;
   const mapaTransfRec={}, mapaDevolucoes={};
 
-  // Inicializar mapa a partir do SB2 — todos os itens usam a data mais recente da filial
+  // Inicializar mapa — cada item usa SUA PRÓPRIA dt_inventario (B2_DINVENT)
   Object.values(posMap).forEach(pos=>{
     const k=key(pos.filial,pos.codigo);
-    const dtFilial=modaInvPorFilial[pos.filial]?.dt||'20250101'; // data mais recente da filial
-    const dt=dtFilial; // força a mesma data para todos os itens da filial
+    const dt=pos.dt_inventario||modaInvPorFilial[pos.filial]?.dt||'20250101';
+    // qtd_fim = saldo no último inventário (B2_QFIM)
+    // dt_inventario = data daquele inventário (B2_DINVENT) — individual por item
     mapa[k]={
       filial:pos.filial, produto:pos.codigo,
       dt_inventario:dt,
-      qtd_inventario:pos.qtd_atual,
+      qtd_inventario:pos.qtd_fim||pos.qtd_atual, // saldo físico no momento do inventário
       qtd_atual:pos.qtd_atual,
       custo_medio:pos.custo_medio,
       _armazens:pos._armazens,
