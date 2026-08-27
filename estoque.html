@@ -943,10 +943,6 @@ async function carregarComparativo(){
   (itensDesc||[]).forEach(r=>{if(r.codigo)window.itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});;
   console.log('[comp] itensMap size:', Object.keys(window.itensMap).length, 'ex:', window.itensMap['400005067']);
 
-  // Consolidar por filial+produto
-  const mapa = {};
-  const key = (f,p) => `${f}|${p}`;
-
   // Consolidar mapa por filial+produto com filtro por dt_inventario POR ITEM
   const mapa = {};
   const key = (f,p) => `${(f||'').trim()}|${(p||'').trim()}`;
