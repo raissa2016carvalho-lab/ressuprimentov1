@@ -800,16 +800,19 @@ async function carregarComparativo(){
     }
     return todos;
   }
-  const [entradas, saidas, posicao, itensDesc, compras, transfsRec, _invMovAgg, devolucoes, inventario] = await Promise.all([
+  // Data de inventário da filial selecionada (para filtrar movimentos)
+  const invData = filial ? _invDatas[filial] : null;
+  const dataInv = invData ? invData.data_inventario.replace(/-/g,'') : '20250101';
+
+  const [entradas, saidas, posicao, itensDesc, compras, transfsRec, transfsEnv, devolucoes] = await Promise.all([
     buscarTudo(()=>{ let q=db.from('movimentos_entrada').select('filial,produto,descricao,mes,emissao,nota_fiscal,serie,fornecedor,qtd_entrada,preco_unit,valor_entrada'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('consumo_comp_agg').select('filial,produto,qtd_total')),
     buscarTudo(()=>{ let q=db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
     buscarTudo(()=>{ let q=db.from('mov_compras_agg').select('filial,produto,qtd_total,valor_total'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('mov_transf_rec_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>{ let q=db.from('mov_inventario_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
+    buscarTudo(()=>{ let q=db.from('mov_transf_env_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
     buscarTudo(()=>{ let q=db.from('mov_devolucoes_agg').select('filial,produto,qtd_total'); if(filial)q=q.eq('filial',filial); return q; }),
-    buscarTudo(()=>{ let q=db.from('inventario_agg').select('filial,produto,qtd_total,ultimo_inventario'); if(filial)q=q.eq('filial',filial); return q; }),
   ]);
   // Mapa código -> descrição da tabela itens
   window.itensMap={};
@@ -821,20 +824,10 @@ async function carregarComparativo(){
   const key = (f,p) => `${f}|${p}`;
 
   // Mapas por tipo de movimento
-  const mapaCompras={},mapaTransfRec={},mapaInventario={},mapaDevolucoes={};
+  const mapaCompras={},mapaTransfRec={},mapaTransfEnv={},mapaDevolucoes={};
   (compras||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaCompras[k]={qtd:Number(r.qtd_total)||0,valor:Number(r.valor_total)||0};});
   (transfsRec||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfRec[k]=Number(r.qtd_total)||0;});
-  // _invMovAgg = mov_inventario_agg (TES 021/016 — serviços/ativos, não usar)
-  // inventario = inventario_agg (SD3 TM=999 — ajuste real de inventário)
-  const mapaUltimoInventario={};
-  (inventario||[]).forEach(r=>{
-    const k=key(r.filial,r.produto);
-    mapaInventario[k]=(mapaInventario[k]||0)+Number(r.qtd_total)||0;
-    if(r.ultimo_inventario){
-      if(!mapaUltimoInventario[k]||r.ultimo_inventario>mapaUltimoInventario[k])
-        mapaUltimoInventario[k]=r.ultimo_inventario;
-    }
-  });
+  (transfsEnv||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaTransfEnv[k]=Number(r.qtd_total)||0;});
   (devolucoes||[]).forEach(r=>{const k=key(r.filial,r.produto);mapaDevolucoes[k]=Number(r.qtd_total)||0;});
 
   (entradas||[]).forEach(r=>{
@@ -852,9 +845,8 @@ async function carregarComparativo(){
     }
     mapa[k].qtd_compra    = mapaCompras[k]?.qtd||0;
     mapa[k].valor_compra  = mapaCompras[k]?.valor||0;
-    mapa[k].qtd_transf    = mapaTransfRec[k]||0;
-    mapa[k].qtd_inventario= mapaInventario[k]||0;
-    mapa[k].ultimo_inventario=mapaUltimoInventario[k]||null;
+    mapa[k].qtd_transf_rec= mapaTransfRec[k]||0;
+    mapa[k].qtd_transf_env= mapaTransfEnv[k]||0;
     mapa[k].qtd_devolucao = mapaDevolucoes[k]||0;
   });
   (saidas||[]).forEach(r=>{
@@ -885,7 +877,8 @@ async function carregarComparativo(){
     mapa[k].custo_medio=Number(pos?.custo_medio)||0;
     mapa[k]._armazens=pos?._armazens||[];
     // Divergência: diferença entre saldo calculado (entrada-saída) e posição atual
-    mapa[k].saldo_calc=mapa[k].qtd_entrada-mapa[k].qtd_saida;
+    // Saldo = Compras + Transf.Recebidas + Devoluções - Consumo SCP - Transf.Enviadas
+    mapa[k].saldo_calc=(mapa[k].qtd_compra||0)+(mapa[k].qtd_transf_rec||0)+(mapa[k].qtd_devolucao||0)-(mapa[k].qtd_saida||0)-(mapa[k].qtd_transf_env||0);
     mapa[k].divergencia=mapa[k].qtd_atual-mapa[k].saldo_calc;
   });
 
