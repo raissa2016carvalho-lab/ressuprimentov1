@@ -401,6 +401,10 @@ function renderTabela() {
           'Média mensal: ' + (Number(r._consumo_media)||0).toFixed(1) + ' un/mês\n' +
           'Cálculo: ' + (Number(r.qtd_atual)||0) + ' ÷ ' + (Number(r._consumo_media)||0).toFixed(1) + ' = ' + Number(r._cobertura).toFixed(1) + ' meses'
           : 'Sem histórico de consumo em 2026'}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
+      <td style="white-space:nowrap;font-size:11px">
+        ${r.dt_inventario ? `<span style="color:#0369a1;font-weight:600">📋 ${fmtData(r.dt_inventario)}</span><br><span style="color:#475569">${(Number(r.qtd_atual)||0).toLocaleString('pt-BR')} un</span>` : '<span style="color:#cbd5e1">—</span>'}
+      </td>
+      <td><button onclick="exportarItemExcel('${(r.filial||'').trim()}','${(r.codigo||'').trim()}','${(r.descricao||'').replace(/'/g,'')}','${r.dt_inventario||''}')" style="background:#e0f2fe;color:#0369a1;border:none;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">⬇ Excel</button></td>
     </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
@@ -415,6 +419,8 @@ function renderTabela() {
         ${th('dt_ult_movimento','Últ. Mov.')}
         ${th('_consumo_total','Consumo 2026')}
         ${th('_cobertura','Cobertura')}
+        ${th('dt_inventario','Últ. Inventário')}
+        <th></th>
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table>`;
@@ -739,6 +745,107 @@ async function salvarDataInventario(){
 
 window.salvarDataInventario=salvarDataInventario;
 window.editarDataInventario=editarDataInventario;
+
+// ── EXCEL POR ITEM (FLUXO COMPLETO) ─────────────────────────────────────────
+async function exportarItemExcel(filial, codigo, descricao, dtInventario){
+  const btn = event.target;
+  btn.textContent = '⏳';
+  btn.disabled = true;
+
+  try {
+    const dataCorte = dtInventario || '20250101';
+
+    // Busca paralela de todos os movimentos do item
+    const [entradas, saidas, transfsEnv, transfsRec, posicao] = await Promise.all([
+      // SD1 - Entradas/Compras
+      (async()=>{
+        let q = db.from('movimentos_entrada').select('emissao,mes,nota_fiscal,fornecedor,qtd_entrada,preco_unit,valor_entrada')
+          .eq('filial', filial).eq('produto', codigo).gte('emissao', dataCorte).order('emissao');
+        const {data} = await q; return data||[];
+      })(),
+      // SCP - Consumo
+      (async()=>{
+        const {data} = await db.from('consumo_scp')
+          .select('emissao,mes,cc,quantidade,custo_unit,valor_total,motivo')
+          .eq('filial', filial).eq('produto', codigo).gte('emissao', dataCorte).order('emissao');
+        return data||[];
+      })(),
+      // SD2 - Transferências enviadas
+      (async()=>{
+        const {data} = await db.from('mov_transf_env')
+          .select('emissao,qtd_total,valor_total')
+          .eq('filial', filial).eq('produto', codigo).gte('emissao', dataCorte).order('emissao');
+        return data||[];
+      })(),
+      // Transferências recebidas (movimentos_entrada com tipo transf)
+      (async()=>{
+        const {data} = await db.from('movimentos_entrada').select('emissao,mes,qtd_entrada,preco_unit,valor_entrada')
+          .eq('filial', filial).eq('produto', codigo).gte('emissao', dataCorte).order('emissao');
+        return data||[];
+      })(),
+      // Posição SB2
+      (async()=>{
+        const {data} = await db.from('estoque_sb2').select('qtd_atual,custo_medio,dt_inventario,dt_ult_movimento,armazem')
+          .eq('filial', filial).eq('codigo', codigo);
+        return data||[];
+      })(),
+    ]);
+
+    const wb = XLSX.utils.book_new();
+    const dtFmt = s => s && s.length===8 ? s.slice(6)+'/'+s.slice(4,6)+'/'+s.slice(0,4) : s||'';
+
+    // Aba 1 - Resumo
+    const posTotal = posicao.reduce((a,r)=>a+(Number(r.qtd_atual)||0),0);
+    const resumoData = [
+      ['FLUXO DE MATERIAIS - ' + codigo + ' - ' + descricao],
+      ['Filial:', filial, 'Data inventário:', dtFmt(dataCorte)],
+      [''],
+      ['RESUMO'],
+      ['Estoque atual (SB2):', posTotal],
+      ['Total entradas:', entradas.reduce((a,r)=>a+(Number(r.qtd_entrada)||0),0)],
+      ['Total consumo SCP:', saidas.reduce((a,r)=>a+(Number(r.quantidade)||0),0)],
+      ['Total transf. enviadas:', transfsEnv.reduce((a,r)=>a+(Number(r.qtd_total)||0),0)],
+      ['Saldo calculado:', posTotal],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumoData), 'Resumo');
+
+    // Aba 2 - Entradas SD1
+    if(entradas.length){
+      const rows = [['Data','Mês','NF','Fornecedor','Qtd','Preço Unit.','Valor Total']];
+      entradas.forEach(r=>rows.push([dtFmt(r.emissao),r.mes,r.nota_fiscal,r.fornecedor,r.qtd_entrada,r.preco_unit,r.valor_entrada]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Entradas SD1');
+    }
+
+    // Aba 3 - Consumo SCP
+    if(saidas.length){
+      const rows = [['Data','Mês','CC','Qtd','Custo Unit.','Valor Total','Motivo']];
+      saidas.forEach(r=>rows.push([dtFmt(r.emissao),r.mes,r.cc,r.quantidade,r.custo_unit,r.valor_total,r.motivo]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Consumo SCP');
+    }
+
+    // Aba 4 - Transf. Enviadas SD2
+    if(transfsEnv.length){
+      const rows = [['Data','Qtd','Valor']];
+      transfsEnv.forEach(r=>rows.push([dtFmt(r.emissao),r.qtd_total,r.valor_total]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Transf Enviadas SD2');
+    }
+
+    // Aba 5 - Posição SB2 por armazém
+    if(posicao.length){
+      const rows = [['Armazém','Qtd Atual','Custo Médio','Últ. Inventário','Últ. Movimento']];
+      posicao.forEach(r=>rows.push([r.armazem,r.qtd_atual,r.custo_medio,dtFmt(r.dt_inventario),dtFmt(r.dt_ult_movimento)]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Posição SB2');
+    }
+
+    XLSX.writeFile(wb, `Fluxo_${codigo}_F${filial}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  } catch(e){
+    alert('Erro ao exportar: ' + e.message);
+  } finally {
+    btn.textContent = '⬇ Excel';
+    btn.disabled = false;
+  }
+}
+window.exportarItemExcel = exportarItemExcel;
 
 // ── ABA NAVEGAÇÃO ──────────────────────────────────────────────────────
 let _abaAtual = 'posicao';
