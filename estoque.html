@@ -604,7 +604,7 @@ function exportarExcel() {
 window.irPag=irPag; window.sortBy=sortBy; window.setPill=setPill;
 window.aplicarFiltros=aplicarFiltros; window.exportarExcel=exportarExcel;
 window.carregar=carregar; window.abrirPopup=abrirPopup;
-
+// Stub para evitar erro antes do segundo script carregar
 carregar();
 </script>
 <div id="aba-comparativo" style="display:none;padding:24px">
@@ -668,6 +668,7 @@ function irAbaEstoque(aba){
   document.getElementById('btn-aba-comp').style.color = aba==='comparativo'?'#fff':'#64748b';
   if(aba==='comparativo' && !_compCarregado) carregarComparativo();
 }
+window.irAbaEstoque=irAbaEstoque;
 
 // ── COMPARATIVO ────────────────────────────────────────────────────────
 let _compDados = [];
@@ -1015,6 +1016,16 @@ async function exportarComparativo(){
   XLSX.utils.book_append_sheet(wb,ws,'Comparativo');
   XLSX.writeFile(wb,'comparativo_estoque.xlsx');
 }
+window.irAbaEstoque=irAbaEstoque;
+window.carregarComparativo=carregarComparativo;
+window.filtrarComparativo=filtrarComparativo;
+window.ordenarComp=ordenarComp;
+window.abrirPopupComp=abrirPopupComp;
+window.baixarNotasEntrada=baixarNotasEntrada;
+window.exportarComparativo=exportarComparativo;
+window.exportarComparativoCompleto=exportarComparativoCompleto;
+window.salvarDataInventario=salvarDataInventario;
+window.editarDataInventario=editarDataInventario;
 </script>
 </body>
 </html>
