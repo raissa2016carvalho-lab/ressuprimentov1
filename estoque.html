@@ -702,11 +702,11 @@ async function carregarComparativo(){
     }
     return todos;
   }
-  const [posicao, itensDesc, sd1, scp, sd2Env, sd3Rec, sd3Dev, sd3Bai] = await Promise.all([
+  const [posicao, itensDesc, sd1, sd3Consumo, sd2Env, sd3Rec, sd3Dev, sd3Bai] = await Promise.all([
     buscarTudo(()=>db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,qtd_fim,custo_medio,dt_inventario').eq('filial',filial)),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
     buscarTudo(()=>db.from('movimentos_entrada').select('filial,produto,emissao,qtd_entrada').eq('filial',filial)),
-    buscarTudo(()=>db.from('consumo_scp').select('filial,produto,emissao,quantidade').eq('filial',filial)),
+    buscarTudo(()=>db.from('mov_sd3_saida').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','501')), // SD3 TM501 = consumo oficial (Kardex)
     buscarTudo(()=>db.from('mov_transf_env').select('filial,produto,emissao,qtd_total').eq('filial',filial)),
     buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','005')),
     buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','503')),
@@ -766,7 +766,7 @@ async function carregarComparativo(){
     if(mapa[k]&&(r.emissao||'')>=mapa[k].dt_inventario) mapa[k][dest]+=(Number(r[campo])||0);
   });
   soma(sd1,'qtd_entrada','qtd_sd1');
-  soma(scp,'quantidade','qtd_scp');
+  soma(sd3Consumo,'qtd_total','qtd_scp');
   soma(sd2Env,'qtd_total','qtd_sd2_env');
   soma(sd3Rec,'qtd_total','qtd_sd3_rec');
   soma(sd3Dev,'qtd_total','qtd_sd3_dev');
