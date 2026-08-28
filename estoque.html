@@ -702,15 +702,23 @@ async function carregarComparativo(){
     }
     return todos;
   }
-  const [posicao, itensDesc, sd1, sd3Consumo, sd2Env, sd3Rec, sd3Dev, sd3Bai] = await Promise.all([
-    buscarTudo(()=>db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,qtd_fim,custo_medio,dt_inventario').eq('filial',filial)),
+  // Buscar todos os movimentos SD3 por TM separado
+  const [posicao, itensDesc, sd1, sd2Env,
+         tm005, tm503, tm999,   // entradas SD3
+         tm501, tm499, tm001    // saídas SD3
+  ] = await Promise.all([
+    buscarTudo(()=>db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,custo_medio,dt_inventario').eq('filial',filial)),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
     buscarTudo(()=>db.from('movimentos_entrada').select('filial,produto,emissao,qtd_entrada').eq('filial',filial)),
-    buscarTudo(()=>db.from('mov_sd3_saida').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','501')), // SD3 TM501 = consumo oficial (Kardex)
     buscarTudo(()=>db.from('mov_transf_env').select('filial,produto,emissao,qtd_total').eq('filial',filial)),
-    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','005')),
-    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','503')),
-    buscarTudo(()=>db.from('mov_sd3_saida').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial)),
+    // SD3 entradas por TM
+    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,qtd_total').eq('filial',filial).eq('tm','005')),
+    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,qtd_total').eq('filial',filial).eq('tm','503')),
+    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,qtd_total').eq('filial',filial).eq('tm','999')),
+    // SD3 saídas por TM
+    buscarTudo(()=>db.from('mov_sd3_saida').select('filial,produto,emissao,qtd_total').eq('filial',filial).eq('tm','501')),
+    buscarTudo(()=>db.from('mov_sd3_saida').select('filial,produto,emissao,qtd_total').eq('filial',filial).eq('tm','499')),
+    buscarTudo(()=>db.from('mov_sd3_saida').select('filial,produto,emissao,qtd_total').eq('filial',filial).eq('tm','001')),
   ]);
   // Mapa código -> descrição da tabela itens
   window.itensMap={};
@@ -755,8 +763,9 @@ async function carregarComparativo(){
       qtd_inventario:pos.qtd_fim||pos.qtd_atual,
       qtd_atual:pos.qtd_atual, custo_medio:pos.custo_medio,
       _armazens:pos._armazens,
-      qtd_sd1:0, qtd_scp:0, qtd_sd2_env:0,
-      qtd_sd3_rec:0, qtd_sd3_dev:0, qtd_sd3_bai:0,
+      qtd_sd1:0, qtd_sd2_env:0,
+      qtd_tm005:0, qtd_tm503:0, qtd_tm999:0,   // entradas SD3
+      qtd_tm501:0, qtd_tm499:0, qtd_tm001:0,   // saídas SD3
     };
   });
 
@@ -776,9 +785,14 @@ async function carregarComparativo(){
     const cod=(mapa[k].produto||'').trim();
     mapa[k].descricao=(window.itensMap[cod]?.descricao)||'';
     mapa[k].grupo=(window.itensMap[cod]?.grupo)||'';
-    mapa[k].qtd_entrada=mapa[k].qtd_sd1+mapa[k].qtd_sd3_rec+mapa[k].qtd_sd3_dev;
-    mapa[k].qtd_saida=mapa[k].qtd_scp+mapa[k].qtd_sd2_env+mapa[k].qtd_sd3_bai;
-    mapa[k].saldo_calc=mapa[k].qtd_inventario+mapa[k].qtd_entrada-mapa[k].qtd_saida;
+    // OPÇÃO 3: Saldo inventário = B2_QATU - (entradas após data) + (saídas após data)
+    const totalEntAfter = mapa[k].qtd_sd1 + mapa[k].qtd_tm005 + mapa[k].qtd_tm503 + mapa[k].qtd_tm999;
+    const totalSaiAfter = mapa[k].qtd_tm501 + mapa[k].qtd_tm499 + mapa[k].qtd_tm001 + mapa[k].qtd_sd2_env;
+    mapa[k].qtd_inventario = mapa[k].qtd_atual - totalEntAfter + totalSaiAfter;
+    mapa[k].qtd_entrada = totalEntAfter;
+    mapa[k].qtd_saida = totalSaiAfter;
+    // Saldo esperado = inventário + entradas - saídas = qtd_atual (sempre)
+    mapa[k].saldo_calc = mapa[k].qtd_inventario + totalEntAfter - totalSaiAfter;
     mapa[k].divergencia=mapa[k].qtd_atual-mapa[k].saldo_calc;
   });
 
@@ -864,11 +878,13 @@ function filtrarComparativo(){
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#0369a1;cursor:pointer" onclick="ordenarComp('qtd_inventario')">📋 Inv. ↕</th>
         <th style="padding:8px 10px;text-align:center;font-weight:600;color:#0369a1;cursor:pointer" onclick="ordenarComp('dt_inventario')">📅 Data ↕</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a;cursor:pointer" onclick="ordenarComp('qtd_sd1')">🛒 SD1 ↕</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7c3aed;cursor:pointer" onclick="ordenarComp('qtd_sd3_rec')">🔄 SD3 Rec ↕</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#0ea5e9;cursor:pointer" onclick="ordenarComp('qtd_sd3_dev')">↩ SD3 Dev ↕</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706;cursor:pointer" onclick="ordenarComp('qtd_scp')">📦 SCP ↕</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626;cursor:pointer" onclick="ordenarComp('qtd_sd2_env')">📤 SD2 Env ↕</th>
-        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#991b1b;cursor:pointer" onclick="ordenarComp('qtd_sd3_bai')">⚠️ SD3 Bai ↕</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7c3aed;cursor:pointer" onclick="ordenarComp('qtd_tm005')">🔄 TM005 ↕</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#0ea5e9;cursor:pointer" onclick="ordenarComp('qtd_tm503')">↩ TM503 ↕</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#6366f1;cursor:pointer" onclick="ordenarComp('qtd_tm999')">🔧 TM999 ↕</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706;cursor:pointer" onclick="ordenarComp('qtd_tm501')">📦 TM501 ↕</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626;cursor:pointer" onclick="ordenarComp('qtd_sd2_env')">📤 SD2 ↕</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#991b1b;cursor:pointer" onclick="ordenarComp('qtd_tm499')">⚠️ TM499 ↕</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7f1d1d;cursor:pointer" onclick="ordenarComp('qtd_tm001')">🔻 TM001 ↕</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af;cursor:pointer" onclick="ordenarComp('saldo_calc')">Saldo Esp. ↕</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569;cursor:pointer" onclick="ordenarComp('qtd_atual')">Estoque ↕</th>
         <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626;cursor:pointer" onclick="ordenarComp('divergencia')">Diverg. ↕</th>
@@ -885,11 +901,13 @@ function filtrarComparativo(){
           <td style="padding:7px 10px;text-align:right;font-weight:700;color:#0369a1">${fmtQ(r.qtd_inventario||0)}</td>
           <td style="padding:7px 10px;text-align:center;font-size:10px;color:#0369a1;white-space:nowrap">${dtInv}</td>
           <td style="padding:7px 10px;text-align:right;color:${(r.qtd_sd1||0)>0?'#16a34a':'#cbd5e1'};font-weight:600">${(r.qtd_sd1||0)>0?'+'+fmtQ(r.qtd_sd1):'—'}</td>
-          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_sd3_rec||0)>0?'#7c3aed':'#cbd5e1'};font-weight:600">${(r.qtd_sd3_rec||0)>0?'+'+fmtQ(r.qtd_sd3_rec):'—'}</td>
-          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_sd3_dev||0)>0?'#0ea5e9':'#cbd5e1'};font-weight:600">${(r.qtd_sd3_dev||0)>0?'+'+fmtQ(r.qtd_sd3_dev):'—'}</td>
-          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_scp||0)>0?'#d97706':'#cbd5e1'};font-weight:600">${(r.qtd_scp||0)>0?'-'+fmtQ(r.qtd_scp):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_tm005||0)>0?'#7c3aed':'#cbd5e1'};font-weight:600">${(r.qtd_tm005||0)>0?'+'+fmtQ(r.qtd_tm005):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_tm503||0)>0?'#0ea5e9':'#cbd5e1'};font-weight:600">${(r.qtd_tm503||0)>0?'+'+fmtQ(r.qtd_tm503):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_tm999||0)!=0?'#6366f1':'#cbd5e1'};font-weight:600">${(r.qtd_tm999||0)!=0?(r.qtd_tm999>0?'+':'')+fmtQ(r.qtd_tm999):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_tm501||0)>0?'#d97706':'#cbd5e1'};font-weight:600">${(r.qtd_tm501||0)>0?'-'+fmtQ(r.qtd_tm501):'—'}</td>
           <td style="padding:7px 10px;text-align:right;color:${(r.qtd_sd2_env||0)>0?'#dc2626':'#cbd5e1'};font-weight:600">${(r.qtd_sd2_env||0)>0?'-'+fmtQ(r.qtd_sd2_env):'—'}</td>
-          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_sd3_bai||0)>0?'#991b1b':'#cbd5e1'};font-weight:600">${(r.qtd_sd3_bai||0)>0?'-'+fmtQ(r.qtd_sd3_bai):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_tm499||0)>0?'#991b1b':'#cbd5e1'};font-weight:600">${(r.qtd_tm499||0)>0?'-'+fmtQ(r.qtd_tm499):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:${(r.qtd_tm001||0)>0?'#7f1d1d':'#cbd5e1'};font-weight:600">${(r.qtd_tm001||0)>0?'-'+fmtQ(r.qtd_tm001):'—'}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:700;color:#1e40af">${fmtQ(r.saldo_calc)}</td>
           <td style="padding:7px 10px;text-align:right;font-weight:700;${r._armazens&&r._armazens.length>1?'cursor:pointer;color:#1e40af;text-decoration:underline dotted':''}" ${r._armazens&&r._armazens.length>1?`onclick="abrirPopupComp(${_compDados.indexOf(r)})" title="Ver por armazém"`:''}>${fmtQ(r.qtd_atual)}</td>
           <td style="padding:7px 10px;text-align:right;background:${d.bg};color:${d.cor};font-weight:700">${r.divergencia>=0?'+':''}${fmtQ(r.divergencia)}</td>
