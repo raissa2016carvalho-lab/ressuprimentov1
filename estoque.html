@@ -775,7 +775,7 @@ async function carregarComparativo(){
     if(mapa[k]&&(r.emissao||'')>=mapa[k].dt_inventario) mapa[k][dest]+=(Number(r[campo])||0);
   });
   soma(sd1,'qtd_entrada','qtd_sd1');
-  soma(sd3Consumo,'qtd_total','qtd_scp');
+  // sd3Consumo removido - usando tm501 diretamente
   soma(sd2Env,'qtd_total','qtd_sd2_env');
   soma(sd3Rec,'qtd_total','qtd_sd3_rec');
   soma(sd3Dev,'qtd_total','qtd_sd3_dev');
