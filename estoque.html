@@ -401,10 +401,6 @@ function renderTabela() {
           'Média mensal: ' + (Number(r._consumo_media)||0).toFixed(1) + ' un/mês\n' +
           'Cálculo: ' + (Number(r.qtd_atual)||0) + ' ÷ ' + (Number(r._consumo_media)||0).toFixed(1) + ' = ' + Number(r._cobertura).toFixed(1) + ' meses'
           : 'Sem histórico de consumo em 2026'}">${r._cobertura != null ? Number(r._cobertura).toFixed(1)+' m' : '—'}</td>
-      <td style="white-space:nowrap;font-size:11px">
-        ${r.dt_inventario ? `<span style="color:#0369a1;font-weight:600">📋 ${fmtData(r.dt_inventario)}</span><br><span style="color:#475569">${(Number(r.qtd_atual)||0).toLocaleString('pt-BR')} un</span>` : '<span style="color:#cbd5e1">—</span>'}
-      </td>
-      <td><button onclick="exportarItemExcel('${(r.filial||'').trim()}','${(r.codigo||'').trim()}','${(r.descricao||'').replace(/'/g,'')}','${r.dt_inventario||''}')" style="background:#e0f2fe;color:#0369a1;border:none;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">⬇ Excel</button></td>
     </tr>`).join('');
 
   document.getElementById('tabela-container').innerHTML = `
@@ -419,8 +415,6 @@ function renderTabela() {
         ${th('dt_ult_movimento','Últ. Mov.')}
         ${th('_consumo_total','Consumo 2026')}
         ${th('_cobertura','Cobertura')}
-        ${th('dt_inventario','Últ. Inventário')}
-        <th></th>
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table>`;
@@ -614,7 +608,6 @@ window.carregar=carregar; window.abrirPopup=abrirPopup;
 carregar();
 </script>
 <div id="aba-comparativo" style="display:none;padding:24px">
-
   <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
     <div>
       <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">FILIAL</label>
@@ -637,7 +630,7 @@ carregar();
     </div>
     <div>
       <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">GRUPO</label>
-      <select id="comp-grupo" onchange="filtrarComparativo()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:180px">
+      <select id="comp-grupo" onchange="_compCarregado=false;_compDados=[];carregarComparativo()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:180px">
         <option value="">Todos os grupos</option>
       </select>
     </div>
@@ -659,176 +652,6 @@ carregar();
 </div>
 
 <script>
-// ── INVENTÁRIO DATAS ──────────────────────────────────────────────────────
-let _invDatas = {}; // filial -> {data_inventario, observacao, cadastrado_em}
-
-async function carregarDatasInventario(){
-  const {data} = await db.from('inventario_datas').select('*').order('cadastrado_em',{ascending:false});
-  _invDatas = {};
-  (data||[]).forEach(r=>{
-    // Só guarda a mais recente por filial
-    if(!_invDatas[r.filial]) _invDatas[r.filial] = r;
-  });
-  renderHistoricoInventario();
-}
-
-function renderHistoricoInventario(){
-  const wrap = document.getElementById('inv-historico');
-  if(!wrap) return;
-  const itens = Object.values(_invDatas).sort((a,b)=>a.filial.localeCompare(b.filial));
-  if(!itens.length){wrap.innerHTML='<span style="font-size:11px;color:#94a3b8">Nenhuma data cadastrada ainda.</span>';return;}
-  wrap.innerHTML = itens.map(r=>`
-    <div style="background:#fff;border:1px solid #bae6fd;border-radius:7px;padding:6px 12px;display:flex;align-items:center;gap:8px;font-size:12px">
-      <strong style="color:#0369a1">Filial ${r.filial}</strong>
-      <span style="color:#475569">${new Date(r.data_inventario+'T00:00:00').toLocaleDateString('pt-BR')}</span>
-      ${r.observacao?`<span style="color:#94a3b8">${r.observacao}</span>`:''}
-      <button onclick="editarDataInventario('${r.filial}','${r.data_inventario}','${r.observacao||''}')" 
-        style="background:#e0f2fe;color:#0369a1;border:none;border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer;font-weight:600">✏️ Alterar</button>
-    </div>`).join('');
-}
-
-function editarDataInventario(filial, data, obs){
-  document.getElementById('inv-filial-sel').value = filial;
-  document.getElementById('inv-data-input').value = data;
-  document.getElementById('inv-obs-input').value = obs;
-}
-
-async function salvarDataInventario(){
-  const filial = document.getElementById('inv-filial-sel').value;
-  const data = document.getElementById('inv-data-input').value;
-  const obs = document.getElementById('inv-obs-input').value.trim();
-  const msg = document.getElementById('inv-msg');
-
-  if(!filial){msg.textContent='⚠ Selecione uma filial!';msg.style.color='#dc2626';return;}
-  if(!data){msg.textContent='⚠ Informe a data!';msg.style.color='#dc2626';return;}
-
-  msg.textContent='Salvando...';msg.style.color='#94a3b8';
-
-  const {error} = await db.from('inventario_datas').insert({
-    filial, data_inventario: data, observacao: obs||null
-  });
-
-  if(error){msg.textContent='❌ Erro ao salvar!';msg.style.color='#dc2626';return;}
-
-  msg.textContent='✅ Salvo!';msg.style.color='#16a34a';
-  setTimeout(()=>{msg.textContent='';},3000);
-
-  // Recarrega e atualiza comparativo se filial estiver selecionada
-  await carregarDatasInventario();
-  const compFilial = document.getElementById('comp-filial').value;
-  if(compFilial === filial) carregarComparativo();
-}
-
-window.salvarDataInventario=salvarDataInventario;
-window.editarDataInventario=editarDataInventario;
-
-// ── EXCEL POR ITEM (FLUXO COMPLETO) ─────────────────────────────────────────
-async function exportarItemExcel(filial, codigo, descricao, dtInventario){
-  const btn = event.target;
-  btn.textContent = '⏳';
-  btn.disabled = true;
-
-  try {
-    const dataCorte = dtInventario || '20250101';
-
-    // Busca paralela de todos os movimentos do item
-    const [entradas, saidas, transfsEnv, transfsRec, posicao] = await Promise.all([
-      // SD1 - Entradas/Compras
-      (async()=>{
-        let q = db.from('movimentos_entrada').select('emissao,mes,nota_fiscal,fornecedor,qtd_entrada,preco_unit,valor_entrada')
-          .eq('filial', filial).eq('produto', codigo).gte('emissao', dataCorte).order('emissao');
-        const {data} = await q; return data||[];
-      })(),
-      // SCP - Consumo
-      (async()=>{
-        const {data} = await db.from('consumo_scp')
-          .select('emissao,mes,cc,quantidade,custo_unit,valor_total,motivo')
-          .eq('filial', filial).eq('produto', codigo).gte('emissao', dataCorte).order('emissao');
-        return data||[];
-      })(),
-      // SD2 - Transferências enviadas
-      (async()=>{
-        const {data} = await db.from('mov_transf_env')
-          .select('emissao,qtd_total,valor_total')
-          .eq('filial', filial).eq('produto', codigo).gte('emissao', dataCorte).order('emissao');
-        return data||[];
-      })(),
-      // Transferências recebidas (movimentos_entrada com tipo transf)
-      (async()=>{
-        const {data} = await db.from('movimentos_entrada').select('emissao,mes,qtd_entrada,preco_unit,valor_entrada')
-          .eq('filial', filial).eq('produto', codigo).gte('emissao', dataCorte).order('emissao');
-        return data||[];
-      })(),
-      // Posição SB2
-      (async()=>{
-        const {data} = await db.from('estoque_sb2').select('qtd_atual,custo_medio,dt_inventario,dt_ult_movimento,armazem')
-          .eq('filial', filial).eq('codigo', codigo);
-        return data||[];
-      })(),
-    ]);
-
-    const wb = XLSX.utils.book_new();
-    const dtFmt = s => s && s.length===8 ? s.slice(6)+'/'+s.slice(4,6)+'/'+s.slice(0,4) : s||'';
-
-    // Aba 1 - Resumo
-    const posTotal = posicao.reduce((a,r)=>a+(Number(r.qtd_atual)||0),0);
-    const resumoData = [
-      ['FLUXO DE MATERIAIS - ' + codigo + ' - ' + descricao],
-      ['Filial:', filial, 'Data inventário:', dtFmt(dataCorte)],
-      [''],
-      ['RESUMO'],
-      ['Estoque atual (SB2):', posTotal],
-      ['Total entradas:', entradas.reduce((a,r)=>a+(Number(r.qtd_entrada)||0),0)],
-      ['Total consumo SCP:', saidas.reduce((a,r)=>a+(Number(r.quantidade)||0),0)],
-      ['Total transf. enviadas:', transfsEnv.reduce((a,r)=>a+(Number(r.qtd_total)||0),0)],
-      ['Saldo calculado:', posTotal],
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumoData), 'Resumo');
-
-    // Aba 2 - Entradas SD1
-    if(entradas.length){
-      const rows = [['Data','Mês','NF','Fornecedor','Qtd','Preço Unit.','Valor Total']];
-      entradas.forEach(r=>rows.push([dtFmt(r.emissao),r.mes,r.nota_fiscal,r.fornecedor,r.qtd_entrada,r.preco_unit,r.valor_entrada]));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Entradas SD1');
-    }
-
-    // Aba 3 - Consumo SCP
-    if(saidas.length){
-      const rows = [['Data','Mês','CC','Qtd','Custo Unit.','Valor Total','Motivo']];
-      saidas.forEach(r=>rows.push([dtFmt(r.emissao),r.mes,r.cc,r.quantidade,r.custo_unit,r.valor_total,r.motivo]));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Consumo SCP');
-    }
-
-    // Aba 4 - Transf. Enviadas SD2
-    if(transfsEnv.length){
-      const rows = [['Data','Qtd','Valor']];
-      transfsEnv.forEach(r=>rows.push([dtFmt(r.emissao),r.qtd_total,r.valor_total]));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Transf Enviadas SD2');
-    }
-
-    // Aba 5 - Posição SB2 por armazém
-    if(posicao.length){
-      const rows = [['Armazém','Qtd Atual','Custo Médio','Últ. Inventário','Últ. Movimento']];
-      posicao.forEach(r=>rows.push([r.armazem,r.qtd_atual,r.custo_medio,dtFmt(r.dt_inventario),dtFmt(r.dt_ult_movimento)]));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Posição SB2');
-    }
-
-    XLSX.writeFile(wb, `Fluxo_${codigo}_F${filial}_${new Date().toISOString().slice(0,10)}.xlsx`);
-  } catch(e){
-    alert('Erro ao exportar: ' + e.message);
-  } finally {
-    btn.textContent = '⬇ Excel';
-    btn.disabled = false;
-  }
-}
-let _compSortCol='divergencia', _compSortDir=-1;
-function ordenarComp(col){
-  if(_compSortCol===col) _compSortDir*=-1;
-  else{_compSortCol=col;_compSortDir=-1;}
-  filtrarComparativo();
-}
-window.ordenarComp=ordenarComp;
-
 // ── ABA NAVEGAÇÃO ──────────────────────────────────────────────────────
 let _abaAtual = 'posicao';
 function irAbaEstoque(aba){
@@ -844,7 +667,6 @@ function irAbaEstoque(aba){
   document.getElementById('btn-aba-comp').style.background = aba==='comparativo'?'#1e40af':'#f1f5f9';
   document.getElementById('btn-aba-comp').style.color = aba==='comparativo'?'#fff':'#64748b';
   if(aba==='comparativo' && !_compCarregado) carregarComparativo();
-  if(aba==='comparativo') carregarDatasInventario();
 }
 
 // ── COMPARATIVO ────────────────────────────────────────────────────────
@@ -858,12 +680,20 @@ async function carregarComparativo(){
   const resumo = document.getElementById('comp-resumo');
   const wrap = document.getElementById('comp-tabela-wrap');
   loading.style.display='block';
+  resumo.innerHTML='';
+  wrap.innerHTML='';
+  if(!filial){
+    loading.innerHTML='<div style="text-align:center;padding:48px"><div style="font-size:40px">🏭</div><div style="font-size:15px;font-weight:600;color:#1e40af;margin:12px 0 6px">Selecione uma filial</div><div style="font-size:12px;color:#64748b">Escolha uma filial para ver o fluxo completo de movimentos</div></div>';
+    return;
+  }
+  loading.textContent='Carregando movimentos...';
 
+  // Buscar com paginação — factory fn recria a query a cada página (objeto query não é reutilizável)
   async function buscarTudo(fnQ){
     let todos=[], off=0;
     for(;;){
       const{data,error}=await fnQ().range(off,off+999);
-      if(error){console.error('[comp] erro',error);break;}
+      if(error){console.error('[buscarTudo] erro pag '+off,error);break;}
       if(!data||!data.length)break;
       todos=todos.concat(data);
       if(data.length<1000)break;
@@ -871,126 +701,320 @@ async function carregarComparativo(){
     }
     return todos;
   }
-
-  if(!filial){
-    loading.innerHTML='<div style="text-align:center;padding:48px"><div style="font-size:48px;margin-bottom:16px">🏭</div><div style="font-size:15px;font-weight:600;color:#1e40af;margin-bottom:8px">Selecione uma filial</div><div style="font-size:13px;color:#64748b">Escolha uma filial no filtro acima para ver o fluxo completo de movimentos</div></div>';
-    resumo.innerHTML='';wrap.innerHTML='';return;
-  }
-
-  loading.innerHTML='<span style="color:#94a3b8">Carregando posição de estoque...</span>';
-  resumo.innerHTML='';wrap.innerHTML='';
-
-  // SB2 + itens
-  const [posicao, itensDesc] = await Promise.all([
-    buscarTudo(()=>db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,qtd_fim,custo_medio,dt_inventario,dt_ult_movimento').eq('filial',filial)),
+  const [posicao, itensDesc, sd1, scp, sd2Env, sd3Rec, sd3Dev, sd3Bai] = await Promise.all([
+    buscarTudo(()=>db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,qtd_fim,custo_medio,dt_inventario').eq('filial',filial)),
     buscarTudo(()=>db.from('itens').select('codigo,descricao,grupo')),
+    buscarTudo(()=>db.from('movimentos_entrada').select('filial,produto,emissao,qtd_entrada').eq('filial',filial)),
+    buscarTudo(()=>db.from('consumo_scp').select('filial,produto,emissao,quantidade').eq('filial',filial)),
+    buscarTudo(()=>db.from('mov_transf_env').select('filial,produto,emissao,qtd_total').eq('filial',filial)),
+    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','005')),
+    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','503')),
+    buscarTudo(()=>db.from('mov_sd3_saida').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial)),
   ]);
+  // Mapa código -> descrição da tabela itens
+  window.itensMap={};
+  (itensDesc||[]).forEach(r=>{if(r.codigo)window.itensMap[r.codigo.trim()]={descricao:r.descricao||'',grupo:r.grupo||''};});;
   console.log('[comp] itensMap size:', Object.keys(window.itensMap).length, 'ex:', window.itensMap['400005067']);
 
-  // Agrupar SB2 por filial+produto
+  // Consolidar por filial+produto
+  const mapa = {};
+  const key = (f,p) => `${f}|${p}`;
+
+  // posMap: agrupa SB2 por filial+produto
   const posMap={};
   (posicao||[]).forEach(r=>{
-    const k=`${r.filial}|${r.codigo}`;
-    if(!posMap[k]) posMap[k]={filial:r.filial,codigo:r.codigo,qtd_atual:0,qtd_fim:0,custo_medio:r.custo_medio,dt_inventario:null,dt_ult_movimento:r.dt_ult_movimento,_armazens:[]};
+    const k=key(r.filial,r.codigo);
+    if(!posMap[k]) posMap[k]={filial:r.filial,codigo:r.codigo,qtd_atual:0,qtd_fim:0,custo_medio:r.custo_medio,dt_inventario:null,_armazens:[]};
     posMap[k].qtd_atual+=Number(r.qtd_atual)||0;
     posMap[k].qtd_fim+=Number(r.qtd_fim)||0;
-    if((r.armazem||'').trim())posMap[k]._armazens.push({armazem:(r.armazem||'').trim().replace(/^0+/,'')||'—',qtd:Number(r.qtd_atual)||0});
+    if((r.armazem||'').trim()) posMap[k]._armazens.push({armazem:(r.armazem||'').trim().replace(/^0+/,'')||'—',qtd:Number(r.qtd_atual)||0});
     if(r.dt_inventario&&(!posMap[k].dt_inventario||r.dt_inventario>posMap[k].dt_inventario))
       posMap[k].dt_inventario=r.dt_inventario;
   });
 
-  // Data mais recente da filial
-  const modaInvPorFilial={};
-  window._modaInvPorFilial=modaInvPorFilial;
-  Object.values(posMap).forEach(pos=>{
-    if(!pos.dt_inventario)return;
-    const fil=pos.filial;
-    if(!modaInvPorFilial[fil]||pos.dt_inventario>modaInvPorFilial[fil].dt)
-      modaInvPorFilial[fil]={dt:pos.dt_inventario,cnt:0};
-    if(modaInvPorFilial[fil].dt===pos.dt_inventario)
-      modaInvPorFilial[fil].cnt++;
+  // Data mais recente de inventário por filial
+  const modaInv={};
+  window._modaInv=modaInv;
+  Object.values(posMap).forEach(p=>{
+    if(!p.dt_inventario) return;
+    if(!modaInv[p.filial]||p.dt_inventario>modaInv[p.filial]) modaInv[p.filial]=p.dt_inventario;
   });
-
-  // Mostrar info inventário
-  if(filial&&modaInvPorFilial[filial]){
-    const dtM=modaInvPorFilial[filial].dt;
-    const dtFmt=dtM.slice(6)+'/'+dtM.slice(4,6)+'/'+dtM.slice(0,4);
-    loading.innerHTML=`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px">
-      📅 <strong>Data mais recente de inventário (Filial ${filial}):</strong> ${dtFmt} — ${modaInvPorFilial[filial].cnt} itens
-    </div><br><span style="color:#94a3b8">Carregando movimentos...</span>`;
+  if(filial&&modaInv[filial]){
+    const d=modaInv[filial];
+    loading.innerHTML=`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;font-size:13px;display:inline-flex;align-items:center;gap:8px">📅 <strong>Inventário mais recente (Filial ${filial}):</strong> ${d.slice(6)}/${d.slice(4,6)}/${d.slice(0,4)}</div><br><span style="color:#94a3b8">Calculando movimentos...</span>`;
   }
 
-  const dataCorteGlobal=modaInvPorFilial[filial]?.dt||'20250101';
-
-  // Buscar todos os movimentos da filial após data de corte
-  loading.innerHTML=(loading.innerHTML||'')+'<br><span style="color:#94a3b8">Baixando movimentos...</span>';
-  const [sd1Compras,scpConsumo,sd2TransfEnv,sd3TransfRec,sd3Devolucao,sd3Baixa] = await Promise.all([
-    buscarTudo(()=>db.from('movimentos_entrada').select('filial,produto,emissao,qtd_entrada').eq('filial',filial).gte('emissao',dataCorteGlobal)),
-    buscarTudo(()=>db.from('consumo_scp').select('filial,produto,emissao,quantidade').eq('filial',filial).gte('emissao',dataCorteGlobal)),
-    buscarTudo(()=>db.from('mov_transf_env').select('filial,produto,emissao,qtd_total').eq('filial',filial).gte('emissao',dataCorteGlobal)),
-    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','005').gte('emissao',dataCorteGlobal)),
-    buscarTudo(()=>db.from('mov_sd3_entrada').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).eq('tm','503').gte('emissao',dataCorteGlobal)),
-    buscarTudo(()=>db.from('mov_sd3_saida').select('filial,produto,emissao,tm,qtd_total').eq('filial',filial).gte('emissao',dataCorteGlobal)),
-  ]);
-
-  // Consolidar mapa
-  const mapa={};
-  const key=(f,p)=>`${(f||'').trim()}|${(p||'').trim()}`;
-  const mapaTransfRec={},mapaDevolucoes={};
-
-  // Inicializar a partir do SB2
+  // Inicializar mapa com cada item usando seu próprio dt_inventario
   Object.values(posMap).forEach(pos=>{
     const k=key(pos.filial,pos.codigo);
-    const dt=pos.dt_inventario||modaInvPorFilial[pos.filial]?.dt||'20250101';
+    const dt=pos.dt_inventario||modaInv[pos.filial]||'20250101';
     mapa[k]={
-      filial:pos.filial,produto:pos.codigo,
+      filial:pos.filial, produto:pos.codigo,
       dt_inventario:dt,
       qtd_inventario:pos.qtd_fim||pos.qtd_atual,
-      qtd_atual:pos.qtd_atual,
-      custo_medio:pos.custo_medio,
+      qtd_atual:pos.qtd_atual, custo_medio:pos.custo_medio,
       _armazens:pos._armazens,
-      qtd_sd1:0,qtd_scp:0,qtd_sd2_env:0,
-      qtd_sd3_rec:0,qtd_sd3_dev:0,qtd_sd3_bai:0,
+      qtd_sd1:0, qtd_scp:0, qtd_sd2_env:0,
+      qtd_sd3_rec:0, qtd_sd3_dev:0, qtd_sd3_bai:0,
     };
   });
 
-  // Somar movimentos por tipo após dt_inventario do item
-  const somarMov=(lista,campo,campoMapa)=>{
-    (lista||[]).forEach(r=>{
-      const k=key(r.filial,r.produto);
-      const dt=mapa[k]?.dt_inventario||'20250101';
-      if((r.emissao||'')>=dt&&mapa[k])
-        mapa[k][campoMapa]+=(Number(r[campo])||0);
-    });
-  };
-  somarMov(sd1Compras,'qtd_entrada','qtd_sd1');
-  somarMov(scpConsumo,'quantidade','qtd_scp');
-  somarMov(sd2TransfEnv,'qtd_total','qtd_sd2_env');
-  somarMov(sd3TransfRec,'qtd_total','qtd_sd3_rec');
-  somarMov(sd3Devolucao,'qtd_total','qtd_sd3_dev');
-  somarMov(sd3Baixa,'qtd_total','qtd_sd3_bai');
+  // Somar cada tipo de movimento somente após dt_inventario do item
+  const soma=(lista,campo,dest)=>(lista||[]).forEach(r=>{
+    const k=key(r.filial,r.produto);
+    if(mapa[k]&&(r.emissao||'')>=mapa[k].dt_inventario) mapa[k][dest]+=(Number(r[campo])||0);
+  });
+  soma(sd1,'qtd_entrada','qtd_sd1');
+  soma(scp,'quantidade','qtd_scp');
+  soma(sd2Env,'qtd_total','qtd_sd2_env');
+  soma(sd3Rec,'qtd_total','qtd_sd3_rec');
+  soma(sd3Dev,'qtd_total','qtd_sd3_dev');
+  soma(sd3Bai,'qtd_total','qtd_sd3_bai');
 
-  // Calcular saldo e divergência
   Object.keys(mapa).forEach(k=>{
-    const pos=posMap[k];
     const cod=(mapa[k].produto||'').trim();
-    mapa[k].descricao=pos?.descricao||(window.itensMap[cod]?.descricao)||'';
-    mapa[k].grupo=pos?.grupo||(window.itensMap[cod]?.grupo)||'';
+    mapa[k].descricao=(window.itensMap[cod]?.descricao)||'';
+    mapa[k].grupo=(window.itensMap[cod]?.grupo)||'';
     mapa[k].qtd_entrada=mapa[k].qtd_sd1+mapa[k].qtd_sd3_rec+mapa[k].qtd_sd3_dev;
     mapa[k].qtd_saida=mapa[k].qtd_scp+mapa[k].qtd_sd2_env+mapa[k].qtd_sd3_bai;
     mapa[k].saldo_calc=mapa[k].qtd_inventario+mapa[k].qtd_entrada-mapa[k].qtd_saida;
     mapa[k].divergencia=mapa[k].qtd_atual-mapa[k].saldo_calc;
   });
 
-  _compDados=Object.values(mapa).sort((a,b)=>Math.abs(b.divergencia)-Math.abs(a.divergencia));
-  _compCarregado=true;
-  loading.style.display='none';
-
+  _compDados = Object.values(mapa).sort((a,b)=>Math.abs(b.divergencia)-Math.abs(a.divergencia));
+  // Popular select de grupos
   const selGrupo=document.getElementById('comp-grupo');
   if(selGrupo){
     const grupos=[...new Set(_compDados.map(r=>r.grupo).filter(Boolean))].sort();
     const valAtual=selGrupo.value;
     selGrupo.innerHTML='<option value="">Todos os grupos</option>'+grupos.map(g=>`<option value="${g}" ${g===valAtual?'selected':''}>${g}</option>`).join('');
   }
+  _compCarregado = true;
+  loading.style.display='none';
   filtrarComparativo();
 }
+
+let _compSortCol='divergencia',_compSortDir=-1;
+function ordenarComp(col){if(_compSortCol===col)_compSortDir*=-1;else{_compSortCol=col;_compSortDir=-1;}filtrarComparativo();}
+window.ordenarComp=ordenarComp;
+
+function filtrarComparativo(){
+  const busca=(document.getElementById('comp-busca')?.value||'').toLowerCase();
+  const diverg=document.getElementById('comp-diverg')?.value||'';
+  const grupo=(document.getElementById('comp-grupo')?.value||'').trim();
+  const filialFiltro=(document.getElementById('comp-filial')?.value||'').trim();
+  let lista=_compDados.filter(r=>{
+    if(filialFiltro&&r.filial!==filialFiltro)return false;
+    if(busca&&!(r.produto.toLowerCase().includes(busca)||r.descricao.toLowerCase().includes(busca)))return false;
+    if(grupo&&r.grupo!==grupo)return false;
+    if(diverg==='pos'&&r.qtd_atual<=0)return false;
+    if(diverg==='neg'&&r.qtd_atual>=0)return false;
+    if(diverg==='zero'&&r.qtd_atual!==0)return false;
+    if(diverg==='diverg'&&Math.abs(r.divergencia)<=(r.saldo_calc*0.1))return false;
+    return true;
+  });
+
+  // KPIs
+  const resumo=document.getElementById('comp-resumo');
+  const totalItems=lista.length;
+  const comDiverg=lista.filter(r=>Math.abs(r.divergencia)>0.01).length;
+  const acuracia=totalItems>0?((totalItems-comDiverg)/totalItems*100).toFixed(1):'0.0';
+  const totalEntradas=lista.reduce((a,r)=>a+(r.qtd_entrada||0),0);
+  const totalSaidas=lista.reduce((a,r)=>a+(r.qtd_saida||0),0);
+  const fmtN=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:1});
+  resumo.innerHTML=`
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 20px;text-align:center;min-width:100px">
+      <div style="font-size:22px;font-weight:800;color:#1e40af">${totalItems}</div>
+      <div style="font-size:11px;color:#64748b">SKUs</div>
+    </div>
+    <div style="background:${Number(acuracia)>=95?'#f0fdf4':Number(acuracia)>=80?'#fffbeb':'#fef2f2'};border:1px solid ${Number(acuracia)>=95?'#bbf7d0':Number(acuracia)>=80?'#fed7aa':'#fecaca'};border-radius:10px;padding:14px 20px;text-align:center;min-width:130px">
+      <div style="font-size:22px;font-weight:800;color:${Number(acuracia)>=95?'#16a34a':Number(acuracia)>=80?'#d97706':'#dc2626'}">${acuracia}%</div>
+      <div style="font-size:11px;color:#64748b">Acurácia (${totalItems-comDiverg}/${totalItems})</div>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 20px;text-align:center;min-width:100px">
+      <div style="font-size:22px;font-weight:800;color:#16a34a">${fmtN(totalEntradas)}</div>
+      <div style="font-size:11px;color:#64748b">Total Entradas</div>
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 20px;text-align:center;min-width:100px">
+      <div style="font-size:22px;font-weight:800;color:#d97706">${fmtN(totalSaidas)}</div>
+      <div style="font-size:11px;color:#64748b">Total Saídas</div>
+    </div>
+    <div style="background:${comDiverg>0?'#fef2f2':'#f8fafc'};border:1px solid ${comDiverg>0?'#fecaca':'#e2e8f0'};border-radius:10px;padding:14px 20px;text-align:center;min-width:100px">
+      <div style="font-size:22px;font-weight:800;color:${comDiverg>0?'#dc2626':'#64748b'}">${comDiverg}</div>
+      <div style="font-size:11px;color:#64748b">Com Divergência</div>
+    </div>`;
+
+  // Tabela
+  if(!lista.length){
+    document.getElementById('comp-tabela-wrap').innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8">Nenhum item encontrado.</div>';
+    return;
+  }
+  const corDiverg=v=>{
+    if(Math.abs(v)<0.01)return{cor:'#16a34a',bg:'#f0fdf4'};
+    if(v>0)return{cor:'#d97706',bg:'#fffbeb'};
+    return{cor:'#dc2626',bg:'#fef2f2'};
+  };
+  document.getElementById('comp-tabela-wrap').innerHTML=`
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+        <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Filial</th>
+        <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Código</th>
+        <th style="padding:8px 10px;text-align:left;font-weight:600;color:#64748b">Descrição</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#16a34a">🛒 Compras</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#7c3aed">🔄 Transf. Rec.</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#0ea5e9">↩ Devoluções</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#f59e0b">📋 Inventário</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#d97706">📦 Consumo SCP</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#1e40af">Saldo Calc.</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#475569">Estoque Atual</th>
+        <th style="padding:8px 10px;text-align:right;font-weight:600;color:#dc2626">Divergência</th>
+      </tr></thead>
+      <tbody>${lista.slice(0,500).map((r,_ri)=>{
+        const d=corDiverg(r.divergencia);
+        const fmtQ=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2});
+        const FNOMES={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiânia','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia','44':'Brumado'};
+        return `<tr style="border-bottom:1px solid #f1f5f9">
+          <td style="padding:7px 10px;font-size:11px"><span style="color:#1e40af;font-weight:600">${r.filial}</span><br><span style="color:#64748b;font-size:10px">${FNOMES[r.filial]||''}</span></td>
+          <td style="padding:7px 10px;font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
+          <td style="padding:7px 10px;font-size:11px">${r.descricao||'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:#16a34a;font-weight:600">
+            ${fmtQ(r.qtd_compra||0)}
+            ${(r.qtd_compra||0)>0?`<button onclick="baixarNotasEntrada('${r.filial}','${r.produto}')" style="display:block;margin:2px auto 0;background:#dcfce7;color:#166534;border:none;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;white-space:nowrap">⬇ Notas</button>`:''}
+          </td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_transf||0)>0?'#7c3aed':'#cbd5e1'}">${(r.qtd_transf||0)>0?fmtQ(r.qtd_transf):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_devolucao||0)>0?'#0ea5e9':'#cbd5e1'}">${(r.qtd_devolucao||0)>0?fmtQ(r.qtd_devolucao):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600;color:${(r.qtd_inventario||0)>0?'#f59e0b':'#cbd5e1'}" title="${(r.qtd_inventario||0)>0?'Ajuste de inventário registrado':''}">${(r.qtd_inventario||0)>0?fmtQ(r.qtd_inventario):'—'}</td>
+          <td style="padding:7px 10px;text-align:right;color:#d97706;font-weight:600">${fmtQ(r.qtd_saida)}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:600">${fmtQ(r.saldo_calc)}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:700;${r._armazens&&r._armazens.length>1?'cursor:pointer;color:#1e40af;text-decoration:underline dotted':''}" ${r._armazens&&r._armazens.length>1?`onclick="abrirPopupComp(${_compDados.indexOf(r)})" title="Ver por armazém"`:''}>${fmtQ(r.qtd_atual)}</td>
+          <td style="padding:7px 10px;text-align:right;background:${d.bg};color:${d.cor};font-weight:700">${r.divergencia>=0?'+':''}${fmtQ(r.divergencia)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+    ${lista.length>500?`<div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px">Mostrando 500 de ${lista.length} itens. Use os filtros para refinar.</div>`:''}`;
+}
+
+function abrirPopupComp(idx){
+  const r=_compDados[idx];
+  if(!r||!r._armazens||!r._armazens.length)return;
+  const old=document.getElementById('popup-arm-comp');if(old)old.remove();
+  const linhas=r._armazens.sort((a,b)=>b.qtd-a.qtd).map(a=>
+    `<tr><td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;font-family:monospace">${a.armazem}</td>
+     <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">${a.qtd.toLocaleString('pt-BR')}</td></tr>`
+  ).join('');
+  const popup=document.createElement('div');
+  popup.id='popup-arm-comp';
+  popup.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.2);z-index:9999;min-width:280px;overflow:hidden';
+  const invDate=r.ultimo_inventario?new Date(r.ultimo_inventario).toLocaleDateString('pt-BR'):'—';
+  const invBadge=r.ultimo_inventario?`<div style="font-size:11px;color:#f59e0b;margin-top:4px">📋 Último inventário: ${invDate}</div>`:'';
+  popup.innerHTML=`
+    <div style="background:#0f172a;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700;font-size:13px">${(r.produto||'').trim()} — Filial ${(r.filial||'').trim()}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px">${(r.descricao||'').trim()}</div>
+        ${invBadge}
+      </div>
+      <button onclick="document.getElementById('popup-arm-comp').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1">✕</button>
+    </div>
+    <div style="padding:8px 0">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th style="padding:6px 12px;text-align:left;color:#64748b;font-size:11px;border-bottom:2px solid #e2e8f0">Armazém</th>
+          <th style="padding:6px 12px;text-align:right;color:#64748b;font-size:11px;border-bottom:2px solid #e2e8f0">Qtd</th>
+        </tr></thead>
+        <tbody>${linhas}</tbody>
+        <tfoot><tr>
+          <td style="padding:8px 12px;font-weight:700;border-top:2px solid #e2e8f0">Total</td>
+          <td style="padding:8px 12px;font-weight:700;text-align:right;border-top:2px solid #e2e8f0">${(Number(r.qtd_atual)||0).toLocaleString('pt-BR')}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+  document.body.appendChild(popup);
+  setTimeout(()=>document.addEventListener('click',function h(e){
+    if(!popup.contains(e.target)){popup.remove();document.removeEventListener('click',h);}
+  }),100);
+}
+window.abrirPopupComp=abrirPopupComp;
+
+function exportarComparativoCompleto(){
+  const busca=(document.getElementById('comp-busca')?.value||'').toLowerCase();
+  const filialFiltro=(document.getElementById('comp-filial')?.value||'').trim();
+  const grupo=(document.getElementById('comp-grupo')?.value||'').trim();
+  const diverg=document.getElementById('comp-diverg')?.value||'';
+  const FNOMES={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiania','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia','44':'Brumado'};
+  let lista=_compDados.filter(r=>{
+    if(filialFiltro&&r.filial!==filialFiltro)return false;
+    if(busca&&!(r.produto.toLowerCase().includes(busca)||r.descricao.toLowerCase().includes(busca)))return false;
+    if(grupo&&r.grupo!==grupo)return false;
+    if(diverg==='diverg'&&Math.abs(r.divergencia)<=(r.saldo_calc*0.1))return false;
+    return true;
+  });
+  if(!lista.length){alert('Nenhum item para exportar.');return;}
+  const rows=lista.map(r=>({
+    'Filial':         r.filial,
+    'Nome Filial':    FNOMES[r.filial]||r.filial,
+    'Código':         r.produto,
+    'Descrição':      r.descricao||'',
+    'Grupo':          r.grupo||'',
+    'Compras':        r.qtd_compra||0,
+    'Valor Compras':  r.valor_compra||0,
+    'Transf. Rec.':   r.qtd_transf||0,
+    'Devoluções':     r.qtd_devolucao||0,
+    'Inventário':     r.qtd_inventario||0,
+    'Consumo SCP':    r.qtd_saida||0,
+    'Saldo Calc.':    r.saldo_calc||0,
+    'Estoque Atual':  r.qtd_atual||0,
+    'Divergência':    r.divergencia||0,
+    'Ult. Inventário':r.ultimo_inventario||'',
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Comparativo');
+  const dt=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  XLSX.writeFile(wb,'comparativo_estoque_'+dt+'.xlsx');
+}
+window.exportarComparativoCompleto=exportarComparativoCompleto;
+
+async function baixarNotasEntrada(filial, produto){
+  let{data:notas}=await db.from('movimentos_entrada')
+    .select('filial,produto,descricao,mes,emissao,nota_fiscal,serie,fornecedor,qtd_entrada,preco_unit,valor_entrada')
+    .eq('filial',filial).eq('produto',produto).gte('mes','202501').order('emissao');
+  if(!notas||!notas.length){alert('Nenhuma nota encontrada para este item.');return;}
+  const rows=notas.map(r=>({
+    'Filial':r.filial,'Produto':r.produto,'Descrição':r.descricao||'',
+    'Mês':r.mes?r.mes.slice(4,6)+'/'+r.mes.slice(0,4):'',
+    'Emissão':r.emissao?r.emissao.slice(6,8)+'/'+r.emissao.slice(4,6)+'/'+r.emissao.slice(0,4):'',
+    'Nota Fiscal':r.nota_fiscal||'','Série':r.serie||'','Fornecedor':r.fornecedor||'',
+    'Qtde':r.qtd_entrada||0,'Preço Unit.':r.preco_unit||0,'Valor Total':r.valor_entrada||0,
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Notas de Entrada');
+  XLSX.writeFile(wb,'notas_entrada_'+produto+'_f'+filial+'.xlsx');
+}
+window.baixarNotasEntrada=baixarNotasEntrada;
+
+async function exportarComparativo(){
+  if(!_compDados.length){alert('Carregue o comparativo primeiro.');return;}
+  const rows=_compDados.map(r=>({
+    'Filial':r.filial,
+    'Código':r.produto,
+    'Descrição':r.descricao,
+    'Grupo':r.grupo,
+    'Entradas jan/25':r.qtd_entrada,
+    'Valor Entradas':r.valor_entrada.toFixed(2),
+    'Consumo SCP jan/25':r.qtd_saida,
+    'Valor Saídas':r.valor_saida.toFixed(2),
+    'Saldo Calculado':r.saldo_calc,
+    'Estoque Atual':r.qtd_atual,
+    'Divergência':r.divergencia,
+    'Custo Médio':r.custo_medio,
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:6},{wch:12},{wch:50},{wch:20},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14},{wch:12},{wch:12},{wch:12}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Comparativo');
+  XLSX.writeFile(wb,'comparativo_estoque.xlsx');
+}
+</script>
+</body>
+</html>
