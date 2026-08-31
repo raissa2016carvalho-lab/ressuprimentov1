@@ -777,9 +777,7 @@ async function carregarComparativo(){
   soma(sd1,'qtd_entrada','qtd_sd1');
   // sd3Consumo removido - usando tm501 diretamente
   soma(sd2Env,'qtd_total','qtd_sd2_env');
-  soma(sd3Rec,'qtd_total','qtd_sd3_rec');
-  soma(sd3Dev,'qtd_total','qtd_sd3_dev');
-  soma(sd3Bai,'qtd_total','qtd_sd3_bai');
+  // movimentos SD3 somados por TM acima
 
   Object.keys(mapa).forEach(k=>{
     const cod=(mapa[k].produto||'').trim();
