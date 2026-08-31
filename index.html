@@ -1932,7 +1932,14 @@ if(elResumo){
     ${cats.estoque.length>0?`<span style="background:#dbeafe;color:#1e40af;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">📦 ${cats.estoque.length} estoque</span>`:''}
   `;
 }function baixarExcelCatMob(catKey){let linhas=({recebido:cats.recebido,pendente:cats.pendente,aprovacao:cats.aprovacao,semPedido:cats.semPedido}[catKey]||[]).flatMap(it=>it.linhas&&it.linhas.length>0?it.linhas.map(l=>({Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:l.c7_numsc,Status:l.status_desc,"Qtde PC":l.c7_quant})):[{Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:`-`,Status:catKey===`recebido`?`Recebido`:`Sem pedido`,"Qtde PC":``}]);if(!linhas.length){alert(`Nenhum item nesta categoria.`);return}let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,catKey),XLSX.writeFile(wb,`mobilizacao_${catKey}.xlsx`)}window.baixarExcelCatMob=baixarExcelCatMob;
-function baixarExcelMobCompleto(nomeArq){
+async function baixarExcelMobCompleto(nomeArq){
+  // Buscar estoque da mobilização atual
+  const mobIdAtual = nomeArq ? nomeArq.replace('mobilizacao_','') : null;
+  let mapaEstExcel = {};
+  if(mobIdAtual){
+    const {data:estData} = await db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id', Number(mobIdAtual));
+    (estData||[]).forEach(e=>{ if(e.codigo) mapaEstExcel[e.codigo.trim()] = Number(e.qtd_estoque)||0; });
+  }
   // Exporta todos os itens de todas as categorias
   let todasCats=[...cats.recebido,...cats.estoque,...cats.aprovacao,...cats.pendente,...cats.semPedido];
   let linhas=todasCats.flatMap(it=>{
@@ -1941,7 +1948,7 @@ function baixarExcelMobCompleto(nomeArq){
         'Código':         it.codigo||'(manual)',
         'Descrição':      it.descricao,
         'Total Mob.':     it.total_mob,
-        'Estoque Disp.':  it.qtdEst||0,
+        'Estoque Disp.':  mapaEstExcel[(it.codigo||'').trim()]||it.qtdEst||0,
         'SC':             l.c7_numsc||'-',
         'N° PC':          l.c7_num||'-',
         'Status PC':      l.status_desc||'-',
@@ -1963,7 +1970,7 @@ function baixarExcelMobCompleto(nomeArq){
       'Código':       it.codigo||'(manual)',
       'Descrição':    it.descricao,
       'Total Mob.':   it.total_mob,
-      'Estoque Disp.':it.qtdEst||0,
+      'Estoque Disp.':mapaEstExcel[(it.codigo||'').trim()]||it.qtdEst||0,
       'Saldo (PC+Est-Mob)': (it.qtdEst||0)-(it.total_mob||0),
       'SC':           '-','N° PC':'-','Status PC':'-',
       'Qtde PC':'','Valor PC':'','Comprador':'-','Prev. Entrega':'-',
