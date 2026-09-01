@@ -1955,7 +1955,7 @@ async function baixarExcelMobCompleto(nomeArq){
                    _catsGlobal?.estoque.some(x=>x.codigo===it.codigo)?'Via estoque':
                    _catsGlobal?.aprovacao.some(x=>x.codigo===it.codigo)?'Em aprovação':
                    _catsGlobal?.pendente.some(x=>x.codigo===it.codigo)?'Pendente':'Sem pedido';
-    const estDisp=mapaEstExcel[(it.codigo||'').trim()]||it.qtdEst||0;
+    const _codTrimEx=(it.codigo||'').trim();const estDisp=_codTrimEx in mapaEstExcel?mapaEstExcel[_codTrimEx]:(it.qtdEst||0);
     return {
       'Código':             it.codigo||'(manual)',
       'Descrição':          it.descricao,
