@@ -1945,40 +1945,32 @@ async function baixarExcelMobCompleto(nomeArq){
   }
   // Exporta todos os itens de todas as categorias
   let todasCats=[..._catsGlobal?.recebido,..._catsGlobal?.estoque,..._catsGlobal?.aprovacao,..._catsGlobal?.pendente,..._catsGlobal?.semPedido];
-  let linhas=todasCats.flatMap(it=>{
-    if(it.linhas&&it.linhas.length>0){
-      return it.linhas.map(l=>({
-        'Código':         it.codigo||'(manual)',
-        'Descrição':      it.descricao,
-        'Total Mob.':     it.total_mob,
-        'Estoque Disp.':  mapaEstExcel[(it.codigo||'').trim()]||it.qtdEst||0,
-        'SC':             l.c7_numsc||'-',
-        'N° PC':          l.c7_num||'-',
-        'Status PC':      l.status_desc||'-',
-        'Qtde PC':        l.c7_quant||'',
-        'Valor PC':       l.c7_total||'',
-        'Comprador':      l.c7_comprador||'-',
-        'Prev. Entrega':  l.dt_entrega?l.dt_entrega.slice(6,8)+'/'+l.dt_entrega.slice(4,6)+'/'+l.dt_entrega.slice(0,4):'-',
-        'Situação':       _catsGlobal?.recebido.some(x=>x.codigo===it.codigo)?'Recebido':
-                          _catsGlobal?.estoque.some(x=>x.codigo===it.codigo)?'Via estoque':
-                          _catsGlobal?.aprovacao.some(x=>x.codigo===it.codigo)?'Em aprovação':
-                          _catsGlobal?.pendente.some(x=>x.codigo===it.codigo)?'Pendente':'Sem pedido',
-        'Saldo (PC+Est-Mob)': (()=>{
-          let qtdPcTot=it.linhas?it.linhas.reduce((a,l2)=>a+(Number(l2.c7_quant)||0),0):0;
-          return (qtdPcTot+(it.qtdEst||0))-(it.total_mob||0);
-        })(),
-      }));
-    }
-    return [{
-      'Código':       it.codigo||'(manual)',
-      'Descrição':    it.descricao,
-      'Total Mob.':   it.total_mob,
-      'Estoque Disp.':mapaEstExcel[(it.codigo||'').trim()]||it.qtdEst||0,
-      'Saldo (PC+Est-Mob)': (it.qtdEst||0)-(it.total_mob||0),
-      'SC':           '-','N° PC':'-','Status PC':'-',
-      'Qtde PC':'','Valor PC':'','Comprador':'-','Prev. Entrega':'-',
-      'Situação':     _catsGlobal?.semPedido.some(x=>x.codigo===it.codigo)?'Sem pedido':'Via estoque',
-    }];
+  // Uma linha por item — PCs consolidados em células separadas por vírgula
+  let linhas=todasCats.map(it=>{
+    const fmtDt=d=>d?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'-';
+    const pcs=it.linhas||[];
+    const qtdPcTot=pcs.reduce((a,l)=>a+(Number(l.c7_quant)||0),0);
+    const valorTot=pcs.reduce((a,l)=>a+(Number(l.c7_total)||0),0);
+    const situacao=_catsGlobal?.recebido.some(x=>x.codigo===it.codigo)?'Recebido':
+                   _catsGlobal?.estoque.some(x=>x.codigo===it.codigo)?'Via estoque':
+                   _catsGlobal?.aprovacao.some(x=>x.codigo===it.codigo)?'Em aprovação':
+                   _catsGlobal?.pendente.some(x=>x.codigo===it.codigo)?'Pendente':'Sem pedido';
+    const estDisp=mapaEstExcel[(it.codigo||'').trim()]||it.qtdEst||0;
+    return {
+      'Código':             it.codigo||'(manual)',
+      'Descrição':          it.descricao,
+      'Total Mob.':         it.total_mob,
+      'Estoque Disp.':      estDisp,
+      'SCs':                [...new Set(pcs.map(l=>l.c7_numsc).filter(Boolean))].join(', ')||'-',
+      'PCs':                [...new Set(pcs.map(l=>l.c7_num).filter(Boolean))].join(', ')||'-',
+      'Status PC':          [...new Set(pcs.map(l=>l.status_desc).filter(Boolean))].join(', ')||'-',
+      'Qtde PC (total)':    qtdPcTot||'',
+      'Valor PC (total)':   valorTot?valorTot.toFixed(2):'',
+      'Comprador':          [...new Set(pcs.map(l=>l.c7_comprador).filter(Boolean))].join(', ')||'-',
+      'Prev. Entrega':      pcs.map(l=>fmtDt(l.dt_entrega)).filter(d=>d!=='-').join(', ')||'-',
+      'Situação':           situacao,
+      'Saldo (PC+Est-Mob)': (qtdPcTot+estDisp)-(it.total_mob||0),
+    };
   });
   if(!linhas.length){alert('Nenhum item para exportar.');return;}
   let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();
