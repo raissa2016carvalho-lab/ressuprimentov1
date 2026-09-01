@@ -1918,7 +1918,7 @@ itensConsolidados.forEach(it=>{
   } else {
     cats.pendente.push({...it,linhas:linhasValidas,qtdEst});
   }
-})_catsGlobal=cats;_mobIdExcel=mobId;;let total=(itensConsolidados.length-cats.eliminado.length)||1,pctPend=Math.round(cats.pendente.length/total*100),pctAprov=Math.round(cats.aprovacao.length/total*100),pctSem=Math.round(cats.semPedido.length/total*100);
+});_catsGlobal=cats;_mobIdExcel=mobId;let total=(itensConsolidados.length-cats.eliminado.length)||1,pctPend=Math.round(cats.pendente.length/total*100),pctAprov=Math.round(cats.aprovacao.length/total*100),pctSem=Math.round(cats.semPedido.length/total*100);
 // Atualizar resumo no card fechado
 let elResumo=document.getElementById('mob-resumo-'+mobId);
 if(elResumo){
