@@ -1888,7 +1888,7 @@ function itemEstaRecebido(codigo){return qtdRecebidaDoItem(codigo)>0;}
 let cats={recebido:[],estoque:[],pendente:[],aprovacao:[],semPedido:[],eliminado:[]};
 itensConsolidados.forEach(it=>{
   let codTrim=(it.codigo||``).trim();
-  let qtdEst=codTrim&&mapaEstoque[codTrim]||0;
+  let qtdEst=codTrim&&(codTrim in mapaEstoque)?mapaEstoque[codTrim]:0;
   let totalMob=it.total_mob||0;
   let linhasPc=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[];
   let linhasResiduo=linhasPc.filter(p=>isResiduoFn(p));
@@ -2090,7 +2090,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
           <th style="width:150px">Observação</th>
           <th style="width:36px"></th>
         </tr>
-        ${itensConsolidados.flatMap((it,idx)=>{let codTrim=(it.codigo||``).trim(),qtdEstoque=codTrim&&mapaEstoque[codTrim]||0,qtdRecebidaPC=codTrim?qtdRecebidaDoItem(codTrim):0,itemAtendido=(cats.recebido.some(x=>x.codigo===it.codigo)||cats.estoque.some(x=>x.codigo===it.codigo)),equipesAtendidas=(()=>{
+        ${itensConsolidados.flatMap((it,idx)=>{let codTrim=(it.codigo||``).trim(),qtdEstoque=(codTrim&&codTrim in mapaEstoque)?mapaEstoque[codTrim]:0,qtdRecebidaPC=codTrim?qtdRecebidaDoItem(codTrim):0,itemAtendido=(cats.recebido.some(x=>x.codigo===it.codigo)||cats.estoque.some(x=>x.codigo===it.codigo)),equipesAtendidas=(()=>{
   let qtdPorEquipe=numEquipes>0&&it.total_mob>0?it.total_mob/numEquipes:0;
   if(qtdPorEquipe<=0)return 0;
   // Sempre soma recebido via PC + estoque disponível (independente da categoria)
