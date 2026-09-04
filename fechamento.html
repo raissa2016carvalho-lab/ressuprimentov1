@@ -1423,20 +1423,23 @@ async function renderDevolucoes(){
   const content = document.getElementById('content');
   content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Carregando devoluções...</div>';
 
+  // Usar mês do filtro global ou último mês disponível nos dados de consumo
   const mesSel = document.getElementById('f-mes')?.value || '';
+  const mesesDisp = [...new Set(_dados.map(r=>r.mes))].filter(Boolean).sort();
+  const ultimoMes = mesesDisp[mesesDisp.length-1] || '';
+  const mesRef = mesSel || ultimoMes;
+
+  if(!mesRef){
+    content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Selecione um mês para ver as devoluções.</div>';
+    return;
+  }
 
   try {
     // Buscar mov_sd3_001 do banco
     let query = db.from('mov_sd3_001')
       .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,quantidade,valor_total,custo_fonte')
+      .eq('mes', mesRef)
       .order('emissao', {ascending: false});
-
-    if(mesSel) query = query.eq('mes', mesSel);
-    else {
-      // Ultimo mes disponivel
-      const {data: mesData} = await db.from('mov_sd3_001').select('mes').order('mes',{ascending:false}).limit(1);
-      if(mesData?.length) query = query.eq('mes', mesData[0].mes);
-    }
 
     const {data, error} = await query.limit(50000);
     if(error) throw error;
@@ -1446,7 +1449,7 @@ async function renderDevolucoes(){
       return;
     }
 
-    const mesRef = data[0]?.mes || mesSel;
+    // mesRef já definido acima
     const totalVal = data.reduce((a,r)=>a+(r.valor_total||0),0);
     const totalQtd = data.reduce((a,r)=>a+(r.quantidade||0),0);
     const fmtVal = v => 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1559,12 +1562,12 @@ async function renderComparativo(){
       mapCC[r.cc][col] = (mapCC[r.cc][col]||0) + (r.valor_total||0);
     });
 
-    // Somar devoluções (mov_sd3_001) por CC + coluna amigo
+    // Subtrair devoluções (mov_sd3_001) por CC + coluna amigo
     devData.forEach(r => {
       const col = GRUPO_DEPARA[r.grupo] || 'OUTROS';
       if(!GRUPOS_COLS.includes(col)) return;
       if(!mapCC[r.cc]) mapCC[r.cc] = {};
-      mapCC[r.cc][col] = (mapCC[r.cc][col]||0) + (r.valor_total||0);
+      mapCC[r.cc][col] = (mapCC[r.cc][col]||0) - (r.valor_total||0);
     });
 
     const ccs = Object.keys(mapCC).sort();
@@ -1585,7 +1588,7 @@ async function renderComparativo(){
         </div>
         <div style="font-size:13px;color:#64748b">
           Total: <strong style="color:#0f172a">R$ ${totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong>
-          <span style="font-size:11px;color:#94a3b8;margin-left:8px">(Consumo SCP + Devoluções SD3 TM001)</span>
+          <span style="font-size:11px;color:#94a3b8;margin-left:8px">(Consumo SCP - Devoluções SD3 TM001)</span>
         </div>
       </div>
       <div style="overflow:auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0">
