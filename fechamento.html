@@ -202,7 +202,6 @@ tr.alerta:hover td{background:#fef08a}
   <button class="aba-btn" onclick="irParaAba('por-cc',this)">👥 Por CC</button>
   <button class="aba-btn" onclick="irParaAba('mensal',this)">📅 Mensal</button>
   <button class="aba-btn" onclick="irParaAba('custo-zero',this)">⚠️ Custo Zero</button>
-  <button class="aba-btn" onclick="irParaAba('itens',this)">📋 Itens</button>
   <button class="aba-btn" onclick="irParaAba('analise',this)">🔍 Análise</button>
   <button class="aba-btn" onclick="irParaAba('auditoria',this)">🧮 Auditoria</button>
   <button class="aba-btn" onclick="irParaAba('devolucoes',this)">↩️ Devoluções</button>
@@ -1384,7 +1383,9 @@ async function renderAuditoria(){
 }
 window.renderAuditoria=renderAuditoria;
 
-// DE-PARA grupos: código Protheus -> grupo relatório amigo
+// =============================================
+// DE-PARA grupos: grupo SCP -> coluna amigo
+// =============================================
 const GRUPO_DEPARA = {
   'EPI / EPC E FERRAMENTAS':                 'EPI/EPC',
   'FARDAMENTOS & UNIFORMES':                 'FARDAMENTO',
@@ -1402,134 +1403,189 @@ const GRUPO_DEPARA = {
   'MAQUINAS E EQUIPAMENTOS PESADOS':         'OUTROS',
 };
 
-// Render aba Devoluções
+// Grupos colunas do comparativo (estilo amigo)
+const GRUPOS_COLS = [
+  'CONSUMO OFICINA','EPI/EPC','FARDAMENTO',
+  'MATERIAIS DE CONSUMO ADM','MATERIAIS DE CONSUMO OBRA',
+  'MATERIAIS ELETRICOS','PEÇAS VEICULARES','PNEUS',
+  'OLEO & LUBRIFICANTES','INFORMATICA'
+];
+
+// Cache dos dados de devolução
+let _dadosDev = null;
+let _mesDev = '';
+let _mesComparativo = '';
+
+// =============================================
+// ABA DEVOLUÇÕES
+// =============================================
 async function renderDevolucoes(){
   const content = document.getElementById('content');
   content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Carregando devoluções...</div>';
-  
-  // Pegar mês selecionado
+
   const mesSel = document.getElementById('f-mes')?.value || '';
-  
+
   try {
-    // Buscar TM503 (devoluções) da mov_sd3_entrada
-    let query = db.from('mov_sd3_entrada')
-      .select('filial, produto, emissao, qtd_total, tm')
-      .eq('tm', '503');
-    
-    if(mesSel) {
-      // emissao é YYYYMMDD, filtrar pelo mês YYYYMM
-      query = query.gte('emissao', mesSel + '01').lte('emissao', mesSel + '31');
+    // Buscar mov_sd3_001 do banco
+    let query = db.from('mov_sd3_001')
+      .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,quantidade,valor_total,custo_fonte')
+      .order('emissao', {ascending: false});
+
+    if(mesSel) query = query.eq('mes', mesSel);
+    else {
+      // Ultimo mes disponivel
+      const {data: mesData} = await db.from('mov_sd3_001').select('mes').order('mes',{ascending:false}).limit(1);
+      if(mesData?.length) query = query.eq('mes', mesData[0].mes);
     }
-    
+
     const {data, error} = await query.limit(50000);
     if(error) throw error;
-    
-    if(!data || !data.length){
-      content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Nenhuma devolução encontrada para o período selecionado.</div>';
+
+    if(!data?.length){
+      content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Nenhuma devolução encontrada.</div>';
       return;
     }
-    
-    // Agrupar por filial + produto
-    const map = {};
-    data.forEach(r => {
-      const k = r.filial + '|' + r.produto;
-      if(!map[k]) map[k] = {filial: r.filial, produto: r.produto, qtd: 0, registros: 0};
-      map[k].qtd += Number(r.qtd_total) || 0;
-      map[k].registros++;
-    });
-    
-    const rows = Object.values(map).sort((a,b) => b.qtd - a.qtd);
-    const totalQtd = rows.reduce((a,r) => a + r.qtd, 0);
-    
+
+    const mesRef = data[0]?.mes || mesSel;
+    const totalVal = data.reduce((a,r)=>a+(r.valor_total||0),0);
+    const totalQtd = data.reduce((a,r)=>a+(r.quantidade||0),0);
+    const fmtVal = v => 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const fmtDt = d => d?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'-';
+
     content.innerHTML = `
-      <div style="margin-bottom:16px;display:flex;gap:16px;align-items:center">
-        <div style="background:#fff;border-radius:10px;padding:12px 20px;border:1px solid #e2e8f0">
-          <div style="font-size:11px;color:#64748b">Total Devoluções (TM503)</div>
-          <div style="font-size:22px;font-weight:700;color:#0f172a">${data.length.toLocaleString('pt-BR')} movimentos</div>
+      <div style="margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <div style="background:#fff;border-radius:10px;padding:10px 18px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b">Mês</div>
+          <div style="font-size:18px;font-weight:700">${mesRef.slice(4,6)}/${mesRef.slice(0,4)}</div>
         </div>
-        <div style="background:#fff;border-radius:10px;padding:12px 20px;border:1px solid #e2e8f0">
-          <div style="font-size:11px;color:#64748b">Qtd Total Devolvida</div>
-          <div style="font-size:22px;font-weight:700;color:#16a34a">${totalQtd.toLocaleString('pt-BR',{maximumFractionDigits:2})}</div>
+        <div style="background:#fff;border-radius:10px;padding:10px 18px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b">Total Devoluções</div>
+          <div style="font-size:18px;font-weight:700;color:#16a34a">${fmtVal(totalVal)}</div>
         </div>
-        <div style="background:#fff;border-radius:10px;padding:12px 20px;border:1px solid #e2e8f0">
-          <div style="font-size:11px;color:#64748b">Produtos distintos</div>
-          <div style="font-size:22px;font-weight:700;color:#7c3aed">${rows.length.toLocaleString('pt-BR')}</div>
+        <div style="background:#fff;border-radius:10px;padding:10px 18px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b">Movimentos</div>
+          <div style="font-size:18px;font-weight:700;color:#7c3aed">${data.length.toLocaleString('pt-BR')}</div>
         </div>
       </div>
-      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <div style="overflow:auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead>
             <tr style="background:#1e3a5f;color:#fff">
-              <th style="padding:10px 14px;text-align:left">Filial</th>
-              <th style="padding:10px 14px;text-align:left">Produto</th>
-              <th style="padding:10px 14px;text-align:right">Qtd Devolvida</th>
-              <th style="padding:10px 14px;text-align:right">Movimentos</th>
+              <th style="padding:9px 12px;text-align:left">Filial</th>
+              <th style="padding:9px 12px;text-align:left">Produto</th>
+              <th style="padding:9px 12px;text-align:left;min-width:200px">Descrição</th>
+              <th style="padding:9px 12px;text-align:left">Grupo</th>
+              <th style="padding:9px 12px;text-align:left">CC</th>
+              <th style="padding:9px 12px;text-align:left">Matrícula</th>
+              <th style="padding:9px 12px;text-align:left">Documento</th>
+              <th style="padding:9px 12px;text-align:left">Emissão</th>
+              <th style="padding:9px 12px;text-align:right">Qtd</th>
+              <th style="padding:9px 12px;text-align:right">Valor</th>
+              <th style="padding:9px 12px;text-align:left">Observação</th>
             </tr>
           </thead>
           <tbody>
-            ${rows.map((r,i) => `
+            ${data.map((r,i)=>`
               <tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9">
-                <td style="padding:8px 14px">${r.filial}</td>
-                <td style="padding:8px 14px;font-family:monospace">${r.produto}</td>
-                <td style="padding:8px 14px;text-align:right;font-weight:600">${r.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>
-                <td style="padding:8px 14px;text-align:right;color:#64748b">${r.registros}</td>
+                <td style="padding:7px 12px">${r.filial}</td>
+                <td style="padding:7px 12px;font-family:monospace">${r.produto}</td>
+                <td style="padding:7px 12px">${r.descricao||'-'}</td>
+                <td style="padding:7px 12px">${r.grupo||'-'}</td>
+                <td style="padding:7px 12px">${r.cc||'-'}</td>
+                <td style="padding:7px 12px">${r.matricula||'-'}</td>
+                <td style="padding:7px 12px">${r.documento||'-'}</td>
+                <td style="padding:7px 12px">${fmtDt(r.emissao)}</td>
+                <td style="padding:7px 12px;text-align:right">${(r.quantidade||0).toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>
+                <td style="padding:7px 12px;text-align:right;font-weight:600;color:#16a34a">${fmtVal(r.valor_total)}</td>
+                <td style="padding:7px 12px;color:#64748b;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.observacao||'').replace(/"/g,"'")}">
+                  ${r.observacao||'-'}
+                </td>
               </tr>
             `).join('')}
           </tbody>
+          <tfoot>
+            <tr style="background:#1e3a5f;color:#fff;font-weight:700">
+              <td colspan="8" style="padding:9px 12px">TOTAL</td>
+              <td style="padding:9px 12px;text-align:right">${totalQtd.toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>
+              <td style="padding:9px 12px;text-align:right">${fmtVal(totalVal)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
         </table>
-      </div>
-    `;
-  } catch(e) {
-    content.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444">Erro ao carregar devoluções: ${e.message}</div>`;
+      </div>`;
+  } catch(e){
+    content.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444">Erro: ${e.message}</div>`;
   }
 }
 
-// Render aba Comparativo (tabela estilo amigo: CC x Grupo)
-// Mês próprio do comparativo — persiste entre navegações
-let _mesComparativo = '';
+// =============================================
+// ABA COMPARATIVO (CC x Grupo = SCP + SD3 TM001)
+// =============================================
+let _dadosDevComp = null;
 
-function renderComparativo(){
+async function renderComparativo(){
   const content = document.getElementById('content');
 
-  // Descobrir último mês disponível nos dados
+  // Meses disponíveis nos dados SCP
   const mesesDisp = [...new Set(_dados.map(r=>r.mes))].filter(Boolean).sort();
-  const ultimoMes = mesesDisp[mesesDisp.length - 1] || '';
-
-  // Usar mês salvo ou último disponível
+  const ultimoMes = mesesDisp[mesesDisp.length-1] || '';
   if(!_mesComparativo) _mesComparativo = ultimoMes;
 
-  // Grupos amigo (colunas)
-  const GRUPOS_COLS = ['CONSUMO OFICINA','EPI/EPC','FARDAMENTO','MATERIAIS DE CONSUMO ADM','MATERIAIS DE CONSUMO OBRA','MATERIAIS ELETRICOS','PEÇAS VEICULARES','PNEUS','OLEO & LUBRIFICANTES','INFORMATICA'];
+  content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Carregando comparativo...</div>';
+
+  // Buscar dados de devolução (mov_sd3_001) para o mês
+  try {
+    if(_dadosDevComp?.mes !== _mesComparativo){
+      const {data, error} = await db.from('mov_sd3_001')
+        .select('cc,grupo,valor_total')
+        .eq('mes', _mesComparativo)
+        .limit(50000);
+      if(!error) _dadosDevComp = {mes: _mesComparativo, data: data||[]};
+    }
+  } catch(e){ _dadosDevComp = {mes: _mesComparativo, data:[]}; }
+
+  const devData = _dadosDevComp?.data || [];
 
   function buildTable(mes){
-    const dadosFilt = mes ? _dados.filter(r => r.mes === mes) : _dados;
+    const scpFilt = _dados.filter(r => r.mes === mes);
+    const fmt = v => v ? 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+
+    // Agregar SCP por CC + coluna amigo
     const mapCC = {};
-    dadosFilt.forEach(r => {
-      const grupoAmigo = GRUPO_DEPARA[r.grupo] || 'OUTROS';
-      if(!GRUPOS_COLS.includes(grupoAmigo)) return;
+    scpFilt.forEach(r => {
+      const col = GRUPO_DEPARA[r.grupo] || 'OUTROS';
+      if(!GRUPOS_COLS.includes(col)) return;
       if(!mapCC[r.cc]) mapCC[r.cc] = {};
-      mapCC[r.cc][grupoAmigo] = (mapCC[r.cc][grupoAmigo] || 0) + (r.valor_total || 0);
+      mapCC[r.cc][col] = (mapCC[r.cc][col]||0) + (r.valor_total||0);
     });
+
+    // Somar devoluções (mov_sd3_001) por CC + coluna amigo
+    devData.forEach(r => {
+      const col = GRUPO_DEPARA[r.grupo] || 'OUTROS';
+      if(!GRUPOS_COLS.includes(col)) return;
+      if(!mapCC[r.cc]) mapCC[r.cc] = {};
+      mapCC[r.cc][col] = (mapCC[r.cc][col]||0) + (r.valor_total||0);
+    });
+
     const ccs = Object.keys(mapCC).sort();
-    const fmt = v => v ? 'R$ ' + v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
     const totaisGrupo = {};
-    GRUPOS_COLS.forEach(g => { totaisGrupo[g] = ccs.reduce((a,cc) => a+(mapCC[cc][g]||0), 0); });
+    GRUPOS_COLS.forEach(g => { totaisGrupo[g] = ccs.reduce((a,cc)=>a+(mapCC[cc][g]||0),0); });
     const totalGeral = Object.values(totaisGrupo).reduce((a,v)=>a+v,0);
 
     return `
       <div style="margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div>
           <label style="font-size:12px;color:#64748b;margin-right:6px">📅 Mês:</label>
-          <select id="sel-mes-comp" onchange="_mesComparativo=this.value;renderComparativo()" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px">
-            ${mesesDisp.map(m => {
-              const ano = m.slice(0,4), mm = m.slice(4,6);
-              const nome = new Date(ano,mm-1,1).toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
-              return `<option value="${m}" ${m===mes?'selected':''}>${nome.replace(' de ',' ').toUpperCase()}</option>`;
+          <select id="sel-mes-comp" onchange="_mesComparativo=this.value;_dadosDevComp=null;renderComparativo()" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px">
+            ${mesesDisp.map(m=>{
+              const nome=new Date(m.slice(0,4),m.slice(4,6)-1,1).toLocaleDateString('pt-BR',{month:'short',year:'numeric'}).toUpperCase();
+              return `<option value="${m}" ${m===mes?'selected':''}>${nome}</option>`;
             }).join('')}
           </select>
         </div>
         <div style="font-size:13px;color:#64748b">
           Total: <strong style="color:#0f172a">R$ ${totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong>
+          <span style="font-size:11px;color:#94a3b8;margin-left:8px">(Consumo SCP + Devoluções SD3 TM001)</span>
         </div>
       </div>
       <div style="overflow:auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0">
@@ -1542,12 +1598,12 @@ function renderComparativo(){
             </tr>
           </thead>
           <tbody>
-            ${ccs.map((cc,i) => {
-              const totalLinha = GRUPOS_COLS.reduce((a,g) => a+(mapCC[cc][g]||0), 0);
+            ${ccs.map((cc,i)=>{
+              const totalLinha = GRUPOS_COLS.reduce((a,g)=>a+(mapCC[cc][g]||0),0);
               return `<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9">
                 <td style="padding:7px 14px;font-weight:600;position:sticky;left:0;background:${i%2?'#f8fafc':'#fff'};z-index:1">${cc}</td>
-                ${GRUPOS_COLS.map(g => {
-                  const v = mapCC[cc][g]||0;
+                ${GRUPOS_COLS.map(g=>{
+                  const v=mapCC[cc][g]||0;
                   return `<td style="padding:7px 8px;text-align:right;${v<0?'color:#ef4444':''}">${v?fmt(v):'—'}</td>`;
                 }).join('')}
                 <td style="padding:7px 14px;text-align:right;font-weight:700">${fmt(totalLinha)}</td>
@@ -1567,6 +1623,7 @@ function renderComparativo(){
 
   content.innerHTML = buildTable(_mesComparativo);
 }
+
 
 function exportarExcel(){
   if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
