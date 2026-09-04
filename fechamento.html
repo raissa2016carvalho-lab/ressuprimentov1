@@ -198,13 +198,15 @@ tr.alerta:hover td{background:#fef08a}
 
 <!-- ABAS -->
 <div class="abas">
-  <button class="aba-btn ativa" onclick="irParaAba('resumo',this)">📊 Resumo</button>
+  <button class="aba-btn ativa" onclick="irParaAba('resumo',this)">📊 Fechamento</button>
   <button class="aba-btn" onclick="irParaAba('por-cc',this)">👥 Por CC</button>
   <button class="aba-btn" onclick="irParaAba('mensal',this)">📅 Mensal</button>
   <button class="aba-btn" onclick="irParaAba('custo-zero',this)">⚠️ Custo Zero</button>
   <button class="aba-btn" onclick="irParaAba('itens',this)">📋 Itens</button>
   <button class="aba-btn" onclick="irParaAba('analise',this)">🔍 Análise</button>
   <button class="aba-btn" onclick="irParaAba('auditoria',this)">🧮 Auditoria</button>
+  <button class="aba-btn" onclick="irParaAba('devolucoes',this)">↩️ Devoluções</button>
+  <button class="aba-btn" onclick="irParaAba('comparativo',this)">🤝 Comparativo</button>
 </div>
 
 <!-- CONTENT -->
@@ -402,6 +404,8 @@ function renderAba(aba){
   else if(aba==='itens')renderItens();
   else if(aba==='analise')renderAnalise();
   else if(aba==='auditoria')renderAuditoria();
+  else if(aba==='devolucoes')renderDevolucoes();
+  else if(aba==='comparativo')renderComparativo();
 }
 
 function kpisHTML(){
@@ -1379,6 +1383,180 @@ async function renderAuditoria(){
   ${variacaoHTML}`;
 }
 window.renderAuditoria=renderAuditoria;
+
+// DE-PARA grupos: código Protheus -> grupo relatório amigo
+const GRUPO_DEPARA = {
+  'EPI / EPC E FERRAMENTAS':                 'EPI/EPC',
+  'FARDAMENTOS & UNIFORMES':                 'FARDAMENTO',
+  'MATERIAIS ELETRICOS':                     'MATERIAIS ELETRICOS',
+  'PNEUS & CAMARAS':                         'PNEUS',
+  'PECAS DE VEICULOS / OFICINA':             'PEÇAS VEICULARES',
+  'OLEO & LUBRIFICANTES':                    'OLEO & LUBRIFICANTES',
+  'MATERIAIS DE EXPEDIENTE E CONSUMO ADM':   'MATERIAIS DE CONSUMO ADM',
+  'MOVEIS & UTENSILIOS':                     'MATERIAIS DE CONSUMO ADM',
+  'MATERIAL DE CONSUMO / OFICINA':           'CONSUMO OFICINA',
+  'EQUIPAMENTOS DE INFORMATICA':             'INFORMATICA',
+  'MATERIAIS DE CONSUMO OBRA':               'MATERIAIS DE CONSUMO OBRA',
+  'EQUIPAMENTOS & FERRAMENTAS / OFICINA':    'CONSUMO OFICINA',
+  'MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA': 'OUTROS',
+  'MAQUINAS E EQUIPAMENTOS PESADOS':         'OUTROS',
+};
+
+// Render aba Devoluções
+async function renderDevolucoes(){
+  const content = document.getElementById('content');
+  content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Carregando devoluções...</div>';
+  
+  // Pegar mês selecionado
+  const mesSel = document.getElementById('f-mes')?.value || '';
+  
+  try {
+    // Buscar TM503 (devoluções) da mov_sd3_entrada
+    let query = db.from('mov_sd3_entrada')
+      .select('filial, produto, emissao, qtd_total, tm')
+      .eq('tm', '503');
+    
+    if(mesSel) {
+      // emissao é YYYYMMDD, filtrar pelo mês YYYYMM
+      query = query.gte('emissao', mesSel + '01').lte('emissao', mesSel + '31');
+    }
+    
+    const {data, error} = await query.limit(50000);
+    if(error) throw error;
+    
+    if(!data || !data.length){
+      content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Nenhuma devolução encontrada para o período selecionado.</div>';
+      return;
+    }
+    
+    // Agrupar por filial + produto
+    const map = {};
+    data.forEach(r => {
+      const k = r.filial + '|' + r.produto;
+      if(!map[k]) map[k] = {filial: r.filial, produto: r.produto, qtd: 0, registros: 0};
+      map[k].qtd += Number(r.qtd_total) || 0;
+      map[k].registros++;
+    });
+    
+    const rows = Object.values(map).sort((a,b) => b.qtd - a.qtd);
+    const totalQtd = rows.reduce((a,r) => a + r.qtd, 0);
+    
+    content.innerHTML = `
+      <div style="margin-bottom:16px;display:flex;gap:16px;align-items:center">
+        <div style="background:#fff;border-radius:10px;padding:12px 20px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b">Total Devoluções (TM503)</div>
+          <div style="font-size:22px;font-weight:700;color:#0f172a">${data.length.toLocaleString('pt-BR')} movimentos</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:12px 20px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b">Qtd Total Devolvida</div>
+          <div style="font-size:22px;font-weight:700;color:#16a34a">${totalQtd.toLocaleString('pt-BR',{maximumFractionDigits:2})}</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:12px 20px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;color:#64748b">Produtos distintos</div>
+          <div style="font-size:22px;font-weight:700;color:#7c3aed">${rows.length.toLocaleString('pt-BR')}</div>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#1e3a5f;color:#fff">
+              <th style="padding:10px 14px;text-align:left">Filial</th>
+              <th style="padding:10px 14px;text-align:left">Produto</th>
+              <th style="padding:10px 14px;text-align:right">Qtd Devolvida</th>
+              <th style="padding:10px 14px;text-align:right">Movimentos</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r,i) => `
+              <tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9">
+                <td style="padding:8px 14px">${r.filial}</td>
+                <td style="padding:8px 14px;font-family:monospace">${r.produto}</td>
+                <td style="padding:8px 14px;text-align:right;font-weight:600">${r.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>
+                <td style="padding:8px 14px;text-align:right;color:#64748b">${r.registros}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch(e) {
+    content.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444">Erro ao carregar devoluções: ${e.message}</div>`;
+  }
+}
+
+// Render aba Comparativo (tabela estilo amigo: CC x Grupo)
+function renderComparativo(){
+  const content = document.getElementById('content');
+  
+  const mesSel = document.getElementById('f-mes')?.value || '';
+  const dadosFilt = mesSel ? _dados.filter(r => r.mes === mesSel) : _dados;
+  
+  if(!dadosFilt.length){
+    content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Selecione um mês para ver o comparativo.</div>';
+    return;
+  }
+  
+  // Grupos amigo (colunas)
+  const GRUPOS_COLS = ['CONSUMO OFICINA','EPI/EPC','FARDAMENTO','MATERIAIS DE CONSUMO ADM','MATERIAIS DE CONSUMO OBRA','MATERIAIS ELETRICOS','PEÇAS VEICULARES','PNEUS','OLEO & LUBRIFICANTES','INFORMATICA'];
+  
+  // Agrupar dados por CC e grupo amigo
+  const mapCC = {};
+  dadosFilt.forEach(r => {
+    const grupoAmigo = GRUPO_DEPARA[r.grupo] || 'OUTROS';
+    if(!GRUPOS_COLS.includes(grupoAmigo)) return;
+    if(!mapCC[r.cc]) mapCC[r.cc] = {};
+    mapCC[r.cc][grupoAmigo] = (mapCC[r.cc][grupoAmigo] || 0) + (r.valor_total || 0);
+  });
+  
+  const ccs = Object.keys(mapCC).sort();
+  const fmt = v => v ? 'R$ ' + v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : 'R$ -';
+  
+  // Totais por grupo
+  const totaisGrupo = {};
+  GRUPOS_COLS.forEach(g => {
+    totaisGrupo[g] = ccs.reduce((a,cc) => a + (mapCC[cc][g]||0), 0);
+  });
+  const totalGeral = Object.values(totaisGrupo).reduce((a,v)=>a+v,0);
+  
+  content.innerHTML = `
+    <div style="margin-bottom:12px;font-size:13px;color:#64748b">
+      Mês: <strong>${mesSel || 'Todos'}</strong> | 
+      Total: <strong>R$ ${totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong>
+    </div>
+    <div style="overflow:auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+        <thead>
+          <tr style="background:#1e3a5f;color:#fff">
+            <th style="padding:10px 14px;text-align:left;position:sticky;left:0;background:#1e3a5f;z-index:2">C.CUSTO</th>
+            ${GRUPOS_COLS.map(g=>`<th style="padding:10px 8px;text-align:right">${g}</th>`).join('')}
+            <th style="padding:10px 14px;text-align:right;background:#0f2a47">Total Geral</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ccs.map((cc,i) => {
+            const totalLinha = GRUPOS_COLS.reduce((a,g) => a+(mapCC[cc][g]||0), 0);
+            return `<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9">
+              <td style="padding:7px 14px;font-weight:600;position:sticky;left:0;background:${i%2?'#f8fafc':'#fff'};z-index:1">${cc}</td>
+              ${GRUPOS_COLS.map(g => {
+                const v = mapCC[cc][g]||0;
+                const cor = v < 0 ? 'color:#ef4444' : '';
+                return `<td style="padding:7px 8px;text-align:right;${cor}">${v ? fmt(v) : '—'}</td>`;
+              }).join('')}
+              <td style="padding:7px 14px;text-align:right;font-weight:700">${fmt(totalLinha)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:#1e3a5f;color:#fff;font-weight:700">
+            <td style="padding:10px 14px;position:sticky;left:0;background:#1e3a5f;z-index:2">Total Geral</td>
+            ${GRUPOS_COLS.map(g=>`<td style="padding:10px 8px;text-align:right">${fmt(totaisGrupo[g])}</td>`).join('')}
+            <td style="padding:10px 14px;text-align:right">${fmt(totalGeral)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
+}
 
 function exportarExcel(){
   if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
