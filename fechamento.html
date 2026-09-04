@@ -1485,77 +1485,87 @@ async function renderDevolucoes(){
 }
 
 // Render aba Comparativo (tabela estilo amigo: CC x Grupo)
+// Mês próprio do comparativo — persiste entre navegações
+let _mesComparativo = '';
+
 function renderComparativo(){
   const content = document.getElementById('content');
-  
-  const mesSel = document.getElementById('f-mes')?.value || '';
-  const dadosFilt = mesSel ? _dados.filter(r => r.mes === mesSel) : _dados;
-  
-  if(!dadosFilt.length){
-    content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Selecione um mês para ver o comparativo.</div>';
-    return;
-  }
-  
+
+  // Descobrir último mês disponível nos dados
+  const mesesDisp = [...new Set(_dados.map(r=>r.mes))].filter(Boolean).sort();
+  const ultimoMes = mesesDisp[mesesDisp.length - 1] || '';
+
+  // Usar mês salvo ou último disponível
+  if(!_mesComparativo) _mesComparativo = ultimoMes;
+
   // Grupos amigo (colunas)
   const GRUPOS_COLS = ['CONSUMO OFICINA','EPI/EPC','FARDAMENTO','MATERIAIS DE CONSUMO ADM','MATERIAIS DE CONSUMO OBRA','MATERIAIS ELETRICOS','PEÇAS VEICULARES','PNEUS','OLEO & LUBRIFICANTES','INFORMATICA'];
-  
-  // Agrupar dados por CC e grupo amigo
-  const mapCC = {};
-  dadosFilt.forEach(r => {
-    const grupoAmigo = GRUPO_DEPARA[r.grupo] || 'OUTROS';
-    if(!GRUPOS_COLS.includes(grupoAmigo)) return;
-    if(!mapCC[r.cc]) mapCC[r.cc] = {};
-    mapCC[r.cc][grupoAmigo] = (mapCC[r.cc][grupoAmigo] || 0) + (r.valor_total || 0);
-  });
-  
-  const ccs = Object.keys(mapCC).sort();
-  const fmt = v => v ? 'R$ ' + v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : 'R$ -';
-  
-  // Totais por grupo
-  const totaisGrupo = {};
-  GRUPOS_COLS.forEach(g => {
-    totaisGrupo[g] = ccs.reduce((a,cc) => a + (mapCC[cc][g]||0), 0);
-  });
-  const totalGeral = Object.values(totaisGrupo).reduce((a,v)=>a+v,0);
-  
-  content.innerHTML = `
-    <div style="margin-bottom:12px;font-size:13px;color:#64748b">
-      Mês: <strong>${mesSel || 'Todos'}</strong> | 
-      Total: <strong>R$ ${totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong>
-    </div>
-    <div style="overflow:auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
-        <thead>
-          <tr style="background:#1e3a5f;color:#fff">
-            <th style="padding:10px 14px;text-align:left;position:sticky;left:0;background:#1e3a5f;z-index:2">C.CUSTO</th>
-            ${GRUPOS_COLS.map(g=>`<th style="padding:10px 8px;text-align:right">${g}</th>`).join('')}
-            <th style="padding:10px 14px;text-align:right;background:#0f2a47">Total Geral</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${ccs.map((cc,i) => {
-            const totalLinha = GRUPOS_COLS.reduce((a,g) => a+(mapCC[cc][g]||0), 0);
-            return `<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9">
-              <td style="padding:7px 14px;font-weight:600;position:sticky;left:0;background:${i%2?'#f8fafc':'#fff'};z-index:1">${cc}</td>
-              ${GRUPOS_COLS.map(g => {
-                const v = mapCC[cc][g]||0;
-                const cor = v < 0 ? 'color:#ef4444' : '';
-                return `<td style="padding:7px 8px;text-align:right;${cor}">${v ? fmt(v) : '—'}</td>`;
-              }).join('')}
-              <td style="padding:7px 14px;text-align:right;font-weight:700">${fmt(totalLinha)}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-        <tfoot>
-          <tr style="background:#1e3a5f;color:#fff;font-weight:700">
-            <td style="padding:10px 14px;position:sticky;left:0;background:#1e3a5f;z-index:2">Total Geral</td>
-            ${GRUPOS_COLS.map(g=>`<td style="padding:10px 8px;text-align:right">${fmt(totaisGrupo[g])}</td>`).join('')}
-            <td style="padding:10px 14px;text-align:right">${fmt(totalGeral)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  `;
+
+  function buildTable(mes){
+    const dadosFilt = mes ? _dados.filter(r => r.mes === mes) : _dados;
+    const mapCC = {};
+    dadosFilt.forEach(r => {
+      const grupoAmigo = GRUPO_DEPARA[r.grupo] || 'OUTROS';
+      if(!GRUPOS_COLS.includes(grupoAmigo)) return;
+      if(!mapCC[r.cc]) mapCC[r.cc] = {};
+      mapCC[r.cc][grupoAmigo] = (mapCC[r.cc][grupoAmigo] || 0) + (r.valor_total || 0);
+    });
+    const ccs = Object.keys(mapCC).sort();
+    const fmt = v => v ? 'R$ ' + v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+    const totaisGrupo = {};
+    GRUPOS_COLS.forEach(g => { totaisGrupo[g] = ccs.reduce((a,cc) => a+(mapCC[cc][g]||0), 0); });
+    const totalGeral = Object.values(totaisGrupo).reduce((a,v)=>a+v,0);
+
+    return `
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div>
+          <label style="font-size:12px;color:#64748b;margin-right:6px">📅 Mês:</label>
+          <select id="sel-mes-comp" onchange="_mesComparativo=this.value;renderComparativo()" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px">
+            ${mesesDisp.map(m => {
+              const ano = m.slice(0,4), mm = m.slice(4,6);
+              const nome = new Date(ano,mm-1,1).toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
+              return `<option value="${m}" ${m===mes?'selected':''}>${nome.replace(' de ',' ').toUpperCase()}</option>`;
+            }).join('')}
+          </select>
+        </div>
+        <div style="font-size:13px;color:#64748b">
+          Total: <strong style="color:#0f172a">R$ ${totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong>
+        </div>
+      </div>
+      <div style="overflow:auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+          <thead>
+            <tr style="background:#1e3a5f;color:#fff">
+              <th style="padding:10px 14px;text-align:left;position:sticky;left:0;background:#1e3a5f;z-index:2">C.CUSTO</th>
+              ${GRUPOS_COLS.map(g=>`<th style="padding:10px 8px;text-align:right">${g}</th>`).join('')}
+              <th style="padding:10px 14px;text-align:right;background:#0f2a47">Total Geral</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ccs.map((cc,i) => {
+              const totalLinha = GRUPOS_COLS.reduce((a,g) => a+(mapCC[cc][g]||0), 0);
+              return `<tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9">
+                <td style="padding:7px 14px;font-weight:600;position:sticky;left:0;background:${i%2?'#f8fafc':'#fff'};z-index:1">${cc}</td>
+                ${GRUPOS_COLS.map(g => {
+                  const v = mapCC[cc][g]||0;
+                  return `<td style="padding:7px 8px;text-align:right;${v<0?'color:#ef4444':''}">${v?fmt(v):'—'}</td>`;
+                }).join('')}
+                <td style="padding:7px 14px;text-align:right;font-weight:700">${fmt(totalLinha)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:#1e3a5f;color:#fff;font-weight:700">
+              <td style="padding:10px 14px;position:sticky;left:0;background:#1e3a5f;z-index:2">Total Geral</td>
+              ${GRUPOS_COLS.map(g=>`<td style="padding:10px 8px;text-align:right">${fmt(totaisGrupo[g])}</td>`).join('')}
+              <td style="padding:10px 14px;text-align:right">${fmt(totalGeral)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+  }
+
+  content.innerHTML = buildTable(_mesComparativo);
 }
 
 function exportarExcel(){
