@@ -290,15 +290,10 @@ async function carregar(){
       .select('filial,cc,mes,grupo,motivo,valor_total,quantidade,custo_zero_count,ycustd_zero_count')
       .order('id')
       .range(off,off+999);
-    if(error||!data)break;
-    if(!data.length)break;
+    if(error||!data||!data.length)break;
     todos=todos.concat(data);
-    if(data.length<1000){off+=data.length;// tenta mais uma vez antes de parar
-      const{data:d2}=await db.from('consumo_scp_resumo').select('filial,cc,mes,grupo,motivo,valor_total,quantidade,custo_zero_count,ycustd_zero_count').order('id').range(off,off+999);
-      if(d2&&d2.length)todos=todos.concat(d2);
-      break;
-    }
-    off+=1000;
+    off+=data.length;
+    if(data.length<1000&&off%1000!==0)continue;
   }
 
   _dados=todos.map(r=>({
