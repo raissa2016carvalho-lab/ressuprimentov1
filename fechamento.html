@@ -122,7 +122,8 @@ tr.alerta:hover td{background:#fef08a}
     <div class="header-title">📦 Fechamento de Consumo</div>
     <div class="header-sub" id="sub-header">Carregando...</div>
   </div>
-  <div style="margin-left:auto;display:flex;gap:8px">
+  <div id="sync-badge" style="font-size:10px;color:#94a3b8;align-self:flex-end;margin-left:auto;margin-right:8px;text-align:right;line-height:1.4"></div>
+  <div style="display:flex;gap:8px">
     <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
   </div>
 </div>
@@ -273,6 +274,14 @@ async function carregar(){
 
   setProgresso(15,'Verificando última sincronização...');
   let ultimoSync='';
+  // Badge de sync
+  db.from('sync_log').select('atualizado_em').eq('chave','consumo_scp').maybeSingle().then(({data:log})=>{
+    if(log?.atualizado_em){
+      const d=new Date(log.atualizado_em);
+      const b=document.getElementById('sync-badge');
+      if(b) b.innerHTML=`🔄 Atualizado<br>${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+    }
+  });
   try{
     const{data:log}=await db.from('sync_log').select('atualizado_em,total').eq('chave','consumo_scp').maybeSingle();
     if(log?.atualizado_em){
