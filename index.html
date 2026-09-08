@@ -354,7 +354,7 @@ const _aggProdMes={};
 consumoMensalMap={};
 (consumoData||[]).forEach(r=>{
   if(!r.mes||!r.produto||!r.cc)return;
-  let cc=(r.cc||'').trim();
+  let cc=String(r.cc||'').trim();
   let grupo=_ccParaGrupo[cc];
   let chaveAgg=(grupo||cc)+'|'+r.produto+'|'+normMes(r.mes);
   _aggProdMes[chaveAgg]=(_aggProdMes[chaveAgg]||0)+(Number(r.quantidade)||0);
@@ -497,7 +497,7 @@ function renderCardMatricial(grupo,readonly){
     // Usar grupo fixo se disponível, senão nome do CC
     var _gruposJaSomados=new Set();
     grupo.forEach(function(s){
-      var _gr=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;
+      var _gr=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[String(s.cc||'').trim()]:null;
       var n=_gr||( ccMap[s.cc]?ccMap[s.cc].nome:s.cc);
       if(!_gruposJaSomados.has(n)){
         _gruposJaSomados.add(n);
@@ -510,7 +510,7 @@ function renderCardMatricial(grupo,readonly){
     var mensalPorCC={};
     var _mensalGruposJaSomados=new Set();
     grupo.forEach(function(s){
-      var ccKey=(s.cc||'').trim();
+      var ccKey=String(s.cc||'').trim();
       var _grM=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[ccKey]:null;
       var nomeCC=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
       if(_grM){
@@ -577,9 +577,9 @@ function renderCardMatricial(grupo,readonly){
         // Buscar o pedido mais recente para este item em QUALQUER CC do grupo
         var ultimoPed=null;
         grupo.forEach(function(s){
-          var _nomeCC=ccMap[(s.cc||'').trim()]?.nome||(s.cc||'').trim();
-          var k=_nomeCC+'|'+(item.codigo||'').trim();
-          var k2=(s.cc||'').trim()+'|'+(item.codigo||'').trim();
+          var _nomeCC=ccMap[String(s.cc||'').trim()]?.nome||String(s.cc||'').trim();
+          var k=_nomeCC+'|'+String(item.codigo||'').trim();
+          var k2=String(s.cc||'').trim()+'|'+String(item.codigo||'').trim();
           var peds=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])];
           // deduplicar por c1_num+produto+emissao
           var _seen=new Set();peds=peds.filter(function(p){var _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seen.has(_id))return false;_seen.add(_id);return true;});
@@ -903,7 +903,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
-            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=it.qtd_almoxarife!=null,alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
+            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[String(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;let hist=it.consumo_historico&&Object.keys(it.consumo_historico).length?JSON.stringify(it.consumo_historico):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist.replace(/"/g,"'")+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=it.qtd_almoxarife!=null,alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
                 <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
@@ -927,7 +927,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
 })())+`
                 <td style="font-size:11.5px;color:#64748b;font-style:${justGer?`italic`:`normal`}">${justGer||`—`}</td>
                 <td style="font-size:11.5px">
-                  ${(()=>{let _nomeCCInd=ccMap[s.cc]?.nome||s.cc;let k=_nomeCCInd+`|`+it.codigo,k2=s.cc+`|`+it.codigo,_pedsRaw=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])],_seenInd=new Set(),peds=_pedsRaw.filter(p=>{let _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seenInd.has(_id))return false;_seenInd.add(_id);return true;}).sort((a,b)=>(b.c1_emissao||'').localeCompare(a.c1_emissao||''));return peds.length?peds.slice(0,2).map(p=>{let st=(p.pc_status||``).toLowerCase(),recebido=st.includes(`receb`)||st.includes(`pré-nota`),pendente=!recebido,cor=recebido?`#16a34a`:`#d97706`;let dataEmissao=p.c1_emissao?p.c1_emissao.slice(0,7):``;return`<div style="margin-bottom:2px;padding:2px 4px;border-radius:4px;background:`+(recebido?`#f0fdf4`:`#fff7ed`)+`">`+(recebido?`✅`:`⏳`)+` <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC `+(p.c1_num||``)+`</span>`+(dataEmissao?` <span style="font-size:9.5px;color:#94a3b8">`+dataEmissao+`</span>`:``)+` <span style="font-weight:700;color:`+cor+`;font-size:10.5px">`+(recebido?`Recebido`:(p.pc_status||`Pendente`))+`</span>`+(p.c1_quant?` <span style="font-size:10px;color:#64748b">`+p.c1_quant+` un</span>`:``)+`</div>`+(()=>{const scNum=(p.c1_num||``).trim();const qtdPend=scItensMap[scNum+`|`+String(it.codigo||``).trim()]||0;return qtdPend>0?` <span style="font-size:10px;color:#94a3b8">(${qtdPend} un. pend.)</span>`:``;})() +`</div>`}).join(``)+(peds.length>2?`<div style="color:#94a3b8;font-size:10px">+`+(peds.length-2)+` mais</div>`:``):`<span style="color:#cbd5e1">—</span>`})()}
+                  ${(()=>{let _nomeCCInd=ccMap[s.cc]?.nome||s.cc;let k=_nomeCCInd+`|`+it.codigo,k2=s.cc+`|`+it.codigo,_pedsRaw=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])],_seenInd=new Set(),peds=_pedsRaw.filter(p=>{let _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seenInd.has(_id))return false;_seenInd.add(_id);return true;}).sort((a,b)=>(b.c1_emissao||'').localeCompare(a.c1_emissao||''));return peds.length?peds.slice(0,2).map(p=>{let st=(p.pc_status||``).toLowerCase(),recebido=st.includes(`receb`)||st.includes(`pré-nota`),pendente=!recebido,cor=recebido?`#16a34a`:`#d97706`;let dataEmissao=p.c1_emissao?p.c1_emissao.slice(0,7):``;return`<div style="margin-bottom:2px;padding:2px 4px;border-radius:4px;background:`+(recebido?`#f0fdf4`:`#fff7ed`)+`">`+(recebido?`✅`:`⏳`)+` <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC `+(p.c1_num||``)+`</span>`+(dataEmissao?` <span style="font-size:9.5px;color:#94a3b8">`+dataEmissao+`</span>`:``)+` <span style="font-weight:700;color:`+cor+`;font-size:10.5px">`+(recebido?`Recebido`:(p.pc_status||`Pendente`))+`</span>`+(p.c1_quant?` <span style="font-size:10px;color:#64748b">`+p.c1_quant+` un</span>`:``)+`</div>`+(()=>{const scNum=(p.c1_num||``).trim();const qtdPend=scItensMap[scNum+`|`+StringString(it.codigo||'').trim()]||0;return qtdPend>0?` <span style="font-size:10px;color:#94a3b8">(${qtdPend} un. pend.)</span>`:``;})() +`</div>`}).join(``)+(peds.length>2?`<div style="color:#94a3b8;font-size:10px">+`+(peds.length-2)+` mais</div>`:``):`<span style="color:#cbd5e1">—</span>`})()}
                 </td>
                 <td style="text-align:center">
                   <input type="number" min="0" value="${isRecusadoGer?0:qtdGerente}"
@@ -1214,7 +1214,7 @@ async function _carregarTodasEmParalelo(sols){
 
   // 2. Buscar sc_pedidos_v2 — cruzar por sc_numero + sc_cc (fonte da verdade: Protheus)
   let _v2Map={}; // chave: sol.id → array de linhas sc_pedidos_v2
-  let solPares=sols.map(s=>({id:s.id,sc:(s.sc_numero||'').trim(),cc:(s.cc||'').trim()})).filter(s=>s.sc&&s.cc);
+  let solPares=sols.map(s=>({id:s.id,sc:String(s.sc_numero||'').trim(),cc:String(s.cc||'').trim()})).filter(s=>s.sc&&s.cc);
 
   for(let i=0;i<solPares.length;i+=20){
     let lote=solPares.slice(i,i+20);
@@ -1263,7 +1263,7 @@ async function _carregarTodasEmParalelo(sols){
     // Valor total
     let valor=0;
     linhas.forEach(r=>{ if(r.pc_valor&&!statusInvalido(r.pc_status))valor+=Number(r.pc_valor)||0; });
-    let sc=(s.sc_numero||'').trim();
+    let sc=String(s.sc_numero||'').trim();
     if(!_valorMap[sc])_valorMap[sc]=0;
     _valorMap[sc]=valor;
 
@@ -1291,7 +1291,7 @@ function _atualizarBarrasCard(s){
   if(!pctEl&&!pedEl)return;
   let p=_pctMap[s.id]||0;
   let pp=_pctPedidoMap[s.id]||0;
-  let v=_valorMap[(s.sc_numero||'').trim()]||0;
+  let v=_valorMap[String(s.sc_numero||'').trim()]||0;
   let bc=p===100?'#16a34a':p>0?'#f59e0b':'#94a3b8';
   let pc=pp===100?'#7c3aed':pp>0?'#a78bfa':'#94a3b8';
   if(pctEl){pctEl.textContent='✅ '+p+'%';pctEl.style.color=bc;}
@@ -1350,7 +1350,7 @@ async function expandirAcomp(solId, topo){
   let dtEmissaoSC=null;
   if(sol.sc_numero&&sol.sc_numero.trim()&&sol.cc){
     let sc=sol.sc_numero.trim();
-    let cc=(sol.cc||'').trim();
+    let cc=String(sol.cc||'').trim();
     let{data:v2Rows}=await db.from('sc_pedidos_v2')
       .select('sc_produto,sc_quant,sc_emissao,pc_numero,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_comprador,pc_emissao')
       .eq('sc_numero',sc)
@@ -1388,7 +1388,7 @@ async function expandirAcomp(solId, topo){
     let{data:v2Status}=await db.from('sc_pedidos_v2')
       .select('sc_produto,sc_status')
       .eq('sc_numero',sol.sc_numero.trim())
-      .eq('sc_cc',(sol.cc||'').trim());
+      .eq('sc_cc',String(sol.cc||'').trim());
     (v2Status||[]).forEach(r=>{
       if(!scStatusPorProduto[r.sc_produto])scStatusPorProduto[r.sc_produto]=r.sc_status;
     });
@@ -1594,10 +1594,10 @@ function renderPaginaAcomp(){
       let statusCor=s.status===`aprovada`?`#16a34a`:s.status===`recusada`?`#ef4444`:s.status===`aguardando_master`?`#b45309`:`#64748b`;
       let statusBg=s.status===`aprovada`?`#f0fdf4`:s.status===`recusada`?`#fff5f5`:s.status===`aguardando_master`?`#fef3c7`:`#f8fafc`;
       let dt=fmtData(s.criado_em);
-      let obs=(s.observacao||``).trim();
+      let obs=String(s.observacao||'').trim();
       let sc=s.sc_numero?`SC ${s.sc_numero}`:`(sem SC)`;
       let pct=calcPct(s);
-      let valor=_valorMap[(s.sc_numero||'').trim()]||0;
+      let valor=_valorMap[String(s.sc_numero||'').trim()]||0;
       let barCor=pct===100?`#16a34a`:pct>0?`#f59e0b`:`#94a3b8`;
       let valorFmt=valor>0?`R$ `+valor.toLocaleString('pt-BR',{minimumFractionDigits:2}):`...`;
       return `<div class="card" style="border-radius:10px;overflow:hidden;margin-bottom:2px">
@@ -1605,7 +1605,7 @@ function renderPaginaAcomp(){
           <input type="checkbox" class="acomp-cb" data-id="${s.id}" onchange="atualizarBarraCons()" onclick="event.stopPropagation()" style="width:16px;height:16px;flex-shrink:0;accent-color:#1e40af">
           <div style="display:flex;align-items:center;gap:6px;min-width:90px">
             <span style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px;color:#1e40af">${sc}</span>
-            <button onclick="event.stopPropagation();editarSCAcomp(${s.id},'${(s.sc_numero||'').trim()}')" title="Alterar SC" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0;line-height:1">✏️</button>
+            <button onclick="event.stopPropagation();editarSCAcomp(${s.id},'${String(s.sc_numero||'').trim()}')" title="Alterar SC" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0;line-height:1">✏️</button>
           </div>
           <div style="flex:1;min-width:200px">
             <div style="font-weight:600;font-size:13px;color:#0f172a">${nome}</div>
@@ -1620,7 +1620,7 @@ function renderPaginaAcomp(){
           </div>
           ${filialNome?`<span id="filial-acomp-${s.id}" style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700">${filialNome}</span>`:`<span id="filial-acomp-${s.id}"></span>`}
           <span style="background:${statusBg};color:${statusCor};border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">${statusLabel}</span>
-          <button onclick="event.stopPropagation();baixarExcelAcomp(${s.id},'${(s.sc_numero||'').trim()}')" title="Baixar Excel desta SC" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;color:#166534;font-weight:600;cursor:pointer;flex-shrink:0">⬇ Excel</button>
+          <button onclick="event.stopPropagation();baixarExcelAcomp(${s.id},'${String(s.sc_numero||'').trim()}')" title="Baixar Excel desta SC" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;color:#166534;font-weight:600;cursor:pointer;flex-shrink:0">⬇ Excel</button>
           <span style="color:#94a3b8;font-size:13px">▼</span>
         </div>
         <div id="acomp-detalhe-${s.id}" style="display:none;border-top:1px solid #f1f5f9;background:#f8fafc;padding:16px 20px">
@@ -1786,14 +1786,14 @@ window.salvarMobilizacao=salvarMobilizacao;async function carregarMobilizacoes()
     `).join(``);
 setTimeout(()=>carregarResumosMob(mobs),300);}async function toggleMob(id){let el=document.getElementById(`corpo-mob-`+id);el.classList.toggle(`aberto`),el.classList.contains(`aberto`)&&el.dataset.carregado===`0`&&(el.dataset.carregado=`1`,await renderDetalheMob(id,el))}window.toggleMob=toggleMob;
 // Carregar resumos em background após renderizar lista
-async function carregarResumosMob(mobs){for(let m of mobs){try{let el=document.getElementById('mob-resumo-'+m.id);if(!el)continue;let{data:scsLinks}=await db.from('mobilizacao_scs').select('sc_numero,filial').eq('mobilizacao_id',m.id);let{data:itensMob}=await db.from('mobilizacao_itens').select('codigo,total_mob').eq('mobilizacao_id',m.id);let{data:estItems}=await db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id',m.id);let mapaEst={};(estItems||[]).forEach(e=>{mapaEst[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0;});let scNums=(scsLinks||[]).map(s=>(s.sc_numero||'').trim()).filter(Boolean);
+async function carregarResumosMob(mobs){for(let m of mobs){try{let el=document.getElementById('mob-resumo-'+m.id);if(!el)continue;let{data:scsLinks}=await db.from('mobilizacao_scs').select('sc_numero,filial').eq('mobilizacao_id',m.id);let{data:itensMob}=await db.from('mobilizacao_itens').select('codigo,total_mob').eq('mobilizacao_id',m.id);let{data:estItems}=await db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id',m.id);let mapaEst={};(estItems||[]).forEach(e=>{mapaEst[StringString(e.codigo||'').trim()]=Number(e.qtd_estoque)||0;});let scNums=(scsLinks||[]).map(s=>String(s.sc_numero||'').trim()).filter(Boolean);
 let pcsR=[];
 if(scNums.length>0){
   // Buscar via sc_pedidos_v2 usando sc_numero + filial
   let scsPorFilialR={};
   (scsLinks||[]).forEach(s=>{
-    let sc=(s.sc_numero||'').trim();
-    let fil=(s.filial||'').trim();
+    let sc=String(s.sc_numero||'').trim();
+    let fil=String(s.filial||'').trim();
     if(!sc)return;
     if(!scsPorFilialR[fil])scsPorFilialR[fil]=[];
     if(!scsPorFilialR[fil].includes(sc))scsPorFilialR[fil].push(sc);
@@ -1810,14 +1810,14 @@ function stResiduo(s){let u=(s||'').toLowerCase();return u.includes('elimin')&&(
 // Agrupar itens igual ao detalhe (por código)
 let gruposR={};
 (itensMob||[]).forEach(it=>{
-  let chave=it.codigo&&String(it.codigo||'').trim()?String(it.codigo||'').trim():`desc:${(it.descricao||'').trim()}`;
+  let chave=it.codigo&&StringString(it.codigo||'').trim()?StringString(it.codigo||'').trim():`desc:${String(it.descricao||'').trim()}`;
   if(!gruposR[chave])gruposR[chave]={codigo:it.codigo,total_mob:0};
   gruposR[chave].total_mob+=Number(it.total_mob)||0;
 });
 let itensAgrupados=Object.values(gruposR);
 let recebidos=0,estoque=0,eliminados=0;
 itensAgrupados.forEach(it=>{
-  let cod=String(it.codigo||'').trim();
+  let cod=StringString(it.codigo||'').trim();
   let qtdEst=mapaEst[cod]||0;
   let totalMob=it.total_mob||0;
   let pcsItem=pcsR.filter(p=>(p.c7_produto||'').trim()===cod);
@@ -1835,13 +1835,13 @@ let total=(itensAgrupados.length-eliminados)||1;
 let totalAtend=recebidos+estoque;let pct=Math.round(totalAtend/total*100);let cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';el.innerHTML=`<span style="font-weight:800;font-size:15px;color:${cor}">${pct}%</span><span style="color:#94a3b8;font-size:11px">atendimento</span>`;} catch(e){console.error('resumo mob',e);}}}
 
 let _catsGlobal=null,_mobIdExcel=null;
-async function renderDetalheMob(mobId,container){container.innerHTML=`<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>`;let[{data:mob},{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([db.from(`mobilizacoes`).select(`*`).eq(`id`,mobId).maybeSingle(),db.from(`mobilizacao_itens`).select(`*`).eq(`mobilizacao_id`,mobId).order(`descricao`),db.from(`mobilizacao_scs`).select(`*`).eq(`mobilizacao_id`,mobId).order(`criado_em`),db.from(`mobilizacao_estoque`).select(`*`).eq(`mobilizacao_id`,mobId)]);if(!mob){container.innerHTML=`<div style="padding:12px;color:#ef4444">Mobilização não encontrada.</div>`;return;}mapaEstoque={};(estoqueData||[]).forEach(e=>{e.codigo&&(mapaEstoque[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0)});let numEquipes=mob.num_equipes,grupos={};(itens||[]).forEach(it=>{let chave=it.codigo&&String(it.codigo||'').trim()?`cod:`+String(it.codigo||'').trim():`desc:`+(it.descricao||``).trim();grupos[chave]||(grupos[chave]={descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],observacao:it.observacao||null,dt_entrega_manual:it.dt_entrega_manual||null}),grupos[chave].total_mob+=Number(it.total_mob)||0,grupos[chave].ids.push(it.id),it.observacao&&(grupos[chave].observacao=it.observacao),it.dt_entrega_manual&&(grupos[chave].dt_entrega_manual=it.dt_entrega_manual)});let itensConsolidados=Object.values(grupos),numerosSc=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);function normalizarSc(sc){let s=String(sc||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function normalizarCodigo(cod){let s=String(cod||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function variantesSc(sc){let v=new Set([sc]);return/^\d+$/.test(sc)&&v.add(normalizarSc(sc)),[...v]}let numerosScNormalizados=new Set(numerosSc.map(normalizarSc)),pcsEncontrados=[],avisoProtheus=``;if(numerosSc.length>0){let _scFilialMob={};(scsLista||[]).forEach(s=>{if(s.sc_numero&&s.filial)_scFilialMob[s.sc_numero.trim()]=s.filial;});let _scsPorFilial={};numerosSc.forEach(sc=>{let f=_scFilialMob[sc]||'';if(!_scsPorFilial[f])_scsPorFilial[f]=[];_scsPorFilial[f].push(sc);});let ePcs=null;// Buscar via sc_pedidos_v2 usando sc_numero + filial de cada SC da mobilização
+async function renderDetalheMob(mobId,container){container.innerHTML=`<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>`;let[{data:mob},{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([db.from(`mobilizacoes`).select(`*`).eq(`id`,mobId).maybeSingle(),db.from(`mobilizacao_itens`).select(`*`).eq(`mobilizacao_id`,mobId).order(`descricao`),db.from(`mobilizacao_scs`).select(`*`).eq(`mobilizacao_id`,mobId).order(`criado_em`),db.from(`mobilizacao_estoque`).select(`*`).eq(`mobilizacao_id`,mobId)]);if(!mob){container.innerHTML=`<div style="padding:12px;color:#ef4444">Mobilização não encontrada.</div>`;return;}mapaEstoque={};(estoqueData||[]).forEach(e=>{e.codigo&&(mapaEstoque[StringString(e.codigo||'').trim()]=Number(e.qtd_estoque)||0)});let numEquipes=mob.num_equipes,grupos={};(itens||[]).forEach(it=>{let chave=it.codigo&&StringString(it.codigo||'').trim()?`cod:`+StringString(it.codigo||'').trim():`desc:`+String(it.descricao||'').trim();grupos[chave]||(grupos[chave]={descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],observacao:it.observacao||null,dt_entrega_manual:it.dt_entrega_manual||null}),grupos[chave].total_mob+=Number(it.total_mob)||0,grupos[chave].ids.push(it.id),it.observacao&&(grupos[chave].observacao=it.observacao),it.dt_entrega_manual&&(grupos[chave].dt_entrega_manual=it.dt_entrega_manual)});let itensConsolidados=Object.values(grupos),numerosSc=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);function normalizarSc(sc){let s=String(sc||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function normalizarCodigo(cod){let s=String(cod||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function variantesSc(sc){let v=new Set([sc]);return/^\d+$/.test(sc)&&v.add(normalizarSc(sc)),[...v]}let numerosScNormalizados=new Set(numerosSc.map(normalizarSc)),pcsEncontrados=[],avisoProtheus=``;if(numerosSc.length>0){let _scFilialMob={};(scsLista||[]).forEach(s=>{if(s.sc_numero&&s.filial)_scFilialMob[s.sc_numero.trim()]=s.filial;});let _scsPorFilial={};numerosSc.forEach(sc=>{let f=_scFilialMob[sc]||'';if(!_scsPorFilial[f])_scsPorFilial[f]=[];_scsPorFilial[f].push(sc);});let ePcs=null;// Buscar via sc_pedidos_v2 usando sc_numero + filial de cada SC da mobilização
 {
   // Agrupar SCs por filial
   let scsPorFilialMob={};
   (scsLista||[]).forEach(s=>{
-    let sc=(s.sc_numero||'').trim();
-    let fil=(s.filial||'').trim();
+    let sc=String(s.sc_numero||'').trim();
+    let fil=String(s.filial||'').trim();
     if(!sc)return;
     if(!scsPorFilialMob[fil])scsPorFilialMob[fil]=[];
     if(!scsPorFilialMob[fil].includes(sc))scsPorFilialMob[fil].push(sc);
@@ -1887,7 +1887,7 @@ function qtdRecebidaDoItem(codigo){if(!codigo||!codigo.trim())return 0;let codNo
 function itemEstaRecebido(codigo){return qtdRecebidaDoItem(codigo)>0;}
 let cats={recebido:[],estoque:[],pendente:[],aprovacao:[],semPedido:[],eliminado:[]};
 itensConsolidados.forEach(it=>{
-  let codTrim=String(it.codigo||``).trim();
+  let codTrim=StringString(it.codigo||'').trim();
   let qtdEst=codTrim&&(codTrim in mapaEstoque)?mapaEstoque[codTrim]:0;
   let totalMob=it.total_mob||0;
   let linhasPc=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[];
@@ -1941,7 +1941,7 @@ async function baixarExcelMobCompleto(nomeArq){
   let mapaEstExcel = {};
   if(mobIdAtual){
     const {data:estData} = await db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id', Number(mobIdAtual));
-    (estData||[]).forEach(e=>{ if(e.codigo) mapaEstExcel[String(e.codigo||'').trim()] = Number(e.qtd_estoque)||0; });
+    (estData||[]).forEach(e=>{ if(e.codigo) mapaEstExcel[StringString(e.codigo||'').trim()] = Number(e.qtd_estoque)||0; });
   }
   // Exporta todos os itens de todas as categorias
   // Deduplica por código — mesmo item pode aparecer em múltiplas categorias
@@ -1962,7 +1962,7 @@ async function baixarExcelMobCompleto(nomeArq){
                    _catsGlobal?.estoque.some(x=>x.codigo===it.codigo)?'Via estoque':
                    _catsGlobal?.aprovacao.some(x=>x.codigo===it.codigo)?'Em aprovação':
                    _catsGlobal?.pendente.some(x=>x.codigo===it.codigo)?'Pendente':'Sem pedido';
-    const _codTrimEx=String(it.codigo||'').trim();const estDisp=_codTrimEx in mapaEstExcel?mapaEstExcel[_codTrimEx]:(it.qtdEst||0);
+    const _codTrimEx=StringString(it.codigo||'').trim();const estDisp=_codTrimEx in mapaEstExcel?mapaEstExcel[_codTrimEx]:(it.qtdEst||0);
     return {
       'Código':             it.codigo||'(manual)',
       'Descrição':          it.descricao,
@@ -2090,14 +2090,14 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
           <th style="width:150px">Observação</th>
           <th style="width:36px"></th>
         </tr>
-        ${itensConsolidados.flatMap((it,idx)=>{let codTrim=String(it.codigo||``).trim(),qtdEstoque=(codTrim&&codTrim in mapaEstoque)?mapaEstoque[codTrim]:0,qtdRecebidaPC=codTrim?qtdRecebidaDoItem(codTrim):0,itemAtendido=(cats.recebido.some(x=>x.codigo===it.codigo)||cats.estoque.some(x=>x.codigo===it.codigo)),equipesAtendidas=(()=>{
+        ${itensConsolidados.flatMap((it,idx)=>{let codTrim=StringString(it.codigo||'').trim(),qtdEstoque=(codTrim&&codTrim in mapaEstoque)?mapaEstoque[codTrim]:0,qtdRecebidaPC=codTrim?qtdRecebidaDoItem(codTrim):0,itemAtendido=(cats.recebido.some(x=>x.codigo===it.codigo)||cats.estoque.some(x=>x.codigo===it.codigo)),equipesAtendidas=(()=>{
   let qtdPorEquipe=numEquipes>0&&it.total_mob>0?it.total_mob/numEquipes:0;
   if(qtdPorEquipe<=0)return 0;
   // Sempre soma recebido via PC + estoque disponível (independente da categoria)
   let qtdEst=codTrim&&mapaEstoque[codTrim]>0?mapaEstoque[codTrim]:0;
   let qtdTotal=qtdRecebidaPC+qtdEst;
   return qtdTotal>0?Math.min(numEquipes,Math.floor(qtdTotal/qtdPorEquipe)):0;
-})(),chipSize=numEquipes<=8?26:numEquipes<=15?22:numEquipes<=25?18:14,chipStyle=`width:${chipSize}px;height:${chipSize}px;font-size:${numEquipes<=8?11:numEquipes<=15?10:numEquipes<=25?9:8}px;border-radius:${chipSize<=18?3:4}px`,chips=Array.from({length:numEquipes},(_,i)=>`<span class="chip-equipe ${i<equipesAtendidas?`ok`:``}" style="${chipStyle}">${i+1}</span>`).join(``),linhasPC=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[],detId=`ped-`+mobId+`-`+idx,pedResume=linhasPC.length===0?`<span style="color:#cbd5e1;font-size:11px">—</span>`:linhasPC.slice(0,2).map(p=>{let cor=(p.status_desc||``).toLowerCase().includes(`receb`)?`#16a34a`:`#d97706`,comp=(p.c7_comprador||``).trim();return`<span style="font-size:10px;background:${cor}18;color:${cor};border-radius:3px;padding:1px 4px;margin-right:2px">${p.c7_num||`PC`} · ${p.status_desc}${comp?` · `+comp:``}</span>`}).join(``)+(linhasPC.length>2?`<span style="font-size:10px;color:#94a3b8">+${linhasPC.length-2} mais</span>`:``),dtEntregaMaisRecente=(()=>{let datas=linhasPC.map(p=>String(p.dt_entrega||``).trim()).filter(d=>/^\d{8}$/.test(d)).sort();if(!datas.length)return null;let d=datas[datas.length-1];return d.slice(6,8)+`/`+d.slice(4,6)+`/`+d.slice(0,4)})(),toggle=linhasPC.length>0?`onclick="var e=document.getElementById('${detId}');e.style.display=e.style.display==='none'?'table-row':'none';"`:``;return[`<tr style="cursor:${linhasPC.length>0?`pointer`:`default`}"
+})(),chipSize=numEquipes<=8?26:numEquipes<=15?22:numEquipes<=25?18:14,chipStyle=`width:${chipSize}px;height:${chipSize}px;font-size:${numEquipes<=8?11:numEquipes<=15?10:numEquipes<=25?9:8}px;border-radius:${chipSize<=18?3:4}px`,chips=Array.from({length:numEquipes},(_,i)=>`<span class="chip-equipe ${i<equipesAtendidas?`ok`:``}" style="${chipStyle}">${i+1}</span>`).join(``),linhasPC=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[],detId=`ped-`+mobId+`-`+idx,pedResume=linhasPC.length===0?`<span style="color:#cbd5e1;font-size:11px">—</span>`:linhasPC.slice(0,2).map(p=>{let cor=(p.status_desc||``).toLowerCase().includes(`receb`)?`#16a34a`:`#d97706`,comp=(p.c7_comprador||``).trim();return`<span style="font-size:10px;background:${cor}18;color:${cor};border-radius:3px;padding:1px 4px;margin-right:2px">${p.c7_num||`PC`} · ${p.status_desc}${comp?` · `+comp:``}</span>`}).join(``)+(linhasPC.length>2?`<span style="font-size:10px;color:#94a3b8">+${linhasPC.length-2} mais</span>`:``),dtEntregaMaisRecente=(()=>{let datas=linhasPC.map(p=>StringString(p.dt_entrega||'').trim()).filter(d=>/^\d{8}$/.test(d)).sort();if(!datas.length)return null;let d=datas[datas.length-1];return d.slice(6,8)+`/`+d.slice(4,6)+`/`+d.slice(0,4)})(),toggle=linhasPC.length>0?`onclick="var e=document.getElementById('${detId}');e.style.display=e.style.display==='none'?'table-row':'none';"`:``;return[`<tr style="cursor:${linhasPC.length>0?`pointer`:`default`}"
               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
             <td ${toggle}>${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>`:``}</td>
             <td style="text-align:right;font-family:ui-monospace,monospace" ${toggle}>${it.total_mob}</td>
@@ -2136,7 +2136,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
                   <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">SC</th>
                   <th style="padding:4px 8px;text-align:left;font-weight:600;color:#64748b">Entrega</th>
                 </tr>
-                ${linhasPC.map(p=>{let st=(p.status_desc||``).toLowerCase(),cor=st.includes(`receb`)?`#16a34a`:st.includes(`pend`)?`#d97706`:`#64748b`,dtEnt=(()=>{let d=String(p.dt_entrega||``).trim();return d.length===8&&/^\d{8}$/.test(d)?d.slice(6,8)+`/`+d.slice(4,6)+`/`+d.slice(0,4):d||`—`})();return`<tr style="border-bottom:1px solid #e2e8f0">
+                ${linhasPC.map(p=>{let st=(p.status_desc||``).toLowerCase(),cor=st.includes(`receb`)?`#16a34a`:st.includes(`pend`)?`#d97706`:`#64748b`,dtEnt=(()=>{let d=StringString(p.dt_entrega||'').trim();return d.length===8&&/^\d{8}$/.test(d)?d.slice(6,8)+`/`+d.slice(4,6)+`/`+d.slice(0,4):d||`—`})();return`<tr style="border-bottom:1px solid #e2e8f0">
                     <td style="padding:4px 8px;font-family:ui-monospace,monospace">${p.c7_num||`—`}</td>
                     <td style="padding:4px 8px;text-align:right;font-family:ui-monospace,monospace">${p.c7_quant||0}</td>
                     <td style="padding:4px 8px;font-weight:600;color:${cor}">${p.status_desc||`—`}</td>
@@ -2263,7 +2263,7 @@ window.exportarExcelAcomp=exportarExcelAcomp;async function baixarExcelAcomp(sol
   let sc=(scNumero||'').trim();
   if(!_pcMap[sc]&&sc){
     // Buscar via sc_pedidos_v2 usando sc + cc da solicitação
-    let solAtual=(_todosFormularios||[]).find(s=>(s.sc_numero||'').trim()===sc)||(_todasSolsAcomp||[]).find(s=>(s.sc_numero||'').trim()===sc);
+    let solAtual=(_todosFormularios||[]).find(s=>String(s.sc_numero||'').trim()===sc)||(_todasSolsAcomp||[]).find(s=>String(s.sc_numero||'').trim()===sc);
     let ccAtual=(solAtual?.cc||'').trim();
     let{data:v2pcs}=await db.from('sc_pedidos_v2').select('sc_numero,sc_produto,pc_numero,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_comprador').eq('sc_numero',sc).eq('sc_cc',ccAtual||'__');
     _pcMap[sc]=(v2pcs||[]).filter(r=>r.pc_numero).map(r=>({
@@ -2458,7 +2458,7 @@ function fmtDataHoraSenha(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:
           <div style="font-weight:600;font-size:13px;color:#0f172a">${cc.nome} <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:11px">${cc.cc}</span></div>
           <div style="margin-top:6px;min-height:24px">${chipsGerentes||`<span style="font-size:12px;color:#cbd5e1">Sem gerente</span>`}</div>
         </div>
-      </div>`}).join(``)}function filtrarCCs(){let termo=($(`busca-cc`)?.value||``).toLowerCase().trim();renderListaGerentes(termo?todosCC.filter(cc=>cc.nome.toLowerCase().includes(termo)||cc.cc.toLowerCase().includes(termo)):todosCC),atualizarContadorSel()}window.filtrarCCs=filtrarCCs;function atualizarContadorSel(){let sel=document.querySelectorAll(`.cc-checkbox:checked`).length,span=$(`count-sel`);span&&(span.textContent=sel);let btn=$(`btn-lote`);if(!btn)return;let email=($(`email-lote`)?.value||``).trim(),ok=sel>0&&email;btn.disabled=!ok,btn.style.opacity=ok?`1`:`0.4`,btn.style.cursor=ok?`pointer`:`not-allowed`}window.atualizarContadorSel=atualizarContadorSel;function atualizarBtnLote(){atualizarContadorSel()}window.atualizarBtnLote=atualizarBtnLote;function selecionarTodosFiltrados(){document.querySelectorAll(`.cc-checkbox`).forEach(cb=>{cb.checked=!0}),atualizarContadorSel()}window.selecionarTodosFiltrados=selecionarTodosFiltrados;function limparSelecao(){document.querySelectorAll(`.cc-checkbox`).forEach(cb=>{cb.checked=!1}),atualizarContadorSel()}window.limparSelecao=limparSelecao;async function associarEmailLote(){let email=($(`email-lote`)?.value||``).trim().toLowerCase(),selecionados=[...document.querySelectorAll(`.cc-checkbox:checked`)].map(cb=>cb.dataset.cc);if(!email||!selecionados.length)return;let msgEl=$(`msg-lote`);msgEl.innerHTML=`<span style="color:#64748b">Salvando...</span>`;let inserts=selecionados.map(cc=>({email,cc})),{error}=await db.from(`gerentes_cc`).upsert(inserts,{onConflict:`email,cc`,ignoreDuplicates:!0});error?msgEl.innerHTML=`<span style="color:#991b1b">Erro: ${error.message}</span>`:(msgEl.innerHTML=`<span style="color:#065f46">✓ ${email} associado a ${selecionados.length} CC(s)!</span>`,$(`email-lote`).value=``,limparSelecao(),setTimeout(()=>{msgEl.innerHTML=``,carregarGerentes()},1200))}window.associarEmailLote=associarEmailLote;async function adicionarGerente(cc){if(!isAdmin){alert(`Apenas administradores podem gerenciar gerentes.`);return}let input=document.getElementById(`ng-`+cc),email=(input.value||``).trim().toLowerCase(),msgEl=document.getElementById(`mg-`+cc);if(!email)return;let{error}=await db.from(`gerentes_cc`).insert({email,cc});error?msgEl.innerHTML=`<span style="font-size:12px;color:#991b1b">Erro: ${error.message}</span>`:(input.value=``,msgEl.innerHTML=`<span style="font-size:12px;color:#065f46">✓ Adicionado!</span>`,setTimeout(()=>{msgEl.innerHTML=``,carregarGerentes()},800))}window.adicionarGerente=adicionarGerente;async function removerGerente(id){if(!isAdmin){alert(`Apenas administradores podem remover gerentes.`);return}confirm(`Remover este gerente?`)&&(await db.from(`gerentes_cc`).delete().eq(`id`,id),carregarGerentes())}window.removerGerente=removerGerente;
+      </div>`}).join(``)}function filtrarCCs(){let termo=($(`busca-cc`)?.value||``).toLowerCase().trim();renderListaGerentes(termo?todosCC.filter(cc=>cc.nome.toLowerCase().includes(termo)||cc.cc.toLowerCase().includes(termo)):todosCC),atualizarContadorSel()}window.filtrarCCs=filtrarCCs;function atualizarContadorSel(){let sel=document.querySelectorAll(`.cc-checkbox:checked`).length,span=$(`count-sel`);span&&(span.textContent=sel);let btn=$(`btn-lote`);if(!btn)return;let email=($(`email-lote`)?.value||``).trim(),ok=sel>0&&email;btn.disabled=!ok,btn.style.opacity=ok?`1`:`0.4`,btn.style.cursor=ok?`pointer`:`not-allowed`}window.atualizarContadorSel=atualizarContadorSel;function atualizarBtnLote(){atualizarContadorSel()}window.atualizarBtnLote=atualizarBtnLote;function selecionarTodosFiltrados(){document.querySelectorAll(`.cc-checkbox`).forEach(cb=>{cb.checked=!0}),atualizarContadorSel()}window.selecionarTodosFiltrados=selecionarTodosFiltrados;function limparSelecao(){document.querySelectorAll(`.cc-checkbox`).forEach(cb=>{cb.checked=!1}),atualizarContadorSel()}window.limparSelecao=limparSelecao;async function associarEmailLote(){let email=($(`email-lote`)?.value||``).trim().toLowerCase(),selecionados=[...document.querySelectorAll(`.cc-checkbox:checked`)].map(cb=>cb.dataset.cc);if(!email||!selecionados.length)return;let msgEl=$(`msg-lote`);msgEl.innerHTML=`<span style="color:#64748b">Salvando...</span>`;let inserts=selecionados.map(cc=>({email,cc})),{error}=await db.from(`gerentes_cc`).upsert(inserts,{onConflict:`email,cc`,ignoreDuplicates:!0});error?msgEl.innerHTML=`<span style="color:#991b1b">Erro: ${error.message}</span>`:(msgEl.innerHTML=`<span style="color:#065f46">✓ ${email} associado a ${selecionados.length} CC(s)!</span>`,$(`email-lote`).value=``,limparSelecao(),setTimeout(()=>{msgEl.innerHTML=``,carregarGerentes()},1200))}window.associarEmailLote=associarEmailLote;async function adicionarGerente(cc){if(!isAdmin){alert(`Apenas administradores podem gerenciar gerentes.`);return}let input=document.getElementById(`ng-`+cc),email=String(input.value||'').trim().toLowerCase(),msgEl=document.getElementById(`mg-`+cc);if(!email)return;let{error}=await db.from(`gerentes_cc`).insert({email,cc});error?msgEl.innerHTML=`<span style="font-size:12px;color:#991b1b">Erro: ${error.message}</span>`:(input.value=``,msgEl.innerHTML=`<span style="font-size:12px;color:#065f46">✓ Adicionado!</span>`,setTimeout(()=>{msgEl.innerHTML=``,carregarGerentes()},800))}window.adicionarGerente=adicionarGerente;async function removerGerente(id){if(!isAdmin){alert(`Apenas administradores podem remover gerentes.`);return}confirm(`Remover este gerente?`)&&(await db.from(`gerentes_cc`).delete().eq(`id`,id),carregarGerentes())}window.removerGerente=removerGerente;
 // ========== CONSOLIDADOS ==========
 function atualizarBarraCons(){let sels=document.querySelectorAll(`.acomp-cb:checked`),barra=document.getElementById(`barra-consolidar`),count=document.getElementById(`count-sel-cons`);sels.length>0?(barra.style.display=`flex`,count.textContent=sels.length+` SC(s) selecionada(s)`):barra.style.display=`none`}window.atualizarBarraCons=atualizarBarraCons;function limparSelecaoAcomp(){document.querySelectorAll(`.acomp-cb`).forEach(cb=>cb.checked=!1),atualizarBarraCons()}window.limparSelecaoAcomp=limparSelecaoAcomp;async function consolidarSelecionadas(){let sels=[...document.querySelectorAll(`.acomp-cb:checked`)];if(!sels.length)return;let nome=prompt(`Nome do consolidado:
 Ex.: Ressuprimento Fardamentos Junho/Julho/Agosto`);if(!nome||!nome.trim())return;let{data:cons,error:e1}=await db.from(`consolidados`).insert({nome:nome.trim()}).select().single();if(e1){alert(`Erro: `+e1.message);return}let inserts=sels.map(cb=>({consolidado_id:cons.id,solicitacao_id:Number(cb.dataset.id)})),{error:e2}=await db.from(`consolidado_scs`).insert(inserts);if(e2){alert(`Erro ao vincular SCs: `+e2.message);return}limparSelecaoAcomp(),alert(`Consolidado criado com `+sels.length+` SC(s)!`),irPara(`consolidados`)}window.consolidarSelecionadas=consolidarSelecionadas;async function novoConsolidado(){if(!isAdmin){alert(`Apenas administradores podem criar consolidados.`);return}let nome=prompt(`Nome do consolidado:`);if(!nome||!nome.trim())return;let{error}=await db.from(`consolidados`).insert({nome:nome.trim()});if(error){alert(`Erro: `+error.message);return}await carregarConsolidados()}window.novoConsolidado=novoConsolidado;async function excluirConsolidado(id,nome){if(!isAdmin){alert(`Apenas administradores podem excluir consolidados.`);return}confirm(`Excluir o consolidado '`+nome+`'?
@@ -2834,7 +2834,7 @@ function isEliminado(st){if(!st)return false;let s=(st||'').toLowerCase();return
 // Buscar dados de sc_pedidos_v2 agrupados por solicitacao (sc_numero + sc_cc)
 // Cada solicitação tem sc_numero e cc — esse par identifica unicamente a SC no Protheus
 let v2PorSol={}; // chave: sol.id → array de linhas sc_pedidos_v2
-let solPares=(sols||[]).map(s=>({id:s.id,sc:(s.sc_numero||'').trim(),cc:(s.cc||'').trim()})).filter(s=>s.sc&&s.cc);
+let solPares=(sols||[]).map(s=>({id:s.id,sc:String(s.sc_numero||'').trim(),cc:String(s.cc||'').trim()})).filter(s=>s.sc&&s.cc);
 
 for(let i=0;i<solPares.length;i+=50){
   let lote=solPares.slice(i,i+50);
@@ -2860,7 +2860,7 @@ for(let i=0;i<solPares.length;i+=50){
 let totalSkus=0,totalRecebidos=0,valorTotalGeral=0,metPorSc={},metPorCC={};
 let itensEliminados=[];
 (sols||[]).forEach(sol=>{
-  let sc=(sol.sc_numero||'').trim(),cc=sol.cc,nomeCC=ccNomes[cc]||cc,obs=(sol.observacao||'').trim();
+  let sc=String(sol.sc_numero||'').trim(),cc=sol.cc,nomeCC=ccNomes[cc]||cc,obs=String(sol.observacao||'').trim();
   metPorSc[sc]||(metPorSc[sc]={nome:nomeCC,obs,label:nomeCC+(obs?' · '+obs:''),total:0,recebidos:0,valor:0});
   metPorCC[cc]||(metPorCC[cc]={nome:nomeCC,total:0,recebidos:0,valor:0});
   let linhasV2=v2PorSol[sol.id]||[];
@@ -2943,7 +2943,7 @@ let resumoStatus=`
 
 // Lista de SCs enriquecida — usando sc_pedidos_v2
 let listaScs=(sols||[]).map(sol=>{
-  let sc=(sol.sc_numero||'').trim();
+  let sc=String(sol.sc_numero||'').trim();
   let linhasV2Sol=v2PorSol[sol.id]||[];
   // Filial real vem do Protheus via sc_pedidos_v2
   let filialReal=(linhasV2Sol[0]?.filial||sol.filial||'').trim();
