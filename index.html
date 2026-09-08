@@ -1852,7 +1852,7 @@ async function renderDetalheMob(mobId,container){container.innerHTML=`<div style
       let off=0;
       for(;;){
         let q=db.from('sc_pedidos_v2')
-          .select('sc_numero,sc_produto,pc_numero,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_comprador')
+          .select('sc_numero,sc_produto,sc_quant,pc_numero,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_comprador')
           .in('sc_numero',lote);
         if(filial)q=q.eq('filial',filial);
         let{data:loteV2,error:eLote}=await q.range(off,off+999);
@@ -1865,7 +1865,7 @@ async function renderDetalheMob(mobId,container){container.innerHTML=`<div style
             c7_numsc:    r.sc_numero,
             c7_produto:  r.sc_produto,
             c7_num:      r.pc_numero,
-            c7_quant:    r.pc_quant,
+            c7_quant:    (r.pc_status&&['receb','pré-nota','pre-nota'].some(s=>(r.pc_status||'').toLowerCase().includes(s)))?Math.max(r.sc_quant||0,r.pc_quant||0):r.pc_quant,
             c7_total:    r.pc_valor,
             status_desc: r.pc_status,
             dt_entrega:  r.pc_dt_entrega,
