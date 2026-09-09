@@ -298,7 +298,9 @@ function mostrarPopupConsumo(event,codigo,descricao){event.stopPropagation();var
 var mensal={};
 if(ccsSelecionados.length>0){
   ccsSelecionados.forEach(function(cc){
-    var m=consumoMapMensal[cc.nome+'|'+codigo]||{};
+    // Usa o mesmo nome que foi usado para criar o mapa (mapCcNome[cc.cc] ou cc.nome)
+    var nomeChave = (typeof mapCcNome !== 'undefined' && mapCcNome[cc.cc]) ? mapCcNome[cc.cc] : cc.nome;
+    var m=consumoMapMensal[nomeChave+'|'+codigo]||{};
     Object.keys(m).forEach(function(mes){mensal[mes]=(mensal[mes]||0)+m[mes]});
   });
 }
