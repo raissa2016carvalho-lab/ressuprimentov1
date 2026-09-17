@@ -185,6 +185,13 @@ tr:last-child td{border-bottom:none}
 
 /* SYNC BADGE */
 #sync-badge{font-size:10px;color:#a5b4fc;align-self:flex-end;margin-left:auto;margin-right:8px;text-align:right;line-height:1.4}
+
+/* GRAFICOS SIDE BY SIDE */
+.graficos{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+.grafico-card{background:var(--surface);border-radius:16px;border:1px solid var(--border);padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.grafico-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px}
+.grafico-wrap{position:relative;height:260px}
+@media(max-width:900px){.graficos{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
