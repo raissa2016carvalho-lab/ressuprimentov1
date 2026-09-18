@@ -1670,7 +1670,9 @@ async function renderComparativo(){
     devData.forEach(r => {
       const col = GRUPO_DEPARA[r.grupo] || 'OUTROS';
       if(!GRUPOS_COLS.includes(col)) return;
+      // Incluir CC mesmo que não tenha consumo SCP
       if(!mapCC[r.cc]) mapCC[r.cc] = {};
+      if(!mapConsumo[r.cc]) mapConsumo[r.cc] = {};
       if(!mapDev[r.cc]) mapDev[r.cc] = {};
       mapCC[r.cc][col] = (mapCC[r.cc][col]||0) - (r.valor_total||0);
       mapDev[r.cc][col] = (mapDev[r.cc][col]||0) + (r.valor_total||0);
