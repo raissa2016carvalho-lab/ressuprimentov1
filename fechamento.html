@@ -1644,11 +1644,15 @@ async function renderComparativo(){
 
     // Agregar SCP por CC + coluna amigo
     const mapCC = {};
+    const mapConsumo = {}; // consumo bruto
+    const mapDev = {};     // devolucoes
     scpFilt.forEach(r => {
       const col = GRUPO_DEPARA[r.grupo] || 'OUTROS';
       if(!GRUPOS_COLS.includes(col)) return;
       if(!mapCC[r.cc]) mapCC[r.cc] = {};
+      if(!mapConsumo[r.cc]) mapConsumo[r.cc] = {};
       mapCC[r.cc][col] = (mapCC[r.cc][col]||0) + (r.valor_total||0);
+      mapConsumo[r.cc][col] = (mapConsumo[r.cc][col]||0) + (r.valor_total||0);
     });
 
     // Subtrair devoluções (mov_sd3_001) por CC + coluna amigo
@@ -1656,7 +1660,9 @@ async function renderComparativo(){
       const col = GRUPO_DEPARA[r.grupo] || 'OUTROS';
       if(!GRUPOS_COLS.includes(col)) return;
       if(!mapCC[r.cc]) mapCC[r.cc] = {};
+      if(!mapDev[r.cc]) mapDev[r.cc] = {};
       mapCC[r.cc][col] = (mapCC[r.cc][col]||0) - (r.valor_total||0);
+      mapDev[r.cc][col] = (mapDev[r.cc][col]||0) + (r.valor_total||0);
     });
 
     const ccs = Object.keys(mapCC).sort();
@@ -1696,7 +1702,10 @@ async function renderComparativo(){
                 <td style="padding:7px 14px;font-weight:600;position:sticky;left:0;background:${i%2?'#f8fafc':'#fff'};z-index:1">${cc}</td>
                 ${GRUPOS_COLS.map(g=>{
                   const v=mapCC[cc][g]||0;
-                  return `<td style="padding:7px 8px;text-align:right;${v<0?'color:#ef4444':''}">${v?fmt(v):'—'}</td>`;
+                  const cons=mapConsumo[cc]?.[g]||0;
+                  const dev=mapDev[cc]?.[g]||0;
+                  const tip = cons||dev ? `Consumo: ${fmt(cons)}&#10;Devolução: ${fmt(dev)}&#10;Líquido: ${fmt(v)}` : '';
+                  return `<td style="padding:7px 8px;text-align:right;${v<0?'color:#ef4444':''};cursor:${tip?'help':''}" title="${tip}">${v?fmt(v):'—'}</td>`;
                 }).join('')}
                 <td style="padding:7px 14px;text-align:right;font-weight:700">${fmt(totalLinha)}</td>
               </tr>`;
