@@ -1525,10 +1525,13 @@ async function renderDevolucoes(){
 
   try {
     // Buscar mov_sd3_001 do banco
-    let query = db.from('mov_sd3_001')
+    // Filtrar por CC se selecionado
+  const ccFiltro = document.getElementById('f-cc')?.value || '';
+  let query = db.from('mov_sd3_001')
       .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,quantidade,valor_total,custo_fonte')
       .eq('mes', mesRef)
       .order('emissao', {ascending: false});
+  if(ccFiltro) query = query.eq('cc', ccFiltro);
 
     const {data, error} = await query.limit(50000);
     if(error) throw error;
