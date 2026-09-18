@@ -1599,7 +1599,7 @@ async function renderDevolucoes(){
                 <td style="padding:7px 12px">${r.documento||'-'}</td>
                 <td style="padding:7px 12px">${fmtDt(r.emissao)}</td>
                 <td style="padding:7px 12px;text-align:right">${(r.quantidade||0).toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>
-                <td style="padding:7px 12px;text-align:right;font-weight:600;color:#16a34a">${fmtVal(r.valor_total)}</td>
+                <td style="padding:7px 12px;text-align:right;font-weight:600;color:#16a34a;cursor:help" title="Fonte: ${r.custo_fonte||'—'}&#10;Valor: ${fmtVal(r.valor_total)}&#10;Qtd: ${(r.quantidade||0).toLocaleString('pt-BR',{maximumFractionDigits:2})}">${fmtVal(r.valor_total)} <span style="font-size:9px;color:#94a3b8;font-weight:400">${r.custo_fonte==='D3_CUSTO'?'📋':r.custo_fonte==='B2_CM1'?'📊':r.custo_fonte==='SD1_ULTIMO_PRECO'?'🏷️':'⚪'}</span></td>
                 <td style="padding:7px 12px;color:#64748b;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.observacao||'').replace(/"/g,"'")}">
                   ${r.observacao||'-'}
                 </td>
