@@ -1243,13 +1243,26 @@ async function renderAuditoria(){
   const content=document.getElementById('content');
   content.innerHTML='<div class="loading"><span class="spinner"></span>Carregando auditoria de custo...</div>';
 
-  // Busca dados brutos de auditoria do Supabase
+  // Busca dados brutos de auditoria do Supabase — filtra pelos filtros ativos
+  const _aMes    = document.getElementById('f-mes')?.value || '';
+  const _aFilial = document.getElementById('f-filial')?.value || '';
+  const _aCc     = document.getElementById('f-cc')?.value || '';
+  const _aBusca  = (document.getElementById('f-busca')?.value || '').trim();
+
+  if(!_aMes){
+    content.innerHTML='<div style="padding:40px;text-align:center;color:#64748b">Selecione um <strong>mês</strong> para carregar a auditoria.</div>';
+    return;
+  }
+
   let auditoria=[],off=0;
   for(;;){
-    const{data,error}=await db
-      .from('consumo_scp')
+    let q=db.from('consumo_scp')
       .select('produto,descricao,grupo,cc,mes,filial,quantidade,custo_unit,valor_total,custo_fonte,custo_zero')
-      .range(off,off+999);
+      .eq('mes',_aMes);
+    if(_aFilial) q=q.eq('filial',_aFilial);
+    if(_aCc)     q=q.eq('cc',_aCc);
+    if(_aBusca)  q=q.ilike('descricao','%'+_aBusca+'%');
+    const{data,error}=await q.range(off,off+999);
     if(error||!data||!data.length)break;
     auditoria=auditoria.concat(data);
     if(data.length<1000)break;
