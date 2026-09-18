@@ -1527,6 +1527,7 @@ async function renderDevolucoes(){
     // Buscar mov_sd3_001 do banco
     // Filtrar por CC se selecionado
   const ccFiltro = document.getElementById('f-cc')?.value || '';
+  const buscaFiltro = (document.getElementById('f-busca')?.value || '').toLowerCase().trim();
   let query = db.from('mov_sd3_001')
       .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,quantidade,valor_total,custo_fonte')
       .eq('mes', mesRef)
@@ -1536,14 +1537,21 @@ async function renderDevolucoes(){
     const {data, error} = await query.limit(50000);
     if(error) throw error;
 
-    if(!data?.length){
+    let dados = data || [];
+    if(buscaFiltro) {
+      dados = dados.filter(r =>
+        (r.produto||'').toLowerCase().includes(buscaFiltro) ||
+        (r.descricao||'').toLowerCase().includes(buscaFiltro)
+      );
+    }
+    if(!dados.length){
       content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Nenhuma devolução encontrada.</div>';
       return;
     }
 
     // mesRef já definido acima
-    const totalVal = data.reduce((a,r)=>a+(r.valor_total||0),0);
-    const totalQtd = data.reduce((a,r)=>a+(r.quantidade||0),0);
+    const totalVal = dados.reduce((a,r)=>a+(r.valor_total||0),0);
+    const totalQtd = dados.reduce((a,r)=>a+(r.quantidade||0),0);
     const fmtVal = v => 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     const fmtDt = d => d?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'-';
 
@@ -1580,7 +1588,7 @@ async function renderDevolucoes(){
             </tr>
           </thead>
           <tbody>
-            ${data.map((r,i)=>`
+            ${dados.map((r,i)=>`
               <tr style="background:${i%2?'#f8fafc':'#fff'};border-bottom:1px solid #f1f5f9">
                 <td style="padding:7px 12px">${r.filial}</td>
                 <td style="padding:7px 12px;font-family:monospace">${r.produto}</td>
