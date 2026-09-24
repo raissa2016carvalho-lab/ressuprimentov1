@@ -645,7 +645,7 @@ function renderCardMatricial(grupo,readonly){
   }).join('');
 
   var tituloCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(' · ');
-  var filialNomes={'01':'MATRIZ','03':'PAU DOS FERROS','04':'ITAPIPOCA','06':'CURRAIS NOVOS','07':'SOBRAL','08':'APARECIDA DE GOIANIA','09':'MARACANAU','10':'MOSSORO','11':'ANAPOLIS','13':'ALAGOINHAS','14':'RIBEIRA DO POMBAL','15':'PAULO AFONSO','22':'GOIANIA','23':'BATURITE','24':'MORRINHOS','25':'CASCAVEL','27':'CAUCAIA','29':'HORIZONTE','34':'SENHOR DO BONFIM','36':'LUZIANIA','37':'DIVINOPOLIS','40':'GARANHUNS','41':'FLORIANO','42':'LIVRAMENTO DE NOSSA SENHORA','43':'HORTOLANDIA','44':'BRUMADO','45':'NITEROI'};
+  var filialNomes={'01':'MATRIZ','03':'PAU DOS FERROS','04':'ITAPIPOCA','06':'CURRAIS NOVOS','07':'SOBRAL','08':'APARECIDA DE GOIANIA','09':'MARACANAU','10':'MOSSORO','11':'ANAPOLIS','13':'ALAGOINHAS','14':'RIBEIRA DO POMBAL','15':'PAULO AFONSO','22':'GOIANIA','23':'BATURITE','24':'MORRINHOS','25':'CASCAVEL','27':'CAUCAIA','29':'HORIZONTE','34':'SENHOR DO BONFIM','36':'LUZIANIA','37':'DIVINOPOLIS','39':'BARUERI','40':'GARANHUNS','41':'FLORIANO','42':'LIVRAMENTO DE NOSSA SENHORA','43':'HORTOLANDIA','44':'BRUMADO','45':'NITEROI'};
   var filialNome=filialNomes[s0.filial]||('Filial '+s0.filial);
   var codigosIds=grupo.map(function(s){return'#'+s.id}).join(' · ');
   // Badge reflete o status mais avançado do grupo
