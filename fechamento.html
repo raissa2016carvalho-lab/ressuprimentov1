@@ -1913,11 +1913,15 @@ async function exportarExcel(){
     }));
 
     // ── Aba 3: Comparativo (CC × Grupo, consumo - devoluções) ────────
+    // Usa _dados (consumo_scp_resumo, já agregado) em vez do consumo_scp
+    // bruto, que tem duplicatas e dobraria os valores.
     setMsg('Gerando planilha...','Aba Comparativo');
+
+    const scpResumo=_dados.filter(r=>r.mes===mes);
 
     // Agregar consumo por CC + grupo amigo
     const mapCC={}, mapConsumo={}, mapDev={};
-    consumo.forEach(r=>{
+    scpResumo.forEach(r=>{
       const col=GRUPO_DEPARA[r.grupo]||'OUTROS';
       if(!GRUPOS_COLS.includes(col))return;
       if(!mapCC[r.cc])mapCC[r.cc]={};
