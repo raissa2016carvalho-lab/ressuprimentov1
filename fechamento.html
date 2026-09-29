@@ -203,7 +203,12 @@ tr:last-child td{border-bottom:none}
     <div class="header-sub" id="sub-header">Carregando...</div>
   </div>
   <div id="sync-badge" style="font-size:10px;color:#94a3b8;align-self:flex-end;margin-left:auto;margin-right:8px;text-align:right;line-height:1.4"></div>
-  <div style="display:flex;gap:8px">
+  <div style="display:flex;gap:8px;align-items:center">
+    <div style="font-size:11px;color:#a5b4fc;text-align:right;line-height:1.3">
+      <div style="font-weight:600;color:#c7d2fe" id="user-nome"></div>
+      <div id="user-cargo"></div>
+    </div>
+    <button class="btn-voltar" onclick="sessionStorage.removeItem('fechamento_usuario');location.href='login_fechamento.html'" title="Sair">⏻ Sair</button>
     <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
   </div>
 </div>
@@ -297,6 +302,12 @@ tr:last-child td{border-bottom:none}
 <script>
 const SUPABASE_URL='https://eugefrjckrxisfpizkjb.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI';
+
+// ── VERIFICAÇÃO DE LOGIN ─────────────────────────────────────────────
+const _sessaoStr=sessionStorage.getItem('fechamento_usuario');
+if(!_sessaoStr){window.location.href='login_fechamento.html';throw new Error('redirect');}
+const _sessao=JSON.parse(_sessaoStr);
+
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 let _dados=[], _filtrados=[], _abaAtual='resumo', _ccMap={};
@@ -2007,6 +2018,10 @@ window.toggleJust=toggleJust;
 window.salvarJust=salvarJust;
 window.salvarJustInline=salvarJustInline;
 window.renderAuditoria=renderAuditoria;
+
+// Preencher nome do usuário
+document.getElementById('user-nome').textContent=_sessao.nome||'';
+document.getElementById('user-cargo').textContent=_sessao.cargo||'';
 
 carregar();
 </script>
