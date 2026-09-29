@@ -1819,13 +1819,13 @@ async function exportarExcel(){
     for(;;){
       let q=db.from('consumo_scp')
         .select('filial,num,item,produto,descricao,grupo,cc,mes,emissao,quantidade,custo_unit,valor_total,custo_zero,motivo,custo_fonte')
-        .order('id').range(off,off+999);
+        .order('chave').range(off,off+999);
       if(filial) q=q.eq('filial',filial);
       if(grupo)  q=q.eq('grupo',grupo);
       if(cc)     q=q.eq('cc',cc);
       if(mes)    q=q.eq('mes',mes);
-      else if(periodo==='2026') q=q.gte('mes','202601').lte('mes','202612');
-      else if(periodo==='2025') q=q.gte('mes','202501').lte('mes','202512');
+      else if(periodo==='2026') q=q.like('mes','2026%');
+      else if(periodo==='2025') q=q.like('mes','2025%');
       const{data,error}=await q;
       if(error||!data||!data.length)break;
       consumo=consumo.concat(data);
@@ -1845,8 +1845,8 @@ async function exportarExcel(){
       if(grupo)  q=q.eq('grupo',grupo);
       if(cc)     q=q.eq('cc',cc);
       if(mes)    q=q.eq('mes',mes);
-      else if(periodo==='2026') q=q.gte('mes','202601').lte('mes','202612');
-      else if(periodo==='2025') q=q.gte('mes','202501').lte('mes','202512');
+      else if(periodo==='2026') q=q.like('mes','2026%');
+      else if(periodo==='2025') q=q.like('mes','2025%');
       const{data,error}=await q;
       if(error||!data||!data.length)break;
       devolucoes=devolucoes.concat(data);
