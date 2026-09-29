@@ -254,8 +254,8 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;overf
 
       <form id="login-form" onsubmit="return fazerLogin(event)">
         <div class="field">
-          <label class="field-label" for="usuario">Usuário</label>
-          <input class="field-input" type="text" id="usuario" placeholder="Digite seu usuário" autocomplete="username" required autofocus>
+          <label class="field-label" for="usuario">E-mail</label>
+          <input class="field-input" type="email" id="usuario" placeholder="seu@email.com" autocomplete="email" required autofocus>
         </div>
         <div class="field">
           <label class="field-label" for="senha">Senha</label>
@@ -285,50 +285,35 @@ const db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const sessao=sessionStorage.getItem('fechamento_usuario');
 if(sessao) window.location.href='fechamento.html';
 
-async function sha256(msg){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
 async function fazerLogin(e){
   e.preventDefault();
   const btn=document.getElementById('btn-entrar');
   const erro=document.getElementById('login-error');
-  const usuario=document.getElementById('usuario').value.trim().toLowerCase();
+  const email=document.getElementById('usuario').value.trim();
   const senha=document.getElementById('senha').value;
-  if(!usuario||!senha)return;
+  if(!email||!senha)return;
 
   btn.classList.add('loading');
   erro.style.display='none';
 
   try{
-    const hash=await sha256(senha);
-    const{data,error}=await db
-      .from('usuarios_fechamento')
-      .select('id,nome,cargo,ativo')
-      .eq('usuario',usuario)
-      .eq('senha_hash',hash)
-      .maybeSingle();
+    const{data,error}=await db.auth.signInWithPassword({email,password:senha});
 
-    if(error) throw error;
-
-    if(!data){
+    if(error){
       mostrarErro('Usuário ou senha incorretos.');
       document.getElementById('senha').value='';
       document.getElementById('senha').focus();
       return;
     }
-    if(!data.ativo){
-      mostrarErro('Acesso desativado. Contate o administrador.');
-      return;
-    }
 
-    db.from('usuarios_fechamento')
-      .update({ultimo_acesso:new Date().toISOString()})
-      .eq('id',data.id).then(()=>{});
+    const user=data.user;
+    const meta=user.user_metadata||{};
 
     sessionStorage.setItem('fechamento_usuario',JSON.stringify({
-      id:data.id,nome:data.nome,cargo:data.cargo,
+      id:user.id,
+      nome:meta.nome||meta.name||email.split('@')[0],
+      cargo:meta.cargo||meta.role||'',
+      email:user.email,
       login:new Date().toISOString()
     }));
 
