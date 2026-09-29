@@ -531,11 +531,19 @@ async function renderResumo(){
   const ccFiltro=document.getElementById('f-cc')?.value||'';
   if(!_devResumoCache){
     try{
-      let q=db.from('mov_sd3_001').select('mes,valor_total,quantidade,filial,cc');
-      if(filialFiltro) q=q.eq('filial',filialFiltro);
-      if(ccFiltro) q=q.eq('cc',ccFiltro);
-      const{data}=await q.limit(50000);
-      _devResumoCache=data||[];
+      // Paginar: Supabase limita a 1000 linhas por request
+      let todos=[],off=0;
+      for(;;){
+        let q=db.from('mov_sd3_001').select('mes,valor_total,quantidade,filial,cc').order('id').range(off,off+999);
+        if(filialFiltro) q=q.eq('filial',filialFiltro);
+        if(ccFiltro) q=q.eq('cc',ccFiltro);
+        const{data,error}=await q;
+        if(error||!data||!data.length)break;
+        todos=todos.concat(data);
+        if(data.length<1000)break;
+        off+=data.length;
+      }
+      _devResumoCache=todos;
     }catch(e){_devResumoCache=[];}
   }
   let devFilt=_devResumoCache;
