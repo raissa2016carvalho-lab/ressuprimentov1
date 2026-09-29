@@ -1827,7 +1827,7 @@ async function exportarExcel(){
     let consumo=[],off=0;
     for(;;){
       let q=db.from('consumo_scp')
-        .select('filial,num,item,produto,descricao,grupo,cc,mes,emissao,quantidade,custo_unit,valor_total,custo_zero,motivo,custo_fonte')
+        .select('chave,filial,num,item,produto,descricao,grupo,cc,mes,emissao,quantidade,custo_unit,valor_total,custo_zero,motivo,custo_fonte')
         .eq('mes',mes)
         .order('chave').range(off,off+999);
       if(filial) q=q.eq('filial',filial);
@@ -1866,11 +1866,20 @@ async function exportarExcel(){
       return;
     }
 
-    // ── Aba 1: Consumo (bruto) ────────────────────────────────────────
+    // ── Aba 1: Consumo (bruto, deduplicado por chave) ───────────────
     setMsg('Gerando planilha...','Aba Consumo');
     const fmtDt=d=>d?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'';
 
-    const rowsConsumo=consumo.map(r=>({
+    // Deduplicar: consumo_scp pode ter linhas repetidas (mesma chave filial|num|item)
+    const vistos=new Set();
+    const consumoUnico=consumo.filter(r=>{
+      const k=r.chave||(r.filial+'|'+r.num+'|'+r.item);
+      if(vistos.has(k))return false;
+      vistos.add(k);
+      return true;
+    });
+
+    const rowsConsumo=consumoUnico.map(r=>({
       'Filial':r.filial,
       'Nome Filial':FNOMES[r.filial]||'',
       'Nº Requisição':r.num||'',
