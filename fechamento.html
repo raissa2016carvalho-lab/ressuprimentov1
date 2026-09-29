@@ -300,7 +300,8 @@ const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 let _dados=[], _filtrados=[], _abaAtual='resumo', _ccMap={};
-let _chartMes=null, _chartGrupo=null, _chartFilial=null;
+let _chartMes=null, _chartGrupo=null, _chartFilial=null, _chartDev=null;
+let _devResumoCache=null; // cache de devoluções por mês para aba Fechamento
 
 const FNOMES={'01':'Matriz','03':'Pau dos Ferros','04':'Itapipoca','06':'Currais Novos','07':'Sobral','08':'Aparecida de Goiânia','09':'Maracanau','10':'Mossoro','11':'Anapolis','13':'Alagoinhas','14':'Ribeira do Pombal','15':'Paulo Afonso','22':'Goiania','23':'Baturite','24':'Morrinhos','25':'Cascavel','27':'Caucaia','29':'Horizonte','34':'Senhor do Bonfim','36':'Luziania','37':'Divinopolis','40':'Garanhuns','41':'Floriano','42':'Livramento','43':'Hortolandia','44':'Brumado'};
 
@@ -459,6 +460,7 @@ function aplicarFiltros(){
   const custoZero=document.getElementById('f-custo-zero').value;
   const busca=(document.getElementById('f-busca').value||'').toLowerCase().trim();
 
+  _devResumoCache=null; // invalidar cache de devoluções ao refiltrar
   _filtrados=_dados.filter(r=>{
     if(filial&&r.filial!==filial)return false;
     if(grupo&&r.grupo!==grupo)return false;
@@ -512,7 +514,7 @@ function kpisHTML(){
   </div>`;
 }
 
-function renderResumo(){
+async function renderResumo(){
   const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
 
   // Detectar se valor está todo zerado → usar quantidade como fallback
@@ -523,6 +525,24 @@ function renderResumo(){
   const labelMetrica=semValor?'Quantidade':'Valor (R$)';
 
   const valPorMes=meses.map(m=>_filtrados.filter(r=>r.mes===m).reduce((a,r)=>a+metrica(r),0));
+
+  // ── Buscar devoluções (mov_sd3_001) para o gráfico lado a lado ──
+  const filialFiltro=document.getElementById('f-filial')?.value||'';
+  const ccFiltro=document.getElementById('f-cc')?.value||'';
+  if(!_devResumoCache){
+    try{
+      let q=db.from('mov_sd3_001').select('mes,valor_total,quantidade,filial,cc');
+      if(filialFiltro) q=q.eq('filial',filialFiltro);
+      if(ccFiltro) q=q.eq('cc',ccFiltro);
+      const{data}=await q.limit(50000);
+      _devResumoCache=data||[];
+    }catch(e){_devResumoCache=[];}
+  }
+  let devFilt=_devResumoCache;
+  if(filialFiltro) devFilt=devFilt.filter(r=>r.filial===filialFiltro);
+  if(ccFiltro) devFilt=devFilt.filter(r=>r.cc===ccFiltro);
+  const devPorMes=meses.map(m=>devFilt.filter(r=>r.mes===m).reduce((a,r)=>a+(semValor?(r.quantidade||0):(r.valor_total||0)),0));
+  const totalDev=devPorMes.reduce((a,v)=>a+v,0);
 
   // Top grupos
   const grupoMap={};
@@ -548,18 +568,28 @@ function renderResumo(){
       <div class="grafico-wrap"><canvas id="chart-mes"></canvas></div>
     </div>
     <div class="grafico-card">
-      <div class="grafico-title">🏷️ Top grupos por ${semValor?'quantidade':'valor'}</div>
-      <div class="grafico-wrap" style="max-height:260px;position:relative"><canvas id="chart-grupo" style="max-height:260px"></canvas></div>
+      <div class="grafico-title">↩️ Devoluções mensal (${labelMetrica})</div>
+      <div class="grafico-wrap"><canvas id="chart-dev"></canvas></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:right">Total: <strong style="color:var(--text)">${fmtMetrica(totalDev)}</strong></div>
     </div>
   </div>
   <div class="graficos">
     <div class="grafico-card">
+      <div class="grafico-title">🏷️ Top grupos por ${semValor?'quantidade':'valor'}</div>
+      <div class="grafico-wrap" style="max-height:260px;position:relative"><canvas id="chart-grupo" style="max-height:260px"></canvas></div>
+    </div>
+    <div class="grafico-card">
       <div class="grafico-title">🏢 Consumo por filial (${labelMetrica})</div>
       <div class="grafico-wrap"><canvas id="chart-filial"></canvas></div>
     </div>
+  </div>
+  <div class="graficos">
     <div class="grafico-card">
       <div class="grafico-title">⚠️ Alertas de custo zero por mês</div>
       <div class="grafico-wrap"><canvas id="chart-zero"></canvas></div>
+    </div>
+    <div class="grafico-card" style="display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px">
+      <!-- espaço reservado para futuro indicador -->
     </div>
   </div>`;
 
@@ -568,7 +598,7 @@ function renderResumo(){
     const labelPlugin={
       id:'barLabels',
       afterDatasetsDraw(chart){
-        const{ctx,data,chartArea:{top,bottom,left,right},scales}=chart;
+        const{ctx}=chart;
         ctx.save();
         chart.data.datasets.forEach((ds,di)=>{
           chart.getDatasetMeta(di).data.forEach((bar,i)=>{
@@ -579,12 +609,10 @@ function renderResumo(){
             ctx.fillStyle='#1e293b';
             ctx.textAlign='center';
             ctx.textBaseline='middle';
-            // horizontal bar → label à direita da barra
             if(chart.config.options?.indexAxis==='y'){
               ctx.textAlign='left';
               ctx.fillText(txt, bar.x+5, bar.y);
             } else {
-              // vertical bar → label acima da barra
               ctx.fillText(txt, bar.x, bar.y-8);
             }
           });
@@ -593,17 +621,22 @@ function renderResumo(){
       }
     };
 
-    // Gráfico mensal
+    // Gráfico CONSUMO mensal
     const ctxM=document.getElementById('chart-mes').getContext('2d');
     if(_chartMes)_chartMes.destroy();
     _chartMes=new Chart(ctxM,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:labelMetrica,data:valPorMes,backgroundColor:'#3b82f6',borderRadius:4,_labelFmt:fmtMetrica}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMetrica(v)}}}},plugins:[labelPlugin]});
 
-    // Gráfico grupos (doughnut — usa tooltip, não precisa de plugin)
+    // Gráfico DEVOLUÇÕES mensal (lado a lado com consumo)
+    const ctxD=document.getElementById('chart-dev').getContext('2d');
+    if(_chartDev)_chartDev.destroy();
+    _chartDev=new Chart(ctxD,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:labelMetrica,data:devPorMes,backgroundColor:'#10b981',borderRadius:4,_labelFmt:fmtMetrica}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMetrica(v)}}}},plugins:[labelPlugin]});
+
+    // Gráfico grupos (doughnut)
     const ctxG=document.getElementById('chart-grupo').getContext('2d');
     const totalGrupos=topGrupos.reduce((a,g)=>a+g[1],0);
     new Chart(ctxG,{type:'doughnut',data:{labels:topGrupos.map(g=>g[0].slice(0,25)),datasets:[{data:topGrupos.map(g=>g[1]),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12}},tooltip:{callbacks:{label:ctx=>{const pct=totalGrupos>0?((ctx.raw/totalGrupos)*100).toFixed(1)+'%':'';return ctx.label+': '+fmtMetrica(ctx.raw)+' ('+pct+')';}}}}}});
 
-    // Gráfico filiais (horizontal — rótulo à direita)
+    // Gráfico filiais (horizontal)
     const ctxF=document.getElementById('chart-filial').getContext('2d');
     new Chart(ctxF,{type:'bar',data:{labels:topFiliais.map(f=>FNOMES[f[0]]||f[0]),datasets:[{label:labelMetrica,data:topFiliais.map(f=>f[1]),backgroundColor:'#10b981',borderRadius:4,_labelFmt:fmtMetrica}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{right:120}},indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmtMetrica(v)}}}},plugins:[labelPlugin]});
 
@@ -1731,7 +1764,8 @@ async function renderComparativo(){
                   const cons=mapConsumo[cc]?.[g]||0;
                   const dev=mapDev[cc]?.[g]||0;
                   const tip = cons||dev ? `Consumo: ${fmt(cons)}&#10;Devolução: ${fmt(dev)}&#10;Líquido: ${fmt(v)}` : '';
-                  return `<td style="padding:7px 8px;text-align:right;${v<0?'color:#ef4444':''};cursor:${tip?'help':''}" title="${tip}">${v?fmt(v):'—'}</td>`;
+                  const temDev = dev > 0;
+                  return `<td style="padding:7px 8px;text-align:right;${v<0?'color:#ef4444':''}${temDev?';font-weight:700':''};cursor:${tip?'help':''}" title="${tip}">${v?fmt(v):'—'}</td>`;
                 }).join('')}
                 <td style="padding:7px 14px;text-align:right;font-weight:700">${fmt(totalLinha)}</td>
               </tr>`;
