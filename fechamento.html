@@ -1794,21 +1794,140 @@ async function renderComparativo(){
 }
 
 
-function exportarExcel(){
-  if(!_filtrados.length){alert('Nenhum dado para exportar.');return;}
-  const rows=_filtrados.map(r=>({
-    'Filial':r.filial,'Nome Filial':FNOMES[r.filial]||'',
-    'Produto':r.produto,'Descrição':r.descricao||'',
-    'Grupo':r.grupo||'','CC':r.cc||'','Nome CC':_ccMap[r.cc]||'',
-    'Mês':r.mes,'Quantidade':r.quantidade||0,
-    'Custo Unit.':r.custo_unit||0,'Valor Total':r.valor_total||0,
-    'Custo Zero':r.custo_zero?'SIM':'NÃO',
-  }));
-  const ws=XLSX.utils.json_to_sheet(rows);
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Consumo SCP');
-  const dt=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
-  XLSX.writeFile(wb,'fechamento_consumo_'+dt+'.xlsx');
+async function exportarExcel(){
+  const filial=document.getElementById('f-filial').value;
+  const grupo=document.getElementById('f-grupo').value;
+  const cc=document.getElementById('f-cc').value;
+  const periodo=document.getElementById('f-periodo').value;
+  const mes=document.getElementById('f-mes').value;
+
+  // Overlay de progresso
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+  overlay.innerHTML=`<div style="background:#fff;border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+    <div class="spinner" style="margin:0 auto 16px"></div>
+    <div id="excel-msg" style="font-size:14px;font-weight:600;color:#1e293b">Buscando dados completos...</div>
+    <div id="excel-sub" style="font-size:12px;color:#64748b;margin-top:4px"></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const setMsg=(m,s)=>{document.getElementById('excel-msg').textContent=m;document.getElementById('excel-sub').textContent=s||'';};
+
+  try{
+    // ── Buscar consumo_scp COMPLETO (bruto) ──────────────────────────
+    setMsg('Buscando consumo...','consumo_scp');
+    let consumo=[],off=0;
+    for(;;){
+      let q=db.from('consumo_scp')
+        .select('filial,num,item,produto,descricao,grupo,cc,mes,emissao,quantidade,custo_unit,valor_total,custo_zero,motivo,custo_fonte')
+        .order('id').range(off,off+999);
+      if(filial) q=q.eq('filial',filial);
+      if(grupo)  q=q.eq('grupo',grupo);
+      if(cc)     q=q.eq('cc',cc);
+      if(mes)    q=q.eq('mes',mes);
+      else if(periodo==='2026') q=q.gte('mes','202601').lte('mes','202612');
+      else if(periodo==='2025') q=q.gte('mes','202501').lte('mes','202512');
+      const{data,error}=await q;
+      if(error||!data||!data.length)break;
+      consumo=consumo.concat(data);
+      setMsg(`Buscando consumo...`,`${consumo.length.toLocaleString('pt-BR')} registros`);
+      if(data.length<1000)break;
+      off+=data.length;
+    }
+
+    // ── Buscar mov_sd3_001 COMPLETO (bruto) ──────────────────────────
+    setMsg('Buscando devoluções...','mov_sd3_001');
+    let devolucoes=[],off2=0;
+    for(;;){
+      let q=db.from('mov_sd3_001')
+        .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,tipo_rede,quantidade,custo_unit,valor_total,custo_fonte')
+        .order('id').range(off2,off2+999);
+      if(filial) q=q.eq('filial',filial);
+      if(grupo)  q=q.eq('grupo',grupo);
+      if(cc)     q=q.eq('cc',cc);
+      if(mes)    q=q.eq('mes',mes);
+      else if(periodo==='2026') q=q.gte('mes','202601').lte('mes','202612');
+      else if(periodo==='2025') q=q.gte('mes','202501').lte('mes','202512');
+      const{data,error}=await q;
+      if(error||!data||!data.length)break;
+      devolucoes=devolucoes.concat(data);
+      setMsg(`Buscando devoluções...`,`${devolucoes.length.toLocaleString('pt-BR')} registros`);
+      if(data.length<1000)break;
+      off2+=data.length;
+    }
+
+    if(!consumo.length && !devolucoes.length){
+      overlay.remove();
+      alert('Nenhum dado encontrado para os filtros selecionados.');
+      return;
+    }
+
+    // ── Montar aba Consumo ────────────────────────────────────────────
+    setMsg('Gerando planilha...','Aba Consumo');
+    const fmtDt=d=>d?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'';
+    const fmtMesExcel=m=>m?m.slice(4,6)+'/'+m.slice(0,4):'';
+
+    const rowsConsumo=consumo.map(r=>({
+      'Filial':r.filial,
+      'Nome Filial':FNOMES[r.filial]||'',
+      'Nº Requisição':r.num||'',
+      'Item':r.item||'',
+      'Produto':r.produto||'',
+      'Descrição':r.descricao||'',
+      'Grupo':r.grupo||'',
+      'CC':r.cc||'',
+      'Nome CC':_ccMap[r.cc]||'',
+      'Mês':fmtMesExcel(r.mes),
+      'Emissão':fmtDt(r.emissao),
+      'Motivo':r.motivo||'',
+      'Quantidade':r.quantidade||0,
+      'Custo Unit.':r.custo_unit||0,
+      'Valor Total':r.valor_total||0,
+      'Fonte Custo':r.custo_fonte||'',
+      'Custo Zero':r.custo_zero?'SIM':'NÃO',
+    }));
+
+    // ── Montar aba Devoluções ─────────────────────────────────────────
+    setMsg('Gerando planilha...','Aba Devoluções');
+    const rowsDev=devolucoes.map(r=>({
+      'Filial':r.filial,
+      'Nome Filial':FNOMES[r.filial]||'',
+      'Produto':r.produto||'',
+      'Descrição':r.descricao||'',
+      'Grupo':r.grupo||'',
+      'CC':r.cc||'',
+      'Nome CC':_ccMap[r.cc]||'',
+      'Mês':fmtMesExcel(r.mes),
+      'Emissão':fmtDt(r.emissao),
+      'Matrícula':r.matricula||'',
+      'Documento':r.documento||'',
+      'Tipo Rede':r.tipo_rede||'',
+      'Quantidade':r.quantidade||0,
+      'Custo Unit.':r.custo_unit||0,
+      'Valor Total':r.valor_total||0,
+      'Fonte Custo':r.custo_fonte||'',
+      'Observação':r.observacao||'',
+    }));
+
+    // ── Gerar Excel com 2 abas ───────────────────────────────────────
+    setMsg('Salvando arquivo...',`${rowsConsumo.length} + ${rowsDev.length} linhas`);
+    const wb=XLSX.utils.book_new();
+
+    const wsC=XLSX.utils.json_to_sheet(rowsConsumo);
+    XLSX.utils.book_append_sheet(wb,wsC,'Consumo');
+
+    const wsD=XLSX.utils.json_to_sheet(rowsDev);
+    XLSX.utils.book_append_sheet(wb,wsD,'Devoluções');
+
+    const dt=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+    const filtroLabel=filial?`_filial${filial}`:'';
+    XLSX.writeFile(wb,`fechamento_completo${filtroLabel}_${dt}.xlsx`);
+
+    overlay.remove();
+  }catch(e){
+    overlay.remove();
+    alert('Erro ao exportar: '+e.message);
+    console.error(e);
+  }
 }
 
 window.irParaAba=irParaAba;
