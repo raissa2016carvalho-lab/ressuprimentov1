@@ -196,6 +196,91 @@ tr:last-child td{border-bottom:none}
 </head>
 <body>
 
+<!-- ══════════════ TELA DE LOGIN (visível por padrão) ══════════════ -->
+<div id="tela-login" style="position:fixed;inset:0;z-index:9999;display:flex">
+  <style>
+    #tela-login{font-family:'Plus Jakarta Sans','Inter',system-ui,sans-serif;background:linear-gradient(155deg,#0d1f3c 0%,#162d54 45%,#0a1628 100%)}
+    #tela-login .grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(232,119,34,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(232,119,34,.04) 1px,transparent 1px);background-size:50px 50px;animation:gridD 25s linear infinite}
+    @keyframes gridD{to{background-position:50px 50px}}
+    #tela-login .orb{position:absolute;border-radius:50%;filter:blur(90px);animation:orbF 10s ease-in-out infinite alternate}
+    @keyframes orbF{0%{transform:translate(0,0) scale(1)}100%{transform:translate(25px,-15px) scale(1.08)}}
+    #tela-login .brand-panel{flex:1;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:60px 80px;color:#fff;position:relative}
+    #tela-login .brand-panel::after{content:'';position:absolute;right:0;top:10%;bottom:10%;width:1px;background:linear-gradient(transparent,rgba(232,119,34,.2),transparent)}
+    #tela-login .form-panel{width:480px;min-width:480px;display:flex;align-items:center;justify-content:center;padding:40px;position:relative;z-index:1}
+    #tela-login .login-card{width:100%;max-width:400px;background:rgba(255,255,255,.04);backdrop-filter:blur(40px) saturate(1.5);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:44px 36px 36px;box-shadow:0 32px 80px rgba(0,0,0,.4)}
+    #tela-login .field{margin-bottom:20px}
+    #tela-login .field-label{display:block;font-size:12px;font-weight:600;color:rgba(255,255,255,.45);margin-bottom:8px;letter-spacing:.3px}
+    #tela-login .field-input{width:100%;padding:14px 16px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;color:#fff;font-size:15px;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+    #tela-login .field-input::placeholder{color:rgba(255,255,255,.2)}
+    #tela-login .field-input:focus{border-color:#e87722;box-shadow:0 0 0 3px rgba(232,119,34,.35);background:rgba(255,255,255,.08)}
+    #tela-login .btn-login{width:100%;padding:15px;margin-top:8px;background:linear-gradient(135deg,#e87722,#d46a1c);color:#fff;font-size:15px;font-weight:700;font-family:inherit;border:none;border-radius:12px;cursor:pointer;box-shadow:0 4px 24px rgba(232,119,34,.35);position:relative;overflow:hidden;transition:transform .15s,box-shadow .15s}
+    #tela-login .btn-login:hover{transform:translateY(-1px);box-shadow:0 8px 36px rgba(232,119,34,.35)}
+    #tela-login .btn-login.loading .btn-text{opacity:0}
+    #tela-login .btn-login.loading .btn-spinner{display:block}
+    #tela-login .btn-spinner{display:none;position:absolute;inset:0;margin:auto;width:22px;height:22px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spinL .7s linear infinite}
+    @keyframes spinL{to{transform:rotate(360deg)}}
+    #tela-login .login-error{margin-top:16px;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:500;text-align:center;display:none;animation:shakeL .4s ease}
+    @keyframes shakeL{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
+    @media(max-width:960px){#tela-login .brand-panel{display:none}#tela-login .form-panel{width:100%;min-width:0;padding:24px}}
+  </style>
+  <div class="grid-bg"></div>
+  <div class="orb" style="width:500px;height:500px;background:#e87722;opacity:.08;top:-150px;right:-120px"></div>
+  <div class="orb" style="width:350px;height:350px;background:#1e3a6e;opacity:.25;bottom:-80px;left:-100px;animation-delay:4s"></div>
+
+  <div class="brand-panel">
+    <div style="font-size:56px;font-weight:800;letter-spacing:-1px;font-style:italic;margin-bottom:12px"><span style="color:#e87722">B</span>&<span style="color:#e87722">Q</span></div>
+    <div style="font-size:17px;font-weight:300;color:rgba(255,255,255,.55);line-height:1.6;max-width:380px;margin-bottom:40px">
+      <strong style="font-weight:600;color:rgba(255,255,255,.8)">Construindo o futuro</strong> com a energia de quem sempre esteve presente.
+      <br><br>Há 38 anos, unindo energias para ir mais longe.
+    </div>
+    <div style="display:flex;gap:40px">
+      <div><div style="font-size:32px;font-weight:800;background:linear-gradient(135deg,#e87722,#f5a623);-webkit-background-clip:text;-webkit-text-fill-color:transparent">38</div><div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:2px">anos de história</div></div>
+      <div><div style="font-size:32px;font-weight:800;background:linear-gradient(135deg,#e87722,#f5a623);-webkit-background-clip:text;-webkit-text-fill-color:transparent">25+</div><div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:2px">filiais</div></div>
+      <div><div style="font-size:32px">⚡</div><div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:2px">energia que move</div></div>
+    </div>
+  </div>
+
+  <div class="form-panel">
+    <div class="login-card">
+      <div class="card-title" style="font-size:22px;font-weight:700;color:#fff;margin-bottom:6px">Fechamento de Consumo</div>
+      <div class="card-sub" style="font-size:13px;color:#7b8baa;margin-bottom:32px">Entre com suas credenciais para acessar o painel.</div>
+
+      <form id="login-form" onsubmit="return _fazerLogin(event)">
+        <div class="field">
+          <label class="field-label">E-mail</label>
+          <input class="field-input" type="email" id="login-email" placeholder="seu@email.com" autocomplete="email" required autofocus>
+        </div>
+        <div class="field">
+          <label class="field-label" id="label-senha">Senha</label>
+          <input class="field-input" type="password" id="login-senha" placeholder="Digite sua senha" autocomplete="current-password" required>
+        </div>
+        <div id="campos-nova-senha" style="display:none">
+          <div class="field">
+            <label class="field-label">Nova senha</label>
+            <input class="field-input" type="password" id="login-nova" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label class="field-label">Confirmar nova senha</label>
+            <input class="field-input" type="password" id="login-confirma" placeholder="Repita a nova senha" autocomplete="new-password">
+          </div>
+        </div>
+        <button class="btn-login" type="submit" id="btn-entrar">
+          <span class="btn-text">Entrar</span>
+          <div class="btn-spinner"></div>
+        </button>
+      </form>
+      <div class="login-error" id="login-error"></div>
+      <div style="text-align:center;margin-top:24px">
+        <a href="#" onclick="_alternarModo(event)" id="link-modo" style="color:#e87722;text-decoration:none;font-size:12px;font-weight:600;opacity:.8">🔑 Alterar minha senha</a>
+        <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.18)">Sistema de Ressuprimento • v1.1</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PAINEL (escondido até login) ══════════════ -->
+<div id="painel-app" style="display:none">
+
 <div class="header">
   <button class="btn-voltar" onclick="history.back()">← Voltar</button>
   <div>
@@ -208,7 +293,7 @@ tr:last-child td{border-bottom:none}
       <div style="font-weight:600;color:#c7d2fe" id="user-nome"></div>
       <div id="user-cargo"></div>
     </div>
-    <button class="btn-voltar" onclick="sessionStorage.removeItem('fechamento_usuario');location.href='login_fechamento.html'" title="Sair">⏻ Sair</button>
+    <button class="btn-voltar" onclick="_fazerLogout()" title="Sair">⏻ Sair</button>
     <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
   </div>
 </div>
@@ -302,11 +387,6 @@ tr:last-child td{border-bottom:none}
 <script>
 const SUPABASE_URL='https://eugefrjckrxisfpizkjb.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI';
-
-// ── VERIFICAÇÃO DE LOGIN ─────────────────────────────────────────────
-const _sessaoStr=sessionStorage.getItem('fechamento_usuario');
-if(!_sessaoStr){window.location.href='login_fechamento.html';throw new Error('redirect');}
-const _sessao=JSON.parse(_sessaoStr);
 
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
@@ -2022,11 +2102,135 @@ window.salvarJust=salvarJust;
 window.salvarJustInline=salvarJustInline;
 window.renderAuditoria=renderAuditoria;
 
-// Preencher nome do usuário
-document.getElementById('user-nome').textContent=_sessao.nome||'';
-document.getElementById('user-cargo').textContent=_sessao.cargo||'';
+// ══════════════ AUTENTICAÇÃO INTEGRADA ══════════════════════════════
 
-carregar();
+let _sessao=null;
+let _modoAlterar=false;
+
+function _alternarModo(e){
+  e.preventDefault();
+  _modoAlterar=!_modoAlterar;
+  const campos=document.getElementById('campos-nova-senha');
+  const link=document.getElementById('link-modo');
+  const btnText=document.querySelector('#btn-entrar .btn-text');
+  const titulo=document.querySelector('.card-title');
+  const sub=document.querySelector('.card-sub');
+  if(_modoAlterar){
+    campos.style.display='block';
+    link.textContent='← Voltar ao login';
+    btnText.textContent='Alterar senha';
+    titulo.textContent='Alterar senha';
+    sub.textContent='Digite seu e-mail, senha atual e escolha a nova.';
+    document.getElementById('login-senha').placeholder='Senha atual';
+  }else{
+    campos.style.display='none';
+    link.textContent='🔑 Alterar minha senha';
+    btnText.textContent='Entrar';
+    titulo.textContent='Fechamento de Consumo';
+    sub.textContent='Entre com suas credenciais para acessar o painel.';
+    document.getElementById('login-senha').placeholder='Digite sua senha';
+    document.getElementById('login-nova').value='';
+    document.getElementById('login-confirma').value='';
+  }
+  document.getElementById('login-error').style.display='none';
+}
+
+function _mostrarErro(msg){
+  const el=document.getElementById('login-error');
+  el.textContent=msg;el.style.display='block';
+  el.style.background='rgba(239,68,68,.12)';el.style.borderColor='rgba(239,68,68,.2)';el.style.color='#fca5a5';
+}
+function _mostrarSucesso(msg){
+  const el=document.getElementById('login-error');
+  el.textContent=msg;el.style.display='block';
+  el.style.background='rgba(16,185,129,.12)';el.style.borderColor='rgba(16,185,129,.2)';el.style.color='#6ee7b7';
+}
+
+async function _fazerLogin(e){
+  e.preventDefault();
+  const btn=document.getElementById('btn-entrar');
+  const email=document.getElementById('login-email').value.trim();
+  const senha=document.getElementById('login-senha').value;
+  if(!email||!senha)return false;
+
+  btn.classList.add('loading');
+  document.getElementById('login-error').style.display='none';
+
+  try{
+    if(_modoAlterar){
+      const nova=document.getElementById('login-nova').value;
+      const confirma=document.getElementById('login-confirma').value;
+      if(nova.length<6){_mostrarErro('Nova senha: mínimo 6 caracteres.');btn.classList.remove('loading');return false;}
+      if(nova!==confirma){_mostrarErro('As senhas não coincidem.');btn.classList.remove('loading');return false;}
+      if(nova===senha){_mostrarErro('A nova senha deve ser diferente da atual.');btn.classList.remove('loading');return false;}
+      const{error:errL}=await db.auth.signInWithPassword({email,password:senha});
+      if(errL){_mostrarErro('E-mail ou senha atual incorretos.');btn.classList.remove('loading');return false;}
+      const{error:errU}=await db.auth.updateUser({password:nova});
+      if(errU){_mostrarErro('Erro: '+errU.message);btn.classList.remove('loading');return false;}
+      _mostrarSucesso('Senha alterada! Entrando...');
+      setTimeout(()=>_iniciarPainel(email),1200);
+      return false;
+    }
+
+    const{data,error}=await db.auth.signInWithPassword({email,password:senha});
+    if(error){
+      _mostrarErro('Usuário ou senha incorretos.');
+      document.getElementById('login-senha').value='';
+      document.getElementById('login-senha').focus();
+      btn.classList.remove('loading');
+      return false;
+    }
+
+    const user=data.user;
+    const meta=user.user_metadata||{};
+    _sessao={id:user.id,nome:meta.nome||meta.name||email.split('@')[0],cargo:meta.cargo||'',email:user.email};
+    _iniciarPainel();
+
+  }catch(err){
+    console.error(err);
+    _mostrarErro('Erro de conexão. Tente novamente.');
+  }finally{
+    btn.classList.remove('loading');
+  }
+  return false;
+}
+
+function _iniciarPainel(emailFallback){
+  if(!_sessao){
+    _sessao={id:'',nome:(emailFallback||'').split('@')[0],cargo:'',email:emailFallback||''};
+  }
+  document.getElementById('tela-login').style.display='none';
+  document.getElementById('painel-app').style.display='block';
+  document.getElementById('user-nome').textContent=_sessao.nome||'';
+  document.getElementById('user-cargo').textContent=_sessao.cargo||'';
+  carregar();
+}
+
+function _fazerLogout(){
+  db.auth.signOut();
+  _sessao=null;
+  document.getElementById('painel-app').style.display='none';
+  document.getElementById('tela-login').style.display='flex';
+  document.getElementById('login-senha').value='';
+  document.getElementById('login-error').style.display='none';
+}
+
+window._fazerLogin=_fazerLogin;
+window._fazerLogout=_fazerLogout;
+window._alternarModo=_alternarModo;
+
+// Verificar se já tem sessão ativa do Supabase
+db.auth.getSession().then(({data:{session}})=>{
+  if(session?.user){
+    const u=session.user;
+    const m=u.user_metadata||{};
+    _sessao={id:u.id,nome:m.nome||m.name||u.email.split('@')[0],cargo:m.cargo||'',email:u.email};
+    _iniciarPainel();
+  }
+});
 </script>
+
+</div><!-- /painel-app -->
+
 </body>
 </html>
