@@ -1373,247 +1373,187 @@ async function salvarJustInline(chave,inputId,savedId){
 
 async function renderAuditoria(){
   const content=document.getElementById('content');
-  content.innerHTML='<div class="loading"><span class="spinner"></span>Carregando auditoria de custo...</div>';
+  content.innerHTML='<div class="loading"><span class="spinner"></span>Carregando auditoria...</div>';
 
-  // Busca dados brutos de auditoria do Supabase — filtra pelos filtros ativos
-  const _aMes    = document.getElementById('f-mes')?.value || '';
-  const _aFilial = document.getElementById('f-filial')?.value || '';
-  const _aCc     = document.getElementById('f-cc')?.value || '';
-  const _aBusca  = (document.getElementById('f-busca')?.value || '').trim();
+  const filial=document.getElementById('f-filial')?.value||'';
+  const grupo=document.getElementById('f-grupo')?.value||'';
+  const cc=document.getElementById('f-cc')?.value||'';
+  const periodo=document.getElementById('f-periodo')?.value||'';
+  const busca=(document.getElementById('f-busca')?.value||'').trim().toLowerCase();
 
-  if(!_aMes){
-    content.innerHTML='<div style="padding:40px;text-align:center;color:#64748b">Selecione um <strong>mês</strong> para carregar a auditoria.</div>';
-    return;
-  }
+  // Usar _dados (consumo_scp_resumo) que já está em memória — sem fetch extra
+  // Para custo detalhado por fonte, precisamos da consumo_scp com custo_fonte
+  // Mas vamos fazer leve: buscar agregado por produto+mes+fonte
+  const mesesDisp=[...new Set(_dados.map(r=>r.mes))].filter(Boolean).sort();
+  const mesesFilt=mesesDisp.filter(m=>periodo==='todos'||m.startsWith(periodo));
 
-  let auditoria=[],off=0;
+  // Buscar custo por produto+mes com fonte — paginado
+  let raw=[],off=0;
+  content.innerHTML='<div class="loading"><span class="spinner"></span>Buscando custos por item...</div>';
   for(;;){
     let q=db.from('consumo_scp')
-      .select('produto,descricao,grupo,cc,mes,filial,quantidade,custo_unit,valor_total,custo_fonte,custo_zero')
-      .eq('mes',_aMes);
-    if(_aFilial) q=q.eq('filial',_aFilial);
-    if(_aCc)     q=q.eq('cc',_aCc);
-    if(_aBusca)  q=q.ilike('descricao','%'+_aBusca+'%');
-    const{data,error}=await q.range(off,off+999);
+      .select('produto,descricao,filial,mes,quantidade,custo_unit,valor_total,custo_fonte')
+      .order('chave').range(off,off+999);
+    if(filial) q=q.eq('filial',filial);
+    if(grupo) q=q.eq('grupo',grupo);
+    if(cc) q=q.eq('cc',cc);
+    if(mesesFilt.length===1) q=q.eq('mes',mesesFilt[0]);
+    else if(periodo!=='todos') q=q.like('mes',periodo+'%');
+    const{data,error}=await q;
     if(error||!data||!data.length)break;
-    auditoria=auditoria.concat(data);
+    raw=raw.concat(data);
     if(data.length<1000)break;
-    off+=1000;
+    off+=data.length;
   }
 
-  if(!auditoria.length){
-    content.innerHTML='<div class="loading">Nenhum dado de auditoria disponível. Rode o sync atualizado.</div>';
+  // Filtro de busca por texto
+  let filtrado=raw;
+  if(busca) filtrado=filtrado.filter(r=>(r.produto||'').toLowerCase().includes(busca)||(r.descricao||'').toLowerCase().includes(busca));
+
+  // Deduplicar pela chave (consumo_scp tem duplicatas)
+  const vistos=new Set();
+  filtrado=filtrado.filter(r=>{
+    const k=`${r.filial}|${r.produto}|${r.mes}|${r.custo_unit}|${r.quantidade}`;
+    if(vistos.has(k))return false;
+    vistos.add(k);return true;
+  });
+
+  if(!filtrado.length){
+    content.innerHTML=kpisHTML()+'<div style="padding:40px;text-align:center;color:#64748b">Nenhum dado de custo encontrado para os filtros selecionados.</div>';
     return;
   }
 
-  // Aplicar filtros dos selects
-  const filial=document.getElementById('f-filial').value;
-  const grupo=document.getElementById('f-grupo').value;
-  const cc=document.getElementById('f-cc').value;
-  const periodo=document.getElementById('f-periodo').value;
-  const mes=document.getElementById('f-mes').value;
-
-  const filtrado=auditoria.filter(r=>{
-    if(filial&&r.filial!==filial)return false;
-    if(grupo&&r.grupo!==grupo)return false;
-    if(cc&&r.cc!==cc)return false;
-    if(mes&&r.mes!==mes)return false;
-    else if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
-    return true;
+  // Agregar: produto+filial → {mes → {custo_pond, qtd, fonte_principal}}
+  const mapa={};
+  filtrado.forEach(r=>{
+    const chave=`${r.filial}|${r.produto}`;
+    if(!mapa[chave]) mapa[chave]={filial:r.filial,produto:r.produto,descricao:r.descricao,meses:{}};
+    if(!mapa[chave].meses[r.mes]) mapa[chave].meses[r.mes]={totalVal:0,totalQtd:0,fontes:{}};
+    const m=mapa[chave].meses[r.mes];
+    m.totalVal+=(r.valor_total||0);
+    m.totalQtd+=(r.quantidade||0);
+    const f=r.custo_fonte||'ZERO';
+    m.fontes[f]=(m.fontes[f]||0)+(r.quantidade||0);
   });
 
-  // 1. Distribuição por fonte de custo
-  const fontes={};
+  // Resumo de fontes global
+  const fonteGlobal={};
   filtrado.forEach(r=>{
     const f=r.custo_fonte||'ZERO';
-    if(!fontes[f])fontes[f]={count:0,valor:0,qtd:0};
-    fontes[f].count++;
-    fontes[f].valor+=Number(r.valor_total)||0;
-    fontes[f].qtd+=Number(r.quantidade)||0;
+    if(!fonteGlobal[f]) fonteGlobal[f]={count:0,valor:0};
+    fonteGlobal[f].count++;
+    fonteGlobal[f].valor+=(r.valor_total||0);
   });
 
   const totalReg=filtrado.length;
-  const CORES_FONTE={'B2_CM1':'#16a34a','CP_YCUSTD':'#f59e0b','CP_VUNIT':'#3b82f6','SD1_ULTIMO_PRECO':'#8b5cf6','ZERO':'#ef4444'};
-  const LABELS_FONTE={'B2_CM1':'✅ Custo Médio (B2_CM1)','CP_YCUSTD':'🟡 Custo do Lote (CP_YCUSTD)','CP_VUNIT':'🔵 Custo Unit. Protheus','SD1_ULTIMO_PRECO':'🟣 Último Preço Compra (SD1)','ZERO':'🔴 Sem Custo'};
+  const BADGE={'CP_YCUSTD':['🟢','Genuíno','#dcfce7','#166534'],
+               'B2_CM1':['🔵','Custo Médio','#dbeafe','#1e40af'],
+               'SD1_ULTIMO_PRECO':['🟣','Últ. Compra','#f3e8ff','#6b21a8'],
+               'B1_UPRC':['🟠','Reposição','#fef3c7','#92400e'],
+               'B1_CUSTD':['⚪','Custo Padrão','#f1f5f9','#334155'],
+               'D3_CUSTO':['🟢','Genuíno','#dcfce7','#166534'],
+               'ZERO':['🔴','Sem Custo','#fee2e2','#991b1b']};
 
-  const fontesRows=Object.entries(fontes).sort((a,b)=>b[1].count-a[1].count).map(([f,d])=>`
-    <tr>
-      <td><span style="display:inline-flex;align-items:center;gap:8px">
-        <span style="width:12px;height:12px;border-radius:50%;background:${CORES_FONTE[f]||'#94a3b8'}"></span>
-        <strong>${LABELS_FONTE[f]||f}</strong>
-      </span></td>
-      <td class="num">${d.count.toLocaleString('pt-BR')}</td>
-      <td class="num">${((d.count/totalReg)*100).toFixed(1)}%</td>
-      <td class="num">${fmtVal(d.valor)}</td>
-      <td class="num">${fmtQtd(d.qtd)}</td>
-    </tr>`).join('');
-
-  // 2. Busca detalhes dos itens zerados direto da consumo_scp
-  let zeradosDetalhe=[],offZ=0;
-  for(;;){
-    const{data,error}=await db
-      .from('consumo_scp')
-      .select('filial,produto,descricao,grupo,cc,mes,quantidade,custo_unit,custo_fonte,custo_zero')
-      .eq('custo_fonte','ZERO')
-      .range(offZ,offZ+999);
-    if(error||!data||!data.length)break;
-    zeradosDetalhe=zeradosDetalhe.concat(data);
-    if(data.length<1000)break;
-    offZ+=1000;
+  function badgeHTML(fonte){
+    const b=BADGE[fonte]||['⚪',fonte,'#f1f5f9','#334155'];
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:${b[2]};color:${b[3]}">${b[0]} ${b[1]}</span>`;
   }
 
-  // Aplicar filtros
-  const zeradosFilt=zeradosDetalhe.filter(r=>{
-    if(filial&&r.filial!==filial)return false;
-    if(grupo&&r.grupo!==grupo)return false;
-    if(cc&&r.cc!==cc)return false;
-    if(mes&&r.mes!==mes)return false;
-    else if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
-    return true;
-  });
-
-  // 3. Tabela cruzada: produto × mês com custo unitário e variação
-  let variacoes=[],offV=0;
-  for(;;){
-    const{data,error}=await db
-      .from('consumo_scp')
-      .select('produto,descricao,grupo,filial,mes,quantidade,custo_ycustd,custo_b2cm1,custo_fonte')
-      .gt('custo_ycustd',0)
-      .gt('custo_b2cm1',0)
-      .range(offV,offV+999);
-    if(error||!data||!data.length)break;
-    variacoes=variacoes.concat(data);
-    if(data.length<1000)break;
-    offV+=1000;
+  function fontePrincipal(fontes){
+    let max='',maxV=0;
+    for(const[f,q] of Object.entries(fontes)){if(q>maxV){maxV=q;max=f;}}
+    return max;
   }
 
-  // Agrupa por produto+filial × mês — calcula custo médio ponderado por mês
-  const prodMesMap={};
-  variacoes.filter(r=>{
-    if(filial&&r.filial!==filial)return false;
-    if(grupo&&r.grupo!==grupo)return false;
-    if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
-    return true;
-  }).forEach(r=>{
-    const chave=`${r.filial}|${r.produto}`;
-    if(!prodMesMap[chave])prodMesMap[chave]={filial:r.filial,produto:r.produto,descricao:r.descricao,grupo:r.grupo,meses:{}};
-    if(!prodMesMap[chave].meses[r.mes])prodMesMap[chave].meses[r.mes]={totalCusto:0,totalQtd:0};
-    prodMesMap[chave].meses[r.mes].totalCusto+=r.custo_ycustd*(r.quantidade||1);
-    prodMesMap[chave].meses[r.mes].totalQtd+=(r.quantidade||1);
-  });
+  // Montar lista de produtos ordenada por valor total
+  const prods=Object.values(mapa).map(p=>{
+    let totalVal=0;
+    mesesFilt.forEach(m=>{if(p.meses[m])totalVal+=p.meses[m].totalVal;});
+    return{...p,totalVal};
+  }).sort((a,b)=>b.totalVal-a.totalVal).slice(0,200);
 
-  // Calcula variação máxima por produto e filtra top 30
-  const mesesDisp=[...new Set(variacoes.map(r=>r.mes))].sort();
-  const mesesFilt=mes?[mes]:mesesDisp.filter(m=>periodo==='todos'||m.startsWith(periodo));
+  // KPIs de fonte
+  const fontesOrdenadas=Object.entries(fonteGlobal).sort((a,b)=>b[1].count-a[1].count);
+  const genuinos=fonteGlobal['CP_YCUSTD']?.count||fonteGlobal['D3_CUSTO']?.count||0;
+  const estimados=totalReg-genuinos-(fonteGlobal['ZERO']?.count||0);
+  const zerados=fonteGlobal['ZERO']?.count||0;
 
-  const prodList=Object.values(prodMesMap).map(p=>{
-    const custos=mesesFilt.map(m=>{
-      const d=p.meses[m];
-      return d&&d.totalQtd>0?d.totalCusto/d.totalQtd:null;
-    }).filter(v=>v!==null);
-    const maxVar=custos.length>1?((Math.max(...custos)-Math.min(...custos))/Math.min(...custos)*100):0;
-    return{...p,maxVar};
-  }).filter(p=>p.maxVar>20).sort((a,b)=>b.maxVar-a.maxVar).slice(0,30);
+  const kpiFontes=`
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">
+    <div class="card" style="padding:16px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#166534">${genuinos.toLocaleString('pt-BR')}</div>
+      <div style="font-size:11px;color:#64748b">🟢 Custo genuíno</div>
+    </div>
+    <div class="card" style="padding:16px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#1e40af">${estimados.toLocaleString('pt-BR')}</div>
+      <div style="font-size:11px;color:#64748b">🔵 Custo estimado (regra)</div>
+    </div>
+    <div class="card" style="padding:16px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#991b1b">${zerados.toLocaleString('pt-BR')}</div>
+      <div style="font-size:11px;color:#64748b">🔴 Sem custo</div>
+    </div>
+    <div class="card" style="padding:16px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#334155">${totalReg.toLocaleString('pt-BR')}</div>
+      <div style="font-size:11px;color:#64748b">Total de registros</div>
+    </div>
+  </div>`;
 
-  const variacaoHTML=prodList.length>0?`
-  <div class="card" style="margin-top:16px">
+  // Tabela de resumo por fonte
+  const tabelaFontes=`
+  <div class="card" style="margin-bottom:16px">
     <div class="card-header">
-      <div class="card-title">📊 Variação de Custo Unitário por Mês</div>
-      <div class="card-sub">Top 30 itens com maior oscilação • clique na linha para ver detalhes</div>
+      <div class="card-title">📊 Resumo por fonte de custo</div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Fonte</th><th class="num">Registros</th><th class="num">%</th><th class="num">Valor Total</th></tr></thead>
+      <tbody>${fontesOrdenadas.map(([f,d])=>`<tr>
+        <td>${badgeHTML(f)}</td>
+        <td class="num">${d.count.toLocaleString('pt-BR')}</td>
+        <td class="num">${(d.count/totalReg*100).toFixed(1)}%</td>
+        <td class="num">${fmtVal(d.valor)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+
+  // Tabela de itens com custo mês a mês
+  const tabelaItens=`
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔍 Custo unitário por item × mês</div>
+      <div class="card-sub">Top 200 itens por valor • badge mostra se o custo é genuíno ou estimado pela regra</div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>Filial</th><th>Código</th><th>Descrição</th>
+        <th>Filial</th><th>Produto</th><th>Descrição</th>
         ${mesesFilt.map(m=>`<th class="num">${fmtMes(m)}</th>`).join('')}
-        <th class="num">Variação</th>
       </tr></thead>
-      <tbody>${prodList.map((p,idx)=>{
+      <tbody>${prods.map(p=>{
         let prev=null;
         const cells=mesesFilt.map(m=>{
           const d=p.meses[m];
-          const cu=d&&d.totalQtd>0?d.totalCusto/d.totalQtd:null;
-          let icone='';
-          if(cu!==null&&prev!==null){
+          if(!d||!d.totalQtd) return `<td class="num" style="color:#cbd5e1">—</td>`;
+          const cu=d.totalVal/d.totalQtd;
+          const fp=fontePrincipal(d.fontes);
+          let seta='';
+          if(prev!==null){
             const v=((cu-prev)/prev*100);
-            if(v>10)icone=`<span style="color:#dc2626;font-size:10px"> ▲${v.toFixed(0)}%</span>`;
-            else if(v<-10)icone=`<span style="color:#16a34a;font-size:10px"> ▼${Math.abs(v).toFixed(0)}%</span>`;
-            else icone=`<span style="color:#94a3b8;font-size:10px"> ≈</span>`;
+            if(v>10) seta=`<span style="color:#dc2626;font-size:9px"> ▲${v.toFixed(0)}%</span>`;
+            else if(v<-10) seta=`<span style="color:#16a34a;font-size:9px"> ▼${Math.abs(v).toFixed(0)}%</span>`;
           }
-          if(cu!==null)prev=cu;
-          return cu!==null?`<td class="num" style="white-space:nowrap">${fmtVal(cu)}${icone}</td>`:`<td class="num" style="color:#cbd5e1">—</td>`;
+          prev=cu;
+          return `<td class="num" style="white-space:nowrap"><div>${fmtVal(cu)}${seta}</div><div style="margin-top:2px">${badgeHTML(fp)}</div></td>`;
         }).join('');
-        const detalheRows=mesesFilt.map(m=>{
-          const d=p.meses[m];
-          if(!d||!d.totalQtd)return'';
-          const cu=d.totalCusto/d.totalQtd;
-          return`<tr style="background:#f8fafc"><td style="padding:4px 16px;font-size:11px;color:#64748b">${fmtMes(m)}</td><td style="padding:4px 8px;font-size:11px">Qtd: <strong>${fmtQtd(d.totalQtd)}</strong></td><td style="padding:4px 8px;font-size:11px">Custo unit.: <strong>${fmtVal(cu)}</strong></td><td style="padding:4px 8px;font-size:11px">Total: ${fmtVal(d.totalCusto)}</td><td colspan="${mesesFilt.length}"></td></tr>`;
-        }).join('');
-        return`<tr style="cursor:pointer" onclick="toggleVarRow('var-${idx}',this)">
+        return `<tr>
           <td><strong>${p.filial}</strong></td>
           <td style="font-family:monospace;font-size:11px;color:#1e40af">${p.produto}</td>
-          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;font-size:11px">${p.descricao||'—'}</td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px">${p.descricao||'—'}</td>
           ${cells}
-          <td class="num"><span class="var-badge var-up">▲ ${p.maxVar.toFixed(0)}%</span></td>
-        </tr>
-        <tr id="var-${idx}" style="display:none;background:#f0f4ff"><td colspan="${mesesFilt.length+4}" style="padding:0"><table style="width:100%;border-collapse:collapse"><tr style="background:#e0e7ff"><td colspan="2" style="padding:6px 16px;font-weight:600;color:#1e40af">📅 ${p.produto} — ${p.filial} — ${p.grupo||''}</td><td colspan="${mesesFilt.length+2}"></td></tr>${detalheRows}</table></td></tr>`;
+        </tr>`;
       }).join('')}</tbody>
     </table></div>
-  </div>`:'';
+  </div>`;
 
-  window.toggleVarRow=function(id,tr){const el=document.getElementById(id);if(!el)return;const open=el.style.display!=='none';el.style.display=open?'none':'table-row';tr.style.background=open?'':'#dbeafe';};
-
-  content.innerHTML=kpisHTML()+`
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-header">
-      <div class="card-title">🧮 Distribuição por Fonte de Custo</div>
-      <div class="card-sub">${totalReg.toLocaleString('pt-BR')} registros analisados</div>
-    </div>
-    <div class="table-wrap"><table>
-      <thead><tr>
-        <th>Fonte</th>
-        <th class="num">Registros</th>
-        <th class="num">% Total</th>
-        <th class="num">Valor Total</th>
-        <th class="num">Quantidade</th>
-      </tr></thead>
-      <tbody>${fontesRows}</tbody>
-    </table></div>
-  </div>
-
-  ${zeradosFilt.length>0?`
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">🔴 Itens Sem Custo em Nenhuma Fonte (${zeradosFilt.length} registros)</div>
-      <div class="card-sub">Precisam de atenção — não há CP_YCUSTD, B2_CM1 nem SD1 disponível</div>
-    </div>
-    <div class="table-wrap"><table>
-      <thead><tr>
-        <th>Filial</th>
-        <th>Código</th>
-        <th>Descrição</th>
-        <th>Grupo</th>
-        <th>CC</th>
-        <th class="num">Mês</th>
-        <th class="num">Qtd</th>
-        <th class="num">CP_YCUSTD</th>
-        <th class="num">B2_CM1</th>
-        <th class="num">SD1</th>
-      </tr></thead>
-      <tbody>${zeradosFilt.sort((a,b)=>b.quantidade-a.quantidade).map(r=>`<tr class="alerta">
-        <td><strong>${r.filial}</strong> <span style="font-size:10px;color:#94a3b8">${FNOMES[r.filial]||''}</span></td>
-        <td style="font-family:monospace;font-size:11px;color:#1e40af">${r.produto}</td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.descricao||'—'}</td>
-        <td style="font-size:11px">${r.grupo||'—'}</td>
-        <td style="font-size:11px">${r.cc||'—'}</td>
-        <td class="num">${fmtMes(r.mes)}</td>
-        <td class="num"><strong>${fmtQtd(r.quantidade)}</strong></td>
-        <td class="num"><span class="badge-zero">R$ 0,00</span></td>
-        <td class="num"><span class="badge-zero">Sem registro</span></td>
-        <td class="num"><span class="badge-zero">Sem NF entrada</span></td>
-      </tr>`).join('')}</tbody>
-    </table></div>
-  </div>`:'<div class="card"><div style="padding:20px;text-align:center;color:#16a34a;font-weight:600">✅ Nenhum item sem custo encontrado!</div></div>'}
-  ${variacaoHTML}`;
+  content.innerHTML=kpisHTML()+kpiFontes+tabelaFontes+tabelaItens;
 }
 window.renderAuditoria=renderAuditoria;
 
