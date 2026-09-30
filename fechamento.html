@@ -545,7 +545,7 @@ async function renderResumo(){
       // Paginar: Supabase limita a 1000 linhas por request
       let todos=[],off=0;
       for(;;){
-        let q=db.from('mov_sd3_001').select('mes,valor_total,quantidade,filial,cc').order('id').range(off,off+999);
+        let q=db.from('mov_sd3_001').select('mes,valor_total,quantidade,filial,cc').neq('cc','122010102').order('id').range(off,off+999);
         if(filialFiltro) q=q.eq('filial',filialFiltro);
         if(ccFiltro) q=q.eq('cc',ccFiltro);
         const{data,error}=await q;
@@ -1596,6 +1596,7 @@ async function renderDevolucoes(){
   let query = db.from('mov_sd3_001')
       .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,quantidade,valor_total,custo_fonte')
       .eq('mes', mesRef)
+      .neq('cc','122010102')
       .order('emissao', {ascending: false});
   if(ccFiltro) query = query.eq('cc', ccFiltro);
 
@@ -1707,6 +1708,7 @@ async function renderComparativo(){
       const {data, error} = await db.from('mov_sd3_001')
         .select('cc,grupo,valor_total')
         .eq('mes', _mesComparativo)
+        .neq('cc','122010102')
         .limit(50000);
       if(!error) _dadosDevComp = {mes: _mesComparativo, data: data||[]};
     }
@@ -1859,6 +1861,7 @@ async function exportarExcel(){
       let q=db.from('mov_sd3_001')
         .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,tipo_rede,quantidade,custo_unit,valor_total,custo_fonte')
         .eq('mes',mes)
+        .neq('cc','122010102')
         .order('id').range(off2,off2+999);
       if(filial) q=q.eq('filial',filial);
       if(grupo)  q=q.eq('grupo',grupo);
