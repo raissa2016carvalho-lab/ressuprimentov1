@@ -1064,6 +1064,7 @@ function renderItens(){
 
 let _justificativas={};
 let _analiseSubAba='estouros';
+let _mesAnalise=''; // mês selecionado para análise/justificativas
 
 async function carregarJustificativas(){
   try{
@@ -1084,12 +1085,27 @@ async function salvarJustificativa(chave,texto,btnEl,spanEl){
 }
 
 function renderAnalise(){
+  const mesesTodos=[...new Set(_dados.map(r=>r.mes))].filter(Boolean).sort();
+  if(!_mesAnalise) _mesAnalise=mesesTodos[mesesTodos.length-1]||'';
+  if(_mesAnalise && !mesesTodos.includes(_mesAnalise)){mesesTodos.push(_mesAnalise);mesesTodos.sort();}
+
   const content=document.getElementById('content');
   content.innerHTML=`
-  <div class="sub-tabs">
-    <button class="sub-tab ${_analiseSubAba==='estouros'?'ativa':''}" onclick="setSubAba('estouros',this)">🚨 Top Estouros por CC</button>
-    <button class="sub-tab ${_analiseSubAba==='motivo'?'ativa':''}" onclick="setSubAba('motivo',this)">🏷️ Análise por Motivo</button>
-    <button class="sub-tab ${_analiseSubAba==='justificativas'?'ativa':''}" onclick="setSubAba('justificativas',this)">📝 Justificativas</button>
+  <div style="margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div>
+      <label style="font-size:12px;color:#64748b;margin-right:6px">📅 Mês de referência:</label>
+      <select id="sel-mes-analise" onchange="_mesAnalise=this.value;renderAnalise()" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px">
+        ${mesesTodos.map(m=>{
+          const nome=new Date(m.slice(0,4),m.slice(4,6)-1,1).toLocaleDateString('pt-BR',{month:'short',year:'numeric'}).toUpperCase();
+          return `<option value="${m}" ${m===_mesAnalise?'selected':''}>${nome}</option>`;
+        }).join('')}
+      </select>
+    </div>
+    <div class="sub-tabs">
+      <button class="sub-tab ${_analiseSubAba==='estouros'?'ativa':''}" onclick="setSubAba('estouros',this)">🚨 Top Estouros por CC</button>
+      <button class="sub-tab ${_analiseSubAba==='motivo'?'ativa':''}" onclick="setSubAba('motivo',this)">🏷️ Análise por Motivo</button>
+      <button class="sub-tab ${_analiseSubAba==='justificativas'?'ativa':''}" onclick="setSubAba('justificativas',this)">📝 Justificativas</button>
+    </div>
   </div>
   <div id="analise-content"></div>`;
   renderSubAba(_analiseSubAba);
@@ -1117,8 +1133,8 @@ function renderEstouros(){
     document.getElementById('analise-content').innerHTML='<div class="loading">Nenhum dado disponível com os filtros atuais.</div>';
     return;
   }
-  const ultimoMes=meses[meses.length-1];
-  const mesesAnt=meses.slice(0,-1);
+  const ultimoMes=_mesAnalise||meses[meses.length-1];
+  const mesesAnt=meses.filter(m=>m<ultimoMes);
 
   // Agrupa por CC + mês
   const ccMesMap={};
@@ -1292,7 +1308,7 @@ function renderJustificativas(){
   const semV=_semValorGlobal();
   const fmt=v=>semV?fmtQtd(v):fmtVal(v);
   const meses=[...new Set(_filtrados.map(r=>r.mes))].sort();
-  const ultimoMes=meses[meses.length-1];
+  const ultimoMes=_mesAnalise||meses[meses.length-1];
 
   // Todos os CCs do período filtrado
   const ccMap={};
@@ -1715,12 +1731,39 @@ let _dadosDevComp = null;
 async function renderComparativo(){
   const content = document.getElementById('content');
 
-  // Meses disponíveis nos dados SCP
-  const mesesDisp = [...new Set(_dados.map(r=>r.mes))].filter(Boolean).sort();
-  const ultimoMes = mesesDisp[mesesDisp.length-1] || '';
-  if(!_mesComparativo) _mesComparativo = ultimoMes;
+  // Meses disponíveis — combina o que está em _dados com todos os meses do banco
+  // Para permitir navegar para meses anteriores mesmo quando o filtro global está em outro período
+  let mesesDisp = [...new Set(_dados.map(r=>r.mes))].filter(Boolean).sort();
+  
+  // Se não tem _mesComparativo, usar o último mês disponível
+  if(!_mesComparativo) _mesComparativo = mesesDisp[mesesDisp.length-1] || '';
+
+  // Garantir que o mês selecionado está na lista (pode ser de um período anterior)
+  if(_mesComparativo && !mesesDisp.includes(_mesComparativo)){
+    mesesDisp.push(_mesComparativo);
+    mesesDisp.sort();
+  }
 
   content.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">Carregando comparativo...</div>';
+
+  // Buscar dados de consumo para o mês selecionado
+  // Se o mês não está em _dados, buscar direto do consumo_scp_resumo
+  let scpDoMes = _dados.filter(r => r.mes === _mesComparativo);
+  if(scpDoMes.length === 0 && _mesComparativo){
+    try{
+      let all=[],off=0;
+      for(;;){
+        const{data,error}=await db.from('consumo_scp_resumo')
+          .select('*').eq('mes',_mesComparativo)
+          .range(off,off+999);
+        if(error||!data||!data.length)break;
+        all=all.concat(data);
+        if(data.length<1000)break;
+        off+=data.length;
+      }
+      scpDoMes=all;
+    }catch(e){}
+  }
 
   // Buscar dados de devolução (mov_sd3_001) para o mês
   try {
@@ -1737,7 +1780,7 @@ async function renderComparativo(){
   const devData = _dadosDevComp?.data || [];
 
   function buildTable(mes){
-    const scpFilt = _dados.filter(r => r.mes === mes);
+    const scpFilt = scpDoMes;
     const fmt = v => v ? 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
 
     // Agregar SCP por CC + coluna amigo
