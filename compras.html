@@ -325,7 +325,7 @@ function setProgresso(pct, msg){
 }
 
 async function sbGet(tabela, select, onProgress){
-  let all=[], offset=0, lote=1000;
+  let all=[], offset=0, lote=2000;
   while(true){
     const url=SUPA_URL+"/rest/v1/"+tabela+"?select="+(select||"*")+"&limit="+lote+"&offset="+offset;
     const r=await fetch(url,{headers:H});
@@ -351,7 +351,7 @@ async function carregar(){
     // carrega pedidos (223k linhas — demora mais)
     ALL_PED = await sbGet(
       "pedidos",
-      "C7_NUM,C7_ITEM,C7_FILIAL,C7_PRODUTO,C7_DESCRI,C7_QUANT,C7_PRECO,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_SC,APROVACAO_SC,TIPO_SC,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento,STATUS_DESC",
+      "C7_NUM,C7_ITEM,C7_FILIAL,C7_DESCRI,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,ENTREGA_PEDIDO,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
       (n)=>setProgresso(30+Math.min(n/223000*65,65), "Carregando Pedidos... "+n.toLocaleString("pt-BR"))
     );
     setProgresso(100,"Pronto!");
