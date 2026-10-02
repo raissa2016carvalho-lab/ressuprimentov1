@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Painel de Compras — BEQ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+:root {
+  --bg:#0f1117; --surface:#181c27; --surface2:#1e2336; --border:#2a3050;
+  --accent:#3b7ff5; --accent2:#22d3a5; --warn:#f5a623; --danger:#e05252;
+  --text:#e8ecf5; --muted:#7a8299; --radius:10px; --font:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
+.brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px}
+.brand-dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.meta{color:var(--muted);font-size:12px;display:flex;align-items:center;gap:16px}
+.badge{border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600;background:rgba(34,211,165,.15);color:var(--accent2);border:1px solid rgba(34,211,165,.3)}
+.nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;display:flex;gap:4px}
+.nav-btn{padding:14px 20px;font-size:13px;font-weight:500;color:var(--muted);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:color .2s,border-color .2s}
+.nav-btn:hover{color:var(--text)} .nav-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.filters{padding:14px 28px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border);background:var(--surface)}
+.fl{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+select,input[type=date]{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:7px 12px;font-size:13px;font-family:var(--font);outline:none}
+select:focus,input[type=date]:focus{border-color:var(--accent)}
+.btn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{opacity:.85} .btn2{background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:7px;padding:7px 14px;font-size:13px;cursor:pointer}
+.main{padding:24px 28px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:24px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+.kpi-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.kpi-value{font-size:28px;font-weight:700;line-height:1} .kpi-sub{font-size:11px;color:var(--muted);margin-top:6px}
+.up{color:var(--accent2)} .warn{color:var(--warn)} .danger{color:var(--danger)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px}
+@media(max-width:1100px){.g3{grid-template-columns:1fr 1fr}} @media(max-width:750px){.g2,.g3{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:18px}
+.card-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:16px;text-transform:uppercase;letter-spacing:.4px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--border);text-transform:uppercase;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid rgba(42,48,80,.5);white-space:nowrap}
+tr:last-child td{border-bottom:none} tr:hover td{background:rgba(59,127,245,.04)}
+.badge2{display:inline-block;border-radius:5px;padding:2px 9px;font-size:11px;font-weight:600}
+.b-normal{background:rgba(59,127,245,.15);color:#7aadff}
+.b-urgente{background:rgba(229,81,81,.15);color:#ff9999}
+.b-regular{background:rgba(122,130,153,.15);color:var(--muted)}
+.b-fundo{background:rgba(245,166,35,.15);color:#ffc96b}
+.b-ressup{background:rgba(34,211,165,.15);color:#6ef0d4}
+.b-estoque{background:rgba(150,100,245,.15);color:#c4a5ff}
+.b-comsc{background:rgba(34,211,165,.12);color:var(--accent2)}
+.b-semsc{background:rgba(229,81,81,.12);color:#ff9999}
+.prog-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.prog-label{font-size:12px;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis}
+.prog-bar-wrap{flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden}
+.prog-bar{height:100%;border-radius:4px;background:var(--accent)}
+.prog-val{font-size:12px;color:var(--muted);width:50px;text-align:right;flex-shrink:0}
+.pag{display:flex;gap:6px;align-items:center;padding-top:14px;justify-content:flex-end}
+.pb{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 11px;font-size:12px;cursor:pointer}
+.pb.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.screen{display:none} .screen.active{display:block}
+.sbox{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:7px 12px;font-size:13px;font-family:var(--font);width:320px;outline:none;margin-bottom:14px}
+.sbox:focus{border-color:var(--accent)}
+canvas{max-height:260px}
+.loading{text-align:center;padding:60px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="brand"><div class="brand-dot"></div>Painel de Compras — BEQ</div>
+  <div class="meta">
+    <span id="last-update">Carregando...</span>
+    <span id="conn-badge" class="badge">CONECTANDO</span>
+  </div>
+</div>
+<div class="nav">
+  <button class="nav-btn active" onclick="showScreen('scs',this)">Solicitações de Compra</button>
+  <button class="nav-btn" onclick="showScreen('pedidos',this)">Pedidos</button>
+  <button class="nav-btn" onclick="showScreen('indicadores',this)">Indicadores</button>
+</div>
+<div class="filters">
+  <span class="fl">Período</span>
+  <input type="date" id="f-ini">
+  <span style="color:var(--muted)">→</span>
+  <input type="date" id="f-fim">
+  <span class="fl" style="margin-left:8px">Comprador</span>
+  <select id="f-comp"><option value="">Todos</option></select>
+  <span class="fl">Grupo</span>
+  <select id="f-grp"><option value="">Todos</option></select>
+  <span class="fl">Tipo SC</span>
+  <select id="f-tipo"><option value="">Todos</option></select>
+  <button class="btn" onclick="applyFilters()">Filtrar</button>
+  <button class="btn2" onclick="clearFilters()">Limpar</button>
+  <span id="fcount" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+</div>
+
+<!-- TELA SCs -->
+<div id="screen-scs" class="screen active">
+<div class="main">
+  <div class="kpi-row" id="kpi-sc"></div>
+  <div class="g3">
+    <div class="card"><div class="card-title">SCs por Tipo</div><canvas id="ch-tipo"></canvas></div>
+    <div class="card"><div class="card-title">SCs por Grupo de Compras (Top 12)</div><div id="bar-grp"></div></div>
+    <div class="card"><div class="card-title">SCs por Comprador</div><canvas id="ch-comp-sc"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Tabela de SCs</div>
+    <input class="sbox" id="s-sc" placeholder="Buscar SC, solicitante, CC, comprador..." oninput="renderSCTable()">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Nº SC</th><th>Emissão</th><th>Aprovação</th><th>Tipo</th><th>Grupo</th><th>Solicitante</th><th>Centro Custo</th><th>Comprador</th><th>Tempo Atend.</th></tr></thead>
+      <tbody id="tb-sc"></tbody>
+    </table></div>
+    <div class="pag" id="pg-sc"></div>
+  </div>
+</div>
+</div>
+
+<!-- TELA PEDIDOS -->
+<div id="screen-pedidos" class="screen">
+<div class="main">
+  <div class="kpi-row" id="kpi-ped"></div>
+  <div class="g2">
+    <div class="card"><div class="card-title">Valor de Pedidos por Comprador (R$)</div><canvas id="ch-val-comp"></canvas></div>
+    <div class="card"><div class="card-title">Lead Time SC Aprovada → Pedido (dias)</div><canvas id="ch-lead"></canvas></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-title">Condição de Pagamento</div><canvas id="ch-cond"></canvas></div>
+    <div class="card"><div class="card-title">Pedidos COM vs SEM SC</div><canvas id="ch-comsc"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Tabela de Pedidos</div>
+    <input class="sbox" id="s-ped" placeholder="Buscar nº pedido, fornecedor, comprador..." oninput="renderPedTable()">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Nº Pedido</th><th>Emissão</th><th>Fornecedor</th><th>Comprador</th><th>Valor Total</th><th>Cond. Pag.</th><th>Tipo</th><th>SC</th><th>Lead Time</th></tr></thead>
+      <tbody id="tb-ped"></tbody>
+    </table></div>
+    <div class="pag" id="pg-ped"></div>
+  </div>
+</div>
+</div>
+
+<!-- TELA INDICADORES -->
+<div id="screen-indicadores" class="screen">
+<div class="main">
+  <div class="kpi-row" id="kpi-ind"></div>
+  <div class="g2">
+    <div class="card"><div class="card-title">Tempo Médio de Pagamento por Comprador (dias)</div><canvas id="ch-tmp-pag"></canvas></div>
+    <div class="card">
+      <div class="card-title">Backlog — Itens para Mês Seguinte</div>
+      <div style="display:flex;gap:40px;justify-content:center;padding:16px 0 8px">
+        <div style="text-align:center"><div style="font-size:36px;font-weight:700;color:var(--warn)" id="bl-total">–</div><div style="font-size:12px;color:var(--muted);margin-top:4px">Total Backlog</div></div>
+        <div style="text-align:center"><div style="font-size:36px;font-weight:700;color:var(--accent2)" id="bl-pct">–</div><div style="font-size:12px;color:var(--muted);margin-top:4px">% do Total</div></div>
+        <div style="text-align:center"><div style="font-size:36px;font-weight:700;color:var(--accent)" id="bl-com">–</div><div style="font-size:12px;color:var(--muted);margin-top:4px">COM SC</div></div>
+        <div style="text-align:center"><div style="font-size:36px;font-weight:700;color:var(--danger)" id="bl-sem">–</div><div style="font-size:12px;color:var(--muted);margin-top:4px">SEM SC</div></div>
+      </div>
+      <canvas id="ch-backlog"></canvas>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-title">SCs por Mês (últimos 12 meses)</div><canvas id="ch-sc-mes"></canvas></div>
+    <div class="card"><div class="card-title">Pedidos por Mês (últimos 12 meses)</div><canvas id="ch-ped-mes"></canvas></div>
+  </div>
+</div>
+</div>
+
+<script>
+const SUPA_URL  = "https://eugefrjckrxisfpizkjb.supabase.co";
+const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI";
+const H = {"apikey":SUPA_ANON,"Authorization":"Bearer "+SUPA_ANON};
+const PAL = ['#3b7ff5','#22d3a5','#f5a623','#e05252','#a78bfa','#fb7185','#34d399','#fbbf24','#60a5fa','#f87171'];
+const PER = 15;
+
+let ALL_SC=[], ALL_PED=[], fSC=[], fPed=[], scPg=1, pedPg=1;
+const CH={};
+
+async function sbGet(tabela, select){
+  let all=[], offset=0, lote=1000;
+  while(true){
+    const url = SUPA_URL+"/rest/v1/"+tabela+"?select="+(select||"*")+"&limit="+lote+"&offset="+offset;
+    const r = await fetch(url,{headers:H});
+    if(!r.ok) throw new Error("Erro "+r.status+" em "+tabela);
+    const d = await r.json();
+    all = all.concat(d);
+    if(d.length < lote) break;
+    offset += lote;
+  }
+  return all;
+}
+
+async function carregar(){
+  setBadge("CARREGANDO","#f5a623");
+  try{
+    [ALL_SC, ALL_PED] = await Promise.all([
+      sbGet("scs","C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,tipo_sc,comprador,temp_atendimento"),
+      sbGet("pedidos","C7_NUM,C7_ITEM,C7_FILIAL,C7_PRODUTO,C7_DESCRI,C7_QUANT,C7_PRECO,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,ENTRADA_NOTA,EMISSAO_SC,APROVACAO_SC,TIPO_SC,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias")
+    ]);
+    setBadge("CONECTADO","#22d3a5");
+    document.getElementById("last-update").textContent = "Atualizado: "+new Date().toLocaleString("pt-BR");
+    popularFiltros();
+    clearFilters();
+  } catch(e){
+    setBadge("ERRO","#e05252");
+    document.getElementById("last-update").textContent = "Erro: "+e.message;
+  }
+}
+
+function setBadge(t,c){
+  const b=document.getElementById("conn-badge");
+  b.textContent=t; b.style.color=c; b.style.borderColor=c+"55"; b.style.background=c+"22";
+}
+
+function popularFiltros(){
+  const comps=[...new Set([...ALL_SC.map(r=>r.comprador),...ALL_PED.map(r=>r.Comp)])].filter(Boolean).sort();
+  const grps=[...new Set([...ALL_SC.map(r=>r.C1_GRPRD),...ALL_PED.map(r=>r.C7_GRPPROD)])].filter(Boolean).sort();
+  const tipos=[...new Set(ALL_SC.map(r=>r.tipo_sc))].filter(Boolean).sort();
+  const fc=document.getElementById("f-comp"), fg=document.getElementById("f-grp"), ft=document.getElementById("f-tipo");
+  fc.innerHTML='<option value="">Todos</option>';
+  fg.innerHTML='<option value="">Todos</option>';
+  ft.innerHTML='<option value="">Todos</option>';
+  comps.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=c;fc.appendChild(o);});
+  grps.forEach(g=>{const o=document.createElement("option");o.value=g;o.textContent=g;fg.appendChild(o);});
+  tipos.forEach(t=>{const o=document.createElement("option");o.value=t;o.textContent=t;ft.appendChild(o);});
+  const now=new Date(), past=new Date(); past.setMonth(past.getMonth()-3);
+  document.getElementById("f-ini").value=past.toISOString().slice(0,10);
+  document.getElementById("f-fim").value=now.toISOString().slice(0,10);
+}
+
+function applyFilters(){
+  const ini=document.getElementById("f-ini").value, fim=document.getElementById("f-fim").value;
+  const comp=document.getElementById("f-comp").value, grp=document.getElementById("f-grp").value;
+  const tipo=document.getElementById("f-tipo").value;
+  fSC=ALL_SC.filter(r=>{
+    if(ini&&r.C1_EMISSAO&&r.C1_EMISSAO<ini)return false;
+    if(fim&&r.C1_EMISSAO&&r.C1_EMISSAO>fim)return false;
+    if(comp&&r.comprador!==comp)return false;
+    if(grp&&r.C1_GRPRD!==grp)return false;
+    if(tipo&&r.tipo_sc!==tipo)return false;
+    return true;
+  });
+  fPed=ALL_PED.filter(r=>{
+    if(ini&&r.EMISSAO_PEDIDO&&r.EMISSAO_PEDIDO<ini)return false;
+    if(fim&&r.EMISSAO_PEDIDO&&r.EMISSAO_PEDIDO>fim)return false;
+    if(comp&&r.Comp!==comp)return false;
+    if(grp&&r.C7_GRPPROD!==grp)return false;
+    return true;
+  });
+  scPg=1; pedPg=1;
+  document.getElementById("fcount").textContent=fSC.length+" SCs · "+fPed.length+" Pedidos";
+  renderAll();
+}
+
+function clearFilters(){
+  const now=new Date(), past=new Date(); past.setMonth(past.getMonth()-3);
+  document.getElementById("f-ini").value=past.toISOString().slice(0,10);
+  document.getElementById("f-fim").value=now.toISOString().slice(0,10);
+  document.getElementById("f-comp").value="";
+  document.getElementById("f-grp").value="";
+  document.getElementById("f-tipo").value="";
+  fSC=[...ALL_SC]; fPed=[...ALL_PED];
+  document.getElementById("fcount").textContent="";
+  renderAll();
+}
+
+function showScreen(n,btn){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
+  document.getElementById("screen-"+n).classList.add("active");
+  btn.classList.add("active");
+}
+
+function fmtD(s){if(!s)return"–";return new Date(s+"T12:00").toLocaleDateString("pt-BR");}
+function fmtM(v){if(v==null)return"–";return"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2});}
+
+function mkChart(id,type,labels,datasets,opts={}){
+  if(CH[id]) CH[id].destroy();
+  const ctx=document.getElementById(id); if(!ctx)return;
+  CH[id]=new Chart(ctx,{type,data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:true,
+    plugins:{legend:{labels:{color:"#7a8299",font:{size:11}}}},
+    scales:(type==="pie"||type==="doughnut")?{}:{
+      x:{ticks:{color:"#7a8299",font:{size:10}},grid:{color:"rgba(42,48,80,.5)"}},
+      y:{ticks:{color:"#7a8299",font:{size:10}},grid:{color:"rgba(42,48,80,.5)"}}
+    },...opts
+  }});
+}
+
+// ── RENDER SCs ────────────────────────────────────────────────────────────────
+function renderSCs(){
+  const total=fSC.length;
+  const urg=fSC.filter(r=>r.tipo_sc==="URGENCIA").length;
+  const semAp=fSC.filter(r=>!r.C1_YDTAPRO).length;
+  const ct=fSC.filter(r=>r.temp_atendimento!=null);
+  const mT=ct.length?ct.reduce((a,r)=>a+r.temp_atendimento,0)/ct.length:0;
+  document.getElementById("kpi-sc").innerHTML=`
+    <div class="kpi"><div class="kpi-label">Total SCs</div><div class="kpi-value up">${total}</div><div class="kpi-sub">no período</div></div>
+    <div class="kpi"><div class="kpi-label">Urgentes</div><div class="kpi-value danger">${urg}</div><div class="kpi-sub">${total?((urg/total)*100).toFixed(1):0}%</div></div>
+    <div class="kpi"><div class="kpi-label">Sem Aprovação</div><div class="kpi-value warn">${semAp}</div><div class="kpi-sub">pendentes</div></div>
+    <div class="kpi"><div class="kpi-label">Tempo Médio</div><div class="kpi-value">${mT.toFixed(1)}<span style="font-size:14px;color:var(--muted)">d</span></div><div class="kpi-sub">emissão→aprovação</div></div>`;
+
+  const TIPOS=["NORMAL","URGENCIA","REGULARIZACAO","FUNDO FIXO","RESSUPRIMENTO","ESTOQUE"];
+  const tc={}; TIPOS.forEach(t=>tc[t]=0);
+  fSC.forEach(r=>{if(tc[r.tipo_sc]!==undefined)tc[r.tipo_sc]++;});
+  mkChart("ch-tipo","doughnut",Object.keys(tc),[{data:Object.values(tc),backgroundColor:PAL,borderWidth:0,hoverOffset:6}]);
+
+  const cc={}; fSC.forEach(r=>{cc[r.comprador]=(cc[r.comprador]||0)+1;});
+  mkChart("ch-comp-sc","pie",Object.keys(cc),[{data:Object.values(cc),backgroundColor:PAL,borderWidth:0}]);
+
+  const gc={}; fSC.forEach(r=>{gc[r.C1_GRPRD]=(gc[r.C1_GRPRD]||0)+1;});
+  const gs=Object.entries(gc).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const mx=gs[0]?.[1]||1;
+  document.getElementById("bar-grp").innerHTML=gs.map(([g,v])=>`
+    <div class="prog-row"><div class="prog-label">${g}</div>
+    <div class="prog-bar-wrap"><div class="prog-bar" style="width:${(v/mx*100).toFixed(1)}%"></div></div>
+    <div class="prog-val">${v}</div></div>`).join("");
+  renderSCTable();
+}
+
+function renderSCTable(){
+  const q=(document.getElementById("s-sc").value||"").toLowerCase();
+  const rows=fSC.filter(r=>!q||(r.C1_NUM||"").includes(q)||(r.C1_SOLICIT||"").toLowerCase().includes(q)||(r.C1_CC||"").toLowerCase().includes(q)||(r.comprador||"").toLowerCase().includes(q));
+  const pages=Math.ceil(rows.length/PER); if(scPg>pages)scPg=1;
+  const slice=rows.slice((scPg-1)*PER,scPg*PER);
+  const bm={"NORMAL":"b-normal","URGENCIA":"b-urgente","REGULARIZACAO":"b-regular","FUNDO FIXO":"b-fundo","RESSUPRIMENTO":"b-ressup","ESTOQUE":"b-estoque"};
+  document.getElementById("tb-sc").innerHTML=slice.map(r=>`<tr>
+    <td style="font-weight:600;color:var(--accent)">${r.C1_NUM||"–"}</td>
+    <td>${fmtD(r.C1_EMISSAO)}</td><td>${fmtD(r.C1_YDTAPRO)}</td>
+    <td><span class="badge2 ${bm[r.tipo_sc]||"b-regular"}">${r.tipo_sc||"–"}</span></td>
+    <td>${r.C1_GRPRD||"–"}</td><td>${r.C1_SOLICIT||"–"}</td><td>${r.C1_CC||"–"}</td>
+    <td>${r.comprador||"–"}</td><td>${r.temp_atendimento!=null?r.temp_atendimento+" d":"–"}</td></tr>`).join("");
+  renderPag("pg-sc",pages,scPg,p=>{scPg=p;renderSCTable();});
+}
+
+// ── RENDER PEDIDOS ────────────────────────────────────────────────────────────
+function renderPedidos(){
+  const total=fPed.length;
+  const totalV=fPed.reduce((a,r)=>a+(r.C7_TOTAL||0),0);
+  const semSC=fPed.filter(r=>r.SEM_SC==="SEM SC").length;
+  const cl=fPed.filter(r=>r.leadtime_dias!=null);
+  const avgL=cl.length?cl.reduce((a,r)=>a+r.leadtime_dias,0)/cl.length:0;
+  document.getElementById("kpi-ped").innerHTML=`
+    <div class="kpi"><div class="kpi-label">Total Pedidos</div><div class="kpi-value up">${total}</div><div class="kpi-sub">no período</div></div>
+    <div class="kpi"><div class="kpi-label">Valor Total</div><div class="kpi-value" style="font-size:18px">${fmtM(totalV)}</div><div class="kpi-sub">emitido</div></div>
+    <div class="kpi"><div class="kpi-label">Sem SC</div><div class="kpi-value warn">${semSC}</div><div class="kpi-sub">${total?((semSC/total)*100).toFixed(1):0}%</div></div>
+    <div class="kpi"><div class="kpi-label">Lead Time Médio</div><div class="kpi-value">${avgL.toFixed(1)}<span style="font-size:14px;color:var(--muted)">d</span></div><div class="kpi-sub">SC aprov.→pedido</div></div>`;
+
+  const vc={}; fPed.forEach(r=>{vc[r.Comp]=(vc[r.Comp]||0)+(r.C7_TOTAL||0);});
+  const vca=Object.entries(vc).sort((a,b)=>b[1]-a[1]);
+  mkChart("ch-val-comp","bar",vca.map(e=>e[0]),[{label:"Valor",data:vca.map(e=>e[1]),backgroundColor:PAL,borderRadius:6}],
+    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#7a8299",font:{size:10}}},y:{ticks:{color:"#7a8299",callback:v=>"R$ "+Number(v/1000).toFixed(0)+"k"}}}});
+
+  const lc={}; fPed.filter(r=>r.leadtime_dias!=null).forEach(r=>{if(!lc[r.Comp])lc[r.Comp]=[];lc[r.Comp].push(r.leadtime_dias);});
+  const la=Object.entries(lc).map(([c,a])=>[c,a.reduce((x,v)=>x+v,0)/a.length]).sort((a,b)=>b[1]-a[1]);
+  mkChart("ch-lead","bar",la.map(e=>e[0]),[{label:"Dias",data:la.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[2]+"cc",borderRadius:6}],
+    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#7a8299",font:{size:10}}},y:{ticks:{color:"#7a8299"}}}});
+
+  const cp30=fPed.filter(r=>r.cond_pag_30==="<= 30 Dias").length;
+  mkChart("ch-cond","doughnut",["≤ 30 Dias","> 30 Dias"],[{data:[cp30,total-cp30],backgroundColor:[PAL[1],PAL[3]],borderWidth:0}]);
+  const comSC=fPed.filter(r=>r.SEM_SC==="COM SC").length;
+  mkChart("ch-comsc","doughnut",["COM SC","SEM SC"],[{data:[comSC,semSC],backgroundColor:[PAL[0],PAL[3]],borderWidth:0}]);
+  renderPedTable();
+}
+
+function renderPedTable(){
+  const q=(document.getElementById("s-ped").value||"").toLowerCase();
+  const rows=fPed.filter(r=>!q||(r.C7_NUM||"").includes(q)||(r.FORNECEDOR||"").toLowerCase().includes(q)||(r.Comp||"").toLowerCase().includes(q));
+  const pages=Math.ceil(rows.length/PER); if(pedPg>pages)pedPg=1;
+  const slice=rows.slice((pedPg-1)*PER,pedPg*PER);
+  document.getElementById("tb-ped").innerHTML=slice.map(r=>`<tr>
+    <td style="font-weight:600;color:var(--accent)">${r.C7_NUM||"–"}</td>
+    <td>${fmtD(r.EMISSAO_PEDIDO)}</td><td>${r.FORNECEDOR||"–"}</td><td>${r.Comp||"–"}</td>
+    <td>${fmtM(r.C7_TOTAL)}</td>
+    <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis">${r.COND_PAG||"–"}</td>
+    <td>${r.TIPO_PEDIDO||"–"}</td>
+    <td><span class="badge2 ${r.SEM_SC==="COM SC"?"b-comsc":"b-semsc"}">${r.SEM_SC||"–"}</span></td>
+    <td>${r.leadtime_dias!=null?r.leadtime_dias+" d":"–"}</td></tr>`).join("");
+  renderPag("pg-ped",pages,pedPg,p=>{pedPg=p;renderPedTable();});
+}
+
+// ── RENDER INDICADORES ────────────────────────────────────────────────────────
+function renderIndicadores(){
+  const total=fPed.length, totalSC=fSC.length;
+  const semSC=fPed.filter(r=>r.SEM_SC==="SEM SC").length;
+  const cd=fPed.filter(r=>r.EMISSAO_NOTA&&r.EMISSAO_PEDIDO);
+  const avgP=cd.length?cd.reduce((a,r)=>{const d=(new Date(r.EMISSAO_NOTA)-new Date(r.EMISSAO_PEDIDO))/(864e5);return a+(d>0?d:0);},0)/cd.length:0;
+  document.getElementById("kpi-ind").innerHTML=`
+    <div class="kpi"><div class="kpi-label">SCs Emitidas</div><div class="kpi-value up">${totalSC}</div><div class="kpi-sub">período</div></div>
+    <div class="kpi"><div class="kpi-label">Pedidos Emitidos</div><div class="kpi-value up">${total}</div><div class="kpi-sub">período</div></div>
+    <div class="kpi"><div class="kpi-label">Tempo Médio Pag.</div><div class="kpi-value">${avgP.toFixed(0)}<span style="font-size:14px;color:var(--muted)">d</span></div><div class="kpi-sub">global</div></div>
+    <div class="kpi"><div class="kpi-label">Pedidos Sem SC</div><div class="kpi-value warn">${semSC}</div><div class="kpi-sub">${total?((semSC/total)*100).toFixed(1):0}%</div></div>`;
+
+  const pc={}; fPed.filter(r=>r.EMISSAO_NOTA&&r.EMISSAO_PEDIDO).forEach(r=>{
+    const d=(new Date(r.EMISSAO_NOTA)-new Date(r.EMISSAO_PEDIDO))/(864e5);
+    if(d>0){if(!pc[r.Comp])pc[r.Comp]=[];pc[r.Comp].push(d);}
+  });
+  const pa=Object.entries(pc).map(([c,a])=>[c,a.reduce((x,v)=>x+v,0)/a.length]).sort((a,b)=>b[1]-a[1]);
+  mkChart("ch-tmp-pag","bar",pa.map(e=>e[0]),[{label:"Dias",data:pa.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[4]+"cc",borderRadius:6}],
+    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#7a8299",font:{size:10}}},y:{ticks:{color:"#7a8299"}}}});
+
+  const proxMes=new Date(); proxMes.setDate(1); proxMes.setMonth(proxMes.getMonth()+1);
+  const bl=fPed.filter(r=>r.ENTREGA_PEDIDO&&new Date(r.ENTREGA_PEDIDO)>=proxMes);
+  const blCom=bl.filter(r=>r.SEM_SC==="COM SC").length;
+  const blSem=bl.filter(r=>r.SEM_SC==="SEM SC").length;
+  document.getElementById("bl-total").textContent=bl.length;
+  document.getElementById("bl-pct").textContent=total?(bl.length/total*100).toFixed(1)+"%":"0%";
+  document.getElementById("bl-com").textContent=blCom;
+  document.getElementById("bl-sem").textContent=blSem;
+  mkChart("ch-backlog","doughnut",["Backlog COM SC","Backlog SEM SC","Atendidos no mês"],[{data:[blCom,blSem,total-bl.length],backgroundColor:[PAL[0],PAL[3],PAL[1]],borderWidth:0}]);
+
+  const sm={}; fSC.forEach(r=>{const k=(r.C1_EMISSAO||"").slice(0,7);if(k)sm[k]=(sm[k]||0)+1;});
+  const sa=Object.entries(sm).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
+  mkChart("ch-sc-mes","bar",sa.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"SCs",data:sa.map(e=>e[1]),backgroundColor:PAL[0]+"cc",borderRadius:5}],
+    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#7a8299",font:{size:10}}},y:{ticks:{color:"#7a8299"}}}});
+
+  const pm={}; fPed.forEach(r=>{const k=(r.EMISSAO_PEDIDO||"").slice(0,7);if(k)pm[k]=(pm[k]||0)+1;});
+  const pa2=Object.entries(pm).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
+  mkChart("ch-ped-mes","bar",pa2.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"Pedidos",data:pa2.map(e=>e[1]),backgroundColor:PAL[2]+"cc",borderRadius:5}],
+    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#7a8299",font:{size:10}}},y:{ticks:{color:"#7a8299"}}}});
+}
+
+// ── PAGINAÇÃO ─────────────────────────────────────────────────────────────────
+function renderPag(id,pages,current,cb){
+  const el=document.getElementById(id); if(!el||pages<=1){if(el)el.innerHTML="";return;}
+  let h=`<span style="font-size:12px;color:var(--muted)">${current}/${pages}</span>`;
+  if(current>1)h+=`<button class="pb" onclick="(${cb})(${current-1})">‹</button>`;
+  const s=Math.max(1,current-2),e=Math.min(pages,current+2);
+  for(let p=s;p<=e;p++)h+=`<button class="pb${p===current?" active":""}" onclick="(${cb})(${p})">${p}</button>`;
+  if(current<pages)h+=`<button class="pb" onclick="(${cb})(${current+1})">›</button>`;
+  el.innerHTML=h;
+}
+
+function renderAll(){renderSCs();renderPedidos();renderIndicadores();}
+document.addEventListener("DOMContentLoaded",carregar);
+</script>
+</body>
+</html>
