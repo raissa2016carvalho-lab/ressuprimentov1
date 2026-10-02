@@ -346,9 +346,19 @@ function popularFiltros(){
   const tipos=[...new Set(ALL_SC.map(r=>r.tipo_sc))].filter(Boolean).sort();
   const fill=(id,arr)=>{const s=document.getElementById(id);s.innerHTML='<option value="">Todos</option>';arr.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;s.appendChild(o);});};
   fill("f-comp",comps); fill("f-grp",grps); fill("f-tipo",tipos);
-  const now=new Date(), past=new Date(); past.setMonth(past.getMonth()-3);
+  const now=new Date(), past=new Date(); past.setFullYear(past.getFullYear()-1);
   document.getElementById("f-ini").value=past.toISOString().slice(0,10);
   document.getElementById("f-fim").value=now.toISOString().slice(0,10);
+}
+
+function normDate(s){
+  if(!s) return null;
+  s = String(s).trim();
+  // formato AAAAMMDD do Protheus
+  if(s.length===8 && /^\d{8}$/.test(s)) return s.slice(0,4)+"-"+s.slice(4,6)+"-"+s.slice(6,8);
+  // já está em YYYY-MM-DD
+  if(s.length>=10) return s.slice(0,10);
+  return null;
 }
 
 function applyFilters(){
@@ -356,16 +366,18 @@ function applyFilters(){
   const comp=document.getElementById("f-comp").value, grp=document.getElementById("f-grp").value;
   const tipo=document.getElementById("f-tipo").value;
   fSC=ALL_SC.filter(r=>{
-    if(ini&&r.C1_EMISSAO&&r.C1_EMISSAO<ini)return false;
-    if(fim&&r.C1_EMISSAO&&r.C1_EMISSAO>fim)return false;
+    const d=normDate(r.C1_EMISSAO);
+    if(ini&&d&&d<ini)return false;
+    if(fim&&d&&d>fim)return false;
     if(comp&&r.comprador!==comp)return false;
     if(grp&&r.C1_GRPRD!==grp)return false;
     if(tipo&&r.tipo_sc!==tipo)return false;
     return true;
   });
   fPed=ALL_PED.filter(r=>{
-    if(ini&&r.EMISSAO_PEDIDO&&r.EMISSAO_PEDIDO<ini)return false;
-    if(fim&&r.EMISSAO_PEDIDO&&r.EMISSAO_PEDIDO>fim)return false;
+    const d=normDate(r.EMISSAO_PEDIDO);
+    if(ini&&d&&d<ini)return false;
+    if(fim&&d&&d>fim)return false;
     if(comp&&r.Comp!==comp)return false;
     if(grp&&r.C7_GRPPROD!==grp)return false;
     return true;
@@ -376,7 +388,7 @@ function applyFilters(){
 }
 
 function clearFilters(){
-  const now=new Date(), past=new Date(); past.setMonth(past.getMonth()-3);
+  const now=new Date(), past=new Date(); past.setFullYear(past.getFullYear()-1);
   document.getElementById("f-ini").value=past.toISOString().slice(0,10);
   document.getElementById("f-fim").value=now.toISOString().slice(0,10);
   ["f-comp","f-grp","f-tipo","f-status"].forEach(id=>document.getElementById(id).value="");
@@ -394,7 +406,12 @@ function showScreen(n,btn,title){
 }
 
 // UTILS
-function fmtD(s){if(!s)return"–";return new Date(s+"T12:00").toLocaleDateString("pt-BR");}
+function fmtD(s){
+  if(!s) return "–";
+  const n=normDate(String(s));
+  if(!n) return String(s);
+  return new Date(n+"T12:00").toLocaleDateString("pt-BR");
+}
 function fmtM(v){if(v==null||v===undefined)return"–";return"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2});}
 function pct(v,t){return t?((v/t)*100).toFixed(2)+"%":"0%";}
 function agg(arr,key,valKey){
