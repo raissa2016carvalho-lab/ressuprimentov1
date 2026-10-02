@@ -324,12 +324,20 @@ function setProgresso(pct, msg){
   if(msg) document.getElementById("loading-msg").textContent=msg;
 }
 
-async function sbGet(tabela, select, onProgress){
-  let all=[], offset=0, lote=2000;
+async function sbGet(tabela, select, onProgress, filtro=""){
+  let all=[], offset=0, lote=1000;
   while(true){
-    const url=SUPA_URL+"/rest/v1/"+tabela+"?select="+(select||"*")+"&limit="+lote+"&offset="+offset;
-    const r=await fetch(url,{headers:H});
-    if(!r.ok) throw new Error(r.status+" em "+tabela);
+    const url=SUPA_URL+"/rest/v1/"+tabela+"?select="+(select||"*")+(filtro?"&"+filtro:"")+"&limit="+lote+"&offset="+offset;
+    let r, tentativas=0;
+    while(tentativas<3){
+      try{
+        r=await fetch(url,{headers:H});
+        if(r.ok) break;
+        if(r.status===500){ await new Promise(res=>setTimeout(res,2000)); tentativas++; continue; }
+        throw new Error(r.status+" em "+tabela);
+      }catch(e){ if(tentativas>=2) throw e; tentativas++; await new Promise(res=>setTimeout(res,2000)); }
+    }
+    if(!r||!r.ok) throw new Error("500 em "+tabela+" offset "+offset);
     const d=await r.json(); all=all.concat(d);
     if(onProgress) onProgress(all.length);
     if(d.length<lote) break; offset+=lote;
@@ -349,10 +357,13 @@ async function carregar(){
     setProgresso(30,"SCs prontas! Carregando Pedidos...");
 
     // carrega pedidos (223k linhas — demora mais)
+    // busca pedidos dos ultimos 2 anos para reduzir volume
+    const anoInicio = (new Date().getFullYear()-2)+"-01-01";
     ALL_PED = await sbGet(
       "pedidos",
       "C7_NUM,C7_ITEM,C7_FILIAL,C7_DESCRI,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,ENTREGA_PEDIDO,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
-      (n)=>setProgresso(30+Math.min(n/223000*65,65), "Carregando Pedidos... "+n.toLocaleString("pt-BR"))
+      (n)=>setProgresso(30+Math.min(n/100000*65,65), "Carregando Pedidos... "+n.toLocaleString("pt-BR")),
+      "EMISSAO_PEDIDO=gte."+anoInicio
     );
     setProgresso(100,"Pronto!");
 
