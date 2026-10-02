@@ -330,7 +330,7 @@ async function carregar(){
   try{
     [ALL_SC, ALL_PED] = await Promise.all([
       sbGet("scs","C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,tipo_sc,comprador,temp_atendimento"),
-      sbGet("pedidos","C7_NUM,C7_ITEM,C7_FILIAL,C7_PRODUTO,C7_DESCRI,C7_QUANT,C7_PRECO,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,ENTRADA_NOTA,EMISSAO_SC,APROVACAO_SC,TIPO_SC,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias")
+      sbGet("pedidos","C7_NUM,C7_ITEM,C7_FILIAL,C7_PRODUTO,C7_DESCRI,C7_QUANT,C7_PRECO,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_SC,APROVACAO_SC,TIPO_SC,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento,STATUS_DESC")
     ]);
     document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR");
     popularFiltros(); clearFilters();
