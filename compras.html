@@ -106,6 +106,9 @@ canvas{max-height:220px}
 .spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-text{color:var(--muted);font-size:14px}
+.prog-loading{width:320px;background:var(--border);border-radius:20px;height:6px;overflow:hidden}
+.prog-loading-bar{height:100%;background:var(--orange);border-radius:20px;transition:width .3s;width:0%}
+.prog-loading-pct{color:var(--orange);font-size:13px;font-weight:600;text-align:center}
 </style>
 </head>
 <body>
@@ -114,6 +117,8 @@ canvas{max-height:220px}
   <div style="font-size:24px;font-weight:700;font-style:italic;color:var(--text)">B&Q</div>
   <div class="spinner"></div>
   <div class="loading-text" id="loading-msg">Carregando dados...</div>
+  <div class="prog-loading"><div class="prog-loading-bar" id="prog-bar"></div></div>
+  <div class="prog-loading-pct" id="prog-pct">0%</div>
 </div>
 
 <div class="header">
@@ -313,30 +318,50 @@ const PER = 20;
 let ALL_SC=[], ALL_PED=[], fSC=[], fPed=[], scPg=1, pedPg=1;
 const CH={};
 
-async function sbGet(tabela, select){
+function setProgresso(pct, msg){
+  document.getElementById("prog-bar").style.width=pct+"%";
+  document.getElementById("prog-pct").textContent=Math.round(pct)+"%";
+  if(msg) document.getElementById("loading-msg").textContent=msg;
+}
+
+async function sbGet(tabela, select, onProgress){
   let all=[], offset=0, lote=1000;
   while(true){
     const url=SUPA_URL+"/rest/v1/"+tabela+"?select="+(select||"*")+"&limit="+lote+"&offset="+offset;
     const r=await fetch(url,{headers:H});
     if(!r.ok) throw new Error(r.status+" em "+tabela);
     const d=await r.json(); all=all.concat(d);
+    if(onProgress) onProgress(all.length);
     if(d.length<lote) break; offset+=lote;
   }
   return all;
 }
 
 async function carregar(){
-  document.getElementById("loading-msg").textContent="Carregando SCs e Pedidos...";
+  setProgresso(0,"Carregando SCs...");
   try{
-    [ALL_SC, ALL_PED] = await Promise.all([
-      sbGet("scs","C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,tipo_sc,comprador,temp_atendimento"),
-      sbGet("pedidos","C7_NUM,C7_ITEM,C7_FILIAL,C7_PRODUTO,C7_DESCRI,C7_QUANT,C7_PRECO,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_SC,APROVACAO_SC,TIPO_SC,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento,STATUS_DESC")
-    ]);
+    // carrega SCs primeiro (mais rápido)
+    ALL_SC = await sbGet(
+      "scs",
+      "C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,tipo_sc,comprador,temp_atendimento",
+      (n)=>setProgresso(Math.min(n/15000*30,30), "Carregando SCs... "+n)
+    );
+    setProgresso(30,"SCs prontas! Carregando Pedidos...");
+
+    // carrega pedidos (223k linhas — demora mais)
+    ALL_PED = await sbGet(
+      "pedidos",
+      "C7_NUM,C7_ITEM,C7_FILIAL,C7_PRODUTO,C7_DESCRI,C7_QUANT,C7_PRECO,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_SC,APROVACAO_SC,TIPO_SC,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento,STATUS_DESC",
+      (n)=>setProgresso(30+Math.min(n/223000*65,65), "Carregando Pedidos... "+n.toLocaleString("pt-BR"))
+    );
+    setProgresso(100,"Pronto!");
+
     document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR");
     popularFiltros(); clearFilters();
-    document.getElementById("loading-overlay").style.display="none";
+    setTimeout(()=>{ document.getElementById("loading-overlay").style.display="none"; },400);
   }catch(e){
     document.getElementById("loading-msg").textContent="Erro: "+e.message;
+    document.getElementById("prog-pct").textContent="";
   }
 }
 
