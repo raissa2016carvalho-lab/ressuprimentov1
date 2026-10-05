@@ -1950,7 +1950,11 @@ async function exportarExcel(){
     // Deduplicar: consumo_scp pode ter linhas repetidas (mesma chave filial|num|item)
     const vistos=new Set();
     const consumoUnico=consumo.filter(r=>{
-      const k=r.chave||(r.filial+'|'+r.num+'|'+r.item);
+      // Só deduplica se tiver chave real ou num+item definidos
+      const temChave=r.chave&&r.chave.trim();
+      const temCompoста=r.num&&r.item;
+      if(!temChave&&!temCompoста)return true; // sem chave identificável: manter
+      const k=temChave?r.chave:(r.filial+'|'+r.num+'|'+r.item);
       if(vistos.has(k))return false;
       vistos.add(k);
       return true;
@@ -2003,7 +2007,13 @@ async function exportarExcel(){
     // bruto, que tem duplicatas e dobraria os valores.
     setMsg('Gerando planilha...','Aba Comparativo');
 
-    const scpResumo=_dados.filter(r=>r.mes===mes);
+    const scpResumo=_dados.filter(r=>{
+      if(r.mes!==mes)return false;
+      if(filial&&r.filial!==filial)return false;
+      if(grupo&&r.grupo!==grupo)return false;
+      if(cc&&r.cc!==cc)return false;
+      return true;
+    });
 
     // Agregar consumo por CC + grupo amigo
     const mapCC={}, mapConsumo={}, mapDev={};
@@ -2064,7 +2074,9 @@ async function exportarExcel(){
     XLSX.utils.book_append_sheet(wb,wsComp,'Comparativo');
 
     const dt=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
-    const filtroLabel=filial?`_filial${filial}`:'';
+    const filtroLabel=(filial?`_filial${filial}`:'')+
+                      (grupo?`_grupo${grupo.replace(/\s+/g,'_').slice(0,20)}`:'')+
+                      (cc?`_cc${cc}`:'');
     XLSX.writeFile(wb,`fechamento_${mesLabel.replace('/','-')}${filtroLabel}_${dt}.xlsx`);
 
     overlay.remove();
