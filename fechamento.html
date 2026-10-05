@@ -1877,14 +1877,8 @@ async function exportarExcel(){
   const periodo=document.getElementById('f-periodo').value;
   let mes=document.getElementById('f-mes').value;
 
-  // Se nenhum mês selecionado, usar o último mês disponível nos dados
-  if(!mes){
-    const mesesDisp=[...new Set(_dados.map(r=>r.mes))].filter(Boolean).sort();
-    mes=mesesDisp[mesesDisp.length-1]||'';
-  }
-  if(!mes){alert('Nenhum mês disponível.');return;}
-
-  const mesLabel=mes.slice(4,6)+'/'+mes.slice(0,4);
+  // Label para o nome do arquivo
+  const mesLabel=mes?(mes.slice(4,6)+'/'+mes.slice(0,4)):(periodo==='todos'?'todos_meses':periodo);
 
   // Overlay de progresso
   const overlay=document.createElement('div');
@@ -1904,8 +1898,9 @@ async function exportarExcel(){
     for(;;){
       let q=db.from('consumo_scp')
         .select('chave,filial,num,item,produto,descricao,grupo,cc,mes,emissao,quantidade,custo_unit,valor_total,custo_zero,motivo,custo_fonte')
-        .eq('mes',mes)
         .order('chave').range(off,off+999);
+      if(mes) q=q.eq('mes',mes);
+      else if(periodo!=='todos') q=q.like('mes',periodo+'%');
       if(filial) q=q.eq('filial',filial);
       if(grupo)  q=q.eq('grupo',grupo);
       if(cc)     q=q.eq('cc',cc);
@@ -1923,9 +1918,10 @@ async function exportarExcel(){
     for(;;){
       let q=db.from('mov_sd3_001')
         .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,tipo_rede,quantidade,custo_unit,valor_total,custo_fonte')
-        .eq('mes',mes)
         .neq('cc','122010102')
         .order('id').range(off2,off2+999);
+      if(mes) q=q.eq('mes',mes);
+      else if(periodo!=='todos') q=q.like('mes',periodo+'%');
       if(filial) q=q.eq('filial',filial);
       if(grupo)  q=q.eq('grupo',grupo);
       if(cc)     q=q.eq('cc',cc);
@@ -2008,7 +2004,8 @@ async function exportarExcel(){
     setMsg('Gerando planilha...','Aba Comparativo');
 
     const scpResumo=_dados.filter(r=>{
-      if(r.mes!==mes)return false;
+      if(mes&&r.mes!==mes)return false;
+      else if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
       if(filial&&r.filial!==filial)return false;
       if(grupo&&r.grupo!==grupo)return false;
       if(cc&&r.cc!==cc)return false;
