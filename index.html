@@ -1933,8 +1933,36 @@ if(elResumo){
     ${cats.recebido.length>0?`<span style="background:#dcfce7;color:#16a34a;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">✅ ${cats.recebido.length} recebido(s)</span>`:''}
     ${cats.estoque.length>0?`<span style="background:#dbeafe;color:#1e40af;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">📦 ${cats.estoque.length} estoque</span>`:''}
   `;
-}function baixarExcelCatMob(catKey){if(!_catsGlobal){alert('Abra a mobilização antes de exportar.');return;}let linhas=({recebido:_catsGlobal.recebido,pendente:_catsGlobal.pendente,aprovacao:_catsGlobal.aprovacao,semPedido:_catsGlobal.semPedido}[catKey]||[]).flatMap(it=>it.linhas&&it.linhas.length>0?it.linhas.map(l=>({Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:l.c7_numsc,Status:l.status_desc,"Qtde PC":l.c7_quant})):[{Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:`-`,Status:catKey===`recebido`?`Recebido`:`Sem pedido`,"Qtde PC":``}]);if(!linhas.length){alert(`Nenhum item nesta categoria.`);return}let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,catKey),XLSX.writeFile(wb,`mobilizacao_${catKey}.xlsx`)}window.baixarExcelCatMob=baixarExcelCatMob;
+}async function baixarExcelCatMob(catKey,mobId){
+  // Se os dados não foram carregados ou são de outra mobilização, carregar agora
+  if(!_catsGlobal||(_mobIdExcel&&mobId&&String(_mobIdExcel)!==String(mobId))){
+    if(!mobId){alert('Abra a mobilização antes de exportar.');return;}
+    let container=document.getElementById('corpo-mob-'+mobId);
+    if(!container){alert('Mobilização não encontrada.');return;}
+    let btn=event&&event.target;if(btn){btn.disabled=true;btn.textContent='Carregando...';}
+    container.dataset.carregado='0';
+    await renderDetalheMob(mobId,container);
+    if(btn){btn.disabled=false;btn.textContent='⬇ Excel';}
+    if(!_catsGlobal){alert('Não foi possível carregar os dados da mobilização.');return;}
+  }
+  let linhas=({recebido:_catsGlobal.recebido,pendente:_catsGlobal.pendente,aprovacao:_catsGlobal.aprovacao,semPedido:_catsGlobal.semPedido}[catKey]||[]).flatMap(it=>it.linhas&&it.linhas.length>0?it.linhas.map(l=>({Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:l.c7_numsc,Status:l.status_desc,"Qtde PC":l.c7_quant})):[{Código:it.codigo||`(manual)`,Descrição:it.descricao,"Total mob.":it.total_mob,SC:`-`,Status:catKey===`recebido`?`Recebido`:`Sem pedido`,"Qtde PC":``}]);
+  if(!linhas.length){alert(`Nenhum item nesta categoria.`);return}
+  let ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,catKey);
+  XLSX.writeFile(wb,`mobilizacao_${catKey}.xlsx`);
+}window.baixarExcelCatMob=baixarExcelCatMob;
 async function baixarExcelMobCompleto(nomeArq){
+  const mobIdParam = nomeArq ? nomeArq.replace('mobilizacao_','') : null;
+  if(!_catsGlobal||(_mobIdExcel&&mobIdParam&&String(_mobIdExcel)!==String(mobIdParam))){
+    if(!mobIdParam){alert('Abra a mobilização antes de exportar.');return;}
+    let container=document.getElementById('corpo-mob-'+mobIdParam);
+    if(!container){alert('Mobilização não encontrada.');return;}
+    let btn=event&&event.target;if(btn){btn.disabled=true;btn.textContent='Carregando...';}
+    container.dataset.carregado='0';
+    await renderDetalheMob(mobIdParam,container);
+    if(btn){btn.disabled=false;btn.textContent='⬇ Excel completo';}
+    if(!_catsGlobal){alert('Não foi possível carregar os dados da mobilização.');return;}
+  }
   if(!_catsGlobal){alert('Abra a mobilização antes de exportar.');return;}
   // Buscar estoque da mobilização atual
   const mobIdAtual = nomeArq ? nomeArq.replace('mobilizacao_','') : null;
@@ -2021,7 +2049,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
           </tr>`}).join(``);return`<div id="${uid}" style="display:none;border:1px solid ${cor}40;border-radius:10px;overflow:hidden;margin-bottom:8px">
           <div style="padding:9px 14px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">
             <span style="font-size:13px;font-weight:600;color:#1e293b">${label} — ${itens.length} iten(s)</span>
-            <button onclick="event.stopPropagation();baixarExcelCatMob('${catKey}')" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">⬇ Excel</button>
+            <button onclick="event.stopPropagation();baixarExcelCatMob('${catKey}',${mobId})" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">⬇ Excel</button>
           </div>
           <table style="width:100%;border-collapse:collapse">
             <tr style="background:#f8fafc">
