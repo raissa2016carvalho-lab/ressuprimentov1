@@ -1976,7 +1976,7 @@ async function baixarExcelMobCompleto(nomeArq){
   const _todasRaw=[..._catsGlobal?.recebido,..._catsGlobal?.estoque,..._catsGlobal?.aprovacao,..._catsGlobal?.pendente,..._catsGlobal?.semPedido];
   const _codVistos=new Set();
   const todasCats=_todasRaw.filter(it=>{
-    const k=(it.codigo||it.descricao||'').trim();
+    const k=String(it.codigo||it.descricao||'').trim();
     if(_codVistos.has(k))return false;
     _codVistos.add(k);return true;
   });
