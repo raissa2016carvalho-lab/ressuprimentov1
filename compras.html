@@ -359,7 +359,7 @@ async function carregar(){
 
     ALL_SC = await sbGet(
       "scs",
-      "C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,STATUS_DESC,tipo_sc,comprador,temp_atendimento",
+      "C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,STATUS_DESC,tipo_sc,comprador,temp_atendimento",
       (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n)
     );
     setProgresso(30,"Carregando Pedidos...");
@@ -434,7 +434,7 @@ function applyFilters(){
     if(fil&&String(r.C7_FILIAL||"").trim()!==String(fil).trim())return false;
     return true;
   });
-  scPg=1; pedPg=1;
+  scPg=1; pedPg=1; detPg=1;
   document.getElementById("fcount").textContent=fSC.length+" SCs · "+fPed.length+" Pedidos";
   renderAll();
 }
@@ -445,6 +445,7 @@ function clearFilters(){
   document.getElementById("f-fim").value=now.toISOString().slice(0,10);
   ["f-comp","f-grp","f-tipo","f-filial"].forEach(id=>document.getElementById(id).value="");
   fSC=[...ALL_SC]; fPed=[...ALL_PED];
+  detPg=1;
   document.getElementById("fcount").textContent="";
   renderAll();
 }
