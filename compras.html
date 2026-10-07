@@ -270,6 +270,7 @@ canvas{max-height:220px}
 
 <!-- TELA DETALHAMENTO -->
 <div id="screen-detalhamento" class="screen">
+  <div class="kpi-bar" id="kpi-det"></div>
   <!-- filtros específicos do detalhamento -->
   <div style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <span class="fl">Cód. SC</span>
@@ -915,6 +916,38 @@ function renderDetTable(){
   const total=fDet.length;
   const totalVal=fDet.reduce((a,r)=>a+(r.valor||0),0);
   document.getElementById("det-count").textContent=`${total.toLocaleString("pt-BR")} registros · ${fmtM(totalVal)}`;
+
+  // KPIs de atendimento
+  const atend  = fDet.filter(r=>(r.status_sc||"").includes("Totalmente Atendida")).length;
+  const parcial= fDet.filter(r=>(r.status_sc||"").includes("Parcialmente")).length;
+  const pend   = fDet.filter(r=>(r.status_sc||"").includes("Pendente")).length;
+  const bloq   = fDet.filter(r=>(r.status_sc||"").includes("Bloqueada")).length;
+  const rej    = fDet.filter(r=>(r.status_sc||"").toLowerCase().includes("rejeitada")||(r.status_sc||"").includes("Rejeitada pelo Compras")).length;
+  const elim   = fDet.filter(r=>(r.status_sc||"").includes("Resíduo")).length;
+  const semPed = fDet.filter(r=>r.status_ped==="SEM PEDIDO").length;
+  const recebido=fDet.filter(r=>(r.status_ped||"").includes("Recebido")).length;
+
+  const base   = total - rej - elim;
+  const pctAtend = base>0?((atend/base)*100):0;
+  const corPct = pctAtend>=80?"var(--green)":pctAtend>=60?"var(--orange)":"var(--red)";
+
+  const kpiDet=document.getElementById("kpi-det");
+  if(kpiDet) kpiDet.innerHTML=`
+    <div class="kpi"><div class="kpi-val orange">${total.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Total Itens</div></div>
+    <div class="kpi" style="border-left:4px solid var(--green)">
+      <div class="kpi-val" style="color:${corPct};font-size:30px">${pctAtend.toFixed(1)}%</div>
+      <div class="kpi-lbl">% Atendimento</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">excl. rejeitadas e eliminadas</div>
+    </div>
+    <div class="kpi"><div class="kpi-val green">${atend.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Totalmente Atendidas</div></div>
+    <div class="kpi"><div class="kpi-val blue">${parcial.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Parcialmente Atendidas</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--orange)">${pend.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Pendentes</div></div>
+    <div class="kpi"><div class="kpi-val red">${bloq.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Bloqueadas</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--muted)">${rej.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Rejeitadas</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--muted)">${elim.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Elim. por Resíduo</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:#7c3aed">${semPed.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Sem Pedido</div></div>
+    <div class="kpi"><div class="kpi-val green">${recebido.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Pedido Recebido</div></div>
+    <div class="kpi"><div class="kpi-val">${fmtM(totalVal)}</div><div class="kpi-lbl">Valor Total</div></div>`;
   renderPag("pg-det",pages,detPg,p=>{detPg=p;renderDetTable();});
 }
 
