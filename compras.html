@@ -121,6 +121,7 @@ canvas{max-height:220px}
   <button class="tab active" onclick="showScreen('scs',this,'SOLICITAÇÕES DE COMPRAS')">Solicitações de Compra</button>
   <button class="tab" onclick="showScreen('pedidos',this,'PEDIDOS (COMPRAS)')">Pedidos</button>
   <button class="tab" onclick="showScreen('indicadores',this,'INDICADORES')">Indicadores</button>
+  <button class="tab" onclick="showScreen('detalhamento',this,'DETALHAMENTO SC × PEDIDO')">Detalhamento</button>
 </div>
 
 <div class="filters">
@@ -267,6 +268,50 @@ canvas{max-height:220px}
   </div>
 </div>
 
+<!-- TELA DETALHAMENTO -->
+<div id="screen-detalhamento" class="screen">
+  <div class="main">
+    <div class="ct">
+      <div class="ct-head" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span class="ct-title">Detalhamento SC × Pedido</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="sbox" id="s-det" placeholder="Buscar SC, pedido, filial, descrição..." oninput="renderDetTable()" style="width:280px;margin:0">
+          <select id="f-det-status-sc" onchange="renderDetTable()" style="font-size:11px;padding:5px 8px">
+            <option value="">Status SC — Todos</option>
+          </select>
+          <select id="f-det-status-ped" onchange="renderDetTable()" style="font-size:11px;padding:5px 8px">
+            <option value="">Status Pedido — Todos</option>
+          </select>
+          <span id="det-count" style="font-size:11px;color:var(--muted);white-space:nowrap"></span>
+        </div>
+      </div>
+      <div class="ct-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Filial</th>
+              <th>Nº SC</th>
+              <th>Emissão SC</th>
+              <th>Aprov. SC</th>
+              <th>Descrição SC</th>
+              <th>Qtd SC</th>
+              <th>Status SC</th>
+              <th>Nº Pedido</th>
+              <th>Emissão Ped.</th>
+              <th>Status Pedido</th>
+              <th class="r">Valor (R$)</th>
+              <th>Comprador</th>
+              <th>Tipo</th>
+            </tr>
+          </thead>
+          <tbody id="tb-det"></tbody>
+        </table>
+      </div>
+      <div style="padding:8px 14px"><div class="pag" id="pg-det"></div></div>
+    </div>
+  </div>
+</div>
+
 <script>
 const SUPA_URL  = "https://eugefrjckrxisfpizkjb.supabase.co";
 const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI";
@@ -274,7 +319,7 @@ const H = {"apikey":SUPA_ANON,"Authorization":"Bearer "+SUPA_ANON};
 const PAL = ['#f26522','#2563eb','#16a34a','#dc2626','#7c3aed','#0891b2','#ca8a04','#be185d','#059669','#9333ea'];
 const PER = 20;
 
-let ALL_SC=[], ALL_PED=[], FILIAIS={}, fSC=[], fPed=[], scPg=1, pedPg=1;
+let ALL_SC=[], ALL_PED=[], ALL_DET=[], FILIAIS={}, fSC=[], fPed=[], fDet=[], scPg=1, pedPg=1, detPg=1;
 const CH={};
 
 function setProgresso(pct,msg){
@@ -720,7 +765,114 @@ function renderPag(id,pages,current,cb){
   el.innerHTML=h;
 }
 
-function renderAll(){renderSCs();renderPedidos();renderIndicadores();}
+// ── DETALHAMENTO SC × PEDIDO ─────────────────────────────────────────────────
+function buildDetalhamento(){
+  // Mapa de pedidos por C7_NUMSC
+  const pedMap={};
+  ALL_PED.forEach(r=>{
+    const k=(r.C7_NUMSC||"").trim();
+    if(k) pedMap[k]=r;
+  });
+
+  // Junta SCs com pedido vinculado
+  ALL_DET = ALL_SC.map(sc=>{
+    const ped = pedMap[(sc.C1_NUM||"").trim()] || null;
+    return {
+      filial:    nomeFilial(sc.C1_FILIAL),
+      num_sc:    sc.C1_NUM,
+      emissao_sc: sc.C1_EMISSAO,
+      aprov_sc:  sc.C1_YDTAPRO,
+      descricao: sc.C1_DESCRI || "–",
+      quant:     sc.C1_QUANT,
+      status_sc: sc.STATUS_DESC || "–",
+      num_ped:   ped ? ped.C7_NUM : "–",
+      emissao_ped: ped ? ped.EMISSAO_PEDIDO : null,
+      status_ped: ped ? (ped.STATUS_PEDIDO||"–") : "SEM PEDIDO",
+      valor:     ped ? (ped.C7_TOTAL||0) : 0,
+      comprador: sc.comprador,
+      tipo:      sc.tipo_sc
+    };
+  });
+
+  // popular filtros de status
+  const sscs=[...new Set(ALL_DET.map(r=>r.status_sc))].filter(Boolean).sort();
+  const speds=[...new Set(ALL_DET.map(r=>r.status_ped))].filter(Boolean).sort();
+  const fss=document.getElementById("f-det-status-sc");
+  const fsp=document.getElementById("f-det-status-ped");
+  fss.innerHTML='<option value="">Status SC — Todos</option>'+sscs.map(s=>`<option value="${s}">${s}</option>`).join("");
+  fsp.innerHTML='<option value="">Status Pedido — Todos</option>'+speds.map(s=>`<option value="${s}">${s}</option>`).join("");
+}
+
+function renderDetTable(){
+  const q=(document.getElementById("s-det").value||"").toLowerCase();
+  const ssc=(document.getElementById("f-det-status-sc")||{}).value||"";
+  const sped=(document.getElementById("f-det-status-ped")||{}).value||"";
+
+  // aplica filtros globais de período/comprador/grupo/filial
+  const ini=document.getElementById("f-ini").value, fim=document.getElementById("f-fim").value;
+  const comp=document.getElementById("f-comp").value, grp=document.getElementById("f-grp").value;
+
+  fDet = ALL_DET.filter(r=>{
+    const d=normDate(r.emissao_sc);
+    if(ini&&d&&d<ini) return false;
+    if(fim&&d&&d>fim) return false;
+    if(comp&&r.comprador!==comp) return false;
+    if(ssc&&r.status_sc!==ssc) return false;
+    if(sped&&r.status_ped!==sped) return false;
+    if(q&&!(
+      (r.num_sc||"").toLowerCase().includes(q)||
+      (r.num_ped||"").toLowerCase().includes(q)||
+      (r.filial||"").toLowerCase().includes(q)||
+      (r.descricao||"").toLowerCase().includes(q)||
+      (r.comprador||"").toLowerCase().includes(q)
+    )) return false;
+    return true;
+  });
+
+  const pages=Math.ceil(fDet.length/PER); if(detPg>pages)detPg=1;
+  const slice=fDet.slice((detPg-1)*PER,detPg*PER);
+
+  const stSCcor={
+    "Solicitação Totalmente Atendida":"#d1fae5;color:#065f46",
+    "Solicitação Pendente":"#fef3c7;color:#92400e",
+    "Solicitação Bloqueada":"#fee2e2;color:#b91c1c",
+    "Solicitação Rejeitada pelo Compras":"#fee2e2;color:#b91c1c",
+    "Solicitação Rejeitada":"#fee2e2;color:#b91c1c",
+    "Elim. por Resíduo":"#f3f4f6;color:#6b7280",
+    "SEM PEDIDO":"#ede9fe;color:#5b21b6"
+  };
+  const bmap={"NORMAL":"bn","URGENCIA":"bu","REGULARIZACAO":"br","FUNDO FIXO":"bf","RESSUPRIMENTO":"brs","ESTOQUE":"be"};
+
+  document.getElementById("tb-det").innerHTML=slice.map(r=>{
+    const sscStyle=stSCcor[r.status_sc]||"#f3f4f6;color:#374151";
+    const spedStyle=r.status_ped==="Recebido"?"#d1fae5;color:#065f46":
+                    r.status_ped==="SEM PEDIDO"?"#ede9fe;color:#5b21b6":
+                    r.status_ped==="Pendente"?"#fef3c7;color:#92400e":
+                    "#f3f4f6;color:#374151";
+    return `<tr>
+      <td style="white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis">${r.filial}</td>
+      <td style="font-weight:600;color:var(--orange)">${r.num_sc||"–"}</td>
+      <td>${fmtD(r.emissao_sc)}</td>
+      <td>${fmtD(r.aprov_sc)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${r.descricao}">${r.descricao}</td>
+      <td class="r">${r.quant!=null?Number(r.quant).toLocaleString("pt-BR"):"–"}</td>
+      <td><span style="display:inline-block;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;background:${sscStyle.split(";")[0]};${sscStyle.split(";")[1]}">${r.status_sc}</span></td>
+      <td style="font-weight:600;color:var(--blue)">${r.num_ped}</td>
+      <td>${fmtD(r.emissao_ped)}</td>
+      <td><span style="display:inline-block;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;background:${spedStyle.split(";")[0]};${spedStyle.split(";")[1]}">${r.status_ped}</span></td>
+      <td class="r" style="font-weight:600">${r.valor?fmtM(r.valor):"–"}</td>
+      <td>${r.comprador||"–"}</td>
+      <td><span class="bdg ${bmap[r.tipo]||"br"}">${r.tipo||"–"}</span></td>
+    </tr>`;
+  }).join("");
+
+  const total=fDet.length;
+  const totalVal=fDet.reduce((a,r)=>a+(r.valor||0),0);
+  document.getElementById("det-count").textContent=`${total.toLocaleString("pt-BR")} registros · ${fmtM(totalVal)}`;
+  renderPag("pg-det",pages,detPg,p=>{detPg=p;renderDetTable();});
+}
+
+function renderAll(){renderSCs();renderPedidos();renderIndicadores();buildDetalhamento();renderDetTable();}
 document.addEventListener("DOMContentLoaded",carregar);
 </script>
 </body>
