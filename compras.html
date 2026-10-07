@@ -369,7 +369,7 @@ async function carregar(){
 
     ALL_SC = await sbGet(
       "scs",
-      "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento",
+      "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
       (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n)
     );
     setProgresso(30,"Carregando Pedidos...");
@@ -822,10 +822,10 @@ function buildDetalhamento(){
       obs:       sc.C1_OBS || "",
       quant:     sc.C1_QUANT,
       status_sc: sc.STATUS_DESC || "–",
-      num_ped:   ped ? ped.C7_NUM : "–",
+      num_ped:   sc.pedido_num || (ped ? ped.C7_NUM : "–"),
       emissao_ped: ped ? ped.EMISSAO_PEDIDO : null,
-      status_ped: ped ? (ped.STATUS_PEDIDO||"–") : "SEM PEDIDO",
-      valor:     ped ? (ped.C7_TOTAL||0) : 0,
+      status_ped: ped ? (ped.STATUS_PEDIDO||"–") : (sc.pedido_num ? "–" : "SEM PEDIDO"),
+      valor:     sc.pedido_total || 0,
       comprador: sc.comprador,
       tipo:      sc.tipo_sc
     };
