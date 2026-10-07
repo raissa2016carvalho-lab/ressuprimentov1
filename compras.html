@@ -270,22 +270,30 @@ canvas{max-height:220px}
 
 <!-- TELA DETALHAMENTO -->
 <div id="screen-detalhamento" class="screen">
-  <div class="main">
+  <!-- filtros específicos do detalhamento -->
+  <div style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <span class="fl">Cód. SC</span>
+    <input class="sbox" id="s-det-sc" placeholder="Ex: 000071" oninput="renderDetTable()" style="width:120px;margin:0">
+    <span class="fl">Cód. Pedido</span>
+    <input class="sbox" id="s-det-ped" placeholder="Ex: 275144" oninput="renderDetTable()" style="width:120px;margin:0">
+    <span class="fl">Busca Geral</span>
+    <input class="sbox" id="s-det" placeholder="Filial, descrição, observação..." oninput="renderDetTable()" style="width:220px;margin:0">
+    <span class="fl">Status SC</span>
+    <select id="f-det-status-sc" onchange="renderDetTable()" style="font-size:11px;padding:5px 8px">
+      <option value="">Todos</option>
+    </select>
+    <span class="fl">Status Pedido</span>
+    <select id="f-det-status-ped" onchange="renderDetTable()" style="font-size:11px;padding:5px 8px">
+      <option value="">Todos</option>
+    </select>
+    <span id="det-count" style="font-size:11px;color:var(--muted);margin-left:8px;white-space:nowrap"></span>
+  </div>
+  <div style="padding:16px 24px">
     <div class="ct">
-      <div class="ct-head" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="ct-head">
         <span class="ct-title">Detalhamento SC × Pedido</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input class="sbox" id="s-det" placeholder="Buscar SC, pedido, filial, descrição..." oninput="renderDetTable()" style="width:280px;margin:0">
-          <select id="f-det-status-sc" onchange="renderDetTable()" style="font-size:11px;padding:5px 8px">
-            <option value="">Status SC — Todos</option>
-          </select>
-          <select id="f-det-status-ped" onchange="renderDetTable()" style="font-size:11px;padding:5px 8px">
-            <option value="">Status Pedido — Todos</option>
-          </select>
-          <span id="det-count" style="font-size:11px;color:var(--muted);white-space:nowrap"></span>
-        </div>
       </div>
-      <div class="ct-body">
+      <div class="ct-body" style="max-height:calc(100vh - 320px)">
         <table>
           <thead>
             <tr>
@@ -293,8 +301,9 @@ canvas{max-height:220px}
               <th>Nº SC</th>
               <th>Emissão SC</th>
               <th>Aprov. SC</th>
-              <th>Descrição SC</th>
-              <th>Qtd SC</th>
+              <th>Descrição</th>
+              <th>Observação</th>
+              <th class="r">Qtd</th>
               <th>Status SC</th>
               <th>Nº Pedido</th>
               <th>Emissão Ped.</th>
@@ -359,7 +368,7 @@ async function carregar(){
 
     ALL_SC = await sbGet(
       "scs",
-      "C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,STATUS_DESC,tipo_sc,comprador,temp_atendimento",
+      "C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento",
       (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n)
     );
     setProgresso(30,"Carregando Pedidos...");
@@ -779,11 +788,14 @@ function buildDetalhamento(){
   ALL_DET = ALL_SC.map(sc=>{
     const ped = pedMap[(sc.C1_NUM||"").trim()] || null;
     return {
-      filial:    nomeFilial(sc.C1_FILIAL),
+      filial:     nomeFilial(sc.C1_FILIAL),
+      filial_cod: sc.C1_FILIAL,
+      grupo:      sc.C1_GRPRD,
       num_sc:    sc.C1_NUM,
       emissao_sc: sc.C1_EMISSAO,
       aprov_sc:  sc.C1_YDTAPRO,
       descricao: sc.C1_DESCRI || "–",
+      obs:       sc.C1_OBS || "",
       quant:     sc.C1_QUANT,
       status_sc: sc.STATUS_DESC || "–",
       num_ped:   ped ? ped.C7_NUM : "–",
@@ -805,26 +817,32 @@ function buildDetalhamento(){
 }
 
 function renderDetTable(){
-  const q=(document.getElementById("s-det").value||"").toLowerCase();
-  const ssc=(document.getElementById("f-det-status-sc")||{}).value||"";
-  const sped=(document.getElementById("f-det-status-ped")||{}).value||"";
-
-  // aplica filtros globais de período/comprador/grupo/filial
-  const ini=document.getElementById("f-ini").value, fim=document.getElementById("f-fim").value;
-  const comp=document.getElementById("f-comp").value, grp=document.getElementById("f-grp").value;
+  const q    =(document.getElementById("s-det")||{value:""}).value.toLowerCase();
+  const qSC  =(document.getElementById("s-det-sc")||{value:""}).value.trim().toLowerCase();
+  const qPed =(document.getElementById("s-det-ped")||{value:""}).value.trim().toLowerCase();
+  const ssc  =(document.getElementById("f-det-status-sc")||{value:""}).value;
+  const sped =(document.getElementById("f-det-status-ped")||{value:""}).value;
+  const ini  =document.getElementById("f-ini").value;
+  const fim  =document.getElementById("f-fim").value;
+  const comp =document.getElementById("f-comp").value;
+  const grp  =document.getElementById("f-grp").value;
+  const fil  =document.getElementById("f-filial").value;
 
   fDet = ALL_DET.filter(r=>{
     const d=normDate(r.emissao_sc);
     if(ini&&d&&d<ini) return false;
     if(fim&&d&&d>fim) return false;
     if(comp&&r.comprador!==comp) return false;
+    if(grp&&r.grupo!==grp) return false;
+    if(fil&&(r.filial_cod||"").trim()!==String(fil).trim()) return false;
     if(ssc&&r.status_sc!==ssc) return false;
     if(sped&&r.status_ped!==sped) return false;
+    if(qSC&&!(r.num_sc||"").toLowerCase().includes(qSC)) return false;
+    if(qPed&&!(r.num_ped||"").toLowerCase().includes(qPed)) return false;
     if(q&&!(
-      (r.num_sc||"").toLowerCase().includes(q)||
-      (r.num_ped||"").toLowerCase().includes(q)||
       (r.filial||"").toLowerCase().includes(q)||
       (r.descricao||"").toLowerCase().includes(q)||
+      (r.obs||"").toLowerCase().includes(q)||
       (r.comprador||"").toLowerCase().includes(q)
     )) return false;
     return true;
@@ -855,7 +873,8 @@ function renderDetTable(){
       <td style="font-weight:600;color:var(--orange)">${r.num_sc||"–"}</td>
       <td>${fmtD(r.emissao_sc)}</td>
       <td>${fmtD(r.aprov_sc)}</td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${r.descricao}">${r.descricao}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${r.descricao}">${r.descricao}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11px" title="${r.obs}">${r.obs||"–"}</td>
       <td class="r">${r.quant!=null?Number(r.quant).toLocaleString("pt-BR"):"–"}</td>
       <td><span style="display:inline-block;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;background:${sscStyle.split(";")[0]};${sscStyle.split(";")[1]}">${r.status_sc}</span></td>
       <td style="font-weight:600;color:var(--blue)">${r.num_ped}</td>
