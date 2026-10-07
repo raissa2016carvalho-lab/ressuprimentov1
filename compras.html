@@ -200,21 +200,69 @@ canvas{max-height:220px}
 <div id="screen-indicadores" class="screen">
   <div class="kpi-bar" id="kpi-ind"></div>
   <div class="main">
+    <!-- Linha 1: Tipo SC (doughnut) + Comprador SC (barra) -->
     <div class="g2">
-      <div class="cc"><div class="cc-head"><div class="cc-title">Qtd SC por Tipo</div></div><div class="cc-body"><canvas id="ch-tipo"></canvas></div></div>
-      <div class="cc"><div class="cc-head"><div class="cc-title">Qtd SC por Comprador</div></div><div class="cc-body"><canvas id="ch-comp-sc"></canvas></div></div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">SCs por Tipo</div></div>
+        <div class="cc-body" style="display:flex;align-items:center;gap:24px;padding:20px">
+          <div style="width:200px;flex-shrink:0"><canvas id="ch-tipo"></canvas></div>
+          <div id="leg-tipo" style="flex:1;font-size:12px"></div>
+        </div>
+      </div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">SCs por Comprador — Quantidade</div></div>
+        <div class="cc-body" style="padding:16px"><canvas id="ch-comp-sc" style="max-height:240px"></canvas></div>
+      </div>
     </div>
+    <!-- Linha 2: Valor por comprador + Lead time -->
     <div class="g2">
-      <div class="cc"><div class="cc-head"><div class="cc-title">Valor Pedidos por Comprador (R$)</div></div><div class="cc-body"><canvas id="ch-val-comp"></canvas></div></div>
-      <div class="cc"><div class="cc-head"><div class="cc-title">Lead Time Médio por Comprador (dias)</div></div><div class="cc-body"><canvas id="ch-lead"></canvas></div></div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">Pedidos por Comprador — Valor Total (R$)</div></div>
+        <div class="cc-body" style="padding:16px"><canvas id="ch-val-comp" style="max-height:240px"></canvas></div>
+      </div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">Lead Time Médio SC→Pedido por Comprador (dias)</div></div>
+        <div class="cc-body" style="padding:16px"><canvas id="ch-lead" style="max-height:240px"></canvas></div>
+      </div>
     </div>
+    <!-- Linha 3: Evolução mensal -->
     <div class="g2">
-      <div class="cc"><div class="cc-head"><div class="cc-title">SCs por Mês (Quantidade)</div></div><div class="cc-body"><canvas id="ch-sc-mes"></canvas></div></div>
-      <div class="cc"><div class="cc-head"><div class="cc-title">Valor de Pedidos por Mês (R$)</div></div><div class="cc-body"><canvas id="ch-ped-mes-val"></canvas></div></div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">SCs Emitidas por Mês</div></div>
+        <div class="cc-body" style="padding:16px"><canvas id="ch-sc-mes" style="max-height:220px"></canvas></div>
+      </div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">Valor de Pedidos por Mês (R$)</div></div>
+        <div class="cc-body" style="padding:16px"><canvas id="ch-ped-mes-val" style="max-height:220px"></canvas></div>
+      </div>
     </div>
+    <!-- Linha 4: COM/SEM SC -->
     <div class="g2">
-      <div class="cc"><div class="cc-head"><div class="cc-title">COM SC vs SEM SC — Quantidade</div></div><div class="cc-body"><canvas id="ch-comsc-qtd"></canvas></div></div>
-      <div class="cc"><div class="cc-head"><div class="cc-title">COM SC vs SEM SC — Valor (R$)</div></div><div class="cc-body"><canvas id="ch-comsc-val"></canvas></div></div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">COM SC vs SEM SC — Quantidade de Pedidos</div></div>
+        <div class="cc-body" style="display:flex;align-items:center;gap:24px;padding:20px">
+          <div style="width:200px;flex-shrink:0"><canvas id="ch-comsc-qtd"></canvas></div>
+          <div id="leg-comsc-qtd" style="flex:1;font-size:13px"></div>
+        </div>
+      </div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">COM SC vs SEM SC — Valor Total (R$)</div></div>
+        <div class="cc-body" style="display:flex;align-items:center;gap:24px;padding:20px">
+          <div style="width:200px;flex-shrink:0"><canvas id="ch-comsc-val"></canvas></div>
+          <div id="leg-comsc-val" style="flex:1;font-size:13px"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Linha 5: Tempo médio pagamento + Backlog -->
+    <div class="g2">
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">Tempo Médio de Pagamento por Comprador (dias)</div></div>
+        <div class="cc-body" style="padding:16px"><canvas id="ch-tmp-pag" style="max-height:220px"></canvas></div>
+      </div>
+      <div class="cc">
+        <div class="cc-head"><div class="cc-title">Status dos Pedidos</div></div>
+        <div class="cc-body" style="padding:16px"><canvas id="ch-status-ped" style="max-height:220px"></canvas></div>
+      </div>
     </div>
   </div>
 </div>
@@ -549,43 +597,117 @@ function renderIndicadores(){
     <div class="kpi"><div class="kpi-val red">${semSC.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Pedidos Sem SC</div></div>
     <div class="kpi"><div class="kpi-val green">${avgL.toFixed(1)}d</div><div class="kpi-lbl">Lead Time Médio</div></div>`;
 
+  // ── SC por Tipo (doughnut + legenda) ──────────────────────────────────────
   const tipos=agg(fSC,"tipo_sc");
-  mkChart("ch-tipo","doughnut",tipos.map(e=>e[0]),[{data:tipos.map(e=>e[1]),backgroundColor:PAL,borderWidth:2,borderColor:"#fff"}]);
+  const tipoTotal=tipos.reduce((a,e)=>a+e[1],0);
+  mkChart("ch-tipo","doughnut",tipos.map(e=>e[0]),[{data:tipos.map(e=>e[1]),backgroundColor:PAL,borderWidth:2,borderColor:"#fff"}],
+    {plugins:{legend:{display:false}}});
+  const legTipo=document.getElementById("leg-tipo");
+  if(legTipo) legTipo.innerHTML=tipos.map(([k,v],i)=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div style="width:12px;height:12px;border-radius:3px;background:${PAL[i]};flex-shrink:0"></div>
+      <div style="flex:1;font-size:12px;color:#374151">${k}</div>
+      <div style="font-weight:600;color:#374151">${v}</div>
+      <div style="color:#6b7280;font-size:11px;width:45px;text-align:right">${((v/tipoTotal)*100).toFixed(1)}%</div>
+    </div>`).join("");
 
+  // ── SC por Comprador (barra horizontal) ───────────────────────────────────
   const compSC=agg(fSC,"comprador");
-  mkChart("ch-comp-sc","bar",compSC.map(e=>e[0]),[{label:"Qtd SC",data:compSC.map(e=>e[1]),backgroundColor:PAL[0],borderRadius:4}],
-    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
+  mkChart("ch-comp-sc","bar",compSC.map(e=>e[0]),[{label:"Qtd SC",data:compSC.map(e=>e[1]),backgroundColor:PAL[0]+"cc",borderRadius:4}],
+    {indexAxis:"y",plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
+      y:{ticks:{color:"#374151",font:{size:10}},grid:{display:false}}
+    }});
 
+  // ── Valor por Comprador (barra horizontal) ────────────────────────────────
   const compV=aggVal(fPed,"Comp","C7_TOTAL");
-  mkChart("ch-val-comp","bar",compV.map(e=>e[0]),[{label:"Valor",data:compV.map(e=>e[1]),backgroundColor:PAL[1],borderRadius:4}],
-    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280",callback:v=>"R$"+Number(v/1000).toFixed(0)+"k"}}}});
+  mkChart("ch-val-comp","bar",compV.map(e=>e[0]),[{label:"Valor",data:compV.map(e=>e[1]),backgroundColor:PAL[1]+"cc",borderRadius:4}],
+    {indexAxis:"y",plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:"#6b7280",font:{size:9},callback:v=>"R$"+Number(v/1000000).toFixed(1)+"M"},grid:{color:"#f3f4f6"}},
+      y:{ticks:{color:"#374151",font:{size:10}},grid:{display:false}}
+    }});
 
+  // ── Lead Time por Comprador ───────────────────────────────────────────────
   const lc={};
-  fPed.filter(r=>r.leadtime_dias!=null&&r.leadtime_dias>=0).forEach(r=>{if(!lc[r.Comp])lc[r.Comp]=[];lc[r.Comp].push(r.leadtime_dias);});
+  fPed.filter(r=>r.leadtime_dias!=null&&r.leadtime_dias>=0&&r.leadtime_dias<365)
+      .forEach(r=>{if(!lc[r.Comp])lc[r.Comp]=[];lc[r.Comp].push(r.leadtime_dias);});
   const la=Object.entries(lc).map(([c,a])=>[c,a.reduce((x,v)=>x+v,0)/a.length]).sort((a,b)=>b[1]-a[1]);
-  mkChart("ch-lead","bar",la.map(e=>e[0]),[{label:"Dias",data:la.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[2],borderRadius:4}],
-    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
+  mkChart("ch-lead","bar",la.map(e=>e[0]),[{label:"Dias",data:la.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[2]+"cc",borderRadius:4}],
+    {indexAxis:"y",plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
+      y:{ticks:{color:"#374151",font:{size:10}},grid:{display:false}}
+    }});
 
+  // ── SCs por Mês ───────────────────────────────────────────────────────────
   const sm={};fSC.forEach(r=>{const k=(normDate(r.C1_EMISSAO)||"").slice(0,7);if(k)sm[k]=(sm[k]||0)+1;});
   const sa=Object.entries(sm).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
-  mkChart("ch-sc-mes","bar",sa.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"SCs",data:sa.map(e=>e[1]),backgroundColor:PAL[0],borderRadius:4}],
+  mkChart("ch-sc-mes","bar",sa.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"SCs",data:sa.map(e=>e[1]),backgroundColor:PAL[0]+"cc",borderRadius:4}],
     {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
 
-  // valor por mês
+  // ── Valor por Mês ─────────────────────────────────────────────────────────
   const pmV={};fPed.forEach(r=>{const k=(normDate(r.EMISSAO_PEDIDO)||"").slice(0,7);if(k)pmV[k]=(pmV[k]||0)+(r.C7_TOTAL||0);});
   const paV=Object.entries(pmV).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
-  mkChart("ch-ped-mes-val","bar",paV.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"Valor (R$)",data:paV.map(e=>e[1]),backgroundColor:PAL[1],borderRadius:4}],
-    {showLabels:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280",callback:v=>"R$"+Number(v/1000).toFixed(0)+"k"}}}});
+  mkChart("ch-ped-mes-val","bar",paV.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"Valor",data:paV.map(e=>e[1]),backgroundColor:PAL[1]+"cc",borderRadius:4}],
+    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280",callback:v=>"R$"+Number(v/1000000).toFixed(1)+"M"}}}});
 
-  // COM SC vs SEM SC
+  // ── COM SC vs SEM SC ──────────────────────────────────────────────────────
   const comSCq=fPed.filter(r=>r.SEM_SC==="COM SC").length;
   const semSCq=fPed.filter(r=>r.SEM_SC==="SEM SC").length;
-  mkChart("ch-comsc-qtd","doughnut",["COM SC","SEM SC"],[{data:[comSCq,semSCq],backgroundColor:[PAL[2],PAL[3]],borderWidth:2,borderColor:"#fff"}]);
+  mkChart("ch-comsc-qtd","doughnut",["COM SC","SEM SC"],[{data:[comSCq,semSCq],backgroundColor:[PAL[2],PAL[3]],borderWidth:2,borderColor:"#fff"}],
+    {plugins:{legend:{display:false}}});
+  const lCQ=document.getElementById("leg-comsc-qtd");
+  if(lCQ) lCQ.innerHTML=`
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:14px;height:14px;border-radius:3px;background:${PAL[2]}"></div>
+        <div style="flex:1;font-size:13px">COM SC</div>
+        <div style="font-weight:700;font-size:16px;color:#374151">${comSCq.toLocaleString("pt-BR")}</div>
+        <div style="color:#6b7280;font-size:12px">${((comSCq/(comSCq+semSCq))*100).toFixed(1)}%</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:14px;height:14px;border-radius:3px;background:${PAL[3]}"></div>
+        <div style="flex:1;font-size:13px">SEM SC</div>
+        <div style="font-weight:700;font-size:16px;color:#374151">${semSCq.toLocaleString("pt-BR")}</div>
+        <div style="color:#6b7280;font-size:12px">${((semSCq/(comSCq+semSCq))*100).toFixed(1)}%</div>
+      </div>
+    </div>`;
 
   const comSCv=fPed.filter(r=>r.SEM_SC==="COM SC").reduce((a,r)=>a+(r.C7_TOTAL||0),0);
   const semSCv=fPed.filter(r=>r.SEM_SC==="SEM SC").reduce((a,r)=>a+(r.C7_TOTAL||0),0);
   mkChart("ch-comsc-val","doughnut",["COM SC","SEM SC"],[{data:[comSCv,semSCv],backgroundColor:[PAL[2],PAL[3]],borderWidth:2,borderColor:"#fff"}],
-    {plugins:{datalabels:{formatter:(val)=>"R$"+Number(val/1000000).toFixed(1)+"M"}}});
+    {plugins:{legend:{display:false}}});
+  const lCV=document.getElementById("leg-comsc-val");
+  if(lCV) lCV.innerHTML=`
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:14px;height:14px;border-radius:3px;background:${PAL[2]}"></div>
+        <div style="flex:1;font-size:13px">COM SC</div>
+        <div style="font-weight:700;font-size:14px;color:#374151">${fmtM(comSCv)}</div>
+        <div style="color:#6b7280;font-size:12px">${((comSCv/(comSCv+semSCv))*100).toFixed(1)}%</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:14px;height:14px;border-radius:3px;background:${PAL[3]}"></div>
+        <div style="flex:1;font-size:13px">SEM SC</div>
+        <div style="font-weight:700;font-size:14px;color:#374151">${fmtM(semSCv)}</div>
+        <div style="color:#6b7280;font-size:12px">${((semSCv/(comSCv+semSCv))*100).toFixed(1)}%</div>
+      </div>
+    </div>`;
+
+  // ── Tempo médio pagamento por comprador ───────────────────────────────────
+  const pc={};
+  fPed.filter(r=>r.tempo_pagamento!=null&&r.tempo_pagamento>=0&&r.tempo_pagamento<365)
+      .forEach(r=>{if(!pc[r.Comp])pc[r.Comp]=[];pc[r.Comp].push(r.tempo_pagamento);});
+  const pa2=Object.entries(pc).map(([c,a])=>[c,a.reduce((x,v)=>x+v,0)/a.length]).sort((a,b)=>b[1]-a[1]);
+  mkChart("ch-tmp-pag","bar",pa2.map(e=>e[0]),[{label:"Dias",data:pa2.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[4]+"cc",borderRadius:4}],
+    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
+
+  // ── Status dos Pedidos ────────────────────────────────────────────────────
+  const stPed=agg(fPed,"STATUS_PEDIDO");
+  mkChart("ch-status-ped","bar",stPed.map(e=>e[0]),[{label:"Qtd",data:stPed.map(e=>e[1]),backgroundColor:PAL[5]+"cc",borderRadius:4}],
+    {indexAxis:"y",plugins:{legend:{display:false}},scales:{
+      x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
+      y:{ticks:{color:"#374151",font:{size:9}},grid:{display:false}}
+    }});
 }
 
 function renderPag(id,pages,current,cb){
