@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B&Q — Sistemas</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f0f2f5;font-family:'Inter',sans-serif;min-height:100vh}
+
+.header{background:#0d1b3e;padding:0 32px;height:64px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.logo{font-size:24px;font-weight:700;color:#fff;font-style:italic}
+.logo span{color:#f26522}
+.header-sub{font-size:12px;color:#8ba3cc;border-left:2px solid #f26522;padding-left:12px;line-height:1.4}
+.time{font-size:11px;color:#8ba3cc}
+
+.hero{background:linear-gradient(135deg,#0d1b3e 0%,#1a3a6e 100%);padding:48px 32px 40px;text-align:center}
+.hero h1{font-size:28px;font-weight:700;color:#fff;margin-bottom:8px}
+.hero p{font-size:14px;color:#8ba3cc}
+
+.main{padding:32px;max-width:1200px;margin:0 auto}
+.section-title{font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px;padding-left:4px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px}
+
+.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.08);border:1px solid #e2e6ea;cursor:pointer;transition:all .2s;text-decoration:none;display:block}
+.card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.12);border-color:var(--c)}
+.card-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px;background:var(--bg)}
+.card-title{font-size:15px;font-weight:600;color:#1a1a2e;margin-bottom:6px}
+.card-desc{font-size:12px;color:#6b7280;line-height:1.5}
+.card-badge{display:inline-block;margin-top:12px;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--bg);color:var(--c)}
+
+.footer{text-align:center;padding:24px;font-size:11px;color:#9ca3af}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:16px">
+    <div class="logo">B<span>&</span>Q</div>
+    <div class="header-sub">Portal de<br>Sistemas Internos</div>
+  </div>
+  <div class="time" id="time"></div>
+</div>
+
+<div class="hero">
+  <h1>Central de Sistemas B&Q</h1>
+  <p>Acesse os painéis e ferramentas do seu setor</p>
+</div>
+
+<div class="main">
+
+  <!-- COMPRAS -->
+  <div class="section-title">📦 Compras</div>
+  <div class="grid">
+    <a href="/compras.html" class="card" style="--c:#f26522;--bg:#fff7f3">
+      <div class="card-icon">📊</div>
+      <div class="card-title">Painel de Compras</div>
+      <div class="card-desc">SCs, pedidos, indicadores e detalhamento SC × Pedido com filtros avançados.</div>
+      <span class="card-badge">COMPRAS</span>
+    </a>
+  </div>
+
+  <!-- ALMOXARIFADO -->
+  <div class="section-title">🏭 Almoxarifado & Ressuprimento</div>
+  <div class="grid">
+    <a href="/index.html" class="card" style="--c:#2563eb;--bg:#eff6ff">
+      <div class="card-icon">🏠</div>
+      <div class="card-title">Painel Principal</div>
+      <div class="card-desc">Solicitações de ressuprimento, mobilizações, acompanhamento de PCs e consolidados.</div>
+      <span class="card-badge">ALMOXARIFADO</span>
+    </a>
+    <a href="/formulario.html" class="card" style="--c:#16a34a;--bg:#f0fdf4">
+      <div class="card-icon">📝</div>
+      <div class="card-title">Formulário de Solicitação</div>
+      <div class="card-desc">Solicite ressuprimento de itens com base no consumo dos centros de custo.</div>
+      <span class="card-badge">ALMOXARIFE</span>
+    </a>
+    <a href="/gerente.html" class="card" style="--c:#7c3aed;--bg:#f5f3ff">
+      <div class="card-icon">✅</div>
+      <div class="card-title">Aprovação — Gerente</div>
+      <div class="card-desc">Painel de aprovação de solicitações de ressuprimento pelos gerentes e master.</div>
+      <span class="card-badge">GERENTE</span>
+    </a>
+    <a href="/estoque.html" class="card" style="--c:#0891b2;--bg:#f0f9ff">
+      <div class="card-icon">📦</div>
+      <div class="card-title">Posição de Estoque</div>
+      <div class="card-desc">Posição atual do estoque e comparativo com fluxo de movimentos SD3.</div>
+      <span class="card-badge">ESTOQUE</span>
+    </a>
+  </div>
+
+  <!-- FINANCEIRO / CONSUMO -->
+  <div class="section-title">💰 Consumo & Fechamento</div>
+  <div class="grid">
+    <a href="/fechamento.html" class="card" style="--c:#dc2626;--bg:#fef2f2">
+      <div class="card-icon">📅</div>
+      <div class="card-title">Fechamento de Consumo</div>
+      <div class="card-desc">Análise mensal de consumo SCP com devoluções, auditoria e relatórios.</div>
+      <span class="card-badge">FECHAMENTO</span>
+    </a>
+    <a href="/manutencao.html" class="card" style="--c:#ca8a04;--bg:#fefce8">
+      <div class="card-icon">🔧</div>
+      <div class="card-title">Manutenção</div>
+      <div class="card-desc">Painel de manutenção e veículos.</div>
+      <span class="card-badge">MANUTENÇÃO</span>
+    </a>
+    <a href="/login_fechamento.html" class="card" style="--c:#6b7280;--bg:#f9fafb">
+      <div class="card-icon">🔐</div>
+      <div class="card-title">Login Fechamento</div>
+      <div class="card-desc">Acesso restrito ao módulo de fechamento de consumo.</div>
+      <span class="card-badge">ACESSO</span>
+    </a>
+  </div>
+
+</div>
+
+<div class="footer">B&Q Energia Ltda · Sistemas Internos · <span id="ano"></span></div>
+
+<script>
+function tick(){
+  const d=new Date();
+  document.getElementById("time").textContent=d.toLocaleString("pt-BR");
+  document.getElementById("ano").textContent=d.getFullYear();
+}
+tick(); setInterval(tick,1000);
+</script>
+</body>
+</html>
