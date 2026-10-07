@@ -368,7 +368,7 @@ async function carregar(){
 
     ALL_SC = await sbGet(
       "scs",
-      "C1_NUM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento",
+      "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento",
       (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n)
     );
     setProgresso(30,"Carregando Pedidos...");
