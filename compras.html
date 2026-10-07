@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compras — B&Q</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 :root{
@@ -207,8 +209,12 @@ canvas{max-height:220px}
       <div class="cc"><div class="cc-head"><div class="cc-title">Lead Time Médio por Comprador (dias)</div></div><div class="cc-body"><canvas id="ch-lead"></canvas></div></div>
     </div>
     <div class="g2">
-      <div class="cc"><div class="cc-head"><div class="cc-title">SCs por Mês</div></div><div class="cc-body"><canvas id="ch-sc-mes"></canvas></div></div>
-      <div class="cc"><div class="cc-head"><div class="cc-title">Pedidos por Mês</div></div><div class="cc-body"><canvas id="ch-ped-mes"></canvas></div></div>
+      <div class="cc"><div class="cc-head"><div class="cc-title">SCs por Mês (Quantidade)</div></div><div class="cc-body"><canvas id="ch-sc-mes"></canvas></div></div>
+      <div class="cc"><div class="cc-head"><div class="cc-title">Valor de Pedidos por Mês (R$)</div></div><div class="cc-body"><canvas id="ch-ped-mes-val"></canvas></div></div>
+    </div>
+    <div class="g2">
+      <div class="cc"><div class="cc-head"><div class="cc-title">COM SC vs SEM SC — Quantidade</div></div><div class="cc-body"><canvas id="ch-comsc-qtd"></canvas></div></div>
+      <div class="cc"><div class="cc-head"><div class="cc-title">COM SC vs SEM SC — Valor (R$)</div></div><div class="cc-body"><canvas id="ch-comsc-val"></canvas></div></div>
     </div>
   </div>
 </div>
@@ -265,12 +271,10 @@ async function carregar(){
     );
     setProgresso(30,"Carregando Pedidos...");
 
-    const anoInicio=(new Date().getFullYear()-2)+"-01-01";
     ALL_PED = await sbGet(
       "pedidos",
-      "C7_NUM,C7_ITEM,C7_FILIAL,C7_DESCRI,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,ENTREGA_PEDIDO,TIPO_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
-      (n)=>setProgresso(30+Math.min(n/100000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR")),
-      "EMISSAO_PEDIDO=gte."+anoInicio
+      "C7_NUM,C7_ITEM,C7_FILIAL,DESC_FILIAL,C7_DESCRI,C7_TOTAL,C7_NUMSC,C7_GRPPROD,C7_COMPRADOR,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,TIPO_SC,TIPO_PEDIDO,STATUS_PEDIDO,COND_PAG,FORNECEDOR,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
+      (n)=>setProgresso(30+Math.min(n/120000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR"))
     );
     setProgresso(100,"Pronto!");
 
@@ -282,7 +286,8 @@ async function carregar(){
   }
 }
 
-function nomeFilial(cod){
+function nomeFilial(cod, desc){
+  if(desc && desc.trim()) return desc.trim();
   if(!cod) return "–";
   const k=String(cod).trim().replace(/^0+/,"");
   return FILIAIS[k]||FILIAIS[String(cod).trim()]||cod;
@@ -370,13 +375,26 @@ function agg(arr,key){const m={};arr.forEach(r=>{const k=r[key]||"N/A";m[k]=(m[k
 function aggVal(arr,key,vk){const m={},q={};arr.forEach(r=>{const k=r[key]||"N/A";m[k]=(m[k]||0)+Number(r[vk]||0);q[k]=(q[k]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>([k,v,q[k]]));}
 function renderTbl(id,rows,fn,footer=""){document.getElementById(id).innerHTML=rows.map(fn).join("")+(footer||"");}
 
+Chart.register(ChartDataLabels);
+
 function mkChart(id,type,labels,datasets,opts={}){
   if(CH[id])CH[id].destroy();
   const ctx=document.getElementById(id);if(!ctx)return;
+  const isDough=(type==="pie"||type==="doughnut");
   CH[id]=new Chart(ctx,{type,data:{labels,datasets},options:{
     responsive:true,maintainAspectRatio:true,
-    plugins:{legend:{labels:{color:type==="bar"?"#6b7280":"#374151",font:{size:10}}}},
-    scales:(type==="pie"||type==="doughnut")?{}:{
+    plugins:{
+      legend:{labels:{color:isDough?"#374151":"#6b7280",font:{size:10}}},
+      datalabels:{
+        display: isDough ? true : (opts.showLabels||false),
+        color: isDough ? "#fff" : "#374151",
+        font:{size:9,weight:"600"},
+        formatter: isDough
+          ? (val,ctx2)=>{ const tot=ctx2.dataset.data.reduce((a,b)=>a+b,0); return tot>0?((val/tot)*100).toFixed(1)+"%":""; }
+          : (opts.labelFmt||null)
+      }
+    },
+    scales:isDough?{}:{
       x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
       y:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}}
     },...opts
@@ -468,8 +486,15 @@ function renderPedidos(){
   renderTbl("t-comp-ped",compArr,([k,v,q])=>`<tr><td>${k}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">${fmtM(totalV)}</td><td class="r">100,00%</td></tr>`);
 
-  const filArr=aggVal(fPed,"C7_FILIAL","C7_TOTAL");
-  renderTbl("t-filial",filArr,([k,v,q])=>`<tr><td>${nomeFilial(k)}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
+  // agrupa por filial usando DESC_FILIAL quando disponivel
+  const filMap={};
+  fPed.forEach(r=>{
+    const k=r.C7_FILIAL||"N/A";
+    if(!filMap[k]) filMap[k]={v:0,q:0,desc:r.DESC_FILIAL||""};
+    filMap[k].v+=Number(r.C7_TOTAL||0); filMap[k].q++;
+  });
+  const filArr=Object.entries(filMap).map(([k,o])=>[k,o.v,o.q,o.desc]).sort((a,b)=>b[1]-a[1]);
+  renderTbl("t-filial",filArr,([k,v,q,desc])=>`<tr><td>${nomeFilial(k,desc)}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">${fmtM(totalV)}</td><td class="r">100,00%</td></tr>`);
 
   const tipArr=aggVal(fPed,"TIPO_PEDIDO","C7_TOTAL");
@@ -498,7 +523,7 @@ function renderPedTable(){
   document.getElementById("tb-ped").innerHTML=slice.map(r=>`<tr>
     <td style="font-weight:600;color:var(--orange)">${r.C7_NUM||"–"}</td>
     <td>${fmtD(r.EMISSAO_PEDIDO)}</td>
-    <td>${nomeFilial(r.C7_FILIAL)}</td>
+    <td>${nomeFilial(r.C7_FILIAL,r.DESC_FILIAL)}</td>
     <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${r.FORNECEDOR||"–"}</td>
     <td>${r.Comp||"–"}</td>
     <td class="r">${fmtM(r.C7_TOTAL)}</td>
@@ -546,10 +571,21 @@ function renderIndicadores(){
   mkChart("ch-sc-mes","bar",sa.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"SCs",data:sa.map(e=>e[1]),backgroundColor:PAL[0],borderRadius:4}],
     {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
 
-  const pm={};fPed.forEach(r=>{const k=(normDate(r.EMISSAO_PEDIDO)||"").slice(0,7);if(k)pm[k]=(pm[k]||0)+1;});
-  const pa=Object.entries(pm).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
-  mkChart("ch-ped-mes","bar",pa.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"Pedidos",data:pa.map(e=>e[1]),backgroundColor:PAL[1],borderRadius:4}],
-    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
+  // valor por mês
+  const pmV={};fPed.forEach(r=>{const k=(normDate(r.EMISSAO_PEDIDO)||"").slice(0,7);if(k)pmV[k]=(pmV[k]||0)+(r.C7_TOTAL||0);});
+  const paV=Object.entries(pmV).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
+  mkChart("ch-ped-mes-val","bar",paV.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"Valor (R$)",data:paV.map(e=>e[1]),backgroundColor:PAL[1],borderRadius:4}],
+    {showLabels:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280",callback:v=>"R$"+Number(v/1000).toFixed(0)+"k"}}}});
+
+  // COM SC vs SEM SC
+  const comSCq=fPed.filter(r=>r.SEM_SC==="COM SC").length;
+  const semSCq=fPed.filter(r=>r.SEM_SC==="SEM SC").length;
+  mkChart("ch-comsc-qtd","doughnut",["COM SC","SEM SC"],[{data:[comSCq,semSCq],backgroundColor:[PAL[2],PAL[3]],borderWidth:2,borderColor:"#fff"}]);
+
+  const comSCv=fPed.filter(r=>r.SEM_SC==="COM SC").reduce((a,r)=>a+(r.C7_TOTAL||0),0);
+  const semSCv=fPed.filter(r=>r.SEM_SC==="SEM SC").reduce((a,r)=>a+(r.C7_TOTAL||0),0);
+  mkChart("ch-comsc-val","doughnut",["COM SC","SEM SC"],[{data:[comSCv,semSCv],backgroundColor:[PAL[2],PAL[3]],borderWidth:2,borderColor:"#fff"}],
+    {plugins:{datalabels:{formatter:(val)=>"R$"+Number(val/1000000).toFixed(1)+"M"}}});
 }
 
 function renderPag(id,pages,current,cb){
@@ -567,3 +603,4 @@ document.addEventListener("DOMContentLoaded",carregar);
 </script>
 </body>
 </html>
+<!-- placeholder para fix de grafico -->
