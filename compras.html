@@ -512,13 +512,39 @@ function renderSCs(){
   const ct=fSC.filter(r=>r.temp_atendimento!=null);
   const mT=ct.length?ct.reduce((a,r)=>a+r.temp_atendimento,0)/ct.length:0;
 
+  // status de atendimento
+  const atendida   = fSC.filter(r=>(r.STATUS_DESC||"").includes("Totalmente Atendida")).length;
+  const parcial    = fSC.filter(r=>(r.STATUS_DESC||"").includes("Parcialmente")).length;
+  const pendente   = fSC.filter(r=>(r.STATUS_DESC||"").includes("Pendente")).length;
+  const bloqueada  = fSC.filter(r=>(r.STATUS_DESC||"").includes("Bloqueada")).length;
+  const rejeitada  = fSC.filter(r=>(r.STATUS_DESC||"").toLowerCase().includes("rejeitada")||(r.STATUS_DESC||"").includes("Rejeitada pelo Compras")).length;
+  const eliminada  = fSC.filter(r=>(r.STATUS_DESC||"").includes("Resíduo")).length;
+  const cotacao    = fSC.filter(r=>(r.STATUS_DESC||"").includes("Cotação")).length;
+
+  // base de calculo: exclui rejeitadas e eliminadas
+  const baseCalc = total - rejeitada - eliminada;
+  const pctAtend = baseCalc > 0 ? ((atendida/baseCalc)*100) : 0;
+  const pctParcial = baseCalc > 0 ? ((parcial/baseCalc)*100) : 0;
+  const pctPend  = baseCalc > 0 ? ((pendente/baseCalc)*100) : 0;
+
+  // cor do % de atendimento
+  const corPct = pctAtend >= 80 ? "var(--green)" : pctAtend >= 60 ? "var(--orange)" : "var(--red)";
+
   document.getElementById("kpi-sc").innerHTML=`
-    <div class="kpi"><div class="kpi-val orange">${total.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Total SCs</div></div>
-    <div class="kpi"><div class="kpi-val blue">–</div><div class="kpi-lbl">Liberado</div></div>
-    <div class="kpi"><div class="kpi-val red">–</div><div class="kpi-lbl">Rejeitado</div></div>
+    <div class="kpi"><div class="kpi-val orange">${total.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Total Itens SC</div></div>
+    <div class="kpi" style="border-left:4px solid var(--green)">
+      <div class="kpi-val" style="color:${corPct};font-size:32px">${pctAtend.toFixed(1)}%</div>
+      <div class="kpi-lbl">% Atendimento</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px">excl. rejeitadas e eliminadas</div>
+    </div>
+    <div class="kpi"><div class="kpi-val green">${atendida.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Totalmente Atendidas</div></div>
+    <div class="kpi"><div class="kpi-val blue">${parcial.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Parcialmente Atendidas <span style="font-size:11px">(${pctParcial.toFixed(1)}%)</span></div></div>
+    <div class="kpi"><div class="kpi-val warn" style="color:var(--orange)">${pendente.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Pendentes <span style="font-size:11px">(${pctPend.toFixed(1)}%)</span></div></div>
+    <div class="kpi"><div class="kpi-val red">${bloqueada.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Bloqueadas</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--muted)">${rejeitada.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Rejeitadas</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--muted)">${eliminada.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Elim. por Resíduo</div></div>
     <div class="kpi"><div class="kpi-val">${urg.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Urgentes</div></div>
-    <div class="kpi"><div class="kpi-val red">${semAp.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Sem Aprovação</div></div>
-    <div class="kpi"><div class="kpi-val green">${mT.toFixed(1)}d</div><div class="kpi-lbl">Tempo Médio</div></div>`;
+    <div class="kpi"><div class="kpi-val green">${mT.toFixed(1)}d</div><div class="kpi-lbl">Tempo Médio Atend.</div></div>`;
 
   const sol=agg(fSC,"C1_SOLICIT");
   renderTbl("t-solic",sol.slice(0,20),([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`,
