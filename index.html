@@ -920,6 +920,8 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th>Item</th>
               <th style="text-align:center;width:70px">Consumo<br>6m (un)</th>
               <th style="text-align:center;width:70px;background:#faf5ff">Estoque<br><span style="font-size:10px;color:#7c3aed">filial</span></th>
+              <th style="text-align:center;width:70px;background:#faf5ff">Cobertura<br><span style="font-size:10px;color:#7c3aed">meses</span></th>
+              <th style="text-align:center;width:70px;background:#faf5ff">Cobertura<br><span style="font-size:10px;color:#7c3aed">meses</span></th>
               <th style="text-align:center;width:80px;background:#eff6ff">Qtd<br><span style="font-size:10px;color:#1e40af">solicitante</span></th>
               <th style="text-align:center;width:80px;background:#f0fdf4">Qtd<br><span style="font-size:10px;color:#166534">gerente</span></th>
               <th style="text-align:left;width:200px">Justificativa<br>gerente</th>
@@ -939,7 +941,15 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
   let _estKey=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
   let _estQtd=estoqueMap[_estKey];
   let _estCell=_estQtd!=null&&_estQtd>0?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:#7c3aed;font-weight:600">'+Math.floor(_estQtd)+'</td>':'<td style="text-align:center;font-size:11px;color:#cbd5e1;background:#faf5ff">—</td>';
-  return _estCell;
+  // Cobertura = estoque / consumo médio mensal
+  let _consMes=cons===-1?0.5:cons; // -1 significa <1, usar 0.5
+  let _cobVal=null;
+  if(_estQtd>0&&_consMes>0){
+    _cobVal=_estQtd/_consMes;
+  }
+  let _cobColor=_cobVal==null?'#94a3b8':_cobVal<1?'#ef4444':_cobVal<3?'#f59e0b':'#16a34a';
+  let _cobCell=_cobVal!=null?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:'+_cobColor+';font-weight:600" title="'+Math.floor(_estQtd)+' un ÷ '+_consMes.toFixed(1)+' un/mês">'+_cobVal.toFixed(1)+' m</td>':'<td style="text-align:center;font-size:11px;color:#cbd5e1;background:#faf5ff">—</td>';
+  return _estCell+_cobCell;
 })())+`
                 `+((()=>{
   // Almoxarife cell
