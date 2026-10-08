@@ -173,7 +173,7 @@ async function carregarFormularios(){
   for(let i=0;i<solIds.length;i+=50){
     let lote=solIds.slice(i,i+50),off2=0;
     for(;;){
-      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico`).in(`solicitacao_id`,lote).range(off2,off2+999);
+      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial`).in(`solicitacao_id`,lote).range(off2,off2+999);
       if(!its||!its.length)break;
       its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
       if(its.length<1000)break;
@@ -278,7 +278,7 @@ window.irPara=irPara;function irSubSettings(sub){$(`sub-bases`).style.display=su
 // ---------- ABA SOLICITAÇÕES ----------
 let gerentesMapCC={};async function carregarSolicitacoes(){$(`lista`).innerHTML=`<div class="vazio">Carregando...</div>`;let[{data:ccs},{data:sols,error:e2},{data:gc}]=await Promise.all([db.from(`centros_custo`).select(`*`),db.from(`solicitacoes`).select(`*`).order(`criado_em`,{ascending:!1}).limit(5e3),db.from(`gerentes_cc`).select(`cc,email`)]);if(e2){$(`lista`).innerHTML=`<div class="vazio">Erro ao carregar: `+e2.message+`</div>`;return}
 // buscar itens paginando para não cortar no limite de 1000
-let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico`).in(`solicitacao_id`,lote).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c}),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
+let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial`).in(`solicitacao_id`,lote).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c}),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
 // carrega consumo 3m e pessoas por cargo para os CCs visíveis
 let ccsSols=[...new Set(solicitacoes.map(s=>s.cc).filter(Boolean))];
 // Expandir homônimos: buscar todos os CCs com mesmo nome (igual ao consumo)
@@ -591,6 +591,19 @@ function renderCardMatricial(grupo,readonly){
       +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(todosRecusados?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':algumRecusado?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">⚠ PARCIALMENTE RECUSADO</span>':'')+( item.descricao||item.codigo)+badgeSH+badgeCritico
       +'<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
       +(function(){var _d=(item.descricao||item.codigo||'').replace(/"/g,'');return '<td style="text-align:center;font-size:12px">'+(cons!==0?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+_d+'" data-nome="'+nomesCCs+'" data-hist="'+histStr+'" style="font-weight:700;color:#1e40af;cursor:pointer">'+consDisp+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>';})()
+      +(function(){
+        var _fil=String(grupo[0]?.filial||'').trim();
+        var _eKey=_fil+'|'+String(item.codigo||'').trim();
+        var _eSnap=null;
+        grupo.forEach(function(s){(s.itens||[]).forEach(function(it){if(String(it.codigo||'').trim()===String(item.codigo||'').trim()&&it.estoque_filial!=null)_eSnap=Number(it.estoque_filial)})});
+        var _eQtd=_eSnap!=null?_eSnap:estoqueMap[_eKey];
+        var _eCell=_eQtd!=null&&_eQtd>0?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:#7c3aed;font-weight:600">'+Math.floor(_eQtd)+'</td>':'<td style="text-align:center;font-size:11px;color:#cbd5e1;background:#faf5ff">—</td>';
+        var _cMes=cons===-1?0.5:cons;
+        var _cob=_eQtd>0&&_cMes>0?_eQtd/_cMes:null;
+        var _cColor=_cob==null?'#94a3b8':_cob<1?'#ef4444':_cob<3?'#f59e0b':'#16a34a';
+        var _cCell=_cob!=null?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:'+_cColor+';font-weight:600">'+_cob.toFixed(1)+' m</td>':'<td style="text-align:center;font-size:11px;color:#cbd5e1;background:#faf5ff">—</td>';
+        return _eCell+_cCell;
+      })()
       +'<td style="text-align:center;font-family:ui-monospace,monospace;color:#475569">'+qtdDigitada+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#f0fdf4;color:#166534">'+qtdTotal+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#eff6ff;color:'+(alterada?'#1e40af':'#475569')+'">'+qtdGerente+'</td>'
@@ -701,6 +714,8 @@ function renderCardMatricial(grupo,readonly){
     +'<table style="border-collapse:collapse;width:100%;font-size:12.5px"><thead><tr>'
     +'<th style="text-align:left;min-width:200px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"desc\" title="Ordenar por item">Item<span id="sort-'+cardId+'-desc"></span></th>'
     +'<th style="text-align:center;width:60px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"cons\" title="Ordenar por consumo">Consumo<br>6m<span id="sort-'+cardId+'-cons"></span></th>'
+    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#faf5ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#7c3aed">Estoque<br>filial</th>'
+    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#faf5ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#7c3aed">Cobert.<br>meses</th>'
     +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"qtd\" title="Ordenar por qtd digitada">Qtd<br>digitada<span id="sort-'+cardId+'-qtd"></span></th>'
     +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f0fdf4;border-bottom:2px solid #e2e8f0;font-size:11px;color:#166534;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"total\" title="Ordenar por total">Total<br>(×'+periodo+'m)<span id="sort-'+cardId+'-total"></span></th>'
     +'<th style="text-align:center;width:80px;padding:7px 10px;background:#eff6ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#1e40af;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"ger\" title="Ordenar por qtd gerente">Qtd<br>gerente<span id="sort-'+cardId+'-ger"></span></th>'
