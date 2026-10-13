@@ -2911,8 +2911,8 @@ async function _carregarResumoFav(sc,filial){
 }
 window.carregarFavoritosSC=carregarFavoritosSC;async function renderConsolidado(consId,container){container.innerHTML=`<div style="padding:12px;color:#64748b;font-size:13px">Carregando...</div>`;let{data:links}=await db.from(`consolidado_scs`).select(`solicitacao_id`).eq(`consolidado_id`,consId);if(!links||!links.length){container.innerHTML=`<div style="padding:16px;color:#94a3b8;font-size:13px">Nenhuma SC vinculada.</div>`;return}let ids=links.map(l=>l.solicitacao_id),{data:sols}=await db.from(`solicitacoes`).select(`*`).in(`id`,ids),{data:ccs}=await db.from(`centros_custo`).select(`cc,nome`),ccNomes={};(ccs||[]).forEach(c=>ccNomes[c.cc]=c.nome);
 // ── NOVA LÓGICA: usa sc_pedidos_v2 cruzando sc_numero + sc_cc ──────────────
-function isRecebido(st){if(!st)return false;let s=(st||'').toLowerCase();return s.includes('receb')||s.includes('pré-nota')||s.includes('pre-nota');}
-function isEliminado(st){if(!st)return false;let s=(st||'').toLowerCase();return s.includes('elimin')||s.includes('rejeita')||s.includes('residuo')||s.includes('resíduo');}
+window.isRecebido=function(st){if(!st)return false;let s=(st||'').toLowerCase();return s.includes('receb')||s.includes('pré-nota')||s.includes('pre-nota');};
+window.isEliminado=function(st){if(!st)return false;let s=(st||'').toLowerCase();return s.includes('elimin')||s.includes('rejeita')||s.includes('residuo')||s.includes('resíduo');};
 
 // Buscar dados de sc_pedidos_v2 agrupados por solicitacao (sc_numero + sc_cc)
 // Cada solicitação tem sc_numero e cc — esse par identifica unicamente a SC no Protheus
@@ -2929,11 +2929,12 @@ for(let i=0;i<_allScNums.length;i+=30){
     let{data:rows,error:eV2}=await db.from('sc_pedidos_v2')
       .select('filial,sc_numero,sc_cc,sc_produto,sc_descricao,sc_quant,sc_quje,sc_status,pc_numero,pc_status,pc_quant,pc_valor,pc_comprador,pc_dt_entrega')
       .in('sc_numero',loteNums)
-      .range(off,off+4999);
+      .range(off,off+999);
+    if(eV2)console.warn('[v2] erro:',eV2.message);
     if(!rows||!rows.length)break;
     _allV2Rows=_allV2Rows.concat(rows);
-    if(rows.length<5000)break;
-    off+=5000;
+    if(rows.length<1000)break;
+    off+=1000;
   }
 }
 console.log('[v2] Total rows fetched: '+_allV2Rows.length+' for '+_allScNums.length+' SCs');
