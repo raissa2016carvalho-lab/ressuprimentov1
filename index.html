@@ -2919,26 +2919,28 @@ function isEliminado(st){if(!st)return false;let s=(st||'').toLowerCase();return
 let v2PorSol={}; // chave: sol.id → array de linhas sc_pedidos_v2
 let solPares=(sols||[]).map(s=>({id:s.id,sc:String(s.sc_numero||'').trim(),cc:String(s.cc||'').trim()})).filter(s=>s.sc&&s.cc);
 
-for(let i=0;i<solPares.length;i+=50){
-  let lote=solPares.slice(i,i+50);
-  // Buscar cada par sc+cc separadamente para garantir isolamento
-  for(let par of lote){
-    let off=0;
-    for(;;){
-      let{data:rows,error:eV2}=await db.from('sc_pedidos_v2')
-        .select('filial,sc_numero,sc_produto,sc_descricao,sc_quant,sc_quje,sc_status,pc_numero,pc_status,pc_quant,pc_valor,pc_comprador,pc_dt_entrega')
-        .eq('sc_numero',par.sc)
-        .eq('sc_cc',par.cc)
-        .range(off,off+999);
-      console.log('[v2] sc='+par.sc+' cc='+par.cc+' rows='+(rows?.length||0)+(eV2?' err:'+eV2.message:''));
-      if(!rows||!rows.length)break;
-      if(!v2PorSol[par.id])v2PorSol[par.id]=[];
-      v2PorSol[par.id]=v2PorSol[par.id].concat(rows);
-      if(rows.length<1000)break;
-      off+=1000;
-    }
+// Buscar TODOS os sc_numeros de uma vez (uma query com IN), depois distribuir por sol.id
+let _allScNums=[...new Set(solPares.map(p=>p.sc))];
+let _allV2Rows=[];
+for(let i=0;i<_allScNums.length;i+=30){
+  let loteNums=_allScNums.slice(i,i+30);
+  let off=0;
+  for(;;){
+    let{data:rows,error:eV2}=await db.from('sc_pedidos_v2')
+      .select('filial,sc_numero,sc_cc,sc_produto,sc_descricao,sc_quant,sc_quje,sc_status,pc_numero,pc_status,pc_quant,pc_valor,pc_comprador,pc_dt_entrega')
+      .in('sc_numero',loteNums)
+      .range(off,off+4999);
+    if(!rows||!rows.length)break;
+    _allV2Rows=_allV2Rows.concat(rows);
+    if(rows.length<5000)break;
+    off+=5000;
   }
 }
+console.log('[v2] Total rows fetched: '+_allV2Rows.length+' for '+_allScNums.length+' SCs');
+// Distribuir por sol.id usando sc_numero + sc_cc
+let _v2Map={};
+_allV2Rows.forEach(r=>{let k=(r.sc_numero||'').trim()+'|'+(r.sc_cc||'').trim();if(!_v2Map[k])_v2Map[k]=[];_v2Map[k].push(r)});
+solPares.forEach(par=>{let k=par.sc+'|'+par.cc;v2PorSol[par.id]=_v2Map[k]||[]});
 // Calcular métricas por SC usando sc_pedidos_v2
 let totalSkus=0,totalRecebidos=0,valorTotalGeral=0,metPorSc={},metPorCC={};
 let itensEliminados=[];
