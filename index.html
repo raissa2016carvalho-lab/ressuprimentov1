@@ -132,7 +132,7 @@ document.addEventListener('click',function(e){
         }}
       var meses=Object.keys(mensal).filter(function(m){return mensal[m]>0}).sort().reverse().slice(0,6);
       if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico.</div>';}
-      else{html+='<table>'+meses.map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+mensal[m]+'</td></tr>'}).join('')+'</table>';}
+      else{html+='<table>'+meses.filter(function(m){return m&&m.length===6&&m!=='undefined'}).map(function(m){return'<tr><td>'+fmtMes(m)+'</td><td>'+(mensal[m]||0)+'</td></tr>'}).join('')+'</table>';}
     }
     pop.innerHTML=html;pop.style.display='block';
     var r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;
