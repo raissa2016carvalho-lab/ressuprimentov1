@@ -339,7 +339,7 @@ function setProgresso(pct,msg){
 }
 
 async function sbGet(tabela, select, onProgress, filtro=""){
-  let all=[], offset=0, lote=5000;
+  let all=[], offset=0, lote=1000;
   while(true){
     const url=SUPA_URL+"/rest/v1/"+tabela+"?select="+(select||"*")+(filtro?"&"+filtro:"")+"&limit="+lote+"&offset="+offset;
     let r, tentativas=0;
@@ -370,53 +370,23 @@ async function carregar(){
     ALL_SC = await sbGet(
       "scs",
       "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
-      (n)=>setProgresso(5+Math.min(n/50000*25,25),"Carregando SCs... "+n.toLocaleString("pt-BR"))
+      (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n)
     );
     setProgresso(30,"Carregando Pedidos...");
 
     ALL_PED = await sbGet(
       "pedidos",
       "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
-      (n)=>setProgresso(30+Math.min(n/200000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR"))
+      (n)=>setProgresso(30+Math.min(n/120000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR"))
     );
     setProgresso(100,"Pronto!");
 
-    document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR")+" ("+ALL_SC.length.toLocaleString("pt-BR")+" SCs + "+ALL_PED.length.toLocaleString("pt-BR")+" pedidos)";
+    document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR");
     popularFiltros(); clearFilters();
     setTimeout(()=>{document.getElementById("loading-overlay").style.display="none";},400);
-    // Botão para carregar histórico completo
-    if(!document.getElementById('btn-carregar-tudo')){
-      let btn=document.createElement('button');
-      btn.id='btn-carregar-tudo';
-      btn.textContent='📦 Carregar histórico completo';
-      btn.style.cssText='background:#f8fafc;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;margin-left:12px';
-      btn.onclick=carregarTudo;
-      document.getElementById("last-update").parentElement.appendChild(btn);
-    }
   }catch(e){
     document.getElementById("loading-msg").textContent="Erro: "+e.message;
   }
-}
-
-async function carregarTudo(){
-  let btn=document.getElementById('btn-carregar-tudo');
-  btn.disabled=true;btn.textContent='⏳ Carregando tudo...';
-  try{
-    ALL_SC = await sbGet(
-      "scs",
-      "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
-      (n)=>{btn.textContent='⏳ SCs: '+n.toLocaleString("pt-BR")+'...'}
-    );
-    ALL_PED = await sbGet(
-      "pedidos",
-      "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
-      (n)=>{btn.textContent='⏳ Pedidos: '+n.toLocaleString("pt-BR")+'...'}
-    );
-    document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR")+" (histórico completo)";
-    popularFiltros(); clearFilters();
-    btn.textContent='✅ Completo ('+ALL_SC.length.toLocaleString("pt-BR")+' SCs + '+ALL_PED.length.toLocaleString("pt-BR")+' pedidos)';
-    btn.style.background='#f0fdf4';btn.style.color='#16a34a';btn.style.borderColor='#bbf7d0';
-  }catch(e){btn.textContent='❌ Erro: '+e.message;btn.disabled=false;}
 }
 
 function nomeFilial(cod, desc){
