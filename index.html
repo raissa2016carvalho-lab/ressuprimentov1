@@ -625,19 +625,20 @@ function renderCardMatricial(grupo,readonly){
           var peds=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])];
           // deduplicar por c1_num+produto+emissao
           var _seen=new Set();peds=peds.filter(function(p){var _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seen.has(_id))return false;_seen.add(_id);return true;});
+          // Filtrar só pendentes (não recebidos)
+          peds=peds.filter(function(p){var _st=(p.pc_status||'').toLowerCase();return !_st.includes('receb')&&!_st.includes('pré-nota')&&!_st.includes('pre-nota');});
           peds.forEach(function(p){
-            if(!ultimoPed||( p.c1_emissao||'')>(ultimoPed.c1_emissao||''))ultimoPed=p;
+            if(!ultimoPed||(p.c1_emissao||'')>(ultimoPed.c1_emissao||''))ultimoPed=p;
           });
         });
         if(!ultimoPed)return '<td style="background:#fefce8;padding:6px 8px;color:#cbd5e1;font-size:11px">—</td>';
         var st=(ultimoPed.pc_status||'').toLowerCase();
-        var recebido=st.includes('receb')||st.includes('pré-nota')||st.includes('pre-nota');
         var emAprov=st.includes('aprov');
         var rejeitado=st.includes('rejeit')||st.includes('elimin');
-        var corSt=recebido?'#16a34a':rejeitado?'#ef4444':emAprov?'#d97706':'#64748b';
-        var bgSt=recebido?'#f0fdf4':rejeitado?'#fff5f5':emAprov?'#fffbeb':'#f8fafc';
-        var icone=recebido?'✅':rejeitado?'❌':emAprov?'⏳':'🔵';
-        var statusTxt=ultimoPed.pc_status||'Sem PC';
+        var corSt=rejeitado?'#ef4444':emAprov?'#d97706':'#64748b';
+        var bgSt=rejeitado?'#fff5f5':emAprov?'#fffbeb':'#f8fafc';
+        var icone=rejeitado?'❌':emAprov?'⏳':'🔵';
+        var statusTxt=ultimoPed.pc_status||'Pendente';
         var emissaoFmt=ultimoPed.c1_emissao?ultimoPed.c1_emissao.slice(6,8)+'/'+ultimoPed.c1_emissao.slice(4,6)+'/'+ultimoPed.c1_emissao.slice(0,4):'';
         var obs=(ultimoPed.c1_obs||'').trim();
         var obsShort=obs.length>40?obs.slice(0,40)+'…':obs;
