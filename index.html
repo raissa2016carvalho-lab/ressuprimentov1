@@ -70,7 +70,14 @@ document.addEventListener('click',function(e){
     var codigo=el.dataset.codigo,descricao=el.dataset.desc,nomeCC=el.dataset.nome;
     var pop=document.getElementById('popup-consumo-master');
     var histRaw=el.dataset.hist||'',parsed={};
-    try{if(histRaw)parsed=JSON.parse(decodeURIComponent(histRaw))}catch(e){try{parsed=JSON.parse(histRaw.replace(/'/g,'"'))}catch(e2){}}
+    try{
+      if(histRaw){
+        var decoded=histRaw;
+        try{decoded=decodeURIComponent(histRaw)}catch(e){}
+        parsed=JSON.parse(decoded);
+        if(typeof parsed==='string')parsed=JSON.parse(parsed);
+      }
+    }catch(e){try{parsed=JSON.parse(histRaw.replace(/'/g,'"'))}catch(e2){}}
     function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
     var html='<span class="pop-close" onclick="fecharPopupMaster()">×</span>';
     html+='<h4 style="margin:0 0 8px;font-size:13px;color:#0f172a">'+(descricao||codigo).slice(0,40)+'</h4>';
