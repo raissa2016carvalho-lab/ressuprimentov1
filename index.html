@@ -949,12 +949,19 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
             </tr>
-            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[String(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;// Buscar consumo mensal só dos CCs do grupo desta solicitação
+            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[String(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;// Buscar consumo mensal dos CCs reais desta solicitação agrupada
 let _histAll={};
 let _ccCode=String(s.cc||'').trim();
-let _grupoNome=_ccParaGrupo[_ccCode];
-let _ccsDoGrupo=_grupoNome&&_grupoCCs[_grupoNome]?_grupoCCs[_grupoNome]:[_ccCode];
-_ccsDoGrupo.forEach(_gc=>{
+// Pegar todos os CCs das solicitações do mesmo card
+let _ccsDoCard=[_ccCode];
+if(typeof grupo!=='undefined'&&Array.isArray(grupo)){
+  _ccsDoCard=[...new Set(grupo.map(_s=>String(_s.cc||'').trim()))];
+} else {
+  // Visão detalhada: pegar CCs de todas as solicitações do card
+  let _cardSols=solicitacoes.filter(_ss=>_ss.filial===s.filial&&_ss.solicitante_matricula===s.solicitante_matricula&&_ss.criado_em===s.criado_em);
+  if(_cardSols.length>1)_ccsDoCard=[...new Set(_cardSols.map(_ss=>String(_ss.cc||'').trim()))];
+}
+_ccsDoCard.forEach(_gc=>{
   let _meses=consumoMensalMap[_gc+'|'+it.codigo];
   if(_meses&&Object.keys(_meses).length){
     Object.entries(_meses).forEach(([m,q])=>{_histAll[m]=(_histAll[m]||0)+q});
