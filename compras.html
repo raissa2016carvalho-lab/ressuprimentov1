@@ -367,25 +367,21 @@ async function carregar(){
     fils.forEach(f=>{ FILIAIS[String(f.filial).trim().replace(/^0+/,"")] = f.nome_filial; });
     setProgresso(5,"Carregando SCs...");
 
-    // Filtrar desde jan/2025
-    const _dt12m='20250101';
     ALL_SC = await sbGet(
       "scs",
       "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
-      (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n.toLocaleString("pt-BR")),
-      "C1_EMISSAO=gte."+_dt12m
+      (n)=>setProgresso(5+Math.min(n/50000*25,25),"Carregando SCs... "+n.toLocaleString("pt-BR"))
     );
     setProgresso(30,"Carregando Pedidos...");
 
     ALL_PED = await sbGet(
       "pedidos",
       "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
-      (n)=>setProgresso(30+Math.min(n/120000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR")),
-      "EMISSAO_PEDIDO=gte."+_dt12m
+      (n)=>setProgresso(30+Math.min(n/200000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR"))
     );
     setProgresso(100,"Pronto!");
 
-    document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR")+" (desde Jan/2025)";
+    document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR")+" ("+ALL_SC.length.toLocaleString("pt-BR")+" SCs + "+ALL_PED.length.toLocaleString("pt-BR")+" pedidos)";
     popularFiltros(); clearFilters();
     setTimeout(()=>{document.getElementById("loading-overlay").style.display="none";},400);
     // Botão para carregar histórico completo
