@@ -367,8 +367,8 @@ async function carregar(){
     fils.forEach(f=>{ FILIAIS[String(f.filial).trim().replace(/^0+/,"")] = f.nome_filial; });
     setProgresso(5,"Carregando SCs...");
 
-    // Filtrar últimos 12 meses para performance
-    const _dt12m=(()=>{let d=new Date();d.setMonth(d.getMonth()-12);return d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,'0')+'01'})();
+    // Filtrar desde jan/2025
+    const _dt12m='20250101';
     ALL_SC = await sbGet(
       "scs",
       "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
@@ -385,7 +385,7 @@ async function carregar(){
     );
     setProgresso(100,"Pronto!");
 
-    document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR")+" (últimos 12 meses)";
+    document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR")+" (desde Jan/2025)";
     popularFiltros(); clearFilters();
     setTimeout(()=>{document.getElementById("loading-overlay").style.display="none";},400);
     // Botão para carregar histórico completo
