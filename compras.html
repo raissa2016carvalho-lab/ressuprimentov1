@@ -339,7 +339,7 @@ function setProgresso(pct,msg){
 }
 
 async function sbGet(tabela, select, onProgress, filtro=""){
-  let all=[], offset=0, lote=1000;
+  let all=[], offset=0, lote=5000;
   while(true){
     const url=SUPA_URL+"/rest/v1/"+tabela+"?select="+(select||"*")+(filtro?"&"+filtro:"")+"&limit="+lote+"&offset="+offset;
     let r, tentativas=0;
@@ -367,17 +367,21 @@ async function carregar(){
     fils.forEach(f=>{ FILIAIS[String(f.filial).trim().replace(/^0+/,"")] = f.nome_filial; });
     setProgresso(5,"Carregando SCs...");
 
+    // Filtrar últimos 12 meses para performance
+    const _dt12m=(()=>{let d=new Date();d.setMonth(d.getMonth()-12);return d.getFullYear().toString()+String(d.getMonth()+1).padStart(2,'0')+'01'})();
     ALL_SC = await sbGet(
       "scs",
       "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
-      (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n)
+      (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n.toLocaleString("pt-BR")),
+      "C1_EMISSAO=gte."+_dt12m
     );
     setProgresso(30,"Carregando Pedidos...");
 
     ALL_PED = await sbGet(
       "pedidos",
       "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
-      (n)=>setProgresso(30+Math.min(n/120000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR"))
+      (n)=>setProgresso(30+Math.min(n/120000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR")),
+      "EMISSAO_PEDIDO=gte."+_dt12m
     );
     setProgresso(100,"Pronto!");
 
