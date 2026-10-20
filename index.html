@@ -975,7 +975,11 @@ if(!Object.keys(_histAll).length&&it.consumo_historico&&typeof it.consumo_histor
   if(typeof ch==='string')try{ch=JSON.parse(ch)}catch(e){}
   if(ch&&typeof ch==='object')Object.assign(_histAll,ch);
 }
-let hist=Object.keys(_histAll).length?encodeURIComponent(JSON.stringify(_histAll)):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>',qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=it.qtd_almoxarife!=null,alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
+let hist=Object.keys(_histAll).length?encodeURIComponent(JSON.stringify(_histAll)):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>';
+// Custo unitário para estimar valores (acessível em todo o template)
+let _custoKey2=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
+let _cu=custoMap[_custoKey2]||0;
+let qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=it.qtd_almoxarife!=null,alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
                 <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
