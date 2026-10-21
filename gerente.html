@@ -508,7 +508,7 @@ async function aprovarGerente(btn){
       var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:qtdOrigAlmox;
       var dec=decisoes[it.id]||'aprovado';
       var justItem=justificativas_ger[it.codigo]||null;
-      var upd={situacao:dec,quantidade:novaQtd,qtd_almoxarife:qtdOrigAlmox};
+      var upd={situacao:dec,quantidade:novaQtd,qtd_gerente:novaQtd,qtd_almoxarife:qtdOrigAlmox};
       if(justItem)upd.justificativa_gerente=justItem;
       await db.from('solicitacao_itens').update(upd).eq('id',it.id);
       _salvIdxAprov++;_progresso(msgEl,_salvIdxAprov,_totalItensAprov,'Enviando');
@@ -553,7 +553,7 @@ async function salvarGrupo(solIds,msgElId){
       var dec=decisoes[it.id]||'aprovado';
       // Pegar qtd do input de total (distribuir proporcionalmente pelo consumo)
       var novaQtd=dec==='recusado'?0:(qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:it.quantidade);
-      await db.from('solicitacao_itens').update({situacao:dec,quantidade:novaQtd,justificativa:justificativas[it.id]||null}).eq('id',it.id);
+      await db.from('solicitacao_itens').update({situacao:dec,quantidade:novaQtd,qtd_gerente:novaQtd,justificativa:justificativas[it.id]||null}).eq('id',it.id);
       _salvIdxGrupo++;_progresso(msgEl,_salvIdxGrupo,_totalItensGrupo,'Salvando');
     }
     await db.from('solicitacoes').update({sc_numero:scNum,status:'aguardando_master',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
@@ -775,7 +775,8 @@ for(let it of sol.itens){
   let upd={situacao:valor};
   upd.qtd_almoxarife=qtdOriginal; // o que o solicitante pediu
   if(valor===`recusado`){upd.quantidade=0;}
-  else{upd.quantidade=novaQtd;} // o que o gerente aprovou
+  else{upd.quantidade=novaQtd;}
+  upd.qtd_gerente=upd.quantidade; // o que o gerente aprovou
   just&&(upd.justificativa_gerente=just);
   await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id);
   _salvIdx++;_progresso(msgEl,_salvIdx,sol.itens.length,'Salvando');
