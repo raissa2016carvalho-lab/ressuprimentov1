@@ -190,7 +190,7 @@ async function carregarFormularios(){
   for(let i=0;i<solIds.length;i+=50){
     let lote=solIds.slice(i,i+50),off2=0;
     for(;;){
-      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data`).in(`solicitacao_id`,lote).range(off2,off2+999);
+      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em`).in(`solicitacao_id`,lote).range(off2,off2+999);
       if(!its||!its.length)break;
       its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
       if(its.length<1000)break;
@@ -295,7 +295,7 @@ window.irPara=irPara;function irSubSettings(sub){$(`sub-bases`).style.display=su
 // ---------- ABA SOLICITAÇÕES ----------
 let gerentesMapCC={};async function carregarSolicitacoes(){$(`lista`).innerHTML=`<div class="vazio">Carregando...</div>`;let[{data:ccs},{data:sols,error:e2},{data:gc}]=await Promise.all([db.from(`centros_custo`).select(`*`),db.from(`solicitacoes`).select(`*`).order(`criado_em`,{ascending:!1}).limit(5e3),db.from(`gerentes_cc`).select(`cc,email`)]);if(e2){$(`lista`).innerHTML=`<div class="vazio">Erro ao carregar: `+e2.message+`</div>`;return}
 // buscar itens paginando para não cortar no limite de 1000
-let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data`).in(`solicitacao_id`,lote).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c}),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
+let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em`).in(`solicitacao_id`,lote).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c}),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
 // carrega consumo 3m e pessoas por cargo para os CCs visíveis
 let ccsSols=[...new Set(solicitacoes.map(s=>s.cc).filter(Boolean))];
 // Expandir homônimos: buscar todos os CCs com mesmo nome (igual ao consumo)
@@ -591,7 +591,7 @@ function renderCardMatricial(grupo,readonly){
     var badgeSH=semHist?'<span style="background:#fef3c7;color:#b45309;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">⚠ Sem hist.</span>':'';
 
     // Qtd gerente = soma das quantidades após decisão do gerente (it.quantidade já foi atualizado)
-    var qtdGerente=Object.values(item.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);
+    var qtdGerente=Object.values(item.porCC).reduce(function(s,it){return s+_qtdGer(it)},0);
     var alterada=qtdGerente!==qtdTotal;
     // Pré-popular masterQtd com qtd do gerente por item (usado no Excel se master não editar)
     Object.values(item.porCC).forEach(function(it){if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.situacao==='recusado'?0:(it.quantidade||0);});
@@ -693,10 +693,11 @@ function renderCardMatricial(grupo,readonly){
           return '<td style="text-align:center;background:#f0fdf4;padding:6px;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+display+'</td>';
         }
         return '<td style="text-align:center;background:#f0fdf4;padding:6px">'
-          +'<input type="number" min="0" id="'+inputId+'" value="'+(algumRecusado?0:qtdGerente)+'"'
+          +'<input type="number" min="0" id="'+inputId+'" value="'+(algumRecusado?0:Object.values(item.porCC).reduce(function(s,it){return s+(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0))},0))+'"'
           +' data-ids="'+idsRateio+'" data-qtds="'+qtdsRateio+'" data-ccs="'+ccsRateio+'" data-codigo="'+item.codigo+'"'
           +' style="width:72px;text-align:right;padding:4px 6px;border:1px solid #d1fae5;border-radius:6px;font-family:ui-monospace,monospace;font-size:13px;font-weight:700"'
           +' oninput="ratearMasterQtd(this)"/>'
+          +'<button title="Voltar ao valor do gerente (ou do almoxarife)" onclick="resetarItemMat(this)" style="'+_btnReset+'">↺</button>'+_infoAlteracao(Object.values(item.porCC))
           +'</td>';
       })()
       +colunas
@@ -790,7 +791,7 @@ async function salvarGrupoMaster(btn){
     var obsVal=document.getElementById('obs-mat-'+solId).value.trim();
     for(var j=0;j<(sol.itens||[]).length;j++){
       var it=sol.itens[j];
-      await db.from('solicitacao_itens').update({situacao:'aprovado',quantidade:masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade}).eq('id',it.id);
+      await db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade,{situacao:'aprovado'})).eq('id',it.id);
     }
     await db.from('solicitacoes').update({sc_numero:scNum,observacao:obsVal,status:'aprovada',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
   }
@@ -1001,7 +1002,7 @@ let hist=Object.keys(_histAll).length?encodeURIComponent(JSON.stringify(_histAll
 let _custoKey2=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
 let _cu=custoMap[_custoKey2]||0;
 if(!_cu){let _cod=String(it.codigo||'').trim();for(let _ck in custoMap){if(_ck.endsWith('|'+_cod)){_cu=custoMap[_ck];break;}}}
-let qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=it.quantidade,justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=it.qtd_almoxarife!=null,alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
+let qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=_qtdGer(it),justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=it.qtd_almoxarife!=null,alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
                 <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
@@ -1053,10 +1054,11 @@ if(pedsPendentes.length>0){let ultEmissao=pedsPendentes[0].c1_emissao;pedsPenden
 return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;let dataEmissao=p.c1_emissao?p.c1_emissao.slice(6,8)+`/`+p.c1_emissao.slice(4,6)+`/`+p.c1_emissao.slice(0,4):``;return`<div style="margin-bottom:2px;padding:2px 4px;border-radius:4px;background:#fff7ed"><span style="font-size:10px;color:#94a3b8">RESSUP</span> <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC `+(p.c1_num||``)+`</span>`+(p.pc_numero?` <span style="font-size:10px;color:#64748b">PC `+p.pc_numero+`</span>`:``)+`<br>`+(dataEmissao?`<span style="font-size:9.5px;color:#94a3b8">`+dataEmissao+`</span> `:``)+`<span style="font-weight:700;color:`+cor+`;font-size:10.5px">⏳ `+(p.pc_status||`Pendente`)+`</span>`+(p.c1_quant?` <span style="font-size:10px;color:#64748b">`+p.c1_quant+` un</span>`:``)+`</div>`}).join(``)+(pedsPendentes.length>3?`<div style="color:#94a3b8;font-size:10px">+`+(pedsPendentes.length-3)+` mais</div>`:``):`<span style="color:#cbd5e1">—</span>`})()}
                 </td>
                 <td style="text-align:center">
-                  <input type="number" min="0" value="${isRecusadoGer?0:qtdGerente}"
+                  <input type="number" min="0" id="minp-ind-${it.id}" value="${isRecusadoGer?0:(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0))}"
                     style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
                     oninput="masterQtd[${it.id}]=Number(this.value)||0;var _ve=document.getElementById('val-m-${it.id}');if(_ve){var _vv=${_cu}*(Number(this.value)||0);_ve.textContent=_vv>0?'R$ '+_vv.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}"/>
                   <div id="val-m-${it.id}" style="font-size:9px;color:#94a3b8;margin-top:1px">${_cu>0&&qtdGerente>0?'R$ '+(_cu*qtdGerente).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}</div>
+                  <button title="Voltar ao valor do gerente (ou do almoxarife)" onclick="resetarItemMaster(${it.id})" style="${_btnReset}">↺</button>${_infoAlteracao([it])}
                   ${isAdmin?`<button onclick="removerItemSol(${s.id},${it.id})" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;padding:2px;margin-left:4px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>`:``}
                 </td>
               </tr>`}).join(``)}
@@ -1103,6 +1105,21 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
         </div>
       </div>
     `}const decisoes={},masterQtd={};
+// Qtd real do gerente (coluna própria); fallback p/ registros antigos
+function _qtdGer(it){return it.qtd_gerente!=null?Number(it.qtd_gerente):(it.quantidade||0)}
+// Valor de referência do botão ↺: gerente, senão almoxarife
+function _qtdBase(it){if(it.situacao==='recusado')return 0;return it.qtd_gerente!=null?Number(it.qtd_gerente):it.qtd_almoxarife!=null?Number(it.qtd_almoxarife):(it.quantidade||0)}
+function _itemPorId(id){for(var s of (solicitacoes||[]))for(var it of (s.itens||[]))if(it.id===id)return it;return null}
+// Campos a gravar quando o master salva a quantidade (registra quem alterou)
+function _updMaster(it,qtd,extra){var u=Object.assign({},extra||{});if(qtd===undefined)return u;u.quantidade=qtd;if(Number(qtd)!==Number(it.quantidade)){u.master_alterado_por=userEmail||null;u.master_alterado_em=new Date().toISOString();it.master_alterado_por=u.master_alterado_por;it.master_alterado_em=u.master_alterado_em}return u}
+function _infoAlteracao(its){var ult=null;(its||[]).forEach(function(it){if(it&&it.master_alterado_em&&(!ult||it.master_alterado_em>ult.master_alterado_em))ult=it});if(!ult)return'';var nome=String(ult.master_alterado_por||'').split('@')[0].replace(/[<>&"']/g,'');var d=new Date(ult.master_alterado_em);var dt=d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});return'<div style="font-size:9.5px;color:#7c3aed;margin-top:2px;white-space:nowrap" title="Última alteração no master">✎ '+nome+' · '+dt+'</div>'}
+var _btnReset='border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;border-radius:6px;font-size:12px;padding:3px 6px;margin-left:4px;vertical-align:middle';
+// ↺ item individual
+function resetarItemMaster(id){var it=_itemPorId(id);if(!it)return;var v=_qtdBase(it);masterQtd[id]=v;var inp=document.getElementById('minp-ind-'+id);if(inp){inp.value=v;inp.dispatchEvent(new Event('input'))}}
+window.resetarItemMaster=resetarItemMaster;
+// ↺ item do card matricial (vários CCs)
+function resetarItemMat(btn){var inp=btn.parentNode.querySelector('input[type=number]');if(!inp)return;var ids=(inp.dataset.ids||'').split(',').map(Number).filter(Boolean),ccs=(inp.dataset.ccs||'').split(','),codigo=inp.dataset.codigo||'',tot=0;ids.forEach(function(id,i){var it=_itemPorId(id),v=it?_qtdBase(it):0;masterQtd[id]=v;tot+=v;var cell=document.getElementById('mcell-'+codigo+'-'+ccs[i]);if(cell)cell.textContent=v});inp.value=tot}
+window.resetarItemMat=resetarItemMat;
 
 function ratearMasterQtd(input){
   var novoTotal=Number(input.value)||0;
@@ -1180,7 +1197,7 @@ function resetarCardInd(solId){
 }
 window.resetarCardInd=resetarCardInd;
 
-function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor,document.getElementById(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``),document.getElementById(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)}window.decidir=decidir;function toggleCard(id){document.getElementById(`corpo-`+id).classList.toggle(`aberto`)}window.toggleCard=toggleCard;async function salvar(solId){if(!isAdmin){alert(`Apenas administradores podem salvar.`);return}let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let scNumero=$(`sc-`+solId).value.trim(),obs=$(`obs-`+solId).value.trim(),situacoesFinais=[];for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id];situacoesFinais.push(valor);let upd={situacao:valor};masterQtd[it.id]!==void 0&&masterQtd[it.id]!==it.quantidade&&(upd.quantidade=masterQtd[it.id]),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id)}let ap=situacoesFinais.filter(v=>v===`aprovado`).length,re=situacoesFinais.filter(v=>v===`recusado`).length,status=`em_analise`;ap>0&&re===0&&ap===situacoesFinais.length?status=`aprovada`:re===situacoesFinais.length?status=`recusada`:ap>0&&re>0?status=`parcial`:ap===0&&re===0&&(status=`pendente`);let{error}=await db.from(`solicitacoes`).update({status,sc_numero:scNumero||null,observacao:obs||null,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId),msgEl=document.getElementById(`salvo-msg-`+solId);error?msgEl.innerHTML=`<div class="msg erro">Erro ao salvar: `+error.message+`</div>`:(msgEl.innerHTML=`<div class="msg ok">✓ Salvo!</div>`,setTimeout(carregarSolicitacoes,800))}window.salvar=salvar;
+function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor,document.getElementById(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``),document.getElementById(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)}window.decidir=decidir;function toggleCard(id){document.getElementById(`corpo-`+id).classList.toggle(`aberto`)}window.toggleCard=toggleCard;async function salvar(solId){if(!isAdmin){alert(`Apenas administradores podem salvar.`);return}let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let scNumero=$(`sc-`+solId).value.trim(),obs=$(`obs-`+solId).value.trim(),situacoesFinais=[];for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id];situacoesFinais.push(valor);let upd={situacao:valor};masterQtd[it.id]!==void 0&&masterQtd[it.id]!==it.quantidade&&(upd=_updMaster(it,masterQtd[it.id],upd)),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id)}let ap=situacoesFinais.filter(v=>v===`aprovado`).length,re=situacoesFinais.filter(v=>v===`recusado`).length,status=`em_analise`;ap>0&&re===0&&ap===situacoesFinais.length?status=`aprovada`:re===situacoesFinais.length?status=`recusada`:ap>0&&re>0?status=`parcial`:ap===0&&re===0&&(status=`pendente`);let{error}=await db.from(`solicitacoes`).update({status,sc_numero:scNumero||null,observacao:obs||null,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId),msgEl=document.getElementById(`salvo-msg-`+solId);error?msgEl.innerHTML=`<div class="msg erro">Erro ao salvar: `+error.message+`</div>`:(msgEl.innerHTML=`<div class="msg ok">✓ Salvo!</div>`,setTimeout(carregarSolicitacoes,800))}window.salvar=salvar;
 
 async function salvarRascunho(solId){
   let sol=solicitacoes.find(s=>s.id===solId);
@@ -1190,7 +1207,7 @@ async function salvarRascunho(solId){
   // Salvar só as qtds master nos itens — sem mudar status da solicitação
   for(let it of sol.itens){
     if(masterQtd[it.id]!==undefined){
-      await db.from('solicitacao_itens').update({quantidade:masterQtd[it.id]}).eq('id',it.id);
+      await db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id])).eq('id',it.id);
       it.quantidade=masterQtd[it.id]; // atualiza em memória
     }
   }
@@ -1216,7 +1233,7 @@ async function salvarRascunhoGrupo(btn){
     if(!sol)continue;
     for(let it of (sol.itens||[])){
       if(masterQtd[it.id]!==undefined){
-        await db.from('solicitacao_itens').update({quantidade:masterQtd[it.id]}).eq('id',it.id);
+        await db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id])).eq('id',it.id);
         it.quantidade=masterQtd[it.id];
       }
     }
