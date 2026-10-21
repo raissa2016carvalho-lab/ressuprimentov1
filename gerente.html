@@ -273,7 +273,8 @@ atualizarBadges();
     +'<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+camposSC+'</div>'
     +'<div id="msg-'+cardId+'"></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px">'
-    +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-cardid="'+cardId+'" onclick="aprovarGerente(this)">✔ Enviar para master</button>'
+    +'<button class="btn-aprovar-todas" style="margin-top:0" data-cardid="'+cardId+'" onclick="aprovarTodosVisual(this,\''+cardId+'\')">✔ Aprovar todos os itens</button>'
+    +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-cardid="'+cardId+'" onclick="aprovarGerente(this)">📤 Enviar para master</button>'
     +'</div>'
     +'</div>'
     +'</div>';
@@ -298,6 +299,40 @@ function aprovarTodosMatricial(cardId){
   if(btnSalvar)btnSalvar.click();
 }
 window.aprovarTodosMatricial=aprovarTodosMatricial;
+
+// Aprovar todos visualmente sem enviar — só marca os botões verdes
+function aprovarTodosVisual(btn, cardId){
+  var container=document.getElementById(cardId);
+  if(!container)return;
+  // Marcar todos os botões de aprovação como aprovado
+  container.querySelectorAll('.btn-dec').forEach(function(b){
+    if(b.dataset.valor==='aprovado'){
+      b.click(); // simula o clique para ativar a decisão
+    }
+  });
+  btn.textContent='✅ Todos aprovados';
+  btn.style.background='#dcfce7';
+  btn.style.color='#16a34a';
+  btn.style.border='1px solid #bbf7d0';
+  var msgEl=document.getElementById('msg-'+cardId);
+  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:12px">Todos marcados como aprovados. Clique em "📤 Enviar para master" para confirmar.</span>';
+}
+window.aprovarTodosVisual=aprovarTodosVisual;
+
+function aprovarTodosIndividual(solId){
+  var sol=solicitacoes.find(function(s){return s.id===solId});
+  if(!sol)return;
+  (sol.itens||[]).forEach(function(it){
+    decisoes[it.id]='aprovado';
+    var btnA=document.querySelector('#corpo-'+solId+' .btn-dec[data-id="'+it.id+'"][data-valor="aprovado"]');
+    var btnR=document.querySelector('#corpo-'+solId+' .btn-dec[data-id="'+it.id+'"][data-valor="recusado"]');
+    if(btnA){btnA.classList.add('aprovado');}
+    if(btnR){btnR.classList.remove('recusado');}
+  });
+  var msgEl=document.getElementById('msg-'+solId);
+  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:12px">Todos marcados como aprovados. Clique em "📤 Enviar para master" para confirmar.</span>';
+}
+window.aprovarTodosIndividual=aprovarTodosIndividual;
 
 document.addEventListener('input',function(e){
   if(e.target.classList.contains('mat-tot-input')){
@@ -469,12 +504,13 @@ async function aprovarGerente(btn){
     if(!sol)continue;
     for(var j=0;j<(sol.itens||[]).length;j++){
       var it=sol.itens[j];
-      var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:it.quantidade;
+      var qtdOrigAlmox=it.qtd_almoxarife!==null&&it.qtd_almoxarife!==undefined?it.qtd_almoxarife:it.quantidade;
+      var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:qtdOrigAlmox;
       var dec=decisoes[it.id]||'aprovado';
       var justItem=justificativas_ger[it.codigo]||null;
-      await db.from('solicitacao_itens').update({
-        situacao:dec,quantidade:novaQtd,justificativa_gerente:justItem
-      }).eq('id',it.id);
+      var upd={situacao:dec,quantidade:novaQtd,qtd_almoxarife:qtdOrigAlmox};
+      if(justItem)upd.justificativa_gerente=justItem;
+      await db.from('solicitacao_itens').update(upd).eq('id',it.id);
       _salvIdxAprov++;_progresso(msgEl,_salvIdxAprov,_totalItensAprov,'Enviando');
     }
     await db.from('solicitacoes').update({
@@ -591,7 +627,8 @@ function renderCard_ORIGINAL(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.c
         </table>
         <div class="rodape-card">
           
-          <button class="btn-salvar" onclick="salvar(${s.id})">Encaminhar para aprovação final ▶</button>
+          <button class="btn-aprovar-todas" onclick="aprovarTodosIndividual(${s.id})">✔ Aprovar todos os itens</button>
+          <button class="btn-salvar" onclick="salvar(${s.id})">📤 Enviar para master</button>
           <div style="margin-left:auto;text-align:right;flex-shrink:0">
             <div style="font-size:10.5px;color:#94a3b8;font-weight:600">VALOR TOTAL ESTIMADO</div>
             <div style="font-size:16px;font-weight:700;color:#0f172a" id="total-${s.id}">
