@@ -717,7 +717,10 @@ function renderCardMatricial(grupo,readonly){
     +'<div class="card-titulo">'+codigosIds+' <span style="color:#94a3b8;font-weight:500;font-size:12px">'+filialNome+'</span> '+badgeSt+'</div>'
     +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+tituloCCs+'</div>'
     +'<div class="card-sub">'+s0.solicitante_nome+' · mat. '+s0.solicitante_matricula+' · '+fmtData(s0.criado_em)+' · '+itensList.length+' item(ns) · 📅 '+periodo+'m'+(s0.justificativa?' · "'+s0.justificativa+'"':'')+' </div></div>'
-    +'<div style="color:#1e40af;font-weight:600;font-size:12.5px;white-space:nowrap;flex-shrink:0;margin-left:12px">Avaliar ▾</div>'
+    +'<div style="text-align:right;flex-shrink:0;margin-left:12px">'
+    +(function(){var _vtm=0;itensList.forEach(function(item){var _fil=String(grupo[0]?.filial||'').trim();var _ckm=_fil+'|'+String(item.codigo||'').trim();var _cm=custoMap[_ckm]||0;if(!_cm){for(var _kk in custoMap){if(_kk.endsWith('|'+String(item.codigo||'').trim())){_cm=custoMap[_kk];break;}}}var totalQtd=0;Object.values(item.porCC).forEach(function(it){totalQtd+=(it.quantidade||0)});_vtm+=_cm*totalQtd});return _vtm>0?'<div style="font-size:16px;font-weight:800;color:#1e40af">R$ '+_vtm.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div style="font-size:9px;color:#94a3b8">valor estimado</div>':''})()
+    +'<div style="color:#1e40af;font-weight:600;font-size:12.5px;cursor:pointer">Avaliar ▾</div>'
+    +'</div>'
     +'</div>'
     +'<div id="'+cardId+'" style="display:none;padding:16px;overflow-x:auto">'
     +'<table style="border-collapse:collapse;width:100%;font-size:12.5px"><thead><tr>'
@@ -927,7 +930,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
             ${s.justificativa?`<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>`:``}
           </div>
           <div style="text-align:right;flex-shrink:0;margin-left:12px">
-            ${(()=>{let _vt=0;(s.itens||[]).forEach(it=>{let _ck2=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();let _c=custoMap[_ck2]||0;_vt+=_c*(it.qtd_almoxarife!=null?it.quantidade:it.quantidade)});return _vt>0?'<div style="font-size:16px;font-weight:800;color:#1e40af">R$ '+_vt.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div style="font-size:9px;color:#94a3b8">valor estimado</div>':'';})()}
+            ${(()=>{let _vt=0;(s.itens||[]).forEach(it=>{let _ck2=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();let _c=custoMap[_ck2]||0;if(!_c){let _cod2=String(it.codigo||'').trim();for(let _kk in custoMap){if(_kk.endsWith('|'+_cod2)){_c=custoMap[_kk];break;}}}let q=it.qtd_almoxarife!=null?it.quantidade:it.quantidade;_vt+=_c*q});return _vt>0?'<div style="font-size:16px;font-weight:800;color:#1e40af">R$ '+_vt.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div style="font-size:9px;color:#94a3b8">valor estimado</div>':'';})()}
             <div style="color:#1e40af;font-weight:600;font-size:12.5px;cursor:pointer">Avaliar ▾</div>
           </div>
         </div>
