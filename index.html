@@ -397,7 +397,8 @@ Object.keys(consumoMap).forEach(k=>{
 });
 pessoasMap={},(pessoasData||[]).forEach(r=>{(pessoasMap[r.cc]=pessoasMap[r.cc]||[]).push({cargo:r.cargo,qtd:r.quantidade})}),Object.keys(pessoasMap).forEach(cc=>{pessoasMap[cc].sort((a,b)=>b.qtd-a.qtd)});
 // Buscar posição de estoque por filial|produto
-estoqueMap={};
+estoqueMap={};custoMap={};
+let _estSeen=new Set();
 try{
   let _filiais=[...new Set(solicitacoes.map(s=>String(s.filial||'').trim()))].filter(Boolean);
   if(_filiais.length){
@@ -405,11 +406,15 @@ try{
       let _fil=_filiais[fi];
       let _offE=0;
       for(;;){
-        let{data:estRows}=await db.from('estoque_sb2').select('filial,codigo,qtd_atual,custo_medio').eq('filial',_fil).range(_offE,_offE+999);
+        let{data:estRows}=await db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,custo_medio').eq('filial',_fil).range(_offE,_offE+999);
         if(!estRows||!estRows.length)break;
         estRows.forEach(r=>{
           let k=String(r.filial||'').trim()+'|'+String(r.codigo||'').trim();
-          estoqueMap[k]=(estoqueMap[k]||0)+Number(r.qtd_atual||0);
+          let ka=k+'|'+String(r.armazem||'').trim();
+          if(!_estSeen.has(ka)){
+            _estSeen.add(ka);
+            estoqueMap[k]=(estoqueMap[k]||0)+Number(r.qtd_atual||0);
+          }
           if(Number(r.custo_medio||0)>0&&!custoMap[k])custoMap[k]=Number(r.custo_medio);
         });
         if(estRows.length<1000)break;
