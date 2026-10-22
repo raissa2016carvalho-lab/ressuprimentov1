@@ -95,7 +95,10 @@ Object.keys(aggCC).forEach(k=>{
   consumoMap[k]=totalFixo>0?Math.max(1,Math.round(totalFixo/nM)):0;
 })}
 // Buscar preços da tabela itens (SB1)
-if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await db.from(`itens`).select(`codigo,preco`).in(`codigo`,codigos.slice(i,i+500));(precos||[]).forEach(p=>{p.preco>0&&(precoMap[p.codigo]=p.preco)})}if($(`subtitulo`).textContent=solicitacoes.length>0?solicitacoes.length+` solicitação(ões) aguardando sua avaliação`:`Nenhuma solicitação pendente`,solicitacoes.length===0){$(`lista`).innerHTML=`<div class="vazio">✓ Nenhuma solicitação pendente.</div>`;return}var grupos2={};
+if(codigos.length>0)for(let i=0;i<codigos.length;i+=500){let{data:precos}=await db.from(`itens`).select(`codigo,preco`).in(`codigo`,codigos.slice(i,i+500));(precos||[]).forEach(p=>{p.preco>0&&(precoMap[p.codigo]=p.preco)})}
+// Valor estimado usa o último preço de compra (pedido mais recente); cadastro fica como reserva
+if(codigos.length>0)try{let{data:upc}=await db.rpc(`ultimo_preco_compra`,{p_codigos:codigos});(upc||[]).forEach(p=>{Number(p.preco)>0&&(precoMap[p.codigo]=Number(p.preco))})}catch(e){console.warn(`[ultimo_preco_compra]`,e)}
+if($(`subtitulo`).textContent=solicitacoes.length>0?solicitacoes.length+` solicitação(ões) aguardando sua avaliação`:`Nenhuma solicitação pendente`,solicitacoes.length===0){$(`lista`).innerHTML=`<div class="vazio">✓ Nenhuma solicitação pendente.</div>`;return}var grupos2={};
 solicitacoes.forEach(function(s){
   var dt=new Date(s.criado_em);
   var minBase=Math.floor(dt.getMinutes()/3)*3;

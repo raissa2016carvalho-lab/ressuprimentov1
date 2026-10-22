@@ -442,6 +442,12 @@ try{
   // itens sem custo em nenhuma filial: usa o preço do cadastro (achado pelo fallback '...|codigo')
   let _comCusto=new Set(Object.keys(custoMap).map(k=>k.split('|')[1]));
   Object.keys(_preco).forEach(c=>{if(!_comCusto.has(c))custoMap['*|'+c]=_preco[c]});
+  // Preferência: último preço de compra (pedido mais recente, qualquer filial) para todos os valores estimados
+  let{data:_upc,error:_eUpc}=await db.rpc('ultimo_preco_compra',{p_codigos:_cods});
+  if(_eUpc)console.warn('[ultimo_preco_compra]',_eUpc.message);
+  let _ultimo={};(_upc||[]).forEach(r=>{if(Number(r.preco)>0)_ultimo[String(r.codigo).trim()]=Number(r.preco)});
+  Object.keys(custoMap).forEach(k=>{let p=_ultimo[k.split('|')[1]];if(p)custoMap[k]=p});
+  Object.keys(_ultimo).forEach(c=>{custoMap['*|'+c]=_ultimo[c]});
 }catch(e){console.warn('[preco]',e);}
 }let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
 let visiveis=solicitacoes.filter(s=>{
