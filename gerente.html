@@ -135,7 +135,7 @@ atualizarBadges();
   var dt=fmtData(s0.criado_em);
   var periodo=s0.periodo_meses||3;
   var just=s0.justificativa||'';
-  var cardId='mat-'+s0.criado_em.slice(0,10).replace(/[^0-9]/g,'');
+  var cardId='mat-'+s0.id;
 
   var itensMap2={};
   grupo.forEach(function(s){
@@ -184,17 +184,18 @@ atualizarBadges();
     var decAtual=Object.values(item.porCC).map(function(it){return decisoes[it.id]}).find(function(d){return d})||'';
     var aprCls='btn-dec'+(decAtual==='aprovado'?' aprovado':'');
     var recCls='btn-dec'+(decAtual==='recusado'?' recusado':'');
-    return'<tr id="mrow-'+item.codigo+'">'
+    var rk=cardId+'-'+item.codigo;
+    return'<tr id="mrow-'+rk+'">'
       +'<td class="item-desc"><div>'+(item.descricao||item.codigo||'')+badgeSH+'</div><div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
       +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
       +colunas
-      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+item.codigo+'" data-ids="'+idsCC+'" data-orig="'+totalGeral+'" id="mtot-'+item.codigo+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
-      +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mval-'+item.codigo+'">'+fmtNum(valorEst)+'</td>'
+      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+rk+'" data-ids="'+idsCC+'" data-orig="'+totalGeral+'" id="mtot-'+rk+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
+      +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mval-'+rk+'">'+fmtNum(valorEst)+'</td>'
       +'<td style="text-align:center;white-space:nowrap">'
-      +'<button class="'+aprCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
-      +'<button class="'+recCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="recusado" onclick="decidirCC(this)">✗</button>'
+      +'<button class="'+aprCls+'" data-cod="'+rk+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
+      +'<button class="'+recCls+'" data-cod="'+rk+'" data-ids="'+idsCC+'" data-dec="recusado" onclick="decidirCC(this)">✗</button>'
       +'</td>'
-      +'<td id="just-td-'+item.codigo+'" style="display:none;padding:4px 8px"><textarea data-cod="'+item.codigo+'" rows="2" placeholder="Justificativa..." style="width:150px;padding:4px 6px;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-family:inherit;resize:none" oninput="justificativas_ger[this.dataset.cod]=this.value"></textarea></td>'
+      +'<td id="just-td-'+rk+'" style="display:none;padding:4px 8px"><textarea data-cod="'+item.codigo+'" data-key="'+cardId+'|'+item.codigo+'" rows="2" placeholder="Justificativa..." style="width:150px;padding:4px 6px;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-family:inherit;resize:none" oninput="justificativas_ger[this.dataset.key]=this.value"></textarea></td>'
       +'</tr>';
   }).join('');
 
@@ -444,11 +445,11 @@ async function aprovarGerente(btn){
       var novaQtd=qtdEditadas[it.id];
       var qtdOrigAlmox=it.qtd_almoxarife!==null&&it.qtd_almoxarife!==undefined?it.qtd_almoxarife:it.quantidade;
       if(novaQtd!==qtdOrigAlmox){
-        var just=justificativas_ger[it.codigo]||'';
+        var just=justificativas_ger[cardId+'|'+it.codigo]||'';
         if(!just.trim()){
           var tipo=novaQtd>qtdOrigAlmox?'aumentada':'reduzida';
           if(msgEl)msgEl.innerHTML='<span style="color:#991b1b;font-weight:600">⚠ Justificativa obrigatória para "'+(it.descricao||it.codigo)+'" (quantidade '+tipo+' de '+qtdOrigAlmox+' para '+novaQtd+').</span>';
-          var justEl=document.querySelector('textarea[data-cod="'+it.codigo+'"]');
+          var justEl=document.querySelector('textarea[data-key="'+cardId+'|'+it.codigo+'"]');
           if(justEl){justEl.focus();var td=justEl.closest('td');if(td)td.style.display='';}
           return;
         }
@@ -468,7 +469,7 @@ async function aprovarGerente(btn){
       var qtdOrigAlmox=it.qtd_almoxarife!==null&&it.qtd_almoxarife!==undefined?it.qtd_almoxarife:it.quantidade;
       var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:qtdOrigAlmox;
       var dec=decisoes[it.id]||'aprovado';
-      var justItem=justificativas_ger[it.codigo]||null;
+      var justItem=justificativas_ger[cardId+'|'+it.codigo]||null;
       var upd={situacao:dec,quantidade:novaQtd,qtd_gerente:novaQtd,qtd_almoxarife:qtdOrigAlmox};
       if(justItem)upd.justificativa_gerente=justItem;
       await db.from('solicitacao_itens').update(upd).eq('id',it.id);
