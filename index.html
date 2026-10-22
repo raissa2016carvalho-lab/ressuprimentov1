@@ -968,6 +968,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th style="text-align:left;width:200px">Justificativa<br>gerente</th>
               <th style="text-align:left;width:160px">Pedido anterior</th>
               <th style="text-align:center;width:100px">Qtd master</th>
+              <th style="text-align:center;width:120px" title="Estoque no envio menos o consumo até o início do período, comparado com a Qtd master">Ação<br><span style="font-weight:400">compra p/ ${_rotuloInicioPeriodo()}</span></th>
             </tr>
             ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[String(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;// Buscar consumo mensal dos CCs reais desta solicitação agrupada
 let _histAll={};
@@ -1052,11 +1053,12 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
                 <td style="text-align:center">
                   <input type="number" min="0" id="minp-ind-${it.id}" value="${isRecusadoGer?0:(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0))}"
                     style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
-                    oninput="masterQtd[${it.id}]=Number(this.value)||0;var _ve=document.getElementById('val-m-${it.id}');if(_ve){var _vv=${_cu}*(Number(this.value)||0);_ve.textContent=_vv>0?'R$ '+_vv.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}"/>
+                    oninput="masterQtd[${it.id}]=Number(this.value)||0;_atualizarAcao(this);var _ve=document.getElementById('val-m-${it.id}');if(_ve){var _vv=${_cu}*(Number(this.value)||0);_ve.textContent=_vv>0?'R$ '+_vv.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}"/>
                   <div id="val-m-${it.id}" style="font-size:9px;color:#94a3b8;margin-top:1px">${_cu>0&&qtdGerente>0?'R$ '+(_cu*qtdGerente).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}</div>
                   <button title="Voltar ao valor do gerente (ou do almoxarife)" onclick="resetarItemMaster(${it.id})" style="${_btnReset}">↺</button>${_infoAlteracao([it])}
                   ${isAdmin?`<button onclick="removerItemSol(${s.id},${it.id})" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;padding:2px;margin-left:4px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>`:``}
                 </td>
+                ${_tdAcao(it.estoque_filial!=null?Number(it.estoque_filial):null,cons,isRecusadoGer?0:(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0)))}
               </tr>`}).join(``)}
             <tr style="border-top:2px solid #e2e8f0;background:#f8fafc">
               <td colspan="4" style="font-weight:700;font-size:12px;color:#0f172a">TOTAL</td>
