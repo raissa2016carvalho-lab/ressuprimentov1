@@ -101,7 +101,7 @@ solicitacoes.forEach(function(s){
   if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);
 });
 window._v2StatusMap={};
-$(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``);setTimeout(_restaurarRascunho,400)
+$(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``);setTimeout(async function(){await _sincronizarRascunhoServidor();_restaurarRascunho()},400)
   // Marcar todos os botões como aprovado após renderizar
   setTimeout(()=>{
     // Botões individuais (renderCard)
@@ -189,7 +189,7 @@ atualizarBadges();
       +'<td class="item-desc"><div>'+(item.descricao||item.codigo||'')+badgeSH+'</div><div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
       +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
       +colunas
-      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+rk+'" data-ids="'+idsCC+'" data-orig="'+totalGeral+'" id="mtot-'+rk+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
+      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+rk+'" data-ids="'+idsCC+'" data-orig="'+totalGeral+'" id="mtot-'+rk+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/><button title="Voltar à quantidade original" onclick="resetarItemGer(this)" style="border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;border-radius:4px;font-size:12px;padding:2px 6px;margin-left:4px">↺</button></td>'
       +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mval-'+rk+'">'+fmtNum(valorEst)+'</td>'
       +'<td style="text-align:center;white-space:nowrap">'
       +'<button class="'+aprCls+'" data-cod="'+rk+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
@@ -236,6 +236,7 @@ atualizarBadges();
     +'<div id="msg-'+cardId+'"></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px">'
     +'<button class="btn-aprovar-todas" style="margin-top:0" data-cardid="'+cardId+'" onclick="aprovarTodosVisual(this,\''+cardId+'\')">✔ Aprovar todos os itens</button>'
+    +'<button class="btn-aprovar-todas" style="margin-top:0;background:#fff;color:#1e40af;border:1px solid #bfdbfe" data-cardid="'+cardId+'" onclick="salvarRascunhoServidor(this)">💾 Salvar rascunho</button>'
     +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-cardid="'+cardId+'" onclick="aprovarGerente(this)">📤 Enviar para master</button>'
     +'</div>'
     +'</div>'
@@ -307,7 +308,7 @@ document.addEventListener('input',function(e){
     var qtdAtual=Number(e.target.value)||0;
     var qtdOrig=Number(e.target.dataset.orig)||0;
     var justTd=document.getElementById('just-td-'+codigo);
-    if(justTd)justTd.style.display=qtdAtual!==qtdOrig?'':'none';// mostra para aumento E redução
+    if(justTd)justTd.style.display=qtdAtual>qtdOrig?'':'none';// justificativa só quando aumenta
     // Gravar nova qtd em qtdEditadas para cada item id do produto
     var ids=(e.target.dataset.ids||'').split(',').map(Number).filter(Boolean);
     // Distribuir proporcionalmente pelas qtds originais de cada CC
@@ -377,6 +378,38 @@ function _restaurarRascunho(){
   });
   if(n){var aviso=document.createElement('div');aviso.style.cssText='background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px';aviso.textContent='💾 Recuperamos o que você tinha digitado e ainda não enviou.';var l=document.getElementById('lista');if(l)l.prepend(aviso);_salvarRascunhoGer()}
 }
+// ↺ volta o item à quantidade original (e desfaz recusa)
+function resetarItemGer(btn){
+  var tr=btn.closest('tr');if(!tr)return;
+  var ap=tr.querySelector('button[data-dec="aprovado"]');if(ap&&!ap.classList.contains('aprovado'))decidirCC(ap);
+  var inp=tr.querySelector('input.mat-tot-input');if(!inp)return;
+  inp.value=inp.dataset.orig;inp.dispatchEvent(new Event('input',{bubbles:true}));
+  (inp.dataset.ids||'').split(',').filter(Boolean).forEach(function(id){delete qtdEditadas[id]});
+  var t=tr.querySelector('textarea[data-key]');if(t){t.value='';delete justificativas_ger[t.dataset.key]}
+  _salvarRascunhoGer();
+}
+window.resetarItemGer=resetarItemGer;
+// 💾 rascunho no servidor (tabela rascunhos_gerente) para abrir em outro computador
+async function salvarRascunhoServidor(btn){
+  clearTimeout(_tRasc);
+  var dec={},just={};
+  Object.keys(decisoes).forEach(function(k){if(decisoes[k]==='recusado')dec[k]='recusado'});
+  Object.keys(justificativas_ger).forEach(function(k){if(justificativas_ger[k])just[k]=justificativas_ger[k]});
+  var r={ts:Date.now(),qtd:Object.assign({},qtdEditadas),dec:dec,just:just};
+  try{localStorage.setItem(_chaveRascunho(),JSON.stringify(r))}catch(e){}
+  var msg=document.getElementById('msg-'+btn.dataset.cardid);
+  var {error}=await db.from('rascunhos_gerente').upsert({email:String(userEmail||'').toLowerCase(),dados:r,atualizado_em:new Date().toISOString()});
+  if(msg)msg.innerHTML=error?'<span style="color:#991b1b">Rascunho salvo só neste computador ('+String(error.message).replace(/[<>]/g,'')+')</span>':'<span style="color:#1e40af;font-weight:600">💾 Rascunho salvo! Você pode continuar depois, de qualquer computador.</span>';
+}
+window.salvarRascunhoServidor=salvarRascunhoServidor;
+// Busca o rascunho do servidor e usa o mais recente (servidor x navegador)
+async function _sincronizarRascunhoServidor(){
+  try{
+    var {data}=await db.from('rascunhos_gerente').select('dados').eq('email',String(userEmail||'').toLowerCase()).maybeSingle();
+    var srv=data&&data.dados;
+    if(srv&&srv.ts>(_lerRascunho().ts||0))localStorage.setItem(_chaveRascunho(),JSON.stringify(srv));
+  }catch(e){}
+}
 // Ao enviar um card, tira do rascunho os itens daquelas solicitações
 function _limparRascunhoSols(solIds){
   var r=_lerRascunho(),mudou=false;
@@ -386,7 +419,8 @@ function _limparRascunhoSols(solIds){
     delete qtdEditadas[it.id];
   })});
   Object.keys(r.just).forEach(function(k){if((solIds||[]).some(function(sid){return k.indexOf('mat-'+sid+'|')===0})){delete r.just[k];mudou=true}});
-  if(mudou)try{localStorage.setItem(_chaveRascunho(),JSON.stringify(r))}catch(e){}
+  if(mudou){r.ts=Date.now();try{localStorage.setItem(_chaveRascunho(),JSON.stringify(r))}catch(e){}
+    db.from('rascunhos_gerente').upsert({email:String(userEmail||'').toLowerCase(),dados:r,atualizado_em:new Date().toISOString()}).then(function(){})}
 }
 
 function salvarGrupoBtn(btn){
@@ -491,7 +525,7 @@ async function aprovarGerente(btn){
       if(qtdEditadas[it.id]===undefined)continue; // não foi alterado, sem validação
       var novaQtd=qtdEditadas[it.id];
       var qtdOrigAlmox=it.qtd_almoxarife!==null&&it.qtd_almoxarife!==undefined?it.qtd_almoxarife:it.quantidade;
-      if(novaQtd!==qtdOrigAlmox){
+      if(novaQtd>qtdOrigAlmox){// justificativa obrigatória só para aumento
         var just=justificativas_ger[cardId+'|'+it.codigo]||'';
         if(!just.trim()){
           var tipo=novaQtd>qtdOrigAlmox?'aumentada':'reduzida';
