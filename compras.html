@@ -359,28 +359,6 @@ async function sbGet(tabela, select, onProgress, filtro=""){
   return all;
 }
 
-const COL_SC="C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total";
-const COL_PED="C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento";
-// Carrega só os últimos 12 meses (período padrão do filtro); datas mais antigas são buscadas sob demanda
-let _carregadoDesde=(()=>{const d=new Date();d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10)})();
-// ordem estável para a paginação por offset não pular/duplicar linhas
-const ORD={C1_EMISSAO:"C1_EMISSAO.asc,C1_NUM.asc,C1_ITEM.asc,C1_FILIAL.asc",EMISSAO_PEDIDO:"EMISSAO_PEDIDO.asc,C7_NUM.asc,C7_FILIAL.asc"};
-function filtroDesde(col,desde){return col+"=gte."+desde+"&order="+ORD[col]}
-function filtroEntre(col,ini,fim){return col+"=gte."+ini+"&"+col+"=lt."+fim+"&order="+ORD[col]}
-async function garantirPeriodo(ini){
-  if(!ini||ini>=_carregadoDesde)return;
-  const fc=document.getElementById("fcount");if(fc)fc.textContent="Carregando período anterior...";
-  const [sc,ped]=await Promise.all([
-    sbGet("scs",COL_SC,null,filtroEntre("C1_EMISSAO",ini,_carregadoDesde)),
-    sbGet("pedidos",COL_PED,null,filtroEntre("EMISSAO_PEDIDO",ini,_carregadoDesde))
-  ]);
-  ALL_SC=ALL_SC.concat(sc);ALL_PED=ALL_PED.concat(ped);_carregadoDesde=ini;
-  // popularFiltros() redefine selects e datas: preserva o que o usuário escolheu
-  const ids=["f-ini","f-fim","f-comp","f-grp","f-tipo","f-filial"],vals=ids.map(id=>document.getElementById(id).value);
-  popularFiltros();
-  ids.forEach((id,i)=>{document.getElementById(id).value=vals[i]});
-}
-
 async function carregar(){
   setProgresso(0,"Carregando filiais...");
   try{
@@ -391,17 +369,15 @@ async function carregar(){
 
     ALL_SC = await sbGet(
       "scs",
-      COL_SC,
-      (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n),
-      filtroDesde("C1_EMISSAO",_carregadoDesde)
+      "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
+      (n)=>setProgresso(5+Math.min(n/15000*25,25),"Carregando SCs... "+n)
     );
     setProgresso(30,"Carregando Pedidos...");
 
     ALL_PED = await sbGet(
       "pedidos",
-      COL_PED,
-      (n)=>setProgresso(30+Math.min(n/120000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR")),
-      filtroDesde("EMISSAO_PEDIDO",_carregadoDesde)
+      "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
+      (n)=>setProgresso(30+Math.min(n/120000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR"))
     );
     setProgresso(100,"Pronto!");
 
@@ -445,9 +421,8 @@ function normDate(s){
   return null;
 }
 
-async function applyFilters(){
+function applyFilters(){
   const ini=document.getElementById("f-ini").value, fim=document.getElementById("f-fim").value;
-  try{await garantirPeriodo(ini)}catch(e){alert("Erro ao carregar período: "+e.message)}
   const comp=document.getElementById("f-comp").value, grp=document.getElementById("f-grp").value;
   const tipo=document.getElementById("f-tipo").value, fil=document.getElementById("f-filial").value;
   fSC=ALL_SC.filter(r=>{
