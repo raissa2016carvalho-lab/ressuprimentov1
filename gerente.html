@@ -73,7 +73,7 @@ let ccsExpandidosGer=[...new Set(todosHomGer.map(c=>c.cc))];
 let ccsParaBuscarGer=ccsExpandidosGer.length>0?ccsExpandidosGer:loteCCs;
 // Buscar consumo paginando todos os códigos (não só os primeiros 500)
 let consLote=[];
-for(let j=0;j<codigos.length;j+=500){let{data:pg}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsParaBuscarGer).in(`produto`,codigos.slice(j,j+500));if(pg&&pg.length)consLote=consLote.concat(pg)}
+for(let j=0;j<codigos.length;j+=500){for(let off=0;;off+=1000){let{data:pg}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsParaBuscarGer).in(`produto`,codigos.slice(j,j+500)).order(`id`).range(off,off+999);if(pg&&pg.length)consLote=consLote.concat(pg);if(!pg||pg.length<1000)break}}// pagina: o banco devolve no máx. 1000 linhas por consulta
 const cons=consLote;
 (cons||[]).forEach(c=>{
   const nome=mapCcNomeGer[c.cc]||ccMap[c.cc]?.nome||c.cc;
@@ -101,7 +101,7 @@ solicitacoes.forEach(function(s){
   if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);
 });
 window._v2StatusMap={};
-$(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``)
+$(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``);setTimeout(_restaurarRascunho,400)
   // Marcar todos os botões como aprovado após renderizar
   setTimeout(()=>{
     // Botões individuais (renderCard)
@@ -341,6 +341,53 @@ function decidirCC(btn){
   }
 }
 window.decidirCC=decidirCC;
+// ── RASCUNHO AUTOMÁTICO (localStorage) ─────────────────────────────────────────
+// Guarda o que o gerente digitou para não perder ao recarregar ou cair a internet
+function _chaveRascunho(){return 'rasc_ger_'+String(userEmail||'').toLowerCase()}
+function _lerRascunho(){try{var r=JSON.parse(localStorage.getItem(_chaveRascunho())||'null');if(r&&Date.now()-r.ts<7*864e5)return r}catch(e){}return{ts:0,qtd:{},dec:{},just:{}}}
+var _tRasc=null;
+function _salvarRascunhoGer(){clearTimeout(_tRasc);_tRasc=setTimeout(function(){
+  var dec={},just={};
+  Object.keys(decisoes).forEach(function(k){if(decisoes[k]==='recusado')dec[k]='recusado'});
+  Object.keys(justificativas_ger).forEach(function(k){if(justificativas_ger[k])just[k]=justificativas_ger[k]});
+  try{localStorage.setItem(_chaveRascunho(),JSON.stringify({ts:Date.now(),qtd:Object.assign({},qtdEditadas),dec:dec,just:just}))}catch(e){}
+},500)}
+document.addEventListener('input',function(e){if(e.target.closest&&e.target.closest('#lista'))_salvarRascunhoGer()});
+document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('#lista .btn-dec'))_salvarRascunhoGer()});
+function _restaurarRascunho(){
+  var r=_lerRascunho(),n=0;
+  // decisões de recusa
+  document.querySelectorAll('#lista button[data-dec="recusado"]').forEach(function(btn){
+    var ids=(btn.dataset.ids||'').split(',').filter(Boolean);
+    if(ids.length&&ids.every(function(id){return r.dec[id]==='recusado'})){decidirCC(btn);n++}
+  });
+  // quantidades
+  document.querySelectorAll('#lista input.mat-tot-input').forEach(function(inp){
+    var ids=(inp.dataset.ids||'').split(',').filter(Boolean);
+    if(!ids.some(function(id){return r.qtd[id]!==undefined})||ids.every(function(id){return r.dec[id]==='recusado'}))return;
+    var tot=ids.reduce(function(a,id){return a+(r.qtd[id]!==undefined?Number(r.qtd[id]):0)},0);
+    inp.value=tot;inp.dispatchEvent(new Event('input',{bubbles:true}));
+    ids.forEach(function(id){if(r.qtd[id]!==undefined)qtdEditadas[id]=Number(r.qtd[id])});
+    n++;
+  });
+  // justificativas
+  document.querySelectorAll('#lista textarea[data-key]').forEach(function(t){
+    var v=r.just[t.dataset.key];if(!v)return;
+    t.value=v;justificativas_ger[t.dataset.key]=v;var td=t.closest('td');if(td)td.style.display='';n++;
+  });
+  if(n){var aviso=document.createElement('div');aviso.style.cssText='background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px';aviso.textContent='💾 Recuperamos o que você tinha digitado e ainda não enviou.';var l=document.getElementById('lista');if(l)l.prepend(aviso);_salvarRascunhoGer()}
+}
+// Ao enviar um card, tira do rascunho os itens daquelas solicitações
+function _limparRascunhoSols(solIds){
+  var r=_lerRascunho(),mudou=false;
+  (solIds||[]).forEach(function(sid){var sol=solicitacoes.find(function(s){return s.id===sid});(sol&&sol.itens||[]).forEach(function(it){
+    if(r.qtd[it.id]!==undefined){delete r.qtd[it.id];mudou=true}
+    if(r.dec[it.id]){delete r.dec[it.id];mudou=true}
+    delete qtdEditadas[it.id];
+  })});
+  Object.keys(r.just).forEach(function(k){if((solIds||[]).some(function(sid){return k.indexOf('mat-'+sid+'|')===0})){delete r.just[k];mudou=true}});
+  if(mudou)try{localStorage.setItem(_chaveRascunho(),JSON.stringify(r))}catch(e){}
+}
 
 function salvarGrupoBtn(btn){
   var ids=btn.dataset.ids.split(',').map(Number);
@@ -479,6 +526,7 @@ async function aprovarGerente(btn){
       status:'aguardando_master',atualizado_em:(new Date()).toISOString()
     }).eq('id',solId);
   }
+  _limparRascunhoSols(ids);
   if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-weight:600">✓ Enviado para aprovação final!</span>';
   // Remove o card do DOM sem recarregar tudo
   var cardEl=msgEl?msgEl.closest('.card'):null;
