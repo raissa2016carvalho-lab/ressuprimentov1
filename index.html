@@ -236,9 +236,7 @@ function renderFormularios(lista){
   // Agrupar igual à aba Solicitações (mesma matrícula + janela de 3 minutos)
   let grupos={};
   lista.forEach(s=>{
-    let dt=new Date(s.criado_em);
-    let minBase=Math.floor(dt.getMinutes()/3)*3;
-    let ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
+    let ch=_chaveGrupo(s);
     if(!grupos[ch])grupos[ch]=[];
     grupos[ch].push(s);
   });
@@ -468,9 +466,7 @@ visiveis.sort((a,b)=>{
 // Agrupar por envio (mesma matrícula + mesmo minuto)
 let grupos={};
 visiveis.forEach(s=>{// Agrupar por matrícula + janela de 5 minutos
-let dt=new Date(s.criado_em);
-let minBase=Math.floor(dt.getMinutes()/3)*3;
-let ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
+let ch=_chaveGrupo(s);
 if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
 $(`lista`).innerHTML=Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
 }
@@ -1127,6 +1123,8 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
 async function _emLotes(lista,fn,n){n=n||10;for(var i=0;i<lista.length;i+=n){var r=await Promise.all(lista.slice(i,i+n).map(fn));r.forEach(function(x){if(x&&x.error)console.error('Erro ao salvar:',x.error.message)})}}
 // Gerente já avaliou? (qtd_gerente gravada, ou solicitação já passou do status pendente)
 function _gerenteAvaliou(it,sol){return it.qtd_gerente!=null||!!(sol&&sol.status&&sol.status!=='pendente')}
+// Chave do card: solicitações com o mesmo grupo_envio ficam juntas; sem grupo, mesma matrícula + janela de 3 minutos
+function _chaveGrupo(s){if(s.grupo_envio)return 'G|'+s.grupo_envio;let dt=new Date(s.criado_em),mb=Math.floor(dt.getMinutes()/3)*3;return s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+mb}
 // Qtd real do gerente (coluna própria); fallback p/ registros antigos
 function _qtdGer(it){return it.qtd_gerente!=null?Number(it.qtd_gerente):(it.quantidade||0)}
 // Valor de referência do botão ↺: gerente, senão almoxarife
