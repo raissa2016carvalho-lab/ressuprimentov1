@@ -433,6 +433,16 @@ try{
     }
   }
 }catch(e){console.warn('[estoque]',e);}
+// Custo médio do Protheus às vezes vem distorcido em uma filial (ex.: R$ 0,05 para um item de R$ 54,50).
+// Quando ficar mais de 5× abaixo ou acima do preço do cadastro (itens.preco), usa o preço do cadastro.
+try{
+  let _cods=[...new Set(solicitacoes.flatMap(s=>(s.itens||[]).map(it=>String(it.codigo||'').trim())).filter(c=>c&&c!=='MANUAL'))],_preco={};
+  for(let i=0;i<_cods.length;i+=500){let{data:pr}=await db.from('itens').select('codigo,preco').in('codigo',_cods.slice(i,i+500));(pr||[]).forEach(r=>{if(Number(r.preco)>0)_preco[String(r.codigo).trim()]=Number(r.preco)})}
+  Object.keys(custoMap).forEach(k=>{let p=_preco[k.split('|')[1]];if(p&&(custoMap[k]<p/5||custoMap[k]>p*5))custoMap[k]=p});
+  // itens sem custo em nenhuma filial: usa o preço do cadastro (achado pelo fallback '...|codigo')
+  let _comCusto=new Set(Object.keys(custoMap).map(k=>k.split('|')[1]));
+  Object.keys(_preco).forEach(c=>{if(!_comCusto.has(c))custoMap['*|'+c]=_preco[c]});
+}catch(e){console.warn('[preco]',e);}
 }let atendem=solicitacoes.filter(s=>s.status===`pendente`||s.status===`aguardando_master`).length,badge=$(`badge-pendentes`);atendem>0?(badge.style.display=`inline-flex`,badge.textContent=atendem):badge.style.display=`none`,renderLista()}$(`btn-atualizar`).addEventListener(`click`,carregarSolicitacoes);async function aprovarTodas(){if(!isAdmin){alert(`Apenas administradores podem aprovar.`);return}let aguardando=solicitacoes.filter(s=>s.status===`aguardando_master`);if(aguardando.length===0){alert(`Nenhuma solicitação aguardando revisão do master.`);return}if(confirm(`Aprovar todas as ${aguardando.length} solicitações aguardando revisão?`)){for(let s of aguardando){for(let it of s.itens)await db.from(`solicitacao_itens`).update({situacao:`aprovado`}).eq(`id`,it.id);await db.from(`solicitacoes`).update({status:`aprovada`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,s.id)}await carregarSolicitacoes(),alert(`✓ `+aguardando.length+` solicitação(ões) aprovada(s)!`)}}window.aprovarTodas=aprovarTodas;function fmtData(iso){return new Date(iso).toLocaleString(`pt-BR`,{day:`2-digit`,month:`2-digit`,year:`2-digit`,hour:`2-digit`,minute:`2-digit`})}const LABEL_STATUS={pendente:`Pendente`,em_analise:`Em análise`,aprovada:`Aprovada`,recusada:`Recusada`,parcial:`Parcial`,aguardando_master:`Aguardando master`};function renderLista(){
 let visiveis=solicitacoes.filter(s=>{
   if(s.status===`aguardando_master`)return true;
@@ -1176,14 +1186,11 @@ function _estoqueItemMat(grupo,item){
 function _htmlAcao(estoque,consMes,qtd,periodo){
   qtd=Number(qtd)||0;if(qtd<=0)return'<span style="color:#cbd5e1">—</span>';
   periodo=Number(periodo)||1;
-  // Alerta: pedido muito acima do consumo esperado para o período
-  var esperado=(consMes>0?consMes:0)*periodo,alerta='';
-  if(!(consMes>0))alerta='<div style="color:#b45309;font-size:10.5px;margin-top:3px" title="Item sem consumo no histórico: confira se a quantidade faz sentido">⚠️ sem consumo</div>';
-  else if(qtd>esperado*1.5){
-    var vezes=qtd/esperado,esp=Math.max(1,Math.round(esperado));
-    alerta='<div style="color:#b45309;font-size:10.5px;margin-top:3px" title="Consumo médio '+(Math.round(consMes*10)/10)+'/mês × '+periodo+' mês(es) = esperado ~'+esp+'">⚠️ '+(vezes>=10?Math.round(vezes):Math.round(vezes*10)/10)+'× o consumo<br>esperado ~'+esp+'</div>';
-  }
-  if(estoque==null)return'<span title="Sem posição de estoque registrada no envio do formulário" style="color:#64748b">⚪ Sem posição</span>'+alerta;
+  // Alerta discreto: pedido muito acima do consumo esperado (detalhes ao passar o mouse)
+  var esperado=(consMes>0?consMes:0)*periodo,alerta='',_alTit='';
+  if(!(consMes>0)){alerta='sem consumo';_alTit='Item sem consumo no histórico: confira se a quantidade faz sentido'}
+  else if(qtd>esperado*1.5){var vezes=qtd/esperado;alerta=(vezes>=10?Math.round(vezes):Math.round(vezes*10)/10)+'× consumo';_alTit='Consumo médio '+(Math.round(consMes*10)/10)+'/mês × '+periodo+' mês(es) = esperado ~'+Math.max(1,Math.round(esperado))}
+  if(estoque==null){if(alerta)alerta='<div style="color:#b45309;font-size:9.5px;margin-top:2px;opacity:.85;cursor:help" title="'+_alTit+'">⚠ '+alerta+'</div>';return'<span title="Sem posição de estoque registrada no envio do formulário" style="color:#64748b">⚪ Sem posição</span>'+alerta}
   var meses=Math.max(0,(_inicioPeriodo()-new Date())/(30.44*864e5));
   var disponivel=Math.max(0,(Number(estoque)||0)-(consMes>0?consMes:0)*meses);
   var comprar=Math.max(0,Math.ceil(qtd-disponivel));
@@ -1194,7 +1201,7 @@ function _htmlAcao(estoque,consMes,qtd,periodo){
   if(comprar===0)acao='<span'+tit+'>✅ Estoque cobre</span>';
   else if(comprar<qtd)acao='<span'+tit+'>🟡 Complementar<br><b>comprar '+comprar+'</b></span>';
   else acao='<span'+tit+'>🔴 Comprar tudo<br><b>'+comprar+'</b></span>';
-  if(alerta&&sugerido!=null)alerta=alerta.replace('</div>','<br><b>sugerido: '+sugerido+'</b></div>');
+  if(alerta){if(sugerido!=null&&!/sem consumo/.test(alerta))_alTit+=' · sugerido: '+sugerido;alerta='<div style="color:#b45309;font-size:9.5px;margin-top:2px;opacity:.85;cursor:help" title="'+_alTit+'">⚠ '+alerta+'</div>'}
   return acao+alerta;
 }
 function _tdAcao(estoque,cons,qtd,periodo){var c=cons===-1?0.5:(Number(cons)||0);return'<td class="acao-compra" data-e="'+(estoque==null?'':estoque)+'" data-c="'+c+'" data-p="'+(Number(periodo)||1)+'" style="text-align:center;font-size:11.5px;line-height:1.3;padding:6px">'+_htmlAcao(estoque,c,qtd,periodo)+'</td>'}
