@@ -592,7 +592,8 @@ function renderCardMatricial(grupo,readonly){
 
     // Qtd gerente = soma das quantidades após decisão do gerente (it.quantidade já foi atualizado)
     var qtdGerente=Object.values(item.porCC).reduce(function(s,it){return s+_qtdGer(it)},0);
-    var alterada=qtdGerente!==qtdTotal;
+    var gerAvaliou=Object.values(item.porCC).some(function(it){return _gerenteAvaliou(it,grupo.find(function(g){return g.id===it.solicitacao_id}))});
+    var alterada=gerAvaliou&&qtdGerente!==qtdTotal;
     // Pré-popular masterQtd com qtd do gerente por item (usado no Excel se master não editar)
     Object.values(item.porCC).forEach(function(it){if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.situacao==='recusado'?0:(it.quantidade||0);});
     // Justificativas do gerente (pode haver uma por CC)
@@ -629,7 +630,7 @@ function renderCardMatricial(grupo,readonly){
       })()
       +'<td style="text-align:center;font-family:ui-monospace,monospace;color:#475569">'+qtdDigitada+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#f0fdf4;color:#166534">'+qtdTotal+'</td>'
-      +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#eff6ff;color:'+(alterada?'#1e40af':'#475569')+'">'+qtdGerente+'</td>'
+      +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#eff6ff;color:'+(alterada?'#1e40af':'#475569')+'">'+(gerAvaliou?qtdGerente:'<span style="color:#cbd5e1;font-weight:400" title="Gerente ainda não avaliou">—</span>')+'</td>'
       +'<td style="font-size:11.5px;color:#475569;background:#eff6ff;max-width:160px">'+(justsGer?'<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10.5px">'+justsGer+'</span>':'—')+'</td>'
       +(function(){
         // Buscar o pedido mais recente para este item em QUALQUER CC do grupo
@@ -789,10 +790,7 @@ async function salvarGrupoMaster(btn){
     if(!sol)continue;
     var scNum=document.getElementById('sc-'+solId).value.trim();
     var obsVal=document.getElementById('obs-mat-'+solId).value.trim();
-    for(var j=0;j<(sol.itens||[]).length;j++){
-      var it=sol.itens[j];
-      await db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade,{situacao:'aprovado'})).eq('id',it.id);
-    }
+    await _emLotes(sol.itens||[],function(it){return db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id]!==undefined?masterQtd[it.id]:it.quantidade,{situacao:'aprovado'})).eq('id',it.id)});
     await db.from('solicitacoes').update({sc_numero:scNum,observacao:obsVal,status:'aprovada',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
   }
   if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:13px">✓ Aprovado!</span>';
@@ -814,9 +812,7 @@ async function rejeitarRessuprimento(btn){
   for(var i=0;i<ids.length;i++){
     var sol=solicitacoes.find(function(s){return s.id===ids[i];});
     if(!sol)continue;
-    for(var j=0;j<(sol.itens||[]).length;j++){
-      await db.from('solicitacao_itens').update({situacao:'recusado'}).eq('id',sol.itens[j].id);
-    }
+    if((sol.itens||[]).length)await db.from('solicitacao_itens').update({situacao:'recusado'}).in('id',sol.itens.map(function(it){return it.id}));
     await db.from('solicitacoes').update({status:'recusada',atualizado_em:(new Date()).toISOString()}).eq('id',ids[i]);
   }
   // Remove o card do DOM imediatamente sem recarregar tudo
@@ -1002,7 +998,7 @@ let hist=Object.keys(_histAll).length?encodeURIComponent(JSON.stringify(_histAll
 let _custoKey2=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
 let _cu=custoMap[_custoKey2]||0;
 if(!_cu){let _cod=String(it.codigo||'').trim();for(let _ck in custoMap){if(_ck.endsWith('|'+_cod)){_cu=custoMap[_ck];break;}}}
-let qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=_qtdGer(it),justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=it.qtd_almoxarife!=null,alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
+let qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=_qtdGer(it),justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=_gerenteAvaliou(it,s),alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
                 <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
@@ -1105,6 +1101,10 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
         </div>
       </div>
     `}const decisoes={},masterQtd={};
+// Executa as gravações em lotes paralelos (em vez de uma por vez)
+async function _emLotes(lista,fn,n){n=n||10;for(var i=0;i<lista.length;i+=n){var r=await Promise.all(lista.slice(i,i+n).map(fn));r.forEach(function(x){if(x&&x.error)console.error('Erro ao salvar:',x.error.message)})}}
+// Gerente já avaliou? (qtd_gerente gravada, ou solicitação já passou do status pendente)
+function _gerenteAvaliou(it,sol){return it.qtd_gerente!=null||!!(sol&&sol.status&&sol.status!=='pendente')}
 // Qtd real do gerente (coluna própria); fallback p/ registros antigos
 function _qtdGer(it){return it.qtd_gerente!=null?Number(it.qtd_gerente):(it.quantidade||0)}
 // Valor de referência do botão ↺: gerente, senão almoxarife
@@ -1199,7 +1199,7 @@ function resetarCardInd(solId){
 }
 window.resetarCardInd=resetarCardInd;
 
-function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor,document.getElementById(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``),document.getElementById(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)}window.decidir=decidir;function toggleCard(id){document.getElementById(`corpo-`+id).classList.toggle(`aberto`)}window.toggleCard=toggleCard;async function salvar(solId){if(!isAdmin){alert(`Apenas administradores podem salvar.`);return}let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let scNumero=$(`sc-`+solId).value.trim(),obs=$(`obs-`+solId).value.trim(),situacoesFinais=[];for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id];situacoesFinais.push(valor);let upd={situacao:valor};masterQtd[it.id]!==void 0&&masterQtd[it.id]!==it.quantidade&&(upd=_updMaster(it,masterQtd[it.id],upd)),await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id)}let ap=situacoesFinais.filter(v=>v===`aprovado`).length,re=situacoesFinais.filter(v=>v===`recusado`).length,status=`em_analise`;ap>0&&re===0&&ap===situacoesFinais.length?status=`aprovada`:re===situacoesFinais.length?status=`recusada`:ap>0&&re>0?status=`parcial`:ap===0&&re===0&&(status=`pendente`);let{error}=await db.from(`solicitacoes`).update({status,sc_numero:scNumero||null,observacao:obs||null,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId),msgEl=document.getElementById(`salvo-msg-`+solId);error?msgEl.innerHTML=`<div class="msg erro">Erro ao salvar: `+error.message+`</div>`:(msgEl.innerHTML=`<div class="msg ok">✓ Salvo!</div>`,setTimeout(carregarSolicitacoes,800))}window.salvar=salvar;
+function decidir(solId,itemId,valor){decisoes[itemId]=decisoes[itemId]===valor?`pendente`:valor,document.getElementById(`ap-`+itemId).className=`btn-dec`+(decisoes[itemId]===`aprovado`?` aprovado`:``),document.getElementById(`re-`+itemId).className=`btn-dec`+(decisoes[itemId]===`recusado`?` recusado`:``)}window.decidir=decidir;function toggleCard(id){document.getElementById(`corpo-`+id).classList.toggle(`aberto`)}window.toggleCard=toggleCard;async function salvar(solId){if(!isAdmin){alert(`Apenas administradores podem salvar.`);return}let sol=solicitacoes.find(s=>s.id===solId);if(!sol)return;let scNumero=$(`sc-`+solId).value.trim(),obs=$(`obs-`+solId).value.trim(),situacoesFinais=[];let _pend=[];for(let it of sol.itens){let valor=decisoes[it.id]===void 0?it.situacao||`pendente`:decisoes[it.id];situacoesFinais.push(valor);let upd={situacao:valor};masterQtd[it.id]!==void 0&&masterQtd[it.id]!==it.quantidade&&(upd=_updMaster(it,masterQtd[it.id],upd)),_pend.push({it,upd})}await _emLotes(_pend,p=>db.from(`solicitacao_itens`).update(p.upd).eq(`id`,p.it.id));let ap=situacoesFinais.filter(v=>v===`aprovado`).length,re=situacoesFinais.filter(v=>v===`recusado`).length,status=`em_analise`;ap>0&&re===0&&ap===situacoesFinais.length?status=`aprovada`:re===situacoesFinais.length?status=`recusada`:ap>0&&re>0?status=`parcial`:ap===0&&re===0&&(status=`pendente`);let{error}=await db.from(`solicitacoes`).update({status,sc_numero:scNumero||null,observacao:obs||null,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId),msgEl=document.getElementById(`salvo-msg-`+solId);error?msgEl.innerHTML=`<div class="msg erro">Erro ao salvar: `+error.message+`</div>`:(msgEl.innerHTML=`<div class="msg ok">✓ Salvo!</div>`,setTimeout(carregarSolicitacoes,800))}window.salvar=salvar;
 
 async function salvarRascunho(solId){
   let sol=solicitacoes.find(s=>s.id===solId);
@@ -1207,12 +1207,11 @@ async function salvarRascunho(solId){
   let msgEl=document.getElementById('salvo-msg-'+solId);
   if(msgEl)msgEl.innerHTML='<div class="msg">Salvando rascunho...</div>';
   // Salvar só as qtds master nos itens — sem mudar status da solicitação
-  for(let it of sol.itens){
-    if(masterQtd[it.id]!==undefined){
-      await db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id])).eq('id',it.id);
-      it.quantidade=masterQtd[it.id]; // atualiza em memória
-    }
-  }
+  await _emLotes(sol.itens.filter(it=>masterQtd[it.id]!==undefined),async it=>{
+    let r=await db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id])).eq('id',it.id);
+    it.quantidade=masterQtd[it.id]; // atualiza em memória
+    return r;
+  });
   // Salvar SC e obs sem mudar status
   let scNumero=document.getElementById('sc-'+solId)?.value.trim()||null;
   let obs=document.getElementById('obs-'+solId)?.value.trim()||null;
@@ -1233,12 +1232,11 @@ async function salvarRascunhoGrupo(btn){
   for(let solId of ids){
     let sol=solicitacoes.find(s=>s.id===solId);
     if(!sol)continue;
-    for(let it of (sol.itens||[])){
-      if(masterQtd[it.id]!==undefined){
-        await db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id])).eq('id',it.id);
-        it.quantidade=masterQtd[it.id];
-      }
-    }
+    await _emLotes((sol.itens||[]).filter(it=>masterQtd[it.id]!==undefined),async it=>{
+      let r=await db.from('solicitacao_itens').update(_updMaster(it,masterQtd[it.id])).eq('id',it.id);
+      it.quantidade=masterQtd[it.id];
+      return r;
+    });
     await db.from('solicitacoes').update({atualizado_em:new Date().toISOString()}).eq('id',solId);
   }
   if(msgEl)msgEl.innerHTML='<span style="color:#1e40af;font-weight:600">💾 Rascunho salvo! As quantidades master estão guardadas.</span>';
