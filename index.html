@@ -620,8 +620,10 @@ function renderCardMatricial(grupo,readonly){
         var _eKey=_fil+'|'+String(item.codigo||'').trim();
         var _eSnap=null;
         grupo.forEach(function(s){(s.itens||[]).forEach(function(it){if(String(it.codigo||'').trim()===String(item.codigo||'').trim()&&it.estoque_filial!=null)_eSnap=Number(it.estoque_filial)})});
-        var _eQtd=_eSnap!=null?_eSnap:estoqueMap[_eKey];
-        var _eCell=_eQtd!=null&&_eQtd>0?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:#7c3aed;font-weight:600">'+Math.floor(_eQtd)+'</td>':'<td style="text-align:center;font-size:11px;color:#cbd5e1;background:#faf5ff">—</td>';
+        // posição registrada no envio do formulário (sem fallback para o estoque atual)
+        var _eQtd=_eSnap;var _eDt=null;grupo.forEach(function(s){(s.itens||[]).forEach(function(it){if(String(it.codigo||'').trim()===String(item.codigo||'').trim()&&it.estoque_filial_data)_eDt=it.estoque_filial_data})});
+        var _eDtTxt=_eDt?new Date(_eDt).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
+        var _eCell=_eQtd!=null?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:#7c3aed;font-weight:600" title="Posição no envio do formulário'+(_eDtTxt?' ('+_eDtTxt+')':'')+'">'+Math.floor(_eQtd)+(_eDtTxt?'<div style="font-size:8px;color:#a78bfa;font-weight:400">'+_eDtTxt+'</div>':'')+'</td>':'<td style="text-align:center;font-size:11px;color:#cbd5e1;background:#faf5ff" title="Sem posição de estoque registrada no envio">—</td>';
         var _cMes=cons===-1?0.5:cons;
         var _cob=_eQtd>0&&_cMes>0?_eQtd/_cMes:null;
         var _cColor=_cob==null?'#94a3b8':_cob<1?'#ef4444':_cob<3?'#f59e0b':'#16a34a';
@@ -1011,10 +1013,9 @@ let qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=
                 </td>
                 <td style="text-align:center">${consHtml}</td>
                 `+((()=>{
-  // Estoque da filial: prioriza valor salvo na solicitação, fallback para estoque atual
-  let _estKey=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
-  let _estQtd=it.estoque_filial!=null?Number(it.estoque_filial):estoqueMap[_estKey];
-  let _estData=it.estoque_filial_data?new Date(it.estoque_filial_data).toLocaleDateString('pt-BR'):'ao vivo';
+  // Estoque da filial: posição registrada no envio do formulário
+  let _estQtd=it.estoque_filial!=null?Number(it.estoque_filial):null;
+  let _estData=it.estoque_filial_data?new Date(it.estoque_filial_data).toLocaleDateString('pt-BR'):'sem posição';
   let _estCell=_estQtd!=null&&_estQtd>0?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:#7c3aed;font-weight:600" title="Posição: '+_estData+'">'+Math.floor(_estQtd)+'<div style="font-size:8px;color:#a78bfa;font-weight:400">'+_estData+'</div></td>':'<td style="text-align:center;font-size:11px;color:#cbd5e1;background:#faf5ff">—</td>';
   // Cobertura = estoque / consumo médio mensal
   let _consMes=cons===-1?0.5:cons; // -1 significa <1, usar 0.5
@@ -1170,11 +1171,11 @@ function _rotuloInicioPeriodo(){return _inicioPeriodo().toLocaleDateString('pt-B
 function _estoqueItemMat(grupo,item){
   var cod=String(item.codigo||'').trim(),snap=null;
   grupo.forEach(function(s){(s.itens||[]).forEach(function(it){if(String(it.codigo||'').trim()===cod&&it.estoque_filial!=null)snap=Number(it.estoque_filial)})});
-  if(snap!=null)return snap;
-  var v=estoqueMap[String(grupo[0]&&grupo[0].filial||'').trim()+'|'+cod];return v!=null?Number(v):null;
+  return snap;
 }
 function _htmlAcao(estoque,consMes,qtd){
   qtd=Number(qtd)||0;if(qtd<=0)return'<span style="color:#cbd5e1">—</span>';
+  if(estoque==null)return'<span title="Sem posição de estoque registrada no envio do formulário" style="color:#64748b">⚪ Sem posição</span>';
   var meses=Math.max(0,(_inicioPeriodo()-new Date())/(30.44*864e5));
   var disponivel=Math.max(0,(Number(estoque)||0)-(consMes>0?consMes:0)*meses);
   var comprar=Math.max(0,Math.ceil(qtd-disponivel));
