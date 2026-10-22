@@ -365,7 +365,7 @@ const COL_PED="C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR
 let _carregadoDesde=(()=>{const d=new Date();d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10)})();
 // ordem estável para a paginação por offset não pular/duplicar linhas
 const ORD={C1_EMISSAO:"C1_EMISSAO.asc,C1_NUM.asc,C1_ITEM.asc,C1_FILIAL.asc",EMISSAO_PEDIDO:"EMISSAO_PEDIDO.asc,C7_NUM.asc,C7_FILIAL.asc"};
-function filtroDesde(col,desde){return "or=("+col+".gte."+desde+","+col+".is.null)&order="+ORD[col]}
+function filtroDesde(col,desde){return col+"=gte."+desde+"&order="+ORD[col]}
 function filtroEntre(col,ini,fim){return col+"=gte."+ini+"&"+col+"=lt."+fim+"&order="+ORD[col]}
 async function garantirPeriodo(ini){
   if(!ini||ini>=_carregadoDesde)return;
