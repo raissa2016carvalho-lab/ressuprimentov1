@@ -73,7 +73,7 @@ let ccsExpandidosGer=[...new Set(todosHomGer.map(c=>c.cc))];
 let ccsParaBuscarGer=ccsExpandidosGer.length>0?ccsExpandidosGer:loteCCs;
 // Buscar consumo paginando todos os códigos (não só os primeiros 500)
 let consLote=[];
-for(let j=0;j<codigos.length;j+=500){let{data:pg}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsParaBuscarGer).in(`produto`,codigos.slice(j,j+500));if(pg&&pg.length)consLote=consLote.concat(pg)}
+for(let j=0;j<codigos.length;j+=500){for(let off=0;;off+=1000){let{data:pg}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsParaBuscarGer).in(`produto`,codigos.slice(j,j+500)).order(`id`).range(off,off+999);if(pg&&pg.length)consLote=consLote.concat(pg);if(!pg||pg.length<1000)break}}// pagina: o banco devolve no máx. 1000 linhas por consulta
 const cons=consLote;
 (cons||[]).forEach(c=>{
   const nome=mapCcNomeGer[c.cc]||ccMap[c.cc]?.nome||c.cc;
@@ -101,7 +101,7 @@ solicitacoes.forEach(function(s){
   if(!grupos2[ch])grupos2[ch]=[];grupos2[ch].push(s);
 });
 window._v2StatusMap={};
-$(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``)
+$(`lista`).innerHTML=Object.values(grupos2).map(function(g){return g.length>1?renderCardMatricial(g):renderCard(g[0]);}).join(``);setTimeout(async function(){await _sincronizarRascunhoServidor();_restaurarRascunho()},400)
   // Marcar todos os botões como aprovado após renderizar
   setTimeout(()=>{
     // Botões individuais (renderCard)
@@ -135,7 +135,7 @@ atualizarBadges();
   var dt=fmtData(s0.criado_em);
   var periodo=s0.periodo_meses||3;
   var just=s0.justificativa||'';
-  var cardId='mat-'+s0.criado_em.slice(0,10).replace(/[^0-9]/g,'');
+  var cardId='mat-'+s0.id;
 
   var itensMap2={};
   grupo.forEach(function(s){
@@ -184,17 +184,18 @@ atualizarBadges();
     var decAtual=Object.values(item.porCC).map(function(it){return decisoes[it.id]}).find(function(d){return d})||'';
     var aprCls='btn-dec'+(decAtual==='aprovado'?' aprovado':'');
     var recCls='btn-dec'+(decAtual==='recusado'?' recusado':'');
-    return'<tr id="mrow-'+item.codigo+'">'
+    var rk=cardId+'-'+item.codigo;
+    return'<tr id="mrow-'+rk+'">'
       +'<td class="item-desc"><div>'+(item.descricao||item.codigo||'')+badgeSH+'</div><div style="font-size:10px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
       +'<td style="text-align:center;font-weight:700;color:#1e40af;font-size:12px">'+consDisp+'</td>'
       +colunas
-      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+item.codigo+'" data-ids="'+idsCC+'" data-orig="'+totalGeral+'" id="mtot-'+item.codigo+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/></td>'
-      +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mval-'+item.codigo+'">'+fmtNum(valorEst)+'</td>'
+      +'<td style="text-align:center"><input type="number" min="0" value="'+totalGeral+'" data-preco="'+preco+'" data-valel="mval-'+rk+'" data-ids="'+idsCC+'" data-orig="'+totalGeral+'" id="mtot-'+rk+'" class="mat-tot-input" style="width:65px;text-align:right;padding:3px 5px;border:1px solid #e2e8f0;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;font-weight:700"/><button title="Voltar à quantidade original" onclick="resetarItemGer(this)" style="border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;border-radius:4px;font-size:12px;padding:2px 6px;margin-left:4px">↺</button></td>'
+      +'<td style="text-align:right;font-size:12px;color:#475569;white-space:nowrap" id="mval-'+rk+'">'+fmtNum(valorEst)+'</td>'
       +'<td style="text-align:center;white-space:nowrap">'
-      +'<button class="'+aprCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
-      +'<button class="'+recCls+'" data-cod="'+item.codigo+'" data-ids="'+idsCC+'" data-dec="recusado" onclick="decidirCC(this)">✗</button>'
+      +'<button class="'+aprCls+'" data-cod="'+rk+'" data-ids="'+idsCC+'" data-dec="aprovado" onclick="decidirCC(this)">✓</button>'
+      +'<button class="'+recCls+'" data-cod="'+rk+'" data-ids="'+idsCC+'" data-dec="recusado" onclick="decidirCC(this)">✗</button>'
       +'</td>'
-      +'<td id="just-td-'+item.codigo+'" style="display:none;padding:4px 8px"><textarea data-cod="'+item.codigo+'" rows="2" placeholder="Justificativa..." style="width:150px;padding:4px 6px;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-family:inherit;resize:none" oninput="justificativas_ger[this.dataset.cod]=this.value"></textarea></td>'
+      +'<td id="just-td-'+rk+'" style="display:none;padding:4px 8px"><textarea data-cod="'+item.codigo+'" data-key="'+cardId+'|'+item.codigo+'" rows="2" placeholder="Justificativa..." style="width:150px;padding:4px 6px;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-family:inherit;resize:none" oninput="justificativas_ger[this.dataset.key]=this.value"></textarea></td>'
       +'</tr>';
   }).join('');
 
@@ -235,6 +236,7 @@ atualizarBadges();
     +'<div id="msg-'+cardId+'"></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px">'
     +'<button class="btn-aprovar-todas" style="margin-top:0" data-cardid="'+cardId+'" onclick="aprovarTodosVisual(this,\''+cardId+'\')">✔ Aprovar todos os itens</button>'
+    +'<button class="btn-aprovar-todas" style="margin-top:0;background:#fff;color:#1e40af;border:1px solid #bfdbfe" data-cardid="'+cardId+'" onclick="salvarRascunhoServidor(this)">💾 Salvar rascunho</button>'
     +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-cardid="'+cardId+'" onclick="aprovarGerente(this)">📤 Enviar para master</button>'
     +'</div>'
     +'</div>'
@@ -306,7 +308,7 @@ document.addEventListener('input',function(e){
     var qtdAtual=Number(e.target.value)||0;
     var qtdOrig=Number(e.target.dataset.orig)||0;
     var justTd=document.getElementById('just-td-'+codigo);
-    if(justTd)justTd.style.display=qtdAtual!==qtdOrig?'':'none';// mostra para aumento E redução
+    if(justTd)justTd.style.display=qtdAtual>qtdOrig?'':'none';// justificativa só quando aumenta
     // Gravar nova qtd em qtdEditadas para cada item id do produto
     var ids=(e.target.dataset.ids||'').split(',').map(Number).filter(Boolean);
     // Distribuir proporcionalmente pelas qtds originais de cada CC
@@ -340,6 +342,86 @@ function decidirCC(btn){
   }
 }
 window.decidirCC=decidirCC;
+// ── RASCUNHO AUTOMÁTICO (localStorage) ─────────────────────────────────────────
+// Guarda o que o gerente digitou para não perder ao recarregar ou cair a internet
+function _chaveRascunho(){return 'rasc_ger_'+String(userEmail||'').toLowerCase()}
+function _lerRascunho(){try{var r=JSON.parse(localStorage.getItem(_chaveRascunho())||'null');if(r&&Date.now()-r.ts<7*864e5)return r}catch(e){}return{ts:0,qtd:{},dec:{},just:{}}}
+var _tRasc=null;
+function _salvarRascunhoGer(){clearTimeout(_tRasc);_tRasc=setTimeout(function(){
+  var dec={},just={};
+  Object.keys(decisoes).forEach(function(k){if(decisoes[k]==='recusado')dec[k]='recusado'});
+  Object.keys(justificativas_ger).forEach(function(k){if(justificativas_ger[k])just[k]=justificativas_ger[k]});
+  try{localStorage.setItem(_chaveRascunho(),JSON.stringify({ts:Date.now(),qtd:Object.assign({},qtdEditadas),dec:dec,just:just}))}catch(e){}
+},500)}
+document.addEventListener('input',function(e){if(e.target.closest&&e.target.closest('#lista'))_salvarRascunhoGer()});
+document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('#lista .btn-dec'))_salvarRascunhoGer()});
+function _restaurarRascunho(){
+  var r=_lerRascunho(),n=0;
+  // decisões de recusa
+  document.querySelectorAll('#lista button[data-dec="recusado"]').forEach(function(btn){
+    var ids=(btn.dataset.ids||'').split(',').filter(Boolean);
+    if(ids.length&&ids.every(function(id){return r.dec[id]==='recusado'})){decidirCC(btn);n++}
+  });
+  // quantidades
+  document.querySelectorAll('#lista input.mat-tot-input').forEach(function(inp){
+    var ids=(inp.dataset.ids||'').split(',').filter(Boolean);
+    if(!ids.some(function(id){return r.qtd[id]!==undefined})||ids.every(function(id){return r.dec[id]==='recusado'}))return;
+    var tot=ids.reduce(function(a,id){return a+(r.qtd[id]!==undefined?Number(r.qtd[id]):0)},0);
+    inp.value=tot;inp.dispatchEvent(new Event('input',{bubbles:true}));
+    ids.forEach(function(id){if(r.qtd[id]!==undefined)qtdEditadas[id]=Number(r.qtd[id])});
+    n++;
+  });
+  // justificativas
+  document.querySelectorAll('#lista textarea[data-key]').forEach(function(t){
+    var v=r.just[t.dataset.key];if(!v)return;
+    t.value=v;justificativas_ger[t.dataset.key]=v;var td=t.closest('td');if(td)td.style.display='';n++;
+  });
+  if(n){var aviso=document.createElement('div');aviso.style.cssText='background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px';aviso.textContent='💾 Recuperamos o que você tinha digitado e ainda não enviou.';var l=document.getElementById('lista');if(l)l.prepend(aviso);_salvarRascunhoGer()}
+}
+// ↺ volta o item à quantidade original (e desfaz recusa)
+function resetarItemGer(btn){
+  var tr=btn.closest('tr');if(!tr)return;
+  var ap=tr.querySelector('button[data-dec="aprovado"]');if(ap&&!ap.classList.contains('aprovado'))decidirCC(ap);
+  var inp=tr.querySelector('input.mat-tot-input');if(!inp)return;
+  inp.value=inp.dataset.orig;inp.dispatchEvent(new Event('input',{bubbles:true}));
+  (inp.dataset.ids||'').split(',').filter(Boolean).forEach(function(id){delete qtdEditadas[id]});
+  var t=tr.querySelector('textarea[data-key]');if(t){t.value='';delete justificativas_ger[t.dataset.key]}
+  _salvarRascunhoGer();
+}
+window.resetarItemGer=resetarItemGer;
+// 💾 rascunho no servidor (tabela rascunhos_gerente) para abrir em outro computador
+async function salvarRascunhoServidor(btn){
+  clearTimeout(_tRasc);
+  var dec={},just={};
+  Object.keys(decisoes).forEach(function(k){if(decisoes[k]==='recusado')dec[k]='recusado'});
+  Object.keys(justificativas_ger).forEach(function(k){if(justificativas_ger[k])just[k]=justificativas_ger[k]});
+  var r={ts:Date.now(),qtd:Object.assign({},qtdEditadas),dec:dec,just:just};
+  try{localStorage.setItem(_chaveRascunho(),JSON.stringify(r))}catch(e){}
+  var msg=document.getElementById('msg-'+btn.dataset.cardid);
+  var {error}=await db.from('rascunhos_gerente').upsert({email:String(userEmail||'').toLowerCase(),dados:r,atualizado_em:new Date().toISOString()});
+  if(msg)msg.innerHTML=error?'<span style="color:#991b1b">Rascunho salvo só neste computador ('+String(error.message).replace(/[<>]/g,'')+')</span>':'<span style="color:#1e40af;font-weight:600">💾 Rascunho salvo! Você pode continuar depois, de qualquer computador.</span>';
+}
+window.salvarRascunhoServidor=salvarRascunhoServidor;
+// Busca o rascunho do servidor e usa o mais recente (servidor x navegador)
+async function _sincronizarRascunhoServidor(){
+  try{
+    var {data}=await db.from('rascunhos_gerente').select('dados').eq('email',String(userEmail||'').toLowerCase()).maybeSingle();
+    var srv=data&&data.dados;
+    if(srv&&srv.ts>(_lerRascunho().ts||0))localStorage.setItem(_chaveRascunho(),JSON.stringify(srv));
+  }catch(e){}
+}
+// Ao enviar um card, tira do rascunho os itens daquelas solicitações
+function _limparRascunhoSols(solIds){
+  var r=_lerRascunho(),mudou=false;
+  (solIds||[]).forEach(function(sid){var sol=solicitacoes.find(function(s){return s.id===sid});(sol&&sol.itens||[]).forEach(function(it){
+    if(r.qtd[it.id]!==undefined){delete r.qtd[it.id];mudou=true}
+    if(r.dec[it.id]){delete r.dec[it.id];mudou=true}
+    delete qtdEditadas[it.id];
+  })});
+  Object.keys(r.just).forEach(function(k){if((solIds||[]).some(function(sid){return k.indexOf('mat-'+sid+'|')===0})){delete r.just[k];mudou=true}});
+  if(mudou){r.ts=Date.now();try{localStorage.setItem(_chaveRascunho(),JSON.stringify(r))}catch(e){}
+    db.from('rascunhos_gerente').upsert({email:String(userEmail||'').toLowerCase(),dados:r,atualizado_em:new Date().toISOString()}).then(function(){})}
+}
 
 function salvarGrupoBtn(btn){
   var ids=btn.dataset.ids.split(',').map(Number);
@@ -443,12 +525,12 @@ async function aprovarGerente(btn){
       if(qtdEditadas[it.id]===undefined)continue; // não foi alterado, sem validação
       var novaQtd=qtdEditadas[it.id];
       var qtdOrigAlmox=it.qtd_almoxarife!==null&&it.qtd_almoxarife!==undefined?it.qtd_almoxarife:it.quantidade;
-      if(novaQtd!==qtdOrigAlmox){
-        var just=justificativas_ger[it.codigo]||'';
+      if(novaQtd>qtdOrigAlmox){// justificativa obrigatória só para aumento
+        var just=justificativas_ger[cardId+'|'+it.codigo]||'';
         if(!just.trim()){
           var tipo=novaQtd>qtdOrigAlmox?'aumentada':'reduzida';
           if(msgEl)msgEl.innerHTML='<span style="color:#991b1b;font-weight:600">⚠ Justificativa obrigatória para "'+(it.descricao||it.codigo)+'" (quantidade '+tipo+' de '+qtdOrigAlmox+' para '+novaQtd+').</span>';
-          var justEl=document.querySelector('textarea[data-cod="'+it.codigo+'"]');
+          var justEl=document.querySelector('textarea[data-key="'+cardId+'|'+it.codigo+'"]');
           if(justEl){justEl.focus();var td=justEl.closest('td');if(td)td.style.display='';}
           return;
         }
@@ -468,7 +550,7 @@ async function aprovarGerente(btn){
       var qtdOrigAlmox=it.qtd_almoxarife!==null&&it.qtd_almoxarife!==undefined?it.qtd_almoxarife:it.quantidade;
       var novaQtd=qtdEditadas[it.id]!==undefined?qtdEditadas[it.id]:qtdOrigAlmox;
       var dec=decisoes[it.id]||'aprovado';
-      var justItem=justificativas_ger[it.codigo]||null;
+      var justItem=justificativas_ger[cardId+'|'+it.codigo]||null;
       var upd={situacao:dec,quantidade:novaQtd,qtd_gerente:novaQtd,qtd_almoxarife:qtdOrigAlmox};
       if(justItem)upd.justificativa_gerente=justItem;
       await db.from('solicitacao_itens').update(upd).eq('id',it.id);
@@ -478,6 +560,7 @@ async function aprovarGerente(btn){
       status:'aguardando_master',atualizado_em:(new Date()).toISOString()
     }).eq('id',solId);
   }
+  _limparRascunhoSols(ids);
   if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-weight:600">✓ Enviado para aprovação final!</span>';
   // Remove o card do DOM sem recarregar tudo
   var cardEl=msgEl?msgEl.closest('.card'):null;
