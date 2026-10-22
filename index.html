@@ -190,7 +190,7 @@ async function carregarFormularios(){
   for(let i=0;i<solIds.length;i+=50){
     let lote=solIds.slice(i,i+50),off2=0;
     for(;;){
-      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em`).in(`solicitacao_id`,lote).range(off2,off2+999);
+      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em`).in(`solicitacao_id`,lote).order(`id`).range(off2,off2+999);
       if(!its||!its.length)break;
       its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
       if(its.length<1000)break;
@@ -236,9 +236,7 @@ function renderFormularios(lista){
   // Agrupar igual à aba Solicitações (mesma matrícula + janela de 3 minutos)
   let grupos={};
   lista.forEach(s=>{
-    let dt=new Date(s.criado_em);
-    let minBase=Math.floor(dt.getMinutes()/3)*3;
-    let ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
+    let ch=_chaveGrupo(s);
     if(!grupos[ch])grupos[ch]=[];
     grupos[ch].push(s);
   });
@@ -295,7 +293,7 @@ window.irPara=irPara;function irSubSettings(sub){$(`sub-bases`).style.display=su
 // ---------- ABA SOLICITAÇÕES ----------
 let gerentesMapCC={};async function carregarSolicitacoes(){$(`lista`).innerHTML=`<div class="vazio">Carregando...</div>`;let[{data:ccs},{data:sols,error:e2},{data:gc}]=await Promise.all([db.from(`centros_custo`).select(`*`),db.from(`solicitacoes`).select(`*`).in(`status`,[`pendente`,`aguardando_master`]).order(`criado_em`,{ascending:!1}).limit(5e3),db.from(`gerentes_cc`).select(`cc,email`)]);if(e2){$(`lista`).innerHTML=`<div class="vazio">Erro ao carregar: `+e2.message+`</div>`;return}
 // buscar itens paginando para não cortar no limite de 1000
-let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em`).in(`solicitacao_id`,lote).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c}),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
+let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em`).in(`solicitacao_id`,lote).order(`id`).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c}),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
 // carrega consumo 3m e pessoas por cargo para os CCs visíveis
 let ccsSols=[...new Set(solicitacoes.map(s=>s.cc).filter(Boolean))];
 // Expandir homônimos: buscar todos os CCs com mesmo nome (igual ao consumo)
@@ -322,7 +320,7 @@ if(pedidosAnterioresMap={},_ccsExpandidosPed.length>0)for(let i=0;i<_ccsExpandid
 }),rows.length<1e3))break;offPed+=1e3}}scItensMap={};Object.values(pedidosAnterioresMap).forEach(arr=>arr.forEach(r=>{const sc=(r.c1_num||``).trim();const prod=(r.c1_produto||``).trim();if(sc&&prod)scItensMap[sc+`|`+prod]=(r.c1_quant||0)}));
 // Carregar cc_grupos SEMPRE (antes do if ccsSols) para garantir grupos de todas as regiões
 {let _ccGruposAll=[],_offG=0;
-for(;;){let{data:_lg,error:_eg}=await db.from('cc_grupos').select('cc,grupo,regiao').range(_offG,_offG+999);if(_eg||!_lg||!_lg.length)break;_ccGruposAll=_ccGruposAll.concat(_lg);if(_lg.length<1000)break;_offG+=1000;}
+for(;;){let{data:_lg,error:_eg}=await db.from('cc_grupos').select('cc,grupo,regiao').order('id').range(_offG,_offG+999);if(_eg||!_lg||!_lg.length)break;_ccGruposAll=_ccGruposAll.concat(_lg);if(_lg.length<1000)break;_offG+=1000;}
 _ccParaGrupo={};_grupoCCs={};
 _ccGruposAll.forEach(g=>{_ccParaGrupo[g.cc]=g.grupo;_grupoCCs[g.grupo]=_grupoCCs[g.grupo]||[];if(!_grupoCCs[g.grupo].includes(g.cc))_grupoCCs[g.grupo].push(g.cc);});}
 if(ccsSols.length>0){// Buscar nomes dos CCs — primeiro pelo ccMap, depois direto do banco se necessário
@@ -349,7 +347,7 @@ let consumoData=[],pessoasData=[];
 try{
   let rows=[],off=0;
   for(;;){
-    let{data:lote,error:er}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsConsumoBusca).range(off,off+999);
+    let{data:lote,error:er}=await db.from(`consumo_mensal`).select(`cc,produto,quantidade,mes`).in(`cc`,ccsConsumoBusca).order(`id`).range(off,off+999);
     if(er||!lote||!lote.length)break;
     rows=rows.concat(lote);
     if(lote.length<1e3)break;
@@ -416,7 +414,7 @@ try{
       let _fil=_filiais[fi];
       let _offE=0;
       for(;;){
-        let{data:estRows}=await db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,custo_medio').eq('filial',_fil).range(_offE,_offE+999);
+        let{data:estRows}=await db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,custo_medio').eq('filial',_fil).order('id').range(_offE,_offE+999);
         if(!estRows||!estRows.length)break;
         estRows.forEach(r=>{
           let k=String(r.filial||'').trim()+'|'+String(r.codigo||'').trim();
@@ -468,9 +466,7 @@ visiveis.sort((a,b)=>{
 // Agrupar por envio (mesma matrícula + mesmo minuto)
 let grupos={};
 visiveis.forEach(s=>{// Agrupar por matrícula + janela de 5 minutos
-let dt=new Date(s.criado_em);
-let minBase=Math.floor(dt.getMinutes()/3)*3;
-let ch=s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+minBase;
+let ch=_chaveGrupo(s);
 if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
 $(`lista`).innerHTML=Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
 }
@@ -1127,6 +1123,8 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
 async function _emLotes(lista,fn,n){n=n||10;for(var i=0;i<lista.length;i+=n){var r=await Promise.all(lista.slice(i,i+n).map(fn));r.forEach(function(x){if(x&&x.error)console.error('Erro ao salvar:',x.error.message)})}}
 // Gerente já avaliou? (qtd_gerente gravada, ou solicitação já passou do status pendente)
 function _gerenteAvaliou(it,sol){return it.qtd_gerente!=null||!!(sol&&sol.status&&sol.status!=='pendente')}
+// Chave do card: solicitações com o mesmo grupo_envio ficam juntas; sem grupo, mesma matrícula + janela de 3 minutos
+function _chaveGrupo(s){if(s.grupo_envio)return 'G|'+s.grupo_envio;let dt=new Date(s.criado_em),mb=Math.floor(dt.getMinutes()/3)*3;return s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+mb}
 // Qtd real do gerente (coluna própria); fallback p/ registros antigos
 function _qtdGer(it){return it.qtd_gerente!=null?Number(it.qtd_gerente):(it.quantidade||0)}
 // Valor de referência do botão ↺: gerente, senão almoxarife
@@ -1417,7 +1415,7 @@ async function _carregarTodasEmParalelo(sols){
     let lote=todosIds.slice(i,i+20);
     let off=0;
     for(;;){
-      let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao').in('solicitacao_id',lote).range(off,off+999);
+      let{data:its}=await db.from('solicitacao_itens').select('solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,situacao').in('solicitacao_id',lote).order('id').range(off,off+999);
       if(!its||!its.length)break;
       its.forEach(it=>{
         if(!_itensMap[it.solicitacao_id])_itensMap[it.solicitacao_id]=[];
