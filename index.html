@@ -30,7 +30,7 @@
   </div>
   <div id="form-lista" style="padding:16px"><div class="vazio">Carregando...</div></div>
 </div>
-<div id=aba-consolidados style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>📊 Consolidados</div><button style="color:#fff;cursor:pointer;background:#1e40af;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700" onclick=novoConsolidado()>+ Novo consolidado</button></div><div class=corpo-aba><div id=lista-consolidados><div class=vazio>Carregando...</div></div></div></div><div id=aba-mobilizacao style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>Mobilizações</div><button class=btn-novo id=btn-nova-mob onclick=mostrarFormMob()>+ Nova mobilização</button></div><div class=corpo-aba><div id=mob-lista-view><div id=lista-mob></div></div><div id=mob-form-view style=display:none><button class=btn-voltar onclick=mostrarListaMob()>← Voltar</button><div class=card style=max-width:680px><div style=padding:18px><label>Nome da mobilização</label><input placeholder="Ex.: Mobilização ENEL Norte" id=mob-nome><label>Número de equipes</label><input placeholder="Ex.: 6" id=mob-num-equipes min=1 type=number><label>Planilha de itens (.csv ou .xlsx) — colunas: <strong>código, descrição, quantidade</strong> <span style="color:#1e40af">(opcional: estoque)</span></label><div style="color:#94a3b8;margin:-6px 0 8px;font-size:12px">A quantidade total será dividida pelo número de equipes. Se houver coluna <b>Estoque</b>, o estoque será salvo automaticamente.</div><label class=upload-area id=label-mob-arquivo><span id=nome-mob-arquivo>Escolher arquivo</span> <input accept=.csv,.xlsx,.xls id=mob-arquivo onchange=lerArquivoMob() style=display:none type=file></label><div id=mob-preview-area></div><div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px"><div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px">+ Adicionar item manualmente</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"><div style="flex:2;min-width:200px;position:relative"><label style="font-size:12px;font-weight:600;color:#64748b">Buscar item</label><input id=mob-item-busca placeholder="Buscar por código ou descrição..." autocomplete=off oninput=buscarItemMob() style="margin:0;padding:9px 12px;font-size:13px"><div id=mob-item-sugs style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:8px;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px #00000014"></div></div><div style="width:100px"><label style="font-size:12px;font-weight:600;color:#64748b">Qtd total</label><input id=mob-item-qtd placeholder="0" min=0 type=number style="margin:0;padding:9px 12px;font-size:13px"></div><button onclick=adicionarItemManualMob() style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;height:40px">+ Adicionar</button></div><div id=mob-itens-manuais style="margin-top:10px"></div></div>
+<div id=aba-consolidados style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>📊 Consolidados</div><button style="color:#fff;cursor:pointer;background:#1e40af;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700" onclick=novoConsolidado()>+ Novo consolidado</button></div><div class=corpo-aba><div id=lista-consolidados><div class=vazio>Carregando...</div></div></div></div><div id=aba-mobilizacao style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>Mobilizações</div><button class=btn-novo id=btn-nova-mob onclick=mostrarFormMob()>+ Nova mobilização</button></div><div class=corpo-aba><div id=mob-lista-view><div id=filtro-mob></div><div id=lista-mob></div></div><div id=mob-form-view style=display:none><button class=btn-voltar onclick=mostrarListaMob()>← Voltar</button><div class=card style=max-width:680px><div style=padding:18px><label>Nome da mobilização</label><input placeholder="Ex.: Mobilização ENEL Norte" id=mob-nome><label>Número de equipes</label><input placeholder="Ex.: 6" id=mob-num-equipes min=1 type=number><label>Planilha de itens (.csv ou .xlsx) — colunas: <strong>código, descrição, quantidade</strong> <span style="color:#1e40af">(opcional: estoque)</span></label><div style="color:#94a3b8;margin:-6px 0 8px;font-size:12px">A quantidade total será dividida pelo número de equipes. Se houver coluna <b>Estoque</b>, o estoque será salvo automaticamente.</div><label class=upload-area id=label-mob-arquivo><span id=nome-mob-arquivo>Escolher arquivo</span> <input accept=.csv,.xlsx,.xls id=mob-arquivo onchange=lerArquivoMob() style=display:none type=file></label><div id=mob-preview-area></div><div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px"><div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px">+ Adicionar item manualmente</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"><div style="flex:2;min-width:200px;position:relative"><label style="font-size:12px;font-weight:600;color:#64748b">Buscar item</label><input id=mob-item-busca placeholder="Buscar por código ou descrição..." autocomplete=off oninput=buscarItemMob() style="margin:0;padding:9px 12px;font-size:13px"><div id=mob-item-sugs style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:8px;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px #00000014"></div></div><div style="width:100px"><label style="font-size:12px;font-weight:600;color:#64748b">Qtd total</label><input id=mob-item-qtd placeholder="0" min=0 type=number style="margin:0;padding:9px 12px;font-size:13px"></div><button onclick=adicionarItemManualMob() style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;height:40px">+ Adicionar</button></div><div id=mob-itens-manuais style="margin-top:10px"></div></div>
 <div id=mob-msg style=margin-top:12px></div>
 <button class=btn-salvar disabled id=btn-salvar-mob onclick=salvarMobilizacao() style=width:100%;margin-top:14px>Salvar mobilização</button></div></div></div></div></div><div id=aba-aprovadores style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>📋 Aprovadores de PCs</div><button style="color:#475569;cursor:pointer;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600" onclick=carregarAprovadores()>↻ Atualizar</button></div><div class=corpo-aba><div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"><input placeholder="🔍 Filtrar por SC ou CC..." style="flex:1;min-width:200px;margin:0;padding:9px 12px;font-size:13px" id=busca-aprovadores oninput=filtrarAprovadores()><select style="margin:0;padding:9px 12px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer" id=filtro-nivel-aprov onchange=filtrarAprovadores()><option value>Todos os níveis<option value=N1>N1<option value=N2>N2<option value=N3>N3</select></div><div id=lista-aprovadores><div class=vazio>Carregando...</div></div></div></div><div id=aba-buscasc style=display:none>
   <div class=topo-aba>
@@ -1981,8 +1981,52 @@ function atualizarBtnSalvarMob(){
 }
 window.atualizarBtnSalvarMob=atualizarBtnSalvarMob;
 document.addEventListener(`click`,e=>{if(!e.target.closest(`#mob-item-busca`)&&!e.target.closest(`#mob-item-sugs`))$(`mob-item-sugs`).style.display=`none`});
-window.salvarMobilizacao=salvarMobilizacao;async function carregarMobilizacoes(){$(`lista-mob`).innerHTML=`<div class="vazio">Carregando...</div>`;let{data:mobs,error}=await db.from(`mobilizacoes`).select(`*`).order(`criado_em`,{ascending:!1});if(error){$(`lista-mob`).innerHTML=`<div class="vazio">Erro: `+error.message+`</div>`;return}if(!mobs||mobs.length===0){$(`lista-mob`).innerHTML=`<div class="vazio">Nenhuma mobilização criada ainda. Clique em "+ Nova mobilização".</div>`;return}$(`lista-mob`).innerHTML=mobs.map(m=>`
-      <div class="card">
+window.salvarMobilizacao=salvarMobilizacao;
+// ── Filtro de mobilizações (seleção múltipla, lembrada no navegador) ──
+let _mobsTodas=[];
+function _lerFiltroMob(){try{return JSON.parse(localStorage.getItem('mob_filtro')||'[]')}catch(e){return[]}}
+function _gravarFiltroMob(ids){try{localStorage.setItem('mob_filtro',JSON.stringify(ids))}catch(e){}}
+function _selFiltroMob(){return _lerFiltroMob().filter(id=>_mobsTodas.some(m=>m.id===id))}
+function _mobsVisiveis(){let sel=_selFiltroMob();return sel.length?_mobsTodas.filter(m=>sel.includes(m.id)):_mobsTodas}
+function _aplicarFiltroMob(){
+  let sel=_selFiltroMob();
+  document.querySelectorAll('#lista-mob [data-mob-id]').forEach(c=>{c.style.display=!sel.length||sel.includes(Number(c.dataset.mobId))?'':'none'});
+  let b=document.getElementById('btn-filtro-mob');
+  if(b)b.textContent=sel.length?`🔎 Mostrando ${sel.length} de ${_mobsTodas.length} mobilizações ▾`:`🔎 Filtrar mobilizações (mostrando todas) ▾`;
+}
+function _montarFiltroMob(){
+  let el=document.getElementById('filtro-mob');if(!el)return;
+  let sel=_selFiltroMob();
+  el.innerHTML=`<div style="margin-bottom:12px;position:relative">
+    <button id="btn-filtro-mob" onclick="toggleFiltroMob()" style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;color:#1e40af;cursor:pointer"></button>
+    <div id="painel-filtro-mob" style="display:none;margin-top:6px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;box-shadow:0 4px 14px #0000001a;max-width:640px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        <input id="busca-filtro-mob" oninput="buscarFiltroMob()" placeholder="Buscar (ex.: 1ª ONDA, SKY...)" style="flex:1;min-width:180px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+        <button onclick="marcarEncontradosMob()" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer">✓ Marcar os encontrados</button>
+        <button onclick="limparFiltroMob()" style="border:1px solid #e2e8f0;background:#fff;color:#475569;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer">Mostrar todas</button>
+      </div>
+      <div id="lista-filtro-mob" style="max-height:280px;overflow:auto">${_mobsTodas.map(m=>`<label data-nome="${_escV(String(m.nome||'').toLowerCase())}" style="display:flex;gap:8px;align-items:center;padding:4px 2px;font-size:13px;cursor:pointer"><input type="checkbox" value="${m.id}" ${sel.includes(m.id)?'checked':''} onchange="marcarMob(this)"> ${_escV(m.nome)}</label>`).join('')}</div>
+    </div></div>`;
+  _aplicarFiltroMob();
+}
+function toggleFiltroMob(){let p=document.getElementById('painel-filtro-mob');if(p)p.style.display=p.style.display==='none'?'':'none'}
+function buscarFiltroMob(){let t=(document.getElementById('busca-filtro-mob').value||'').toLowerCase().trim();document.querySelectorAll('#lista-filtro-mob label').forEach(l=>{l.style.display=!t||l.dataset.nome.includes(t)?'flex':'none'})}
+function marcarMob(cb){
+  let sel=_selFiltroMob(),id=Number(cb.value);
+  sel=cb.checked?[...new Set([...sel,id])]:sel.filter(x=>x!==id);
+  _gravarFiltroMob(sel);_aplicarFiltroMob();
+  if(cb.checked)carregarResumosMob(_mobsTodas.filter(m=>m.id===id));
+}
+function marcarEncontradosMob(){
+  let ids=[...document.querySelectorAll('#lista-filtro-mob label')].filter(l=>l.style.display!=='none').map(l=>l.querySelector('input'));
+  ids.forEach(cb=>cb.checked=true);
+  let sel=[...new Set([..._selFiltroMob(),...ids.map(cb=>Number(cb.value))])];
+  _gravarFiltroMob(sel);_aplicarFiltroMob();carregarResumosMob(_mobsTodas.filter(m=>sel.includes(m.id)));
+}
+function limparFiltroMob(){_gravarFiltroMob([]);document.querySelectorAll('#lista-filtro-mob input').forEach(cb=>cb.checked=false);_aplicarFiltroMob();carregarResumosMob(_mobsTodas)}
+Object.assign(window,{toggleFiltroMob,buscarFiltroMob,marcarMob,marcarEncontradosMob,limparFiltroMob});
+async function carregarMobilizacoes(){$(`lista-mob`).innerHTML=`<div class="vazio">Carregando...</div>`;let{data:mobs,error}=await db.from(`mobilizacoes`).select(`*`).order(`criado_em`,{ascending:!1});if(error){$(`lista-mob`).innerHTML=`<div class="vazio">Erro: `+error.message+`</div>`;return}if(!mobs||mobs.length===0){$(`lista-mob`).innerHTML=`<div class="vazio">Nenhuma mobilização criada ainda. Clique em "+ Nova mobilização".</div>`;return}$(`lista-mob`).innerHTML=mobs.map(m=>`
+      <div class="card" data-mob-id="${m.id}">
         <div class="card-topo" onclick="toggleMob(${m.id})">
           <div>
             <div class="card-titulo">${m.nome}</div>
@@ -1998,7 +2042,7 @@ window.salvarMobilizacao=salvarMobilizacao;async function carregarMobilizacoes()
         <div class="card-corpo" id="corpo-mob-${m.id}" data-carregado="0"></div>
       </div>
     `).join(``);
-setTimeout(()=>carregarResumosMob(mobs),300);}async function toggleMob(id){let el=document.getElementById(`corpo-mob-`+id);el.classList.toggle(`aberto`),el.classList.contains(`aberto`)&&el.dataset.carregado===`0`&&(el.dataset.carregado=`1`,await renderDetalheMob(id,el))}window.toggleMob=toggleMob;
+_mobsTodas=mobs;_montarFiltroMob();setTimeout(()=>carregarResumosMob(_mobsVisiveis()),300);}async function toggleMob(id){let el=document.getElementById(`corpo-mob-`+id);el.classList.toggle(`aberto`),el.classList.contains(`aberto`)&&el.dataset.carregado===`0`&&(el.dataset.carregado=`1`,await renderDetalheMob(id,el))}window.toggleMob=toggleMob;
 // Carregar resumos em background após renderizar lista
 async function carregarResumosMob(mobs){for(let m of mobs){try{let el=document.getElementById('mob-resumo-'+m.id);if(!el)continue;let{data:scsLinks}=await db.from('mobilizacao_scs').select('sc_numero,filial').eq('mobilizacao_id',m.id);let{data:itensMob}=await db.from('mobilizacao_itens').select('codigo,total_mob').eq('mobilizacao_id',m.id);let{data:estItems}=await db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id',m.id);let mapaEst={};(estItems||[]).forEach(e=>{mapaEst[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0;});let scNums=(scsLinks||[]).map(s=>String(s.sc_numero||'').trim()).filter(Boolean);
 let pcsR=[];
