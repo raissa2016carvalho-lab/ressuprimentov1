@@ -1,7 +1,9 @@
 # Ressuprimento B&Q — Visão geral (leia primeiro)
 
 Atualizado em 23/10/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
-mudado no banco. Os detalhes de cada tela estão nos outros arquivos desta pasta.
+mudado no banco. Os detalhes de cada tela estão nos outros arquivos desta pasta:
+`index.md`, `gerente.md`, `mobilizacao.md`, `outras-telas.md` (formulário, estoque, compras,
+fechamento, manutenção, menu) e `syncs.md`.
 
 ## Como falar comigo (Raissa)
 - Sou especialista em suprimentos, **não sou programadora**. Explique em português simples.
