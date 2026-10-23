@@ -30,7 +30,7 @@
   </div>
   <div id="form-lista" style="padding:16px"><div class="vazio">Carregando...</div></div>
 </div>
-<div id=aba-consolidados style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>📊 Consolidados</div><button style="color:#fff;cursor:pointer;background:#1e40af;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700" onclick=novoConsolidado()>+ Novo consolidado</button></div><div class=corpo-aba><div id=lista-consolidados><div class=vazio>Carregando...</div></div></div></div><div id=aba-mobilizacao style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>Mobilizações</div><button class=btn-novo id=btn-nova-mob onclick=mostrarFormMob()>+ Nova mobilização</button></div><div class=corpo-aba><div id=mob-lista-view><div id=lista-mob></div></div><div id=mob-form-view style=display:none><button class=btn-voltar onclick=mostrarListaMob()>← Voltar</button><div class=card style=max-width:680px><div style=padding:18px><label>Nome da mobilização</label><input placeholder="Ex.: Mobilização ENEL Norte" id=mob-nome><label>Número de equipes</label><input placeholder="Ex.: 6" id=mob-num-equipes min=1 type=number><label>Planilha de itens (.csv ou .xlsx) — colunas: <strong>código, descrição, quantidade</strong> <span style="color:#1e40af">(opcional: estoque)</span></label><div style="color:#94a3b8;margin:-6px 0 8px;font-size:12px">A quantidade total será dividida pelo número de equipes. Se houver coluna <b>Estoque</b>, o estoque será salvo automaticamente.</div><label class=upload-area id=label-mob-arquivo><span id=nome-mob-arquivo>Escolher arquivo</span> <input accept=.csv,.xlsx,.xls id=mob-arquivo onchange=lerArquivoMob() style=display:none type=file></label><div id=mob-preview-area></div><div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px"><div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px">+ Adicionar item manualmente</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"><div style="flex:2;min-width:200px;position:relative"><label style="font-size:12px;font-weight:600;color:#64748b">Buscar item</label><input id=mob-item-busca placeholder="Buscar por código ou descrição..." autocomplete=off oninput=buscarItemMob() style="margin:0;padding:9px 12px;font-size:13px"><div id=mob-item-sugs style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:8px;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px #00000014"></div></div><div style="width:100px"><label style="font-size:12px;font-weight:600;color:#64748b">Qtd total</label><input id=mob-item-qtd placeholder="0" min=0 type=number style="margin:0;padding:9px 12px;font-size:13px"></div><button onclick=adicionarItemManualMob() style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;height:40px">+ Adicionar</button></div><div id=mob-itens-manuais style="margin-top:10px"></div></div>
+<div id=aba-consolidados style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>📊 Consolidados</div><button style="color:#fff;cursor:pointer;background:#1e40af;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700" onclick=novoConsolidado()>+ Novo consolidado</button></div><div class=corpo-aba><div id=lista-consolidados><div class=vazio>Carregando...</div></div></div></div><div id=aba-mobilizacao style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>Mobilizações</div><button class=btn-novo id=btn-nova-mob onclick=mostrarFormMob()>+ Nova mobilização</button></div><div class=corpo-aba><div id=mob-lista-view><div id=filtro-mob></div><div id=lista-mob></div></div><div id=mob-form-view style=display:none><button class=btn-voltar onclick=mostrarListaMob()>← Voltar</button><div class=card style=max-width:680px><div style=padding:18px><label>Nome da mobilização</label><input placeholder="Ex.: Mobilização ENEL Norte" id=mob-nome><label>Número de equipes</label><input placeholder="Ex.: 6" id=mob-num-equipes min=1 type=number><label>Planilha de itens (.csv ou .xlsx) — colunas: <strong>código, descrição, quantidade</strong> <span style="color:#1e40af">(opcional: estoque)</span></label><div style="color:#94a3b8;margin:-6px 0 8px;font-size:12px">A quantidade total será dividida pelo número de equipes. Se houver coluna <b>Estoque</b>, o estoque será salvo automaticamente.</div><label class=upload-area id=label-mob-arquivo><span id=nome-mob-arquivo>Escolher arquivo</span> <input accept=.csv,.xlsx,.xls id=mob-arquivo onchange=lerArquivoMob() style=display:none type=file></label><div id=mob-preview-area></div><div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px"><div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px">+ Adicionar item manualmente</div><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"><div style="flex:2;min-width:200px;position:relative"><label style="font-size:12px;font-weight:600;color:#64748b">Buscar item</label><input id=mob-item-busca placeholder="Buscar por código ou descrição..." autocomplete=off oninput=buscarItemMob() style="margin:0;padding:9px 12px;font-size:13px"><div id=mob-item-sugs style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:8px;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px #00000014"></div></div><div style="width:100px"><label style="font-size:12px;font-weight:600;color:#64748b">Qtd total</label><input id=mob-item-qtd placeholder="0" min=0 type=number style="margin:0;padding:9px 12px;font-size:13px"></div><button onclick=adicionarItemManualMob() style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;height:40px">+ Adicionar</button></div><div id=mob-itens-manuais style="margin-top:10px"></div></div>
 <div id=mob-msg style=margin-top:12px></div>
 <button class=btn-salvar disabled id=btn-salvar-mob onclick=salvarMobilizacao() style=width:100%;margin-top:14px>Salvar mobilização</button></div></div></div></div></div><div id=aba-aprovadores style=display:none><div class=topo-aba><div style=font-size:14px;font-weight:700>📋 Aprovadores de PCs</div><button style="color:#475569;cursor:pointer;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600" onclick=carregarAprovadores()>↻ Atualizar</button></div><div class=corpo-aba><div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"><input placeholder="🔍 Filtrar por SC ou CC..." style="flex:1;min-width:200px;margin:0;padding:9px 12px;font-size:13px" id=busca-aprovadores oninput=filtrarAprovadores()><select style="margin:0;padding:9px 12px;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer" id=filtro-nivel-aprov onchange=filtrarAprovadores()><option value>Todos os níveis<option value=N1>N1<option value=N2>N2<option value=N3>N3</select></div><div id=lista-aprovadores><div class=vazio>Carregando...</div></div></div></div><div id=aba-buscasc style=display:none>
   <div class=topo-aba>
@@ -1981,8 +1981,67 @@ function atualizarBtnSalvarMob(){
 }
 window.atualizarBtnSalvarMob=atualizarBtnSalvarMob;
 document.addEventListener(`click`,e=>{if(!e.target.closest(`#mob-item-busca`)&&!e.target.closest(`#mob-item-sugs`))$(`mob-item-sugs`).style.display=`none`});
-window.salvarMobilizacao=salvarMobilizacao;async function carregarMobilizacoes(){$(`lista-mob`).innerHTML=`<div class="vazio">Carregando...</div>`;let{data:mobs,error}=await db.from(`mobilizacoes`).select(`*`).order(`criado_em`,{ascending:!1});if(error){$(`lista-mob`).innerHTML=`<div class="vazio">Erro: `+error.message+`</div>`;return}if(!mobs||mobs.length===0){$(`lista-mob`).innerHTML=`<div class="vazio">Nenhuma mobilização criada ainda. Clique em "+ Nova mobilização".</div>`;return}$(`lista-mob`).innerHTML=mobs.map(m=>`
-      <div class="card">
+window.salvarMobilizacao=salvarMobilizacao;
+// ── Filtro de mobilizações (seleção múltipla, lembrada no navegador) ──
+let _mobsTodas=[],_resumoMob={};
+function _lerFiltroMob(){try{return JSON.parse(localStorage.getItem('mob_filtro')||'[]')}catch(e){return[]}}
+function _gravarFiltroMob(ids){try{localStorage.setItem('mob_filtro',JSON.stringify(ids))}catch(e){}}
+function _selFiltroMob(){return _lerFiltroMob().filter(id=>_mobsTodas.some(m=>m.id===id))}
+function _mobsVisiveis(){let sel=_selFiltroMob();return sel.length?_mobsTodas.filter(m=>sel.includes(m.id)):_mobsTodas}
+function _aplicarFiltroMob(){
+  let sel=_selFiltroMob();
+  document.querySelectorAll('#lista-mob [data-mob-id]').forEach(c=>{c.style.display=!sel.length||sel.includes(Number(c.dataset.mobId))?'':'none'});
+  let b=document.getElementById('btn-filtro-mob');
+  if(b)b.textContent=sel.length?`🔎 Mostrando ${sel.length} de ${_mobsTodas.length} mobilizações ▾`:`🔎 Filtrar mobilizações (mostrando todas) ▾`;
+  _atualizarCardTotalMob();
+}
+function _montarFiltroMob(){
+  let el=document.getElementById('filtro-mob');if(!el)return;
+  let sel=_selFiltroMob();
+  el.innerHTML=`<div style="margin-bottom:12px;position:relative">
+    <button id="btn-filtro-mob" onclick="toggleFiltroMob()" style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;color:#1e40af;cursor:pointer"></button>
+    <div id="painel-filtro-mob" style="display:none;margin-top:6px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;box-shadow:0 4px 14px #0000001a;max-width:640px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        <input id="busca-filtro-mob" oninput="buscarFiltroMob()" placeholder="Buscar (ex.: 1ª ONDA, SKY...)" style="flex:1;min-width:180px;width:auto;margin:0;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+        <button onclick="marcarEncontradosMob()" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer">✓ Marcar os encontrados</button>
+        <button onclick="limparFiltroMob()" style="border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer">🧹 Limpar tudo</button>
+      </div>
+      <div id="lista-filtro-mob" style="max-height:280px;overflow:auto">${_mobsTodas.map(m=>`<label data-nome="${_escV(String(m.nome||'').toLowerCase())}" style="display:flex;gap:10px;align-items:center;justify-content:flex-start;text-align:left;margin:0;padding:6px 4px;font-size:13px;font-weight:500;color:#0f172a;cursor:pointer;border-bottom:1px solid #f1f5f9"><input type="checkbox" value="${m.id}" ${sel.includes(m.id)?'checked':''} onchange="marcarMob(this)" style="width:16px;height:16px;min-width:16px;margin:0;padding:0;flex:none;cursor:pointer"><span style="flex:1">${_escV(m.nome)}</span></label>`).join('')}</div>
+    </div><div id="total-mob" style="margin-top:10px"></div></div>`;
+  _aplicarFiltroMob();
+}
+// Card com o % total das mobilizações filtradas (mesma conta do card de cada uma, somando os itens)
+function _atualizarCardTotalMob(){
+  let el=document.getElementById('total-mob');if(!el)return;
+  let sel=_selFiltroMob();if(!sel.length){el.innerHTML='';return}
+  let prontos=sel.filter(id=>_resumoMob[id]),t=0,a=0,r=0,e=0;
+  prontos.forEach(id=>{let x=_resumoMob[id];t+=x.total;a+=x.atend;r+=x.recebidos;e+=x.estoque});
+  let pct=t?Math.round(a/t*100):0,cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';
+  let falta=sel.length-prontos.length;
+  el.innerHTML=`<div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;border-left:4px solid ${cor}">
+    <div style="font-size:30px;font-weight:800;color:${cor};line-height:1">${pct}%</div>
+    <div><div style="font-weight:700;font-size:13.5px;color:#0f172a">Atendimento total das ${sel.length} mobilizações filtradas</div>
+    <div style="font-size:12px;color:#64748b;margin-top:2px">${a} de ${t} itens atendidos · ${r} recebidos · ${e} via estoque${falta?` · <i>calculando ${falta}...</i>`:''}</div></div></div>`;
+}
+function toggleFiltroMob(){let p=document.getElementById('painel-filtro-mob');if(p)p.style.display=p.style.display==='none'?'':'none'}
+function buscarFiltroMob(){let t=(document.getElementById('busca-filtro-mob').value||'').toLowerCase().trim();document.querySelectorAll('#lista-filtro-mob label').forEach(l=>{l.style.display=!t||l.dataset.nome.includes(t)?'flex':'none'})}
+function marcarMob(cb){
+  let sel=_selFiltroMob(),id=Number(cb.value);
+  sel=cb.checked?[...new Set([...sel,id])]:sel.filter(x=>x!==id);
+  _gravarFiltroMob(sel);_aplicarFiltroMob();
+  if(cb.checked)carregarResumosMob(_mobsTodas.filter(m=>m.id===id));
+}
+function marcarEncontradosMob(){
+  let ids=[...document.querySelectorAll('#lista-filtro-mob label')].filter(l=>l.style.display!=='none').map(l=>l.querySelector('input'));
+  ids.forEach(cb=>cb.checked=true);
+  let sel=[...new Set([..._selFiltroMob(),...ids.map(cb=>Number(cb.value))])];
+  _gravarFiltroMob(sel);_aplicarFiltroMob();carregarResumosMob(_mobsTodas.filter(m=>sel.includes(m.id)));
+}
+// Limpar tudo: desmarca as mobilizações, apaga a busca e volta a mostrar todas
+function limparFiltroMob(){_gravarFiltroMob([]);document.querySelectorAll('#lista-filtro-mob input').forEach(cb=>cb.checked=false);let b=document.getElementById('busca-filtro-mob');if(b)b.value='';buscarFiltroMob();_aplicarFiltroMob();carregarResumosMob(_mobsTodas)}
+Object.assign(window,{toggleFiltroMob,buscarFiltroMob,marcarMob,marcarEncontradosMob,limparFiltroMob});
+async function carregarMobilizacoes(){$(`lista-mob`).innerHTML=`<div class="vazio">Carregando...</div>`;let{data:mobs,error}=await db.from(`mobilizacoes`).select(`*`).order(`criado_em`,{ascending:!1});if(error){$(`lista-mob`).innerHTML=`<div class="vazio">Erro: `+error.message+`</div>`;return}if(!mobs||mobs.length===0){$(`lista-mob`).innerHTML=`<div class="vazio">Nenhuma mobilização criada ainda. Clique em "+ Nova mobilização".</div>`;return}$(`lista-mob`).innerHTML=mobs.map(m=>`
+      <div class="card" data-mob-id="${m.id}">
         <div class="card-topo" onclick="toggleMob(${m.id})">
           <div>
             <div class="card-titulo">${m.nome}</div>
@@ -1998,7 +2057,7 @@ window.salvarMobilizacao=salvarMobilizacao;async function carregarMobilizacoes()
         <div class="card-corpo" id="corpo-mob-${m.id}" data-carregado="0"></div>
       </div>
     `).join(``);
-setTimeout(()=>carregarResumosMob(mobs),300);}async function toggleMob(id){let el=document.getElementById(`corpo-mob-`+id);el.classList.toggle(`aberto`),el.classList.contains(`aberto`)&&el.dataset.carregado===`0`&&(el.dataset.carregado=`1`,await renderDetalheMob(id,el))}window.toggleMob=toggleMob;
+_mobsTodas=mobs;_montarFiltroMob();setTimeout(()=>carregarResumosMob(_mobsVisiveis()),300);}async function toggleMob(id){let el=document.getElementById(`corpo-mob-`+id);el.classList.toggle(`aberto`),el.classList.contains(`aberto`)&&el.dataset.carregado===`0`&&(el.dataset.carregado=`1`,await renderDetalheMob(id,el))}window.toggleMob=toggleMob;
 // Carregar resumos em background após renderizar lista
 async function carregarResumosMob(mobs){for(let m of mobs){try{let el=document.getElementById('mob-resumo-'+m.id);if(!el)continue;let{data:scsLinks}=await db.from('mobilizacao_scs').select('sc_numero,filial').eq('mobilizacao_id',m.id);let{data:itensMob}=await db.from('mobilizacao_itens').select('codigo,total_mob').eq('mobilizacao_id',m.id);let{data:estItems}=await db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id',m.id);let mapaEst={};(estItems||[]).forEach(e=>{mapaEst[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0;});let scNums=(scsLinks||[]).map(s=>String(s.sc_numero||'').trim()).filter(Boolean);
 let pcsR=[];
@@ -2046,10 +2105,10 @@ itensAgrupados.forEach(it=>{
   }
 });
 let total=(itensAgrupados.length-eliminados)||1;
-let totalAtend=recebidos+estoque;let pct=Math.round(totalAtend/total*100);let cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';el.innerHTML=`<span style="font-weight:800;font-size:15px;color:${cor}">${pct}%</span><span style="color:#94a3b8;font-size:11px">atendimento</span>`;} catch(e){console.error('resumo mob',e);}}}
+let totalAtend=recebidos+estoque;let pct=Math.round(totalAtend/total*100);_resumoMob[m.id]={total,atend:totalAtend,recebidos,estoque};_atualizarCardTotalMob();let cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';el.innerHTML=`<span style="font-weight:800;font-size:15px;color:${cor}">${pct}%</span><span style="color:#94a3b8;font-size:11px">atendimento</span>`;} catch(e){console.error('resumo mob',e);}}}
 
 let _catsGlobal=null,_mobIdExcel=null;
-async function renderDetalheMob(mobId,container){container.innerHTML=`<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>`;let[{data:mob},{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([db.from(`mobilizacoes`).select(`*`).eq(`id`,mobId).maybeSingle(),db.from(`mobilizacao_itens`).select(`*`).eq(`mobilizacao_id`,mobId).order(`descricao`),db.from(`mobilizacao_scs`).select(`*`).eq(`mobilizacao_id`,mobId).order(`criado_em`),db.from(`mobilizacao_estoque`).select(`*`).eq(`mobilizacao_id`,mobId)]);if(!mob){container.innerHTML=`<div style="padding:12px;color:#ef4444">Mobilização não encontrada.</div>`;return;}mapaEstoque={};(estoqueData||[]).forEach(e=>{e.codigo&&(mapaEstoque[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0)});let numEquipes=mob.num_equipes,grupos={};(itens||[]).forEach(it=>{let chave=it.codigo&&String(it.codigo||'').trim()?`cod:`+String(it.codigo||'').trim():`desc:`+String(it.descricao||'').trim();grupos[chave]||(grupos[chave]={descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],observacao:it.observacao||null,dt_entrega_manual:it.dt_entrega_manual||null}),grupos[chave].total_mob+=Number(it.total_mob)||0,grupos[chave].ids.push(it.id),it.observacao&&(grupos[chave].observacao=it.observacao),it.dt_entrega_manual&&(grupos[chave].dt_entrega_manual=it.dt_entrega_manual)});let itensConsolidados=Object.values(grupos),numerosSc=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);function normalizarSc(sc){let s=String(sc||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function normalizarCodigo(cod){let s=String(cod||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function variantesSc(sc){let v=new Set([sc]);return/^\d+$/.test(sc)&&v.add(normalizarSc(sc)),[...v]}let numerosScNormalizados=new Set(numerosSc.map(normalizarSc)),pcsEncontrados=[],avisoProtheus=``;if(numerosSc.length>0){let _scFilialMob={};(scsLista||[]).forEach(s=>{if(s.sc_numero&&s.filial)_scFilialMob[s.sc_numero.trim()]=s.filial;});let _scsPorFilial={};numerosSc.forEach(sc=>{let f=_scFilialMob[sc]||'';if(!_scsPorFilial[f])_scsPorFilial[f]=[];_scsPorFilial[f].push(sc);});let ePcs=null;// Buscar via sc_pedidos_v2 usando sc_numero + filial de cada SC da mobilização
+async function renderDetalheMob(mobId,container){container.innerHTML=`<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>`;let[{data:mob},{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([db.from(`mobilizacoes`).select(`*`).eq(`id`,mobId).maybeSingle(),db.from(`mobilizacao_itens`).select(`*`).eq(`mobilizacao_id`,mobId).order(`descricao`),db.from(`mobilizacao_scs`).select(`*`).eq(`mobilizacao_id`,mobId).order(`criado_em`),db.from(`mobilizacao_estoque`).select(`*`).eq(`mobilizacao_id`,mobId)]);if(!mob){container.innerHTML=`<div style="padding:12px;color:#ef4444">Mobilização não encontrada.</div>`;return;}mapaEstoque={};(estoqueData||[]).forEach(e=>{e.codigo&&(mapaEstoque[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0)});let numEquipes=mob.num_equipes,grupos={};(itens||[]).forEach(it=>{let chave=it.codigo&&String(it.codigo||'').trim()?`cod:`+String(it.codigo||'').trim():`desc:`+String(it.descricao||'').trim();grupos[chave]||(grupos[chave]={descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],observacao:it.observacao||null,dt_entrega_manual:it.dt_entrega_manual||null}),grupos[chave].total_mob+=Number(it.total_mob)||0,grupos[chave].ids.push(it.id),it.observacao&&(grupos[chave].observacao=it.observacao),it.dt_entrega_manual&&(grupos[chave].dt_entrega_manual=it.dt_entrega_manual)});let itensConsolidados=Object.values(grupos),numerosSc=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);function normalizarSc(sc){let s=String(sc||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function normalizarCodigo(cod){let s=String(cod||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function variantesSc(sc){let v=new Set([sc]);return/^\d+$/.test(sc)&&v.add(normalizarSc(sc)),[...v]}let numerosScNormalizados=new Set(numerosSc.map(normalizarSc)),pcsEncontrados=[],scSemPedido=[],avisoProtheus=``;if(numerosSc.length>0){let _scFilialMob={};(scsLista||[]).forEach(s=>{if(s.sc_numero&&s.filial)_scFilialMob[s.sc_numero.trim()]=s.filial;});let _scsPorFilial={};numerosSc.forEach(sc=>{let f=_scFilialMob[sc]||'';if(!_scsPorFilial[f])_scsPorFilial[f]=[];_scsPorFilial[f].push(sc);});let ePcs=null;// Buscar via sc_pedidos_v2 usando sc_numero + filial de cada SC da mobilização
 {
   // Agrupar SCs por filial
   let scsPorFilialMob={};
@@ -2074,7 +2133,7 @@ async function renderDetalheMob(mobId,container){container.innerHTML=`<div style
         if(!loteV2||!loteV2.length)break;
         // Converter para formato compatível com pcsEncontrados
         loteV2.forEach(r=>{
-          if(!r.pc_numero)return;
+          if(!r.pc_numero){scSemPedido.push({c7_numsc:r.sc_numero,c7_produto:r.sc_produto,c7_num:null,c7_quant:r.sc_quant,status_desc:'SC aberta · sem pedido'});return;}// SC sem pedido: só para mostrar o número da SC
           pcsEncontrados.push({
             c7_numsc:    r.sc_numero,
             c7_produto:  r.sc_produto,
@@ -2094,6 +2153,8 @@ async function renderDetalheMob(mobId,container){container.innerHTML=`<div style
 }
 ePcs&&(avisoProtheus=`<div class="msg erro" style="margin-bottom:12px">Não foi possível verificar status agora: ${ePcs.message}</div>`)}
 let temDadosNoBanco=pcsEncontrados.length>0;
+// SCs do item que ainda não têm pedido de compra (exibidas em "Sem pedido")
+const _scsSemPc=cod=>cod?scSemPedido.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(cod)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[];
 const statusRecebido=s=>{let st=(s||``).toLowerCase();return st.includes(`receb`)||st.includes(`pré-nota`)||st.includes(`pre-nota`);};
 const statusPendente=s=>{let st=(s||``).toLowerCase();return st.includes(`pendente`)||st.includes(`aprova`)||st.includes(`em receb`);};
 const isResiduoFn=p=>{let s=(p.status_desc||p.pc_status||'').toLowerCase();return s.includes('elimin')&&(s.includes('residu')||s.includes('resíduo'));};
@@ -2114,12 +2175,12 @@ itensConsolidados.forEach(it=>{
   let qtdCoberta=qtdRecPC+qtdEst;
   if(!codTrim||!temDadosNoBanco){
     if(qtdEst>=totalMob)cats.estoque.push({...it,linhas:[],qtdEst});
-    else cats.semPedido.push({...it,linhas:[],qtdEst});
+    else cats.semPedido.push({...it,linhas:_scsSemPc(codTrim),qtdEst});
     return;
   }
   if(linhasValidas.length===0&&linhasResiduo.length===0){
     if(qtdEst>=totalMob)cats.estoque.push({...it,linhas:[],qtdEst});
-    else cats.semPedido.push({...it,linhas:[],qtdEst});
+    else cats.semPedido.push({...it,linhas:_scsSemPc(codTrim),qtdEst});
     return;
   }
   if(qtdCoberta>=totalMob){
@@ -2339,7 +2400,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
   let qtdEst=codTrim&&mapaEstoque[codTrim]>0?mapaEstoque[codTrim]:0;
   let qtdTotal=qtdRecebidaPC+qtdEst;
   return qtdTotal>0?Math.min(numEquipes,Math.floor(qtdTotal/qtdPorEquipe)):0;
-})(),chipSize=numEquipes<=8?26:numEquipes<=15?22:numEquipes<=25?18:14,chipStyle=`width:${chipSize}px;height:${chipSize}px;font-size:${numEquipes<=8?11:numEquipes<=15?10:numEquipes<=25?9:8}px;border-radius:${chipSize<=18?3:4}px`,chips=Array.from({length:numEquipes},(_,i)=>`<span class="chip-equipe ${i<equipesAtendidas?`ok`:``}" style="${chipStyle}">${i+1}</span>`).join(``),linhasPC=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[],detId=`ped-`+mobId+`-`+idx,pedResume=linhasPC.length===0?`<span style="color:#cbd5e1;font-size:11px">—</span>`:linhasPC.slice(0,2).map(p=>{let cor=(p.status_desc||``).toLowerCase().includes(`receb`)?`#16a34a`:`#d97706`,comp=(p.c7_comprador||``).trim();return`<span style="font-size:10px;background:${cor}18;color:${cor};border-radius:3px;padding:1px 4px;margin-right:2px">${p.c7_num||`PC`} · ${p.status_desc}${comp?` · `+comp:``}</span>`}).join(``)+(linhasPC.length>2?`<span style="font-size:10px;color:#94a3b8">+${linhasPC.length-2} mais</span>`:``),dtEntregaMaisRecente=(()=>{let datas=linhasPC.map(p=>String(p.dt_entrega||'').trim()).filter(d=>/^\d{8}$/.test(d)).sort();if(!datas.length)return null;let d=datas[datas.length-1];return d.slice(6,8)+`/`+d.slice(4,6)+`/`+d.slice(0,4)})(),toggle=linhasPC.length>0?`onclick="var e=document.getElementById('${detId}');e.style.display=e.style.display==='none'?'table-row':'none';"`:``;return[`<tr style="cursor:${linhasPC.length>0?`pointer`:`default`}"
+})(),chipSize=numEquipes<=8?26:numEquipes<=15?22:numEquipes<=25?18:14,chipStyle=`width:${chipSize}px;height:${chipSize}px;font-size:${numEquipes<=8?11:numEquipes<=15?10:numEquipes<=25?9:8}px;border-radius:${chipSize<=18?3:4}px`,chips=Array.from({length:numEquipes},(_,i)=>`<span class="chip-equipe ${i<equipesAtendidas?`ok`:``}" style="${chipStyle}">${i+1}</span>`).join(``),linhasPC=codTrim?pcsEncontrados.filter(p=>normalizarCodigo(p.c7_produto)===normalizarCodigo(codTrim)&&numerosScNormalizados.has(normalizarSc(p.c7_numsc))):[],detId=`ped-`+mobId+`-`+idx,_linhasRes=[...linhasPC,..._scsSemPc(codTrim)],pedResume=_linhasRes.length===0?`<span style="color:#cbd5e1;font-size:11px">—</span>`:_linhasRes.slice(0,2).map(p=>{let cor=!p.c7_num?`#64748b`:(p.status_desc||``).toLowerCase().includes(`receb`)?`#16a34a`:`#d97706`,comp=(p.c7_comprador||``).trim();return`<span style="font-size:10px;background:${cor}18;color:${cor};border-radius:3px;padding:1px 4px;margin-right:2px">SC ${p.c7_numsc} · ${p.c7_num?`PC `+p.c7_num+` · `+p.status_desc:`sem pedido`}${comp?` · `+comp:``}</span>`}).join(``)+(_linhasRes.length>2?`<span style="font-size:10px;color:#94a3b8">+${_linhasRes.length-2} mais</span>`:``),dtEntregaMaisRecente=(()=>{let datas=linhasPC.map(p=>String(p.dt_entrega||'').trim()).filter(d=>/^\d{8}$/.test(d)).sort();if(!datas.length)return null;let d=datas[datas.length-1];return d.slice(6,8)+`/`+d.slice(4,6)+`/`+d.slice(0,4)})(),toggle=linhasPC.length>0?`onclick="var e=document.getElementById('${detId}');e.style.display=e.style.display==='none'?'table-row':'none';"`:``;return[`<tr style="cursor:${linhasPC.length>0?`pointer`:`default`}"
               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
             <td ${toggle}>${it.descricao}${it.codigo?` <span style="color:#94a3b8;font-family:ui-monospace,monospace;font-size:10.5px">${it.codigo}</span>`:``}</td>
             <td style="text-align:right;font-family:ui-monospace,monospace" ${toggle}>${it.total_mob}</td>
