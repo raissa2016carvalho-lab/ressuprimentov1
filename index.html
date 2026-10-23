@@ -2004,7 +2004,7 @@ function _montarFiltroMob(){
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
         <input id="busca-filtro-mob" oninput="buscarFiltroMob()" placeholder="Buscar (ex.: 1ª ONDA, SKY...)" style="flex:1;min-width:180px;width:auto;margin:0;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
         <button onclick="marcarEncontradosMob()" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer">✓ Marcar os encontrados</button>
-        <button onclick="limparFiltroMob()" style="border:1px solid #e2e8f0;background:#fff;color:#475569;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer">Mostrar todas</button>
+        <button onclick="limparFiltroMob()" style="border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer">🧹 Limpar tudo</button>
       </div>
       <div id="lista-filtro-mob" style="max-height:280px;overflow:auto">${_mobsTodas.map(m=>`<label data-nome="${_escV(String(m.nome||'').toLowerCase())}" style="display:flex;gap:10px;align-items:center;justify-content:flex-start;text-align:left;margin:0;padding:6px 4px;font-size:13px;font-weight:500;color:#0f172a;cursor:pointer;border-bottom:1px solid #f1f5f9"><input type="checkbox" value="${m.id}" ${sel.includes(m.id)?'checked':''} onchange="marcarMob(this)" style="width:16px;height:16px;min-width:16px;margin:0;padding:0;flex:none;cursor:pointer"><span style="flex:1">${_escV(m.nome)}</span></label>`).join('')}</div>
     </div><div id="total-mob" style="margin-top:10px"></div></div>`;
@@ -2037,7 +2037,8 @@ function marcarEncontradosMob(){
   let sel=[...new Set([..._selFiltroMob(),...ids.map(cb=>Number(cb.value))])];
   _gravarFiltroMob(sel);_aplicarFiltroMob();carregarResumosMob(_mobsTodas.filter(m=>sel.includes(m.id)));
 }
-function limparFiltroMob(){_gravarFiltroMob([]);document.querySelectorAll('#lista-filtro-mob input').forEach(cb=>cb.checked=false);_aplicarFiltroMob();carregarResumosMob(_mobsTodas)}
+// Limpar tudo: desmarca as mobilizações, apaga a busca e volta a mostrar todas
+function limparFiltroMob(){_gravarFiltroMob([]);document.querySelectorAll('#lista-filtro-mob input').forEach(cb=>cb.checked=false);let b=document.getElementById('busca-filtro-mob');if(b)b.value='';buscarFiltroMob();_aplicarFiltroMob();carregarResumosMob(_mobsTodas)}
 Object.assign(window,{toggleFiltroMob,buscarFiltroMob,marcarMob,marcarEncontradosMob,limparFiltroMob});
 async function carregarMobilizacoes(){$(`lista-mob`).innerHTML=`<div class="vazio">Carregando...</div>`;let{data:mobs,error}=await db.from(`mobilizacoes`).select(`*`).order(`criado_em`,{ascending:!1});if(error){$(`lista-mob`).innerHTML=`<div class="vazio">Erro: `+error.message+`</div>`;return}if(!mobs||mobs.length===0){$(`lista-mob`).innerHTML=`<div class="vazio">Nenhuma mobilização criada ainda. Clique em "+ Nova mobilização".</div>`;return}$(`lista-mob`).innerHTML=mobs.map(m=>`
       <div class="card" data-mob-id="${m.id}">
