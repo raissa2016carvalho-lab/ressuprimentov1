@@ -363,7 +363,7 @@ canvas{max-height:220px}
   <div class="main">
     <div class="cc" style="margin-bottom:16px">
       <div class="cc-head"><div class="cc-title" id="cmp-ch-title">Valor de pedidos mês a mês (R$)</div></div>
-      <div class="cc-body"><canvas id="ch-cmp" style="max-height:280px"></canvas></div>
+      <div class="cc-body"><canvas id="ch-cmp" style="max-height:340px"></canvas></div>
     </div>
     <div class="g2">
       <div class="ct">
@@ -547,28 +547,51 @@ function renderTbl(id,rows,fn,footer=""){document.getElementById(id).innerHTML=r
 
 Chart.register(ChartDataLabels);
 
+function fmtCurto(v){
+  if(v==null) return "";
+  const a=Math.abs(v);
+  if(a>=1e6) return "R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi";
+  if(a>=1e3) return "R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil";
+  return "R$ "+Math.round(v).toLocaleString("pt-BR");
+}
+const fmtQtd=v=>v==null?"":Number(v).toLocaleString("pt-BR");
+const fmtDias=v=>v==null?"":Number(v).toLocaleString("pt-BR")+" d";
+
 function mkChart(id,type,labels,datasets,opts={}){
   if(CH[id])CH[id].destroy();
   const ctx=document.getElementById(id);if(!ctx)return;
   const isDough=(type==="pie"||type==="doughnut");
-  CH[id]=new Chart(ctx,{type,data:{labels,datasets},options:{
+  const {labelFmt,labelRot,plugins:optPlugins={},...rest}=opts;
+  const horiz=rest.indexAxis==="y";
+  // rótulo de dados em todos os gráficos: % nas roscas, valor na ponta das barras
+  const datalabels = isDough ? {
+      display:true, color:"#fff", font:{size:9,weight:"600"},
+      formatter:(val,ctx2)=>{ const tot=ctx2.dataset.data.reduce((a,b)=>a+b,0); return tot>0?((val/tot)*100).toFixed(1)+"%":""; }
+    } : {
+      display:c=>c.dataset.data[c.dataIndex]!=null&&c.dataset.data[c.dataIndex]!==0,
+      color:"#374151", font:{size:9,weight:"600"},
+      anchor:"end", align:labelRot?"end":(horiz?"right":"top"), offset:2, clamp:true,
+      rotation:labelRot||0,
+      formatter:labelFmt||fmtQtd
+    };
+  const options={
     responsive:true,maintainAspectRatio:true,
-    plugins:{
-      legend:{labels:{color:isDough?"#374151":"#6b7280",font:{size:10}}},
-      datalabels:{
-        display: isDough ? true : (opts.showLabels||false),
-        color: isDough ? "#fff" : "#374151",
-        font:{size:9,weight:"600"},
-        formatter: isDough
-          ? (val,ctx2)=>{ const tot=ctx2.dataset.data.reduce((a,b)=>a+b,0); return tot>0?((val/tot)*100).toFixed(1)+"%":""; }
-          : (opts.labelFmt||null)
-      }
-    },
     scales:isDough?{}:{
       x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
       y:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}}
-    },...opts
-  }});
+    },...rest,
+    plugins:{
+      legend:{labels:{color:isDough?"#374151":"#6b7280",font:{size:10}}},
+      ...optPlugins,
+      datalabels:{...datalabels,...(optPlugins.datalabels||{})}
+    }
+  };
+  // folga no eixo de valor para o rótulo caber dentro do gráfico
+  if(!isDough){
+    const eixo=horiz?"x":"y";
+    options.scales[eixo]={...(options.scales[eixo]||{}),grace:labelRot?"30%":(horiz?"20%":"12%")};
+  }
+  CH[id]=new Chart(ctx,{type,data:{labels,datasets},options});
 }
 
 // ── RENDER SCs ────────────────────────────────────────────────────────────────
@@ -759,7 +782,7 @@ function renderIndicadores(){
   // ── SC por Comprador (barra horizontal) ───────────────────────────────────
   const compSC=agg(fSC,"comprador");
   mkChart("ch-comp-sc","bar",compSC.map(e=>e[0]),[{label:"Qtd SC",data:compSC.map(e=>e[1]),backgroundColor:PAL[0]+"cc",borderRadius:4}],
-    {indexAxis:"y",plugins:{legend:{display:false}},scales:{
+    {labelFmt:fmtQtd,indexAxis:"y",plugins:{legend:{display:false}},scales:{
       x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
       y:{ticks:{color:"#374151",font:{size:10}},grid:{display:false}}
     }});
@@ -767,7 +790,7 @@ function renderIndicadores(){
   // ── Valor por Comprador (barra horizontal) ────────────────────────────────
   const compV=aggVal(fPed,"Comp","C7_TOTAL");
   mkChart("ch-val-comp","bar",compV.map(e=>e[0]),[{label:"Valor",data:compV.map(e=>e[1]),backgroundColor:PAL[1]+"cc",borderRadius:4}],
-    {indexAxis:"y",plugins:{legend:{display:false}},scales:{
+    {labelFmt:fmtCurto,indexAxis:"y",plugins:{legend:{display:false}},scales:{
       x:{ticks:{color:"#6b7280",font:{size:9},callback:v=>"R$"+Number(v/1000000).toFixed(1)+"M"},grid:{color:"#f3f4f6"}},
       y:{ticks:{color:"#374151",font:{size:10}},grid:{display:false}}
     }});
@@ -778,7 +801,7 @@ function renderIndicadores(){
       .forEach(r=>{if(!lc[r.Comp])lc[r.Comp]=[];lc[r.Comp].push(r.leadtime_dias);});
   const la=Object.entries(lc).map(([c,a])=>[c,a.reduce((x,v)=>x+v,0)/a.length]).sort((a,b)=>b[1]-a[1]);
   mkChart("ch-lead","bar",la.map(e=>e[0]),[{label:"Dias",data:la.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[2]+"cc",borderRadius:4}],
-    {indexAxis:"y",plugins:{legend:{display:false}},scales:{
+    {labelFmt:fmtDias,indexAxis:"y",plugins:{legend:{display:false}},scales:{
       x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
       y:{ticks:{color:"#374151",font:{size:10}},grid:{display:false}}
     }});
@@ -787,13 +810,13 @@ function renderIndicadores(){
   const sm={};fSC.forEach(r=>{const k=(normDate(r.C1_EMISSAO)||"").slice(0,7);if(k)sm[k]=(sm[k]||0)+1;});
   const sa=Object.entries(sm).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
   mkChart("ch-sc-mes","bar",sa.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"SCs",data:sa.map(e=>e[1]),backgroundColor:PAL[0]+"cc",borderRadius:4}],
-    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
+    {labelFmt:fmtQtd,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
 
   // ── Valor por Mês ─────────────────────────────────────────────────────────
   const pmV={};fPed.forEach(r=>{const k=(normDate(r.EMISSAO_PEDIDO)||"").slice(0,7);if(k)pmV[k]=(pmV[k]||0)+(r.C7_TOTAL||0);});
   const paV=Object.entries(pmV).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
   mkChart("ch-ped-mes-val","bar",paV.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"Valor",data:paV.map(e=>e[1]),backgroundColor:PAL[1]+"cc",borderRadius:4}],
-    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280",callback:v=>"R$"+Number(v/1000000).toFixed(1)+"M"}}}});
+    {labelFmt:fmtCurto,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280",callback:v=>"R$"+Number(v/1000000).toFixed(1)+"M"}}}});
 
   // ── COM SC vs SEM SC ──────────────────────────────────────────────────────
   const comSCq=fPed.filter(r=>r.SEM_SC==="COM SC").length;
@@ -844,12 +867,12 @@ function renderIndicadores(){
       .forEach(r=>{if(!pc[r.Comp])pc[r.Comp]=[];pc[r.Comp].push(r.tempo_pagamento);});
   const pa2=Object.entries(pc).map(([c,a])=>[c,a.reduce((x,v)=>x+v,0)/a.length]).sort((a,b)=>b[1]-a[1]);
   mkChart("ch-tmp-pag","bar",pa2.map(e=>e[0]),[{label:"Dias",data:pa2.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[4]+"cc",borderRadius:4}],
-    {plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
+    {labelFmt:fmtDias,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
 
   // ── Status dos Pedidos ────────────────────────────────────────────────────
   const stPed=agg(fPed,"STATUS_PEDIDO");
   mkChart("ch-status-ped","bar",stPed.map(e=>e[0]),[{label:"Qtd",data:stPed.map(e=>e[1]),backgroundColor:PAL[5]+"cc",borderRadius:4}],
-    {indexAxis:"y",plugins:{legend:{display:false}},scales:{
+    {labelFmt:fmtQtd,indexAxis:"y",plugins:{legend:{display:false}},scales:{
       x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
       y:{ticks:{color:"#374151",font:{size:9}},grid:{display:false}}
     }});
@@ -1123,7 +1146,7 @@ function renderComparativo(){
   mkChart("ch-cmp","bar",MESES,[
     {label:anoA,data:vA.map(v=>Math.round(v)),backgroundColor:"#94a3b8",borderRadius:4},
     {label:anoB,data:vB.map((v,m)=>comp(m)?Math.round(v):null),backgroundColor:PAL[0],borderRadius:4}
-  ],{plugins:{legend:{display:true,labels:{color:"#374151",font:{size:11}}},datalabels:{display:false},
+  ],{labelFmt:fmtCurto,labelRot:-90,plugins:{legend:{display:true,labels:{color:"#374151",font:{size:11}}},
      tooltip:{callbacks:{label:c=>c.dataset.label+": "+fmtM(c.raw)}}},
      scales:{x:{ticks:{color:"#6b7280"}},y:{ticks:{color:"#6b7280",callback:v=>Math.abs(v)>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":"R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil"}}}});
 
