@@ -53,6 +53,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | Índices | `idx_sol_itens_solicitacao`, `idx_consumo_mensal_cc` | `drop index` |
 | Índices da compras | `idx_scs_emissao`, `idx_pedidos_emissao` foram **removidos** (pesavam nos syncs) | — |
 | RLS fase A | 19 tabelas do Protheus: leitura pública, escrita só `service_role` (estoque_sb2, consumo_*, mov_*, movimentos_entrada, pedidos_compra, sc_pedidos, sc_pedidos_v2, scs, pedidos, filiais, sync_log, aprovadores_pcs) | `alter table ... disable row level security` |
+| `pedidos_grupo` | **Ainda não criada** — tabela de itens agrupados por pedido × grupo para o Comparativo Mensal (SQL no chat de 23/10) | `drop table public.pedidos_grupo` |
 | `mobilizacoes.criado_em` | **Ainda sem default** — rodar `alter table public.mobilizacoes alter column criado_em set default now();` | — |
 
 ### Backups guardados

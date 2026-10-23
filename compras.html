@@ -385,7 +385,7 @@ canvas{max-height:220px}
         </table></div>
       </div>
     </div>
-    <div class="cmp-note">Valor = total do pedido (C7_TOTAL) pela data de emissão. Esta aba usa só os filtros acima.
+    <div class="cmp-note"><span id="cmp-fonte"></span> Data = emissão do pedido. Esta aba usa só os filtros acima.
       O mês atual é comparado só até o mesmo dia no ano anterior. Em "Só recebidos", os meses mais recentes ficam menores porque parte dos pedidos ainda não chegou. Diferença negativa (verde) = redução.</div>
   </div>
 </div>
@@ -1052,13 +1052,43 @@ function renderDetTable(){
 // ── COMPARATIVO MENSAL ────────────────────────────────────────────────────────
 const MESES=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const STATUS_FORA=["Rejeitado pelo aprovador","PC Eliminado por Resíduo"];
-function cmpStatusOk(st,modo){
-  if(modo==="rec") return st==="Recebido";
-  if(modo==="recparc") return st==="Recebido"||st==="Recebido parcialmente";
-  if(modo==="valid") return !STATUS_FORA.includes(st);
-  return true;
+let CMP_GRUPOS=[], CMP_SEL=new Set(), CMP_BASE=null, CMP_FONTE="", CMP_CARREGANDO=false;
+
+// Base do comparativo: valores por pedido × grupo, já separados pelo status de cada ITEM
+// (tabela pedidos_grupo, alimentada pelo upload_compras.py). Sem ela, usa a tabela pedidos
+// (status e grupo do pedido inteiro — menos exato).
+async function cmpCarregarBase(){
+  if(CMP_BASE||CMP_CARREGANDO) return;
+  CMP_CARREGANDO=true;
+  const tipoPed={};
+  ALL_PED.forEach(r=>{ tipoPed[String(r.C7_NUM||"").trim()+"|"+String(r.C7_FILIAL||"").trim()]=r.TIPO_PEDIDO; });
+  let itens=[];
+  try{
+    itens=await sbGet("pedidos_grupo","c7_num,c7_filial,c7_grpprod,emissao,valor_total,valor_valido,valor_recebido,valor_rec_parc",null,"","c7_num,c7_filial,c7_grpprod");
+  }catch(e){ itens=[]; }
+  if(itens.length){
+    CMP_FONTE="itens";
+    CMP_BASE=itens.map(r=>{
+      const num=String(r.c7_num||"").trim(), fil=String(r.c7_filial||"").trim();
+      return {num, fil, g:String(r.c7_grpprod||"").trim(), d:normDate(r.emissao), tipo:tipoPed[num+"|"+fil]||"",
+        v:{rec:+r.valor_recebido||0, recparc:+r.valor_rec_parc||0, valid:+r.valor_valido||0, todos:+r.valor_total||0}};
+    });
+  }else{
+    CMP_FONTE="pedidos";
+    CMP_BASE=ALL_PED.map(r=>{
+      const st=r.STATUS_PEDIDO, t=Number(r.C7_TOTAL||0);
+      return {num:String(r.C7_NUM||"").trim(), fil:String(r.C7_FILIAL||"").trim(), g:cmpGrp(r), d:normDate(r.EMISSAO_PEDIDO), tipo:r.TIPO_PEDIDO||"",
+        v:{rec:st==="Recebido"?t:0, recparc:(st==="Recebido"||st==="Recebido parcialmente")?t:0, valid:STATUS_FORA.includes(st)?0:t, todos:t}};
+    });
+  }
+  // grupos que só existem nos itens também entram na lista
+  const conhecidos=new Set(CMP_GRUPOS.map(g=>g.cod));
+  [...new Set(CMP_BASE.map(x=>x.g))].filter(c=>!conhecidos.has(c)).forEach(c=>CMP_GRUPOS.push({cod:c,label:c||"(sem grupo)"}));
+  CMP_GRUPOS.sort((a,b)=>a.cod.localeCompare(b.cod));
+  cmpListaGrupos();
+  CMP_CARREGANDO=false;
+  renderComparativo();
 }
-let CMP_GRUPOS=[], CMP_SEL=new Set();
 
 function cmpGrp(r){ return String(r.C7_GRPPROD||"").trim(); }
 function cmpEsc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
@@ -1119,6 +1149,10 @@ function cmpPct(p){ return p==null?"–":(p>0?"+":"")+p.toFixed(1)+"%"; }
 
 function renderComparativo(){
   if(!document.getElementById("screen-comparativo").classList.contains("active")) return;
+  if(!CMP_BASE){
+    document.getElementById("kpi-cmp").innerHTML='<div class="kpi"><div class="kpi-lbl">Carregando itens dos pedidos...</div></div>';
+    cmpCarregarBase(); return;
+  }
   const anoA=document.getElementById("cmp-ano-a").value, anoB=document.getElementById("cmp-ano-b").value;
   const fil=document.getElementById("cmp-filial").value, tipo=document.getElementById("cmp-tipo").value;
   const modoSt=document.getElementById("cmp-status").value;
@@ -1127,16 +1161,16 @@ function renderComparativo(){
   const diaAtual=String(hoje.getDate()).padStart(2,"0");
 
   // 12 meses × 2 anos, e também por grupo
-  const vA=Array(12).fill(0), vB=Array(12).fill(0), qA=Array(12).fill(0), qB=Array(12).fill(0);
-  const temB=Array(12).fill(false);
+  const vA=Array(12).fill(0), vB=Array(12).fill(0);
+  const pA=[...Array(12)].map(()=>new Set()), pB=[...Array(12)].map(()=>new Set());
   const linhas=[];
-  ALL_PED.forEach(r=>{
-    const d=normDate(r.EMISSAO_PEDIDO); if(!d) return;
+  CMP_BASE.forEach(r=>{
+    const d=r.d; if(!d) return;
     const ano=d.slice(0,4); if(ano!==anoA&&ano!==anoB) return;
-    if(!cmpStatusOk(r.STATUS_PEDIDO,modoSt)) return;
-    if(fil&&String(r.C7_FILIAL||"").trim()!==fil) return;
-    if(tipo&&r.TIPO_PEDIDO!==tipo) return;
-    linhas.push({ano, m:+d.slice(5,7)-1, dia:d.slice(8,10), g:cmpGrp(r), v:Number(r.C7_TOTAL||0)});
+    const v=r.v[modoSt]; if(!v) return;
+    if(fil&&r.fil!==fil) return;
+    if(tipo&&r.tipo!==tipo) return;
+    linhas.push({ano, m:+d.slice(5,7)-1, dia:d.slice(8,10), g:r.g, v, ped:r.num+"|"+r.fil});
   });
   // mês atual do ano comparado: o ano base entra só até o mesmo dia
   const corte = m => (anoB+"-"+String(m+1).padStart(2,"0"))===mesAtual ? diaAtual : null;
@@ -1144,9 +1178,10 @@ function renderComparativo(){
   const sel = linhas.filter(x=>CMP_SEL.size===0||CMP_SEL.has(x.g));
   sel.forEach(x=>{
     if(!conta(x)) return;
-    if(x.ano===anoB){ vB[x.m]+=x.v; qB[x.m]++; temB[x.m]=true; }
-    if(x.ano===anoA){ vA[x.m]+=x.v; qA[x.m]++; }
+    if(x.ano===anoB){ vB[x.m]+=x.v; pB[x.m].add(x.ped); }
+    if(x.ano===anoA){ vA[x.m]+=x.v; pA[x.m].add(x.ped); }
   });
+  const qA=pA.map(p=>p.size), qB=pB.map(p=>p.size);
   // meses comparáveis = meses que já começaram no ano comparado
   const fimB = anoB+"-12" < mesAtual ? 11 : (anoB===mesAtual.slice(0,4) ? hoje.getMonth() : -1);
   const comp = m => m<=fimB;
@@ -1184,6 +1219,9 @@ function renderComparativo(){
     <td class="r">${fmtM(dt.d)}</td><td class="r">${cmpPct(dt.p)}</td>
     <td class="r">${qA.reduce((s,v,m)=>s+(comp(m)?v:0),0)}</td><td class="r">${qB.reduce((s,v,m)=>s+(comp(m)?v:0),0)}</td></tr>`;
   document.getElementById("tb-cmp-mes").innerHTML=h;
+  document.getElementById("cmp-fonte").innerHTML = CMP_FONTE==="itens"
+    ? "Valores somados item a item, pelo status e grupo de cada item."
+    : '<b style="color:var(--red)">Atenção: valores pelo pedido inteiro (status e grupo do pedido) — pedidos com itens eliminados ou de vários grupos podem distorcer. Falta a tabela de itens (pedidos_grupo).</b>';
 
   // por grupo: todos os grupos (respeita filial/tipo/status), só meses comparáveis
   const pg={};
