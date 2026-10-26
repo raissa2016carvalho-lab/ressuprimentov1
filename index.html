@@ -1142,7 +1142,11 @@ function _atualizarInfoAlteracao(it){document.querySelectorAll('[data-alt-ids*="
 function _ultimaAtualizacaoHtml(sols){
   var ult=null,set=function(dt,quem){if(dt&&(!ult||dt>ult.dt))ult={dt:dt,quem:quem}};
   (sols||[]).forEach(function(s){
-    set(s.atualizado_em,s.atualizado_por||(s.status==='aguardando_master'?'gerente':''));
+    var quem=s.atualizado_por;
+    // salvamentos antigos não gravavam o autor: usa quem alterou itens no master até 2 min antes
+    if(!quem&&s.atualizado_em){var t=new Date(s.atualizado_em).getTime();
+      (s.itens||[]).forEach(function(it){if(it.master_alterado_em&&it.master_alterado_por){var d=t-new Date(it.master_alterado_em).getTime();if(d>=-5000&&d<=120000)quem=it.master_alterado_por}})}
+    set(s.atualizado_em,quem||(s.status==='aguardando_master'?'gerente':''));
     (s.itens||[]).forEach(function(it){set(it.master_alterado_em,it.master_alterado_por)});
   });
   if(!ult)return'';
