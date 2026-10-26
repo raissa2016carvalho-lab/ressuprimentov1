@@ -45,12 +45,15 @@ Página com os links para todas as telas. Sem banco de dados.
 - Validação no DBeaver: `BEQ_LWH.dbo.LWHSC7010` (C7_TOTAL é texto; usar `TRY_CAST(REPLACE(C7_TOTAL,',','.') AS DECIMAL(18,4))`,
   status do item em `STATUS_DESC`, grupo em `C7_GRPPROD`). Usuário raissa.carvalho não acessa `BEQ_DWH`.
 
-## fechamento.html + login_fechamento.html — Fechamento de consumo (com login)
-- Tabelas: `consumo_scp`, `consumo_scp_resumo`, `mov_sd3_001`, `centros_custo`, `sync_log`,
-  `justificativas_consumo` (grava justificativas).
-- Cache de 4h no navegador (localStorage) para o resumo de consumo.
-- Tem login próprio, e o `login_fechamento.html` faz um login separado (duplicado) — dá para unificar.
-- Não foi revisado a fundo.
+## fechamento.html — Fechamento de consumo (com login Supabase Auth)
+- Tabelas: `consumo_scp_resumo` (carga principal), `consumo_scp`, `mov_sd3_001` (devoluções), `centros_custo`,
+  `filiais`, `sync_log`, `justificativas_consumo` (grava justificativas + `atualizado_por`).
+- Cache no navegador (localStorage) renovado automaticamente quando o `sync_log` (consumo_scp) muda; botão
+  **↻ Atualizar dados** descarta o cache.
+- Devoluções e Comparativo buscam o `mov_sd3_001` página por página (antes cortava em 1000 linhas; há meses com 1.394).
+- Filtro de filial montado a partir dos dados + nomes da tabela `filiais`.
+- `login_fechamento.html` removido (era um segundo login que só redirecionava).
+- Pendente (SQL no SQL Editor): RLS em `justificativas_consumo` — só usuários logados leem/gravam.
 
 ## manutencao.html — Manutenção de veículos
 - Usa **outro projeto Supabase** (`vvwtqbehfwrgcmbjdniu`), não o do ressuprimento.
