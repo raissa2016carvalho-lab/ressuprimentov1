@@ -29,3 +29,13 @@
 - `gerentes_cc.cc` é número e `solicitacoes.cc` é texto — sempre comparar como texto.
 
 ## Aba Mobilização → ver `docs/mobilizacao.md`
+
+## Aba Acompanhamento (unificada com a antiga aba Formulários — out/2026)
+- Lista as solicitações com SC. Card: SC, CC, solicitante, % pedido, % recebido, valor, "↻ atualizado … · nome".
+- Aberto: linha do tempo + itens com o caminho completo: Consumo (6 meses antes do envio) · Estoque no envio ·
+  Almox. · Gerente (qtd + 💬 justificativa) · Master (final, com quem alterou) · Valor · Prev. entrega · Pedidos.
+- Filtros funcionando: busca (SC, solicitante, CC, obs), CC, filial, comprador, período, status do pedido
+  (sem pedido / pendente / parcial / recebido — depende do cálculo em segundo plano).
+- Excel (geral e por SC): uma linha por item com todas as colunas acima.
+- Aba 📋 Formulários escondida do menu (código mantido). Filtro de consolidado escondido (nunca era preenchido).
+
