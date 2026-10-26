@@ -293,6 +293,7 @@ tr:last-child td{border-bottom:none}
       <div style="font-weight:600;color:#c7d2fe" id="user-nome"></div>
       <div id="user-cargo"></div>
     </div>
+    <button class="btn-voltar" onclick="_recarregarDados()" title="Buscar os dados de novo no banco (ignora o que está guardado no navegador)">↻ Atualizar dados</button>
     <button class="btn-voltar" onclick="_fazerLogout()" title="Sair">⏻ Sair</button>
     <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
   </div>
@@ -400,10 +401,32 @@ function fmtVal(v){return'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFra
 function fmtQtd(v){return(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2})}
 function fmtMes(m){const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return meses[Number(m.slice(4,6))-1]+'/'+m.slice(2,4)}
 
+// Busca todas as páginas de uma consulta (o banco devolve no máx. 1000 linhas por vez)
+async function _buscarTodas(montar){
+  let all=[],off=0;
+  for(;;){
+    const{data,error}=await montar().range(off,off+999);
+    if(error)throw error;
+    if(!data||!data.length)break;
+    all=all.concat(data);
+    if(data.length<1000)break;
+    off+=1000;
+  }
+  return all;
+}
+// Botão "Atualizar dados": descarta o cache do navegador e busca tudo de novo
+function _recarregarDados(){
+  try{localStorage.removeItem('consumo_resumo_v1');localStorage.removeItem('consumo_resumo_ts');localStorage.removeItem('consumo_resumo_sync');}catch(e){}
+  _devResumoCache=null;_dadosDevComp=null;
+  carregar();
+}
+window._recarregarDados=_recarregarDados;
+let _nomesFiliais={};
 async function carregar(){
   const cacheKey='consumo_resumo_v1';
   const cacheTS='consumo_resumo_ts';
-  const CACHE_HORAS=4;
+  const cacheSync='consumo_resumo_sync';
+  const CACHE_HORAS=24;
 
   document.getElementById('content').innerHTML='<div class="loading"><span class="spinner"></span>Carregando...</div>';
 
@@ -420,13 +443,20 @@ async function carregar(){
   }
 
   setProgresso(5,'Conectando...');
-  const{data:ccs}=await db.from('centros_custo').select('cc,nome');
+  const[{data:ccs},{data:fils},{data:logSync}]=await Promise.all([
+    db.from('centros_custo').select('cc,nome'),
+    db.from('filiais').select('filial,nome_filial'),
+    db.from('sync_log').select('atualizado_em').eq('chave','consumo_scp').maybeSingle()
+  ]);
   (ccs||[]).forEach(c=>{_ccMap[c.cc]=c.nome});
+  (fils||[]).forEach(f=>{_nomesFiliais[String(f.filial).trim().replace(/^0+/,'')]=String(f.nome_filial||'').trim()});
+  const syncAtual=logSync?.atualizado_em||'';
 
-  const cacheStr=localStorage.getItem(cacheKey);
-  const cacheTSVal=localStorage.getItem(cacheTS);
+  let cacheStr=null,cacheTSVal=null,cacheSyncVal=null;
+  try{cacheStr=localStorage.getItem(cacheKey);cacheTSVal=localStorage.getItem(cacheTS);cacheSyncVal=localStorage.getItem(cacheSync);}catch(e){}
   const agora=Date.now();
-  const cacheValido=cacheStr&&cacheTSVal&&(agora-Number(cacheTSVal))<CACHE_HORAS*3600*1000;
+  // cache só vale se o sync não rodou de novo desde que foi gravado
+  const cacheValido=cacheStr&&cacheTSVal&&(agora-Number(cacheTSVal))<CACHE_HORAS*3600*1000&&(cacheSyncVal||'')===syncAtual;
 
   if(cacheValido&&cacheStr){
     try{
@@ -495,6 +525,7 @@ async function carregar(){
   try{
     localStorage.setItem(cacheKey,JSON.stringify(_dados));
     localStorage.setItem(cacheTS,String(Date.now()));
+    localStorage.setItem(cacheSync,syncAtual);
   }catch(e){console.warn('Cache:',e);}
 
   setProgresso(98,'Preparando visualização...');
@@ -520,6 +551,14 @@ function _expandirCache(compacto){
 }
 
 function popularSelects(todos){
+  // filiais a partir dos dados (filial nova aparece sozinha)
+  const selFil=document.getElementById('f-filial');
+  if(selFil){
+    const atual=selFil.value;
+    const fils=[...new Set(todos.map(r=>String(r.filial||'').trim()).filter(Boolean))].sort();
+    selFil.innerHTML='<option value="">Todas as filiais</option>'+fils.map(f=>{const n=_nomesFiliais[f.replace(/^0+/,'')]||'';return`<option value="${f}">${f}${n?' — '+n:''}</option>`}).join('');
+    if(fils.includes(atual))selFil.value=atual;
+  }
   const grupos=[...new Set(todos.map(r=>r.grupo).filter(Boolean))].sort();
   const selGrupo=document.getElementById('f-grupo');
   selGrupo.innerHTML='<option value="">Todos os grupos</option>'+grupos.map(g=>`<option value="${g}">${g}</option>`).join('');
@@ -1073,11 +1112,19 @@ async function carregarJustificativas(){
   }catch(e){}
 }
 
+function _infoJust(j){
+  if(!j||!j.atualizado_em)return'';
+  const d=new Date(j.atualizado_em),quem=String(j.atualizado_por||'').split('@')[0].replace(/[<>&"']/g,'');
+  return'<div style="font-size:10px;color:#94a3b8;margin:2px 0 4px">última edição '+d.toLocaleDateString('pt-BR')+(quem?' · '+quem:'')+'</div>';
+}
 async function salvarJustificativa(chave,texto,btnEl,spanEl){
   const partes=chave.split('|');
-  const rec={chave,cc:partes[0],mes:partes[1],texto,atualizado_em:new Date().toISOString()};
+  const rec={chave,cc:partes[0],mes:partes[1],texto,atualizado_em:new Date().toISOString(),atualizado_por:_sessao?.email||null};
   try{
-    await db.from('justificativas_consumo').upsert(rec,{onConflict:'chave'});
+    let{error}=await db.from('justificativas_consumo').upsert(rec,{onConflict:'chave'});
+    // banco ainda sem a coluna atualizado_por: grava sem ela
+    if(error&&/atualizado_por/.test(error.message||'')){delete rec.atualizado_por;({error}=await db.from('justificativas_consumo').upsert(rec,{onConflict:'chave'}));}
+    if(error)throw error;
     _justificativas[chave]=rec;
     spanEl.textContent='✓ Salvo!';
     setTimeout(()=>{spanEl.textContent='';},2000);
@@ -1188,7 +1235,7 @@ function renderEstouros(){
         <span class="just-saved" id="saved-${i}"></span>
         <div id="just-${i}" style="display:none" class="just-box">
           <div style="font-size:11px;color:#64748b;margin-bottom:4px">Justificativa — <strong>${c.cc}</strong> / ${fmtMes(ultimoMes)}</div>
-          <textarea id="txt-${i}" placeholder="Descreva o motivo do estouro...">${just?just.texto:''}</textarea>
+          <textarea id="txt-${i}" placeholder="Descreva o motivo do estouro...">${just?just.texto:''}</textarea>${_infoJust(just)}
           <button class="save-btn" onclick="salvarJust('${chave}','txt-${i}','saved-${i}')">💾 Salvar</button>
         </div>
       </td>
@@ -1629,17 +1676,17 @@ async function renderDevolucoes(){
     // Filtrar por CC se selecionado
   const ccFiltro = document.getElementById('f-cc')?.value || '';
   const buscaFiltro = (document.getElementById('f-busca')?.value || '').toLowerCase().trim();
-  let query = db.from('mov_sd3_001')
-      .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,quantidade,valor_total,custo_fonte')
-      .eq('mes', mesRef)
-      .neq('cc','122010102')
-      .order('emissao', {ascending: false});
-  if(ccFiltro) query = query.eq('cc', ccFiltro);
-
-    const {data, error} = await query.limit(50000);
-    if(error) throw error;
-
-    let dados = data || [];
+    // busca página por página (o banco devolve no máx. 1000 linhas por consulta)
+    let dados = await _buscarTodas(()=>{
+      let q = db.from('mov_sd3_001')
+        .select('filial,produto,descricao,grupo,cc,emissao,mes,matricula,documento,observacao,quantidade,valor_total,custo_fonte')
+        .eq('mes', mesRef)
+        .neq('cc','122010102')
+        .order('emissao', {ascending: false}).order('id');
+      if(ccFiltro) q = q.eq('cc', ccFiltro);
+      return q;
+    });
+    const data = dados; // total do mês (antes da busca por texto)
     if(buscaFiltro) {
       dados = dados.filter(r =>
         (r.produto||'').toLowerCase().includes(buscaFiltro) ||
@@ -1768,12 +1815,12 @@ async function renderComparativo(){
   // Buscar dados de devolução (mov_sd3_001) para o mês
   try {
     if(_dadosDevComp?.mes !== _mesComparativo){
-      const {data, error} = await db.from('mov_sd3_001')
+      const data = await _buscarTodas(()=>db.from('mov_sd3_001')
         .select('cc,grupo,valor_total')
         .eq('mes', _mesComparativo)
         .neq('cc','122010102')
-        .limit(50000);
-      if(!error) _dadosDevComp = {mes: _mesComparativo, data: data||[]};
+        .order('id'));
+      _dadosDevComp = {mes: _mesComparativo, data: data||[]};
     }
   } catch(e){ _dadosDevComp = {mes: _mesComparativo, data:[]}; }
 
