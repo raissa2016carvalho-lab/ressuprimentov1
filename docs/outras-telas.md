@@ -1,19 +1,24 @@
 # Outras telas
 
 ## ruptura.html — Risco de Ruptura (out/2026, sem login)
-- EPI/EPC/Ferramentas e Fardamento, por filial × item. Lê `itens`, `estoque_sb2` (qtd_atual e `saldo_pedido` = a caminho;
-  negativo vira 0), `consumo_mensal` (últimos 6 meses ÷ 6), `sc_pedidos_v2` (atrasados: entrega vencida nos últimos 90 dias,
-  status pendente/em aprovação/recebido parcialmente/sem status) e `filiais`.
+- **Visual igual ao `estoque.html` (Posição)** desde 26/10: topo escuro, filtros, botões-pílula, cartões, tabela ordenável
+  (clique no título) com 100 linhas por página, Excel da lista filtrada. Uma linha por **filial × item** de EPI/EPC/Ferramentas e Fardamento.
+- Lê `itens`, `estoque_sb2` (qtd_atual, `saldo_pedido` = a caminho; negativo vira 0), `consumo_mensal` (6 meses ÷ 6),
+  `sc_pedidos_v2`, `filiais` e a função `trocas_previstas`.
+  - **SC aberta**: `pc_numero` vazio e status Pendente / Bloqueada / Em Processo de Cotação, emitida no último ano; qtd = `sc_quant - sc_quje`.
+  - **Pedido em aberto**: status Pendente / Em aprovação / Recebido parcialmente / Em recebimento (Pré-nota) / Sem status, entrega a partir de 180 dias atrás;
+    atrasado = entrega vencida. Passar o mouse mostra todos os PCs/SCs (fornecedor, comprador, solicitante).
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
-- Meta: regular/intermitente = média × prazo; pontual = maior pico. Pedir agora: estoque + a caminho < meta.
-  Depende da entrega: estoque < meta ≤ estoque + a caminho. Transferir de: filial com estoque > 6 meses de consumo.
+- Meta: regular/intermitente = média × prazo; pontual = maior pico; maior entre isso e as trocas previstas.
+- Situação: **Pedir agora** (estoque + a caminho + SC aberta < meta); **Já solicitado** (só cobre contando a SC aberta);
+  **Depende da entrega** (estoque < meta ≤ estoque + a caminho); Normal; Sem saída. Pílulas extras: zerados com saída, pedido atrasado,
+  SC aberta, pode transferir (filial com estoque > 6 meses de consumo).
 - **Trocas previstas** (26/10): `trocas_previstas(71, 99)` devolve, por filial × código, as trocas de itens pessoais que caem dentro do
   prazo do grupo (vencidas contam como hoje; item de vida curta conta mais de uma troca; no máximo 4 unidades por pessoa). Usa o
-  **código/tamanho que a pessoa recebeu por último** e a filial da entrega mais recente dela. Meta = maior entre consumo e trocas
-  (número azul na coluna "Trocas previstas" = a meta veio das trocas). Itens sem consumo nos 6 meses mas com trocas entram como "só trocas".
-- **Aba Vida útil e trocas** (26/10): "Próxima troca por pessoa" (vencidas / próximos 30 / 90 dias; lê `vw_trocas_pessoa` com `dias <= 90`,
+  **código/tamanho que a pessoa recebeu por último** e a filial da entrega mais recente dela. Número azul = a meta veio das trocas.
+- **Botão "Vida útil e trocas"** no topo: pílulas Vencidas / Próximos 30 / 90 dias / Todas (lê `vw_trocas_pessoa` com `dias <= 90`,
   carrega depois do resto) e "Vida útil por item" (`mv_vida_util`, tamanhos juntos, faixa p25–p75). Busca aceita matrícula.
-  Pessoa ativa = recebeu algo nos últimos 60 dias; troca atrasada mais que 1 vida útil sai da lista (provavelmente não usa mais o item).
+  Pessoa ativa = recebeu algo nos últimos 60 dias; troca atrasada mais que 1 vida útil sai da lista.
   Entregas não têm o nome do funcionário (o `solicitante` é o almoxarife) — só matrícula e CC.
 - Próximas etapas combinadas: mínimos de itens críticos (NR-10/altura) por equipe, reserva de mobilização,
   grade de fardamento semestral, alerta de formulário não enviado, contratos com fornecedor (compras).
