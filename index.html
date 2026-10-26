@@ -95,9 +95,10 @@ document.addEventListener('click',function(e){
     var isPorCC=parsed['_total']!==undefined;
     if(isPorCC){
       var total=parsed['_total']||{};
-      // Janela fixa Jan-Jun em ordem crescente
-      var mesesFixosPopup=(function(){var r=[],d=new Date();for(var i=6;i>=0;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(m.getFullYear().toString()+(m.getMonth()+1).toString().padStart(2,'0'))}return r})();
-      var meses=mesesFixosPopup.filter(function(m){return Object.values(parsed).some(function(v){return v&&v[m]>0;});});
+      // Meses com consumo (os mesmos que entram na média da coluna Consumo), os 8 mais recentes
+      var _todosMeses={};
+      Object.values(parsed).forEach(function(v){if(v&&typeof v==='object')Object.keys(v).forEach(function(m){if(v[m]>0&&/^\d{6}$/.test(m))_todosMeses[m]=1;});});
+      var meses=Object.keys(_todosMeses).sort().slice(-8);
       if(!meses.length){html+='<div style="color:#94a3b8;font-size:12px">Sem histórico.</div>';}
       else{
         // Tabela: linhas=CCs, colunas=meses
@@ -1006,7 +1007,7 @@ _ccsDoCard.forEach(_gc=>{
   }
 });
 // Fallback para consumo_historico salvo
-if(!Object.keys(_histAll).length&&it.consumo_historico&&typeof it.consumo_historico==='object'){
+if(!Object.keys(_histAll).length&&it.consumo_historico&&(typeof it.consumo_historico==='object'||typeof it.consumo_historico==='string')){
   let ch=it.consumo_historico;
   if(typeof ch==='string')try{ch=JSON.parse(ch)}catch(e){}
   if(ch&&typeof ch==='object')Object.assign(_histAll,ch);

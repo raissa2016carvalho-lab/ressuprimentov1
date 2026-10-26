@@ -33,6 +33,18 @@ Página com os links para todas as telas. Sem banco de dados.
   índices `idx_scs_emissao ("C1_EMISSAO","C1_NUM","C1_ITEM","C1_FILIAL")` e
   `idx_pedidos_emissao ("EMISSAO_PEDIDO","C7_NUM","C7_FILIAL")` — só depois que os syncs estiverem leves.
 
+- **Aba Comparativo Mensal** (out/2026): ano × ano anterior, mês a mês, filtro de grupo/filial/tipo/status
+  (padrão "só recebidos"). Lê a tabela `pedidos_grupo` (valores por pedido × grupo, separados pelo
+  status de **cada item**, gerada pelo `upload_compras.py` a partir da `BEQ_LWH.dbo.LWHSC7010`).
+  Sem essa tabela, usa `pedidos` e mostra aviso vermelho.
+- Por que não usar só `pedidos`: o sync agrupa por pedido com `MAX(STATUS_PEDIDO)` e `MAX(C7_GRPPROD)` —
+  pedido com itens eliminados por resíduo + 1 recebido vira "Recebido" com valor cheio
+  (ex.: pedido 274748 filial 14: R$ 326 mil no site, R$ 5.950 recebidos de verdade).
+- `scs.pedido_preco/pedido_total` vêm ×10 (o sync tira o ponto decimal de "5950.0") → aba Detalhamento.
+- Paginação com `order` pela chave primária + aviso no topo se a carga vier incompleta.
+- Validação no DBeaver: `BEQ_LWH.dbo.LWHSC7010` (C7_TOTAL é texto; usar `TRY_CAST(REPLACE(C7_TOTAL,',','.') AS DECIMAL(18,4))`,
+  status do item em `STATUS_DESC`, grupo em `C7_GRPPROD`). Usuário raissa.carvalho não acessa `BEQ_DWH`.
+
 ## fechamento.html + login_fechamento.html — Fechamento de consumo (com login)
 - Tabelas: `consumo_scp`, `consumo_scp_resumo`, `mov_sd3_001`, `centros_custo`, `sync_log`,
   `justificativas_consumo` (grava justificativas).
