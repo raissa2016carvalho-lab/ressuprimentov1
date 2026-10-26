@@ -34,15 +34,18 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .kpi-v{font-size:22px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums}
 .kpi-s{font-size:11px;color:var(--text3);margin-top:3px}
 .red{color:var(--red)}.amb{color:var(--amber)}
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px;overflow-x:auto}
-.tab{border:none;background:none;padding:9px 12px;margin-bottom:-1px;font-size:12.5px;color:var(--text3);border-bottom:2px solid transparent;cursor:pointer;font-family:inherit;white-space:nowrap}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:none;background:none;padding:9px 12px;font-size:12.5px;color:var(--text3);border-bottom:2px solid transparent;cursor:pointer;font-family:inherit;white-space:nowrap}
 .tab.ativa{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
 .tab:hover:not(.ativa){color:var(--text)}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
 th{background:var(--surface2);color:var(--text3);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0}
-td{padding:8px 10px;border-bottom:1px solid var(--border2);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--border2);white-space:nowrap;vertical-align:middle}
+td.desc{white-space:normal;min-width:220px;max-width:360px;line-height:1.35}
+td.forn{white-space:normal;max-width:180px}
 tr:hover td{background:#f8faff}
 .n{text-align:right}
 .cod{color:var(--text3);font-size:10.5px}
@@ -264,14 +267,14 @@ function render(){
   let h;
   if(ABA==='atrasados'){
     h=`<table><thead><tr><th>Filial</th><th>Pedido</th><th>Item</th><th class="n">Qtd</th><th class="n">Valor</th><th class="n">Entrega prevista</th><th class="n">Atraso</th><th>Status</th><th>Fornecedor</th><th>Comprador</th></tr></thead><tbody>`+
-      vis.map(a=>`<tr><td>${esc(nomeFil(a.fil))}</td><td>PC ${esc(a.pc)}<div class="cod">SC ${esc(a.sc)}</div></td><td>${esc(a.desc)}<div class="cod">${esc(a.cod)}</div></td>
+      vis.map(a=>`<tr><td>${esc(nomeFil(a.fil))}</td><td>PC ${esc(a.pc)}<div class="cod">SC ${esc(a.sc)}</div></td><td class="desc">${esc(a.desc)}<div class="cod">${esc(a.cod)}</div></td>
         <td class="n">${fmtN(a.qtd)}</td><td class="n">${fmtR(a.valor)}</td><td class="n">${fmtData(a.entrega)}</td>
-        <td class="n ${a.dias>30?'red':'amb'}">${a.dias} dias</td><td>${esc(a.status)}</td><td>${esc(a.forn)}</td><td>${esc(a.comp)}</td></tr>`).join('')+'</tbody></table>';
+        <td class="n ${a.dias>30?'red':'amb'}">${a.dias} dias</td><td>${esc(a.status)}</td><td class="forn">${esc(a.forn)}</td><td class="forn">${esc(a.comp)}</td></tr>`).join('')+'</tbody></table>';
   }else{
     h=`<table><thead><tr><th>Filial</th><th>Item</th><th>Saída</th><th class="n">Consumo/mês</th><th class="n">Estoque</th><th class="n">A caminho</th><th class="n">Cobertura</th><th class="n">Prazo do grupo</th><th class="n">${ABA==='depende'?'Falta se atrasar':'Comprar'}</th><th class="n">Valor est.</th><th>Transferir de</th></tr></thead><tbody>`+
       vis.map(l=>{
         const falta=Math.max(0,Math.ceil(l.alvo-l.est));
-        return`<tr><td>${esc(nomeFil(l.fil))}</td><td>${esc(l.desc)}<div class="cod">${esc(l.cod)}</div></td><td>${tagTipo(l)}</td>
+        return`<tr><td>${esc(nomeFil(l.fil))}</td><td class="desc">${esc(l.desc)}<div class="cod">${esc(l.cod)}</div></td><td>${tagTipo(l)}</td>
         <td class="n">${fmtN(l.media,1)}</td><td class="n ${l.est<=0?'red':''}">${fmtN(l.est)}</td><td class="n">${fmtN(l.cam)}</td>
         <td class="n ${l.cob<l.prazo?'red':''}">${fmtN(l.cob,1)} m</td><td class="n">${fmtN(l.prazo,1)} m</td>
         <td class="n"><b>${fmtN(ABA==='depende'?falta:l.comprar)}</b></td><td class="n">${fmtR((ABA==='depende'?falta:l.comprar)*l.custo)}</td>
