@@ -1820,7 +1820,7 @@ async function expandirAcomp(solId, topo){
               <div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">${it.codigo}</div>
             </td>
             <td style="text-align:center;padding:8px 10px;font-weight:600;color:#1e40af">${_clA.media>0?_fmtCons(_clA.media)+_badgeTipoCons(_clA):'<span style="color:#cbd5e1">—</span>'}</td>
-            <td style="text-align:center;padding:8px 10px;font-weight:600;color:#7c3aed;background:#faf5ff">${it.estoque_filial!=null?Math.floor(Number(it.estoque_filial)):'<span style="color:#cbd5e1">—</span>'}</td>
+            <td style="text-align:center;padding:8px 10px;font-weight:600;color:#7c3aed;background:#faf5ff">${_estoqueNoEnvio(it,sol)!=null?Math.floor(_estoqueNoEnvio(it,sol)):'<span style="color:#cbd5e1;cursor:help" title="'+(it.estoque_filial!=null?'Sem posição do dia do envio (a posição registrada é de '+new Date(it.estoque_filial_data).toLocaleDateString('pt-BR')+', depois do envio)':'Sem posição de estoque registrada')+'">—</span>'}</td>
             <td style="text-align:center;padding:8px 10px;font-weight:600;color:#475569">${qtdAlm}</td>
             <td style="text-align:center;padding:8px 10px"><div style="font-weight:600;color:${qtdGer!=null?'#1e40af':'#cbd5e1'}">${qtdGer!=null?qtdGer:'—'}</div>${it.justificativa_gerente?'<div style="margin-top:3px">'+_htmlJustGer(it.justificativa_gerente)+'</div>':''}</td>
             <td style="text-align:center;padding:8px 10px;font-weight:700;color:#166534;background:#f0fdf4">${qtdMaster}${_infoAlteracaoHtml([it])}</td>
@@ -1840,7 +1840,13 @@ window.expandirAcomp=expandirAcomp;
 
 let _paginaAcomp=1,_porPaginaAcomp=30,_allCardsData='',_cardsVisiveis=[],_todasSolsAcomp=[];
 
-const _ACOMP_ITEM_COLS='solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,qtd_gerente,situacao,justificativa_gerente,consumo_historico,estoque_filial,master_alterado_por,master_alterado_em';
+const _ACOMP_ITEM_COLS='solicitacao_id,codigo,descricao,quantidade,qtd_almoxarife,qtd_gerente,situacao,justificativa_gerente,consumo_historico,estoque_filial,estoque_filial_data,master_alterado_por,master_alterado_em';
+// Estoque "no envio" só vale se foi registrado até 1 dia depois do envio (solicitações antigas receberam a posição de 21/10)
+function _estoqueNoEnvio(it,sol){
+  if(it.estoque_filial==null)return null;
+  if(it.estoque_filial_data&&sol&&sol.criado_em&&new Date(it.estoque_filial_data)-new Date(sol.criado_em)>864e5)return null;
+  return Number(it.estoque_filial);
+}
 function filtrarAcomp(resetPagina=true){
   if(resetPagina)_paginaAcomp=1;
   let busca=($(`filtro-acomp-obs`)?.value||``).toLowerCase().trim(),
@@ -2645,7 +2651,7 @@ Detalhes:
         'Solicitante':s.solicitante_nome||'','Data formulário':new Date(s.criado_em).toLocaleDateString('pt-BR'),
         'Status':LABEL_STATUS[s.status]||s.status,'Período (meses)':s.periodo_meses||'','Observação':s.observacao||'',
         'Código':it.codigo||'','Descrição':it.descricao||'',
-        'Consumo médio 6m':cl.media||0,'Tipo de saída':cl.tipo,'Estoque no envio':it.estoque_filial!=null?Number(it.estoque_filial):'',
+        'Consumo médio 6m':cl.media||0,'Tipo de saída':cl.tipo,'Estoque no envio':_estoqueNoEnvio(it,s)??'',
         'Qtd Almox':qtdAlm??'','Qtd Gerente':it.qtd_gerente??'','Justificativa gerente':it.justificativa_gerente||'',
         'Qtd Master (final)':it.situacao==='recusado'?0:(it.quantidade??''),'Situação':it.situacao||'',
         'Nº PC':[...new Set(p.map(r=>r.pc_numero))].join(', ')||'Sem PC','Qtd PC':p.reduce((a,r)=>a+(Number(r.pc_quant)||0),0)||'',
