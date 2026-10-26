@@ -87,7 +87,7 @@ if(gruposEncontrados.length){
 // Acumula apenas os meses fixos para média; histórico mensal completo fica em consumoMapMensal
 consumoMap={};consumoMapCC={};consumoMapMensal={};let aggCC={};let aggCCMeses={};let aggProdTotal={};let aggProdMeses={};
 (consumoData||[]).forEach(r=>{if(!r.produto||!r.cc)return;let nome=mapCcNome[r.cc]||r.cc,k=nome+'|'+r.produto,qtd=Number(r.quantidade)||0;aggCC[k]=(aggCC[k]||0)+qtd;if(!aggCCMeses[k])aggCCMeses[k]=new Set();if(r.mes)aggCCMeses[k].add(r.mes);aggProdTotal[r.produto]=(aggProdTotal[r.produto]||0)+qtd;if(!aggProdMeses[r.produto])aggProdMeses[r.produto]=new Set();if(r.mes)aggProdMeses[r.produto].add(r.mes);if(r.mes&&r.produto){let km=nome+'|'+r.produto;if(!consumoMapMensal[km])consumoMapMensal[km]={};consumoMapMensal[km][r.mes]=(consumoMapMensal[km][r.mes]||0)+qtd}});
-Object.keys(aggCC).forEach(k=>{let m=consumoMapMensal[k]||{},tot=MESES_FIXOS.reduce((s,mes)=>s+(Number(m[mes])||0),0);consumoMapCC[k]=_r1(tot/MESES_FIXOS.length)});
+Object.keys(aggCC).forEach(k=>{let m=consumoMapMensal[k]||{},tot=MESES_FIXOS.reduce((s,mes)=>s+(Number(m[mes])||0),0);consumoMapCC[k]=tot>0?Math.max(1,Math.round(tot/MESES_FIXOS.length)):0});
 // Média = total dos últimos 6 meses ÷ 6 (meses sem saída contam como zero)
 // Tipo: regular (saída em 5–6 meses), intermitente (3–4), pontual (1–2: usa o maior pico, não a média)
 let _porProdMes={};
@@ -96,7 +96,7 @@ Object.keys(aggProdTotal).forEach(produto=>{
   let tot=0,n=0,pico=0,mesPico='',hist12=false;
   MESES_FIXOS.forEach(mes=>{let q=_porProdMes[produto+'|'+mes]||0;if(q>0){tot+=q;n++;if(q>pico){pico=q;mesPico=mes}}});
   MESES_12.forEach(mes=>{if((_porProdMes[produto+'|'+mes]||0)>0)hist12=true});
-  consumoMap[produto]={media:_r1(tot/MESES_FIXOS.length),pico,mesPico,hist12,tipo:n>=5?'regular':n>=3?'intermitente':n>=1?'pontual':'sem',descricao:``};
+  consumoMap[produto]={media:tot>0?Math.max(1,Math.round(tot/MESES_FIXOS.length)):0,pico,mesPico,hist12,tipo:n>=5?'regular':n>=3?'intermitente':n>=1?'pontual':'sem',descricao:``};
 });
 // Buscar itens dos grupos permitidos (cache sessionStorage 4h)
 let todosItens=[];
@@ -329,7 +329,7 @@ function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr'
 // Mostrar meses do início do ano atual até o mês atual (em ordem crescente)
 var mesesExibir=MESES_FIXOS.slice();
 // Média = total dos 6 meses ÷ 6 (meses sem saída contam como zero)
-var media=String(Math.round(mesesExibir.reduce(function(s,m){return s+(Number(mensal[m])||0)},0)/mesesExibir.length*10)/10).replace('.',',');
+var _totM=mesesExibir.reduce(function(s,m){return s+(Number(mensal[m])||0)},0),media=_totM>0?Math.max(1,Math.round(_totM/mesesExibir.length)):0;
 var html='<span class="pop-close" onclick="fecharPopup()">\u2715</span><h4>'+descricao.slice(0,32)+'</h4>';
 if(!mesesExibir.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem historico disponivel.</div>'}else{html+='<table>'+mesesExibir.map(function(m){var qtd=mensal[m]||0;return'<tr><td>'+fmtMes(m)+'</td><td style="color:'+(qtd>0?'#1e40af':'#cbd5e1')+';font-weight:'+(qtd>0?'700':'400')+'">'+qtd+'</td></tr>'}).join('')+'<tr style="border-top:1px solid #e2e8f0"><td style="font-size:11px;color:#166534;font-weight:600;padding-top:6px">Média mensal (6 meses)</td><td style="color:#16a34a;font-weight:800;font-size:14px;padding-top:6px">'+media+'</td></tr></table>'}pop.innerHTML=html;pop.style.display='block';var r=event.target.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;if(top+ph>window.innerHeight-8)top=r.top-ph-6;pop.style.top=top+'px';pop.style.left=left+'px'}
 window.mostrarPopupConsumo=mostrarPopupConsumo;
