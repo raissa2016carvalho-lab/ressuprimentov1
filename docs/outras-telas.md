@@ -1,5 +1,15 @@
 # Outras telas
 
+## ruptura.html — Risco de Ruptura (out/2026, sem login)
+- EPI/EPC/Ferramentas e Fardamento, por filial × item. Lê `itens`, `estoque_sb2` (qtd_atual e `saldo_pedido` = a caminho;
+  negativo vira 0), `consumo_mensal` (últimos 6 meses ÷ 6), `sc_pedidos_v2` (atrasados: entrega vencida nos últimos 90 dias,
+  status pendente/em aprovação/recebido parcialmente/sem status) e `filiais`.
+- Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
+- Meta: regular/intermitente = média × prazo; pontual = maior pico. Pedir agora: estoque + a caminho < meta.
+  Depende da entrega: estoque < meta ≤ estoque + a caminho. Transferir de: filial com estoque > 6 meses de consumo.
+- Próximas etapas combinadas: mínimos de itens críticos (NR-10/altura) por equipe, reserva de mobilização,
+  grade de fardamento semestral, alerta de formulário não enviado, contratos com fornecedor (compras).
+
 ## los.html — Menu inicial
 Página com os links para todas as telas. Sem banco de dados.
 

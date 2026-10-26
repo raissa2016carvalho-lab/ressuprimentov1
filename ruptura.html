@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Risco de Ruptura — B&Q</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f4f6f9;--surface:#fff;--surface2:#f8fafc;--border:#e5e9f0;--border2:#eef1f5;--text:#0f172a;--text2:#475569;--text3:#8592a6;--primary:#1e40af;--primary-dark:#1e3a8a;--brand:#e87722;--red:#b91c1c;--amber:#b45309;--green:#15803d}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;-webkit-font-smoothing:antialiased}
+.header{background:var(--surface);border-bottom:1px solid var(--border);min-height:58px;display:flex;align-items:center;gap:14px;padding:8px 28px;position:sticky;top:0;z-index:10}
+.brand{font-size:18px;font-weight:700;font-style:italic;color:var(--text);text-decoration:none;padding-right:14px;border-right:1px solid var(--border)}
+.brand b{color:var(--brand)}
+.titulo{font-size:14.5px;font-weight:700}
+.sub{font-size:11px;color:var(--text3);margin-top:1px}
+.header-right{margin-left:auto;display:flex;gap:8px}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit}
+.btn:hover{border-color:#cfd6e1;color:var(--text)}
+.btn-p{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.btn-p:hover{background:var(--primary-dark);color:#fff}
+.filtros{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 28px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.f{display:flex;flex-direction:column;gap:4px}
+.f label{font-size:10.5px;font-weight:600;color:var(--text3)}
+.f select,.f input{border:1px solid var(--border);border-radius:8px;height:32px;padding:5px 10px;font-size:12.5px;font-family:inherit;background:var(--surface);color:var(--text);min-width:150px}
+.f input{min-width:240px}
+.f select:focus,.f input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(30,64,175,.12)}
+.content{padding:20px 28px;max-width:1600px;margin:0 auto}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.kpi-l{font-size:11.5px;color:var(--text2);font-weight:600}
+.kpi-v{font-size:22px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums}
+.kpi-s{font-size:11px;color:var(--text3);margin-top:3px}
+.red{color:var(--red)}.amb{color:var(--amber)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px;overflow-x:auto}
+.tab{border:none;background:none;padding:9px 12px;margin-bottom:-1px;font-size:12.5px;color:var(--text3);border-bottom:2px solid transparent;cursor:pointer;font-family:inherit;white-space:nowrap}
+.tab.ativa{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.tab:hover:not(.ativa){color:var(--text)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+th{background:var(--surface2);color:var(--text3);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0}
+td{padding:8px 10px;border-bottom:1px solid var(--border2);white-space:nowrap}
+tr:hover td{background:#f8faff}
+.n{text-align:right}
+.cod{color:var(--text3);font-size:10.5px}
+.tag{font-size:10.5px;border-radius:5px;padding:1px 6px;font-weight:600}
+.t-reg{background:#ecfdf3;color:var(--green)}.t-int{background:#fffbeb;color:var(--amber)}.t-pon{background:#fff7ed;color:#c2410c}
+.trf{color:var(--primary);font-weight:600}
+.vazio,.carregando{padding:50px;text-align:center;color:var(--text3)}
+.mais{display:block;margin:12px auto;}
+.nota{font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5}
+.spinner{display:inline-block;width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.header,.filtros,.content{padding-left:16px;padding-right:16px}.kpis{grid-template-columns:1fr}.f,.f select,.f input{width:100%;min-width:0}.header{flex-wrap:wrap}.header-right{width:100%}}
+</style>
+</head>
+<body>
+<div class="header">
+  <a class="brand" href="/los.html" title="Voltar ao menu"><b>B</b>&amp;<b>Q</b></a>
+  <div>
+    <div class="titulo">Risco de Ruptura</div>
+    <div class="sub" id="sub">Carregando...</div>
+  </div>
+  <div class="header-right">
+    <button class="btn" onclick="carregar()">↻ Atualizar</button>
+    <button class="btn btn-p" onclick="exportarExcel()">Exportar Excel</button>
+  </div>
+</div>
+
+<div class="filtros">
+  <div class="f"><label>Filial</label><select id="f-filial" onchange="render()"><option value="">Todas</option></select></div>
+  <div class="f"><label>Grupo</label><select id="f-grupo" onchange="render()">
+    <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC / Ferramentas</option><option value="FARD">Fardamento</option></select></div>
+  <div class="f"><label>Tipo de saída</label><select id="f-tipo" onchange="render()">
+    <option value="">Todos</option><option value="regular">Regular</option><option value="intermitente">Intermitente</option><option value="pontual">Pontual</option></select></div>
+  <div class="f"><label>Buscar</label><input id="f-busca" placeholder="Código ou descrição..." oninput="render()"></div>
+</div>
+
+<div class="content">
+  <div class="kpis" id="kpis"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="lista"><div class="carregando"><span class="spinner"></span>Carregando estoque, consumo e pedidos...</div></div>
+  <div class="nota">
+    <b>Como funciona:</b> consumo = média dos últimos 6 meses (meses sem saída contam zero); itens <b>pontuais</b> (saída em 1–2 dos 6 meses) usam o maior pico.
+    <b>A caminho</b> = saldo em pedido de compra do Protheus (SB2). <b>Prazo do grupo</b> = tempo da SC até a chegada em 8 de cada 10 compras de 2026
+    (EPI ≈ 2,3 meses; fardamento ≈ 3,3 meses). <b>Pedir agora</b>: estoque + a caminho não aguenta até uma compra nova chegar.
+    <b>Depende da entrega</b>: o estoque sozinho não aguenta, o que já foi comprado cobre. <b>Transferir de</b>: filial com mais de 6 meses de estoque do item.
+  </div>
+</div>
+
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+
+// Prazo da SC até a chegada (8 em cada 10 compras recebidas em 2026), em meses
+const PRAZO={EPI:71/30.44,FARD:99/30.44};
+const MESES_SOBRA=6;     // filial com mais que isso de estoque pode transferir
+const DIAS_ATRASO=90;    // pedidos com entrega vencida nesse período
+const POR_PAGINA=200;
+
+let LINHAS=[],ATRASADOS=[],NOMES_FIL={},ABA='pedir',LIMITE=POR_PAGINA;
+
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtN=(v,d=0)=>(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtR=v=>'R$ '+fmtN(v);
+const fmtCurto=v=>{v=Number(v)||0;return v>=1e6?'R$ '+fmtN(v/1e6,1)+' mi':v>=1e3?'R$ '+fmtN(v/1e3)+' mil':fmtR(v)};
+const fmtMes=m=>m?['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][Number(m.slice(4,6))-1]+'/'+m.slice(2,4):'';
+const fmtData=s=>{s=String(s||'').replace(/-/g,'');return s.length>=8?s.slice(6,8)+'/'+s.slice(4,6)+'/'+s.slice(0,4):''};
+const nomeFil=f=>{const k=String(f||'').trim();const n=NOMES_FIL[k.replace(/^0+/,'')]||'';return k+(n?' '+n.replace(/^FILIAL\s+/i,'').toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase()).replace(/ (De|Da|Do|Dos|Das) /g,m=>m.toLowerCase()):'')};
+const grupoKey=g=>/^FARD/i.test(g||'')?'FARD':'EPI';
+
+function janela(){const r=[],d=new Date();for(let i=5;i>=0;i--){const m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(''+m.getFullYear()+String(m.getMonth()+1).padStart(2,'0'))}return r}
+
+// Busca todas as páginas de uma consulta (o banco devolve no máx. 1000 linhas por vez)
+async function buscarTodas(montar){
+  let all=[],off=0;
+  for(;;){
+    const{data,error}=await montar().range(off,off+999);
+    if(error)throw error;
+    if(!data||!data.length)break;
+    all=all.concat(data);
+    if(data.length<1000)break;
+    off+=1000;
+  }
+  return all;
+}
+
+async function carregar(){
+  $('lista').innerHTML='<div class="carregando"><span class="spinner"></span>Carregando estoque, consumo e pedidos...</div>';
+  $('sub').textContent='Carregando...';
+  try{
+    const W=janela(),hoje=new Date();
+    const ini=new Date(hoje.getTime()-DIAS_ATRASO*864e5);
+    const ymd=d=>''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+    const filtroGrupo='grupo.ilike.EPI*,grupo.ilike.FARDAMENTO*';
+    const [itens,estoque,consumo,pcs,fils,est_ts]=await Promise.all([
+      buscarTodas(()=>db.from('itens').select('codigo,descricao,grupo,preco').or(filtroGrupo).order('codigo')),
+      buscarTodas(()=>db.from('estoque_sb2').select('filial,codigo,qtd_atual,saldo_pedido,custo_medio,grupo').or(filtroGrupo).order('id')),
+      buscarTodas(()=>db.from('consumo_mensal').select('filial,produto,mes,quantidade').gte('mes',W[0]).order('id')),
+      buscarTodas(()=>db.from('sc_pedidos_v2').select('filial,pc_filial,pc_numero,sc_numero,sc_produto,sc_descricao,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_fornecedor,pc_comprador').not('pc_numero','is',null).gte('pc_dt_entrega',ymd(ini)).lt('pc_dt_entrega',ymd(hoje)).order('id')),
+      db.from('filiais').select('filial,nome_filial'),
+      db.from('estoque_sb2').select('atualizado_em').order('atualizado_em',{ascending:false}).limit(1)
+    ]);
+    NOMES_FIL={};(fils.data||[]).forEach(f=>{NOMES_FIL[String(f.filial).trim().replace(/^0+/,'')]=String(f.nome_filial||'').trim()});
+
+    const ITEM={};itens.forEach(i=>{ITEM[String(i.codigo).trim()]=i});
+    // estoque e "a caminho" por filial|código
+    const EST={};
+    estoque.forEach(e=>{
+      const k=String(e.filial).trim()+'|'+String(e.codigo).trim();
+      const o=EST[k]||(EST[k]={est:0,cam:0,custo:0});
+      o.est+=Number(e.qtd_atual)||0;
+      o.cam+=Math.max(0,Number(e.saldo_pedido)||0); // saldo negativo no Protheus = 0
+      if(Number(e.custo_medio)>0)o.custo=Number(e.custo_medio);
+    });
+    // consumo por filial|código e mês
+    const CONS={};
+    consumo.forEach(c=>{
+      const cod=String(c.produto).trim();if(!ITEM[cod])return;
+      const k=String(c.filial).trim()+'|'+cod;
+      const o=CONS[k]||(CONS[k]={});
+      o[c.mes]=(o[c.mes]||0)+(Number(c.quantidade)||0);
+    });
+    // média, tipo de saída e pico
+    const MEDIA={};
+    Object.entries(CONS).forEach(([k,m])=>{
+      let tot=0,n=0,pico=0,mp='';
+      W.forEach(mes=>{const q=m[mes]||0;if(q>0){tot+=q;n++;if(q>pico){pico=q;mp=mes}}});
+      if(tot>0)MEDIA[k]={media:tot/W.length,n,pico,mp};
+    });
+    // sobra por código (para sugerir transferência)
+    const SOBRA={};
+    Object.entries(EST).forEach(([k,o])=>{
+      const [fil,cod]=k.split('|');const md=MEDIA[k]?.media||0;
+      const sobra=o.est-md*MESES_SOBRA;
+      if(sobra>0)(SOBRA[cod]=SOBRA[cod]||[]).push({fil,sobra:Math.floor(sobra),est:o.est});
+    });
+
+    LINHAS=[];
+    Object.entries(MEDIA).forEach(([k,c])=>{
+      const [fil,cod]=k.split('|');const it=ITEM[cod];const e=EST[k]||{est:0,cam:0,custo:0};
+      const gk=grupoKey(it.grupo),prazo=PRAZO[gk];
+      const tipo=c.n>=5?'regular':c.n>=3?'intermitente':'pontual';
+      const alvo=tipo==='pontual'?c.pico:Math.ceil(c.media*prazo);
+      const est=Math.max(0,e.est),cam=e.cam;
+      let status=null;
+      if(est+cam<alvo)status='pedir';else if(est<alvo)status='depende';
+      if(!status)return;
+      const comprar=Math.max(0,Math.ceil(alvo-est-cam));
+      const custo=e.custo||Number(it.preco)||0;
+      const trf=(SOBRA[cod]||[]).filter(s=>s.fil!==fil&&s.sobra>=Math.max(1,comprar)).sort((a,b)=>b.sobra-a.sobra)[0]||null;
+      LINHAS.push({fil,cod,desc:it.descricao||'',gk,tipo,media:c.media,pico:c.pico,mp:c.mp,est,cam,cob:est/c.media,prazo,alvo,comprar,custo,valor:comprar*custo,status,trf,zerado:est<=0&&cam<=0});
+    });
+    LINHAS.sort((a,b)=>b.valor-a.valor);
+
+    // pedidos atrasados (só EPI / fardamento)
+    ATRASADOS=pcs.filter(p=>ITEM[String(p.sc_produto||'').trim()]&&/^(pendente|em aprova|recebido parcial|sem status)/i.test(String(p.pc_status||'').trim())).map(p=>{
+      const d=String(p.pc_dt_entrega).replace(/-/g,'');
+      const dt=new Date(d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8)+'T12:00:00');
+      return{fil:String(p.pc_filial||p.filial||'').trim(),pc:p.pc_numero,sc:p.sc_numero,cod:String(p.sc_produto).trim(),desc:p.sc_descricao||ITEM[String(p.sc_produto).trim()]?.descricao||'',
+        gk:grupoKey(ITEM[String(p.sc_produto).trim()]?.grupo),qtd:Number(p.pc_quant)||0,valor:Number(p.pc_valor)||0,entrega:d,dias:Math.floor((hoje-dt)/864e5),forn:p.pc_fornecedor||'',comp:p.pc_comprador||'',status:p.pc_status||''};
+    }).sort((a,b)=>b.dias-a.dias);
+
+    // filiais no filtro
+    const sel=$('f-filial'),atual=sel.value;
+    const fsel=[...new Set([...LINHAS.map(l=>l.fil),...ATRASADOS.map(a=>a.fil)])].filter(Boolean).sort();
+    sel.innerHTML='<option value="">Todas</option>'+fsel.map(f=>`<option value="${esc(f)}">${esc(nomeFil(f))}</option>`).join('');
+    if(fsel.includes(atual))sel.value=atual;
+
+    const ts=est_ts.data?.[0]?.atualizado_em;
+    $('sub').textContent='EPI / EPC / Ferramentas e Fardamento · consumo '+fmtMes(W[0])+'–'+fmtMes(W[5])+(ts?' · estoque de '+new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'');
+    LIMITE=POR_PAGINA;
+    render();
+  }catch(e){
+    console.error(e);
+    $('lista').innerHTML='<div class="vazio">Erro ao carregar: '+esc(e.message||e)+'</div>';
+    $('sub').textContent='Erro ao carregar';
+  }
+}
+
+function filtrados(lista){
+  const fil=$('f-filial').value,gr=$('f-grupo').value,tp=$('f-tipo').value,q=$('f-busca').value.trim().toLowerCase();
+  return lista.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr)&&(!tp||!l.tipo||l.tipo===tp)&&(!q||l.cod.includes(q)||String(l.desc).toLowerCase().includes(q)));
+}
+
+function dadosAba(){
+  const L=filtrados(LINHAS);
+  if(ABA==='pedir')return L.filter(l=>l.status==='pedir');
+  if(ABA==='depende')return L.filter(l=>l.status==='depende');
+  if(ABA==='transferir')return L.filter(l=>l.status==='pedir'&&l.trf);
+  return filtrados(ATRASADOS.map(a=>({...a,tipo:null})));
+}
+
+function setAba(a){ABA=a;LIMITE=POR_PAGINA;render()}
+
+function tagTipo(l){
+  if(l.tipo==='pontual')return`<span class="tag t-pon" title="Saída em só 1–2 dos últimos 6 meses · maior saída ${fmtN(l.pico)} em ${fmtMes(l.mp)}">pontual · pico ${fmtN(l.pico)}</span>`;
+  return`<span class="tag ${l.tipo==='regular'?'t-reg':'t-int'}">${l.tipo}</span>`;
+}
+
+function render(){
+  const L=filtrados(LINHAS),A=filtrados(ATRASADOS.map(a=>({...a,tipo:null})));
+  const pedir=L.filter(l=>l.status==='pedir'),dep=L.filter(l=>l.status==='depende');
+  const zer=L.filter(l=>l.zerado),trf=pedir.filter(l=>l.trf);
+  const nPed=new Set(A.map(a=>a.fil+'|'+a.pc)).size;
+  $('kpis').innerHTML=`
+    <div class="kpi"><div class="kpi-l">🔴 Pedir agora</div><div class="kpi-v red">${fmtN(pedir.length)} itens</div><div class="kpi-s">≈ ${fmtCurto(pedir.reduce((s,l)=>s+l.valor,0))} para cobrir até a próxima chegada</div></div>
+    <div class="kpi"><div class="kpi-l">🟡 Dependem da entrega</div><div class="kpi-v amb">${fmtN(dep.length)} itens</div><div class="kpi-s">estoque não aguenta; o que está comprado cobre</div></div>
+    <div class="kpi"><div class="kpi-l">Zerados e sem pedido</div><div class="kpi-v">${fmtN(zer.length)} itens</div><div class="kpi-s">estoque 0 e nada a caminho</div></div>
+    <div class="kpi"><div class="kpi-l">Pedidos atrasados</div><div class="kpi-v">${fmtN(nPed)} pedidos</div><div class="kpi-s">${fmtCurto(A.reduce((s,a)=>s+a.valor,0))} · entrega vencida nos últimos ${DIAS_ATRASO} dias</div></div>`;
+  const abas=[['pedir','Pedir agora',pedir.length],['depende','Dependem da entrega',dep.length],['atrasados','Pedidos atrasados',nPed],['transferir','Transferências possíveis',trf.length]];
+  $('tabs').innerHTML=abas.map(([k,t,n])=>`<button class="tab ${ABA===k?'ativa':''}" onclick="setAba('${k}')">${t} (${fmtN(n)})</button>`).join('');
+
+  const D=dadosAba();
+  if(!D.length){$('lista').innerHTML='<div class="card"><div class="vazio">Nada nesta lista com esses filtros.</div></div>';return}
+  const vis=D.slice(0,LIMITE);
+  let h;
+  if(ABA==='atrasados'){
+    h=`<table><thead><tr><th>Filial</th><th>Pedido</th><th>Item</th><th class="n">Qtd</th><th class="n">Valor</th><th class="n">Entrega prevista</th><th class="n">Atraso</th><th>Status</th><th>Fornecedor</th><th>Comprador</th></tr></thead><tbody>`+
+      vis.map(a=>`<tr><td>${esc(nomeFil(a.fil))}</td><td>PC ${esc(a.pc)}<div class="cod">SC ${esc(a.sc)}</div></td><td>${esc(a.desc)}<div class="cod">${esc(a.cod)}</div></td>
+        <td class="n">${fmtN(a.qtd)}</td><td class="n">${fmtR(a.valor)}</td><td class="n">${fmtData(a.entrega)}</td>
+        <td class="n ${a.dias>30?'red':'amb'}">${a.dias} dias</td><td>${esc(a.status)}</td><td>${esc(a.forn)}</td><td>${esc(a.comp)}</td></tr>`).join('')+'</tbody></table>';
+  }else{
+    h=`<table><thead><tr><th>Filial</th><th>Item</th><th>Saída</th><th class="n">Consumo/mês</th><th class="n">Estoque</th><th class="n">A caminho</th><th class="n">Cobertura</th><th class="n">Prazo do grupo</th><th class="n">${ABA==='depende'?'Falta se atrasar':'Comprar'}</th><th class="n">Valor est.</th><th>Transferir de</th></tr></thead><tbody>`+
+      vis.map(l=>{
+        const falta=Math.max(0,Math.ceil(l.alvo-l.est));
+        return`<tr><td>${esc(nomeFil(l.fil))}</td><td>${esc(l.desc)}<div class="cod">${esc(l.cod)}</div></td><td>${tagTipo(l)}</td>
+        <td class="n">${fmtN(l.media,1)}</td><td class="n ${l.est<=0?'red':''}">${fmtN(l.est)}</td><td class="n">${fmtN(l.cam)}</td>
+        <td class="n ${l.cob<l.prazo?'red':''}">${fmtN(l.cob,1)} m</td><td class="n">${fmtN(l.prazo,1)} m</td>
+        <td class="n"><b>${fmtN(ABA==='depende'?falta:l.comprar)}</b></td><td class="n">${fmtR((ABA==='depende'?falta:l.comprar)*l.custo)}</td>
+        <td>${l.trf?`<span class="trf" title="Estoque ${fmtN(l.trf.est)} · sobra ≈ ${fmtN(l.trf.sobra)} acima de ${MESES_SOBRA} meses de consumo">${esc(nomeFil(l.trf.fil))} (${fmtN(l.trf.sobra)})</span>`:'<span class="cod">—</span>'}</td></tr>`;
+      }).join('')+'</tbody></table>';
+  }
+  $('lista').innerHTML=`<div class="card"><div class="wrap">${h}</div></div>`+
+    (D.length>LIMITE?`<button class="btn mais" onclick="LIMITE+=${POR_PAGINA};render()">Mostrar mais (${fmtN(D.length-LIMITE)} restantes)</button>`:'');
+}
+
+function exportarExcel(){
+  const D=dadosAba();
+  if(!D.length){alert('Nada para exportar.');return}
+  let rows;
+  if(ABA==='atrasados'){
+    rows=D.map(a=>({Filial:nomeFil(a.fil),Pedido:a.pc,SC:a.sc,'Código':a.cod,'Descrição':a.desc,Qtd:a.qtd,Valor:a.valor,'Entrega prevista':fmtData(a.entrega),'Dias de atraso':a.dias,Status:a.status,Fornecedor:a.forn,Comprador:a.comp}));
+  }else{
+    rows=D.map(l=>({Filial:nomeFil(l.fil),'Código':l.cod,'Descrição':l.desc,Grupo:l.gk==='FARD'?'Fardamento':'EPI / EPC / Ferramentas','Tipo de saída':l.tipo,
+      'Consumo médio/mês':Math.round(l.media*10)/10,'Maior pico':l.pico,Estoque:l.est,'A caminho':l.cam,'Cobertura (meses)':Math.round(l.cob*10)/10,
+      'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,Meta:l.alvo,Comprar:l.comprar,'Custo unit.':l.custo,'Valor est.':Math.round(l.comprar*l.custo),
+      'Transferir de':l.trf?nomeFil(l.trf.fil):'','Sobra na filial de origem':l.trf?l.trf.sobra:''}));
+  }
+  const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Risco de ruptura');
+  XLSX.writeFile(wb,'risco_ruptura_'+ABA+'_'+new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')+'.xlsx');
+}
+
+carregar();
+</script>
+</body>
+</html>
