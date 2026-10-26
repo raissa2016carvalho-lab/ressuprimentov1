@@ -562,7 +562,7 @@ async function aprovarGerente(btn){
       _salvIdxAprov++;_progresso(msgEl,_salvIdxAprov,_totalItensAprov,'Enviando');
     }
     await db.from('solicitacoes').update({
-      status:'aguardando_master',atualizado_em:(new Date()).toISOString()
+      status:'aguardando_master',atualizado_em:(new Date()).toISOString(),atualizado_por:userEmail||null
     }).eq('id',solId);
   }
   _limparRascunhoSols(ids);
@@ -605,7 +605,7 @@ async function salvarGrupo(solIds,msgElId){
       await db.from('solicitacao_itens').update({situacao:dec,quantidade:novaQtd,qtd_gerente:novaQtd,justificativa:justificativas[it.id]||null}).eq('id',it.id);
       _salvIdxGrupo++;_progresso(msgEl,_salvIdxGrupo,_totalItensGrupo,'Salvando');
     }
-    await db.from('solicitacoes').update({sc_numero:scNum,status:'aguardando_master',atualizado_em:(new Date()).toISOString()}).eq('id',solId);
+    await db.from('solicitacoes').update({sc_numero:scNum,status:'aguardando_master',atualizado_em:(new Date()).toISOString(),atualizado_por:userEmail||null}).eq('id',solId);
   }
   if(msgEl)msgEl.innerHTML='<span style="color:#16a34a">✓ Salvo!</span>';
   setTimeout(function(){carregarSolicitacoes()},800);
@@ -830,7 +830,7 @@ for(let it of sol.itens){
   await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id);
   _salvIdx++;_progresso(msgEl,_salvIdx,sol.itens.length,'Salvando');
 }
-let{error}=await db.from(`solicitacoes`).update({status:`aguardando_master`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId);if(error){msgEl.innerHTML=`<span style="color:#991b1b">Erro: `+error.message+`</span>`;return;}
+let{error}=await db.from(`solicitacoes`).update({status:`aguardando_master`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString(),atualizado_por:userEmail||null}).eq(`id`,solId);if(error){msgEl.innerHTML=`<span style="color:#991b1b">Erro: `+error.message+`</span>`;return;}
 msgEl.innerHTML=`<span style="color:#065f46">✓ Enviado para aprovação final!</span>`;
 // Remove o card do DOM sem recarregar tudo
 var cardEl=msgEl.closest('.card');

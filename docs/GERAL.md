@@ -53,6 +53,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | Índices | `idx_sol_itens_solicitacao`, `idx_consumo_mensal_cc` | `drop index` |
 | Índices da compras | `idx_scs_emissao`, `idx_pedidos_emissao` foram **removidos** (pesavam nos syncs) | — |
 | RLS fase A | 19 tabelas do Protheus: leitura pública, escrita só `service_role` (estoque_sb2, consumo_*, mov_*, movimentos_entrada, pedidos_compra, sc_pedidos, sc_pedidos_v2, scs, pedidos, filiais, sync_log, aprovadores_pcs) | `alter table ... disable row level security` |
+| `solicitacoes.atualizado_por` | E-mail de quem atualizou por último (gerente ou master); aparece no card "↻ atualizado dd/mm hh:mm · nome" (26/10) | `alter table public.solicitacoes drop column atualizado_por` |
 | `pedidos_grupo` | Valor por pedido × grupo pelo status de cada item (Comparativo Mensal). RLS: leitura pública, escrita só `service_role`. Alimentada por `sync_pedidos_grupo` no `upload_compras.py` (23/10) | `drop table public.pedidos_grupo` |
 | Solicitação nº 655 | Lançada a pedido da Raissa a partir da planilha de Baturité (Kauan, CC 141080101, 107 itens) | `delete` em `solicitacao_itens` e `solicitacoes` id 655 |
 | `mobilizacoes.criado_em` | **Ainda sem default** — rodar `alter table public.mobilizacoes alter column criado_em set default now();` | — |
