@@ -75,6 +75,12 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
   Não voltar a usar `cdn.jsdelivr.net`.
 
 ## Pendências (em ordem sugerida)
+0. **Vida útil e próxima troca (combinado em 26/10, começar no próximo chat)**: a tabela `entregas_almoxarife`
+   tem entregas por matrícula (só desde 03/08/2026). Pedir à Raissa o `sync_entregas.py` para trazer desde 2025;
+   calcular vida útil por item (mediana entre trocas da mesma pessoa, motivos 3/4/9) + vida útil padrão cadastrável;
+   próxima troca por pessoa; trocas previstas 90 dias por filial×item alimentando o painel de ruptura; trocas vencidas.
+   Teste: luva de vaqueta 17 dias, luva de cobertura 35 dias. Outros pontos combinados p/ ruptura: mínimo por equipe
+   p/ itens críticos (NR-10/altura), reserva de mobilização, grade de fardamento semestral, alerta de formulário não enviado.
 1. **Segurança RLS fase B**: configurações (centros_custo, gerentes_cc, cc_grupos, itens, cc_pessoas, bases_status…) — todos leem, só admin altera (função `is_admin()` usando `perfis_usuario`).
 2. **Segurança RLS fase C**: `solicitacoes` e `solicitacao_itens` (formulário cria via RPC; gerente altera os CCs dele; admin tudo). Também `perfis_usuario` e `pedidos_redefinicao`.
 3. **Syncs** (ver `docs/syncs.md`): rodar em fila, não todos juntos; parar syncs que não alimentam o site.
