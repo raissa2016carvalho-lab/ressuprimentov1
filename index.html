@@ -1187,7 +1187,7 @@ function _classConsumo(mensal){
   if(typeof mensal==='string'){try{mensal=JSON.parse(mensal)}catch(e){mensal={}}}
   var W=_janelaConsumo(),tot=0,n=0,pico=0,mp='';
   W.forEach(function(m){var q=Number(mensal&&mensal[m])||0;if(q>0){tot+=q;n++;if(q>pico){pico=q;mp=m}}});
-  return{media:tot/W.length,meses:n,pico:pico,mesPico:mp,tipo:n>=5?'regular':n>=3?'intermitente':n>=1?'pontual':'sem'};
+  return{media:(tot>0?Math.max(1,Math.round(tot/W.length)):0),meses:n,pico:pico,mesPico:mp,tipo:n>=5?'regular':n>=3?'intermitente':n>=1?'pontual':'sem'};
 }
 function _fmtCons(v){v=Number(v)||0;return v>=10?String(Math.round(v)):(Math.round(v*10)/10).toLocaleString('pt-BR')}
 function _fmtMesCons(m){var n=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];return m?n[Number(m.slice(4,6))-1]+'/'+m.slice(2,4):''}
