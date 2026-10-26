@@ -79,7 +79,11 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
    tem entregas por matrícula (só desde 03/08/2026). Pedir à Raissa o `sync_entregas.py` para trazer desde 2025;
    calcular vida útil por item (mediana entre trocas da mesma pessoa, motivos 3/4/9) + vida útil padrão cadastrável;
    próxima troca por pessoa; trocas previstas 90 dias por filial×item alimentando o painel de ruptura; trocas vencidas.
-   Teste: luva de vaqueta 17 dias, luva de cobertura 35 dias. Outros pontos combinados p/ ruptura: mínimo por equipe
+   **Histórico carregado em 26/10** (`sync_entregas.py --desde 20250101`): 219.577 entregas, jan/2025–out/2026, 5.521 pessoas.
+   Vida útil (mediana, motivos 3/4/9): luva vaqueta 23 d; luva cobertura 74 d; óculos fumê 118 d; balaclava 148 d;
+   calça/camisa retardante ENEL ~95 d; bota NR10 ~180 d; perneira 204 d. 209 itens EPI/fardamento com ≥20 trocas.
+   Pessoas ativas (entrega nos últimos 60 d): 2.007 → 3.537 trocas previstas em 30 d, 10.156 em 90 d; 10.560 "vencidas"
+   (precisa filtrar só itens pessoais — tinta, lâmina etc. não são por pessoa; e agrupar tamanhos do fardamento). Outros pontos combinados p/ ruptura: mínimo por equipe
    p/ itens críticos (NR-10/altura), reserva de mobilização, grade de fardamento semestral, alerta de formulário não enviado.
 1. **Segurança RLS fase B**: configurações (centros_custo, gerentes_cc, cc_grupos, itens, cc_pessoas, bases_status…) — todos leem, só admin altera (função `is_admin()` usando `perfis_usuario`).
 2. **Segurança RLS fase C**: `solicitacoes` e `solicitacao_itens` (formulário cria via RPC; gerente altera os CCs dele; admin tudo). Também `perfis_usuario` e `pedidos_redefinicao`.
