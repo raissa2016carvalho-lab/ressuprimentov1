@@ -617,7 +617,7 @@ function renderCardMatricial(grupo,readonly){
     // Pré-popular masterQtd com qtd do gerente por item (usado no Excel se master não editar)
     Object.values(item.porCC).forEach(function(it){if(masterQtd[it.id]===undefined)masterQtd[it.id]=it.situacao==='recusado'?0:(it.quantidade||0);});
     // Justificativas do gerente (pode haver uma por CC)
-    var justsGer=Object.values(item.porCC).map(function(it){return it.justificativa_gerente||''}).filter(Boolean).join(' / ');
+    var justsGer=[...new Set(Object.values(item.porCC).map(function(it){return String(it.justificativa_gerente||'').trim()}).filter(Boolean))].join(' / ');
 
     // Linha vermelha se o gerente recusou todos os CCs deste item
     var todosRecusados=Object.values(item.porCC).length>0&&Object.values(item.porCC).every(function(it){return it.situacao==='recusado';});
@@ -651,7 +651,7 @@ function renderCardMatricial(grupo,readonly){
       +'<td style="text-align:center;font-family:ui-monospace,monospace;color:#475569">'+qtdDigitada+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#f0fdf4;color:#166534">'+qtdTotal+'</td>'
       +'<td style="text-align:center;font-family:ui-monospace,monospace;font-weight:700;background:#eff6ff;color:'+(alterada?'#1e40af':'#475569')+'">'+(gerAvaliou?qtdGerente:'<span style="color:#cbd5e1;font-weight:400" title="Gerente ainda não avaliou">—</span>')+'</td>'
-      +'<td style="font-size:11.5px;color:#475569;background:#eff6ff;max-width:160px">'+(justsGer?'<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10.5px">'+justsGer+'</span>':'—')+'</td>'
+      +'<td style="font-size:11.5px;color:#475569;background:#eff6ff;max-width:160px">'+_htmlJustGer(justsGer)+'</td>'
       +(function(){
         // Buscar o pedido mais recente para este item em QUALQUER CC do grupo
         var ultimoPed=null;
@@ -766,7 +766,7 @@ function renderCardMatricial(grupo,readonly){
     +'<th style="text-align:left;min-width:200px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"desc\" title="Ordenar por item">Item<span id="sort-'+cardId+'-desc"></span></th>'
     +'<th style="text-align:center;width:60px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"cons\" title="Ordenar por consumo">Consumo<br>6m<span id="sort-'+cardId+'-cons"></span></th>'
     +'<th style="text-align:center;width:70px;padding:7px 10px;background:#faf5ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#7c3aed">Estoque<br>filial</th>'
-    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#faf5ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#7c3aed" title="Meses que o estoque atual dura. Vermelho: acaba antes da compra chegar · amarelo: pouca folga · verde: com folga">Cobert.<br>até '+_rotuloInicioPeriodo()+'</th>'
+    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#faf5ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#7c3aed" title="Meses que o estoque atual dura (estoque ÷ consumo médio). Vermelho: menos de 1 mês · amarelo: 1 a 3 · verde: 3 ou mais">Cobert.<br>meses</th>'
     +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"qtd\" title="Ordenar por qtd digitada">Qtd<br>digitada<span id="sort-'+cardId+'-qtd"></span></th>'
     +'<th style="text-align:center;width:70px;padding:7px 10px;background:#f0fdf4;border-bottom:2px solid #e2e8f0;font-size:11px;color:#166534;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"total\" title="Ordenar por total">Total<br>(×'+periodo+'m)<span id="sort-'+cardId+'-total"></span></th>'
     +'<th style="text-align:center;width:80px;padding:7px 10px;background:#eff6ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#1e40af;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"ger\" title="Ordenar por qtd gerente">Qtd<br>gerente<span id="sort-'+cardId+'-ger"></span></th>'
@@ -985,7 +985,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th>Item</th>
               <th style="text-align:center;width:70px">Consumo<br>6m (un)</th>
               <th style="text-align:center;width:70px;background:#faf5ff">Estoque<br><span style="font-size:10px;color:#7c3aed">filial</span></th>
-              <th style="text-align:center;width:70px;background:#faf5ff" title="Meses que o estoque atual dura. Vermelho: acaba antes da compra chegar · amarelo: pouca folga · verde: com folga">Cobertura<br><span style="font-size:10px;color:#7c3aed">até ${_rotuloInicioPeriodo()}</span></th>
+              <th style="text-align:center;width:70px;background:#faf5ff" title="Meses que o estoque atual dura (estoque ÷ consumo médio). Vermelho: menos de 1 mês · amarelo: 1 a 3 · verde: 3 ou mais">Cobertura<br><span style="font-size:10px;color:#7c3aed">meses</span></th>
               <th style="text-align:center;width:80px;background:#eff6ff">Qtd<br><span style="font-size:10px;color:#1e40af">solicitante</span></th>
               <th style="text-align:center;width:80px;background:#f0fdf4">Qtd<br><span style="font-size:10px;color:#166534">gerente</span></th>
               <th style="text-align:left;width:200px">Justificativa<br>gerente</th>
@@ -1060,7 +1060,7 @@ let qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=
   let gerenteCell=gerenteJaAvaliou?'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#f0fdf4;font-weight:700;color:'+gerenteColor+'">'+qtdGerente+deltaHtml+_fv(qtdGerente)+'</td>':'<td style="text-align:center;font-size:12px;color:#cbd5e1;background:#f0fdf4">—</td>';
   return almoxCell+gerenteCell;
 })())+`
-                <td style="font-size:11.5px;color:#64748b;font-style:${justGer?`italic`:`normal`}">${justGer||`—`}</td>
+                <td style="font-size:11.5px;color:#64748b">${_htmlJustGer(justGer)}</td>
                 <td style="font-size:11.5px">
                   ${(()=>{let _nomeCCInd=ccMap[s.cc]?.nome||s.cc;let k=_nomeCCInd+`|`+it.codigo,k2=s.cc+`|`+it.codigo,_pedsRaw=[...(pedidosAnterioresMap[k]||[]),...(pedidosAnterioresMap[k2]||[])],_seenInd=new Set(),peds=_pedsRaw.filter(p=>{let _id=(p.c1_num||'')+'|'+(p.c1_produto||'')+'|'+(p.c1_emissao||'');if(_seenInd.has(_id))return false;_seenInd.add(_id);return true;}).sort((a,b)=>(b.c1_emissao||'').localeCompare(a.c1_emissao||''));
 // Filtrar: só pendentes do ressuprimento mais recente
@@ -1196,20 +1196,34 @@ function _badgeTipoCons(cl){
   var t={regular:['🟢','Regular: saída em '+cl.meses+' dos últimos 6 meses'],intermitente:['🟡','Intermitente: saída em '+cl.meses+' dos últimos 6 meses'],pontual:['🔸','Pontual: saída em só '+cl.meses+' dos últimos 6 meses · maior saída '+cl.pico+' em '+_fmtMesCons(cl.mesPico)]}[cl.tipo];
   return'<span title="'+t[1]+'" style="font-size:9px;margin-left:2px;cursor:help">'+t[0]+'</span>';
 }
-// Cobertura: o estoque atual aguenta até a compra chegar (início do período, ex.: 1º/dez)?
-// 🔴 acaba antes de chegar · 🟡 chega com menos de 1 mês de folga · 🟢 folga de 1 mês ou mais
+// Cobertura = quantos meses o estoque atual dura (estoque ÷ consumo médio)
+// vermelho: menos de 1 mês · amarelo: 1 a 3 meses · verde: 3 meses ou mais
 function _htmlCobertura(estoque,consMes){
   var e=estoque==null?null:Number(estoque)||0,c=Number(consMes)||0;
   if(e==null||!(c>0))return'<td style="text-align:center;font-size:11px;color:#cbd5e1;background:#faf5ff">—</td>';
-  var cob=e/c,ate=Math.max(0,(_inicioPeriodo()-new Date())/(30.44*864e5));
-  var dt=_inicioPeriodo().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-  var em,cor,txt;
-  if(cob<ate){cor='#dc2626';txt='acaba antes da compra chegar ('+dt+') — risco de faltar'}
-  else if(cob<ate+1){cor='#d97706';txt='chega até '+dt+' com pouca folga'}
-  else{cor='#16a34a';txt='aguenta até '+dt+' com folga'}
+  var cob=e/c,cor=cob<1?'#dc2626':cob<3?'#d97706':'#16a34a';
   var f=function(v){return (Math.round(v*10)/10).toLocaleString('pt-BR')};
-  return'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:'+cor+';font-weight:600;cursor:help" title="Estoque '+Math.floor(e)+' ÷ '+f(c)+'/mês = '+f(cob)+' mês(es) · '+txt+'">'+f(cob)+' m</td>';
+  return'<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#faf5ff;color:'+cor+';font-weight:600" title="Estoque '+Math.floor(e)+' ÷ '+f(c)+'/mês">'+f(cob)+' m</td>';
 }
+// Justificativa do gerente: texto curto na tabela, completo no popup ao clicar
+function _htmlJustGer(txt){
+  txt=String(txt||'').trim();if(!txt)return'—';
+  var esc=function(v){return v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')};
+  var curto=txt.length>28?txt.slice(0,28).trim()+'…':txt;
+  return'<span class="just-clicavel" data-just="'+encodeURIComponent(txt)+'" title="Clique para ver a justificativa completa" style="cursor:pointer;background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10.5px;text-decoration:underline dotted">💬 '+esc(curto)+'</span>';
+}
+document.addEventListener('click',function(e){
+  var el=e.target.closest&&e.target.closest('.just-clicavel');if(!el)return;
+  e.stopPropagation();
+  var pop=document.getElementById('popup-consumo-master'),txt=decodeURIComponent(el.dataset.just||'');
+  var esc=function(v){return v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')};
+  pop.innerHTML='<span class="pop-close" onclick="fecharPopupMaster()">×</span><h4>Justificativa do gerente</h4><div style="font-size:12.5px;color:#334155;white-space:pre-wrap;line-height:1.45">'+esc(txt).split(' / ').join('<hr style="border:none;border-top:1px solid #f1f5f9;margin:6px 0">')+'</div>';
+  pop.style.display='block';
+  var r=el.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;
+  if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
+  if(top+ph>window.innerHeight-8)top=r.top-ph-6;
+  pop.style.top=top+'px';pop.style.left=left+'px';
+});
 // ── Ação de compra por item ──
 // O período de compra começa no 1º dia do mês daqui a 2 meses (ex.: em outubro → dezembro)
 function _inicioPeriodo(){var d=new Date();return new Date(d.getFullYear(),d.getMonth()+2,1)}
