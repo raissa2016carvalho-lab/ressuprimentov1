@@ -663,6 +663,8 @@ async function renderResumo(){
     if(a>=1e6)return p+(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi';
     if(a>=1e3)return p+(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:0})+' mil';
     return p+v.toLocaleString('pt-BR',{maximumFractionDigits:0});};
+  // rótulo em cima das barras: valor inteiro, sem centavos (ex.: 756.108)
+  const fmtInteiro=v=>(semValor?'':'R$ ')+(Math.round(Number(v)||0)).toLocaleString('pt-BR');
   if(window.Chart){Chart.defaults.font.family="Inter,system-ui,sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#8592a6';Chart.defaults.borderColor='#eef1f5';}
   const labelMetrica=semValor?'Quantidade':'Valor (R$)';
 
@@ -755,7 +757,7 @@ async function renderResumo(){
             const val=ds.data[i];
             if(!val)return;
             const txt=ds._labelFmt?ds._labelFmt(val):val.toLocaleString('pt-BR');
-            ctx.font='600 10.5px Inter,system-ui,sans-serif';
+            ctx.font='600 '+(chart.config.options?.indexAxis==='y'?'11px':(chart.data.labels.length>8?'9px':'10.5px'))+' Inter,system-ui,sans-serif';
             ctx.fillStyle='#334155';
             ctx.textAlign='center';
             ctx.textBaseline='middle';
@@ -774,12 +776,12 @@ async function renderResumo(){
     // Gráfico CONSUMO mensal
     const ctxM=document.getElementById('chart-mes').getContext('2d');
     if(_chartMes)_chartMes.destroy();
-    _chartMes=new Chart(ctxM,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:labelMetrica,data:valPorMes,backgroundColor:'#1e40af',borderRadius:4,maxBarThickness:46,_labelFmt:fmtCurto}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtCurto(v)}}}},plugins:[labelPlugin]});
+    _chartMes=new Chart(ctxM,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:labelMetrica,data:valPorMes,backgroundColor:'#1e40af',borderRadius:4,maxBarThickness:46,_labelFmt:fmtInteiro}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtCurto(v)}}}},plugins:[labelPlugin]});
 
     // Gráfico DEVOLUÇÕES mensal (lado a lado com consumo)
     const ctxD=document.getElementById('chart-dev').getContext('2d');
     if(_chartDev)_chartDev.destroy();
-    _chartDev=new Chart(ctxD,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:labelMetrica,data:devPorMes,backgroundColor:'#0f766e',borderRadius:4,_labelFmt:fmtCurto}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtCurto(v)}}}},plugins:[labelPlugin]});
+    _chartDev=new Chart(ctxD,{type:'bar',data:{labels:meses.map(fmtMes),datasets:[{label:labelMetrica,data:devPorMes,backgroundColor:'#0f766e',borderRadius:4,_labelFmt:fmtInteiro}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtCurto(v)}}}},plugins:[labelPlugin]});
 
     // Gráfico grupos (doughnut)
     const ctxG=document.getElementById('chart-grupo').getContext('2d');
@@ -788,7 +790,7 @@ async function renderResumo(){
 
     // Gráfico filiais (horizontal)
     const ctxF=document.getElementById('chart-filial').getContext('2d');
-    new Chart(ctxF,{type:'bar',data:{labels:topFiliais.map(f=>FNOMES[f[0]]||f[0]),datasets:[{label:labelMetrica,data:topFiliais.map(f=>f[1]),backgroundColor:'#1e40af',borderRadius:4,_labelFmt:fmtCurto}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{right:120}},indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmtCurto(v)}}}},plugins:[labelPlugin]});
+    new Chart(ctxF,{type:'bar',data:{labels:topFiliais.map(f=>FNOMES[f[0]]||f[0]),datasets:[{label:labelMetrica,data:topFiliais.map(f=>f[1]),backgroundColor:'#1e40af',borderRadius:4,_labelFmt:fmtInteiro}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{right:120}},indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmtCurto(v)}}}},plugins:[labelPlugin]});
 
     // Gráfico custo zero
     const zeroPorMes=meses.map(m=>_filtrados.filter(r=>r.mes===m&&r.custo_zero).length);
