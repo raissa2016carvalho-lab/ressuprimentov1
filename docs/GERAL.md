@@ -1,6 +1,6 @@
 # Ressuprimento B&Q — Visão geral (leia primeiro)
 
-Atualizado em 23/10/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
+Atualizado em 26/10/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
 mudado no banco. Os detalhes de cada tela estão nos outros arquivos desta pasta:
 `index.md`, `gerente.md`, `mobilizacao.md`, `outras-telas.md` (formulário, estoque, compras,
 fechamento, manutenção, menu) e `syncs.md`.
@@ -26,7 +26,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | `manutencao.html` | Manutenção de veículos — **outro projeto Supabase** | Não |
 
 ## Como trabalhamos (fluxo seguro)
-1. Mudança de código vai no branch `claude/kind-volta-7vg1nq` → abre PR no GitHub.
+1. Mudança de código vai no branch de trabalho do chat (ex.: `claude/kind-ptolemy-v4icku`) → abre PR no GitHub.
 2. O Vercel gera um **Preview** do PR. Eu testo lá.
 3. Só com meu **"pode"** faz o Merge no `main` (site oficial).
 4. **Depois do Merge, confira no GitHub se os commits realmente entraram no `main`.**
@@ -54,6 +54,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | Índices da compras | `idx_scs_emissao`, `idx_pedidos_emissao` foram **removidos** (pesavam nos syncs) | — |
 | RLS fase A | 19 tabelas do Protheus: leitura pública, escrita só `service_role` (estoque_sb2, consumo_*, mov_*, movimentos_entrada, pedidos_compra, sc_pedidos, sc_pedidos_v2, scs, pedidos, filiais, sync_log, aprovadores_pcs) | `alter table ... disable row level security` |
 | `solicitacoes.atualizado_por` | E-mail de quem atualizou por último (gerente ou master); aparece no card "↻ atualizado dd/mm hh:mm · nome" (26/10) | `alter table public.solicitacoes drop column atualizado_por` |
+| `justificativas_consumo` | RLS ligado (26/10): só `authenticated` lê/insere/altera; coluna `atualizado_por` | `alter table ... disable row level security` + `drop policy` + `drop column atualizado_por` |
 | `pedidos_grupo` | Valor por pedido × grupo pelo status de cada item (Comparativo Mensal). RLS: leitura pública, escrita só `service_role`. Alimentada por `sync_pedidos_grupo` no `upload_compras.py` (23/10) | `drop table public.pedidos_grupo` |
 | Solicitação nº 655 | Lançada a pedido da Raissa a partir da planilha de Baturité (Kauan, CC 141080101, 107 itens) | `delete` em `solicitacao_itens` e `solicitacoes` id 655 |
 | `mobilizacoes.criado_em` | **Ainda sem default** — rodar `alter table public.mobilizacoes alter column criado_em set default now();` | — |
@@ -61,6 +62,17 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 ### Backups guardados
 `backup_mobilizacoes_2026_10_22`, `backup_mobilizacao_itens_2026_10_22`, `backup_mobilizacao_scs_2026_10_22`
 (mobilizações #31–35) e `backup_mob_36_37_*` (mobilizações de teste #36 e #37).
+
+## Syncs alterados no computador da Raissa (26/10)
+- `upload_compras.py`: grava `pedidos_grupo` (valor por pedido × grupo pelo status de cada item) e corrige
+  `scs.pedido_preco/pedido_total` (antes ×10). Backup: `upload_compras_BACKUP.py`.
+- `sync_movmult.py` (devoluções `mov_sd3_001`): só regrava mês atual/anterior não congelado — meses em
+  `meses_congelados` ficam fixos (igual ao `sync_consumo_scp.py`). Backup: `sync_movmult_BACKUP.py`.
+- Congelamento: `sync_consumo_scp.py` chama `congelar_mes_anterior` no 1º sync dos dias 1–5 do mês.
+
+## Bibliotecas
+- Supabase JS servido pelo próprio site: `vendor/supabase-2.118.0.js` (o jsdelivr falhou em 26/10).
+  Não voltar a usar `cdn.jsdelivr.net`.
 
 ## Pendências (em ordem sugerida)
 1. **Segurança RLS fase B**: configurações (centros_custo, gerentes_cc, cc_grupos, itens, cc_pessoas, bases_status…) — todos leem, só admin altera (função `is_admin()` usando `perfis_usuario`).
