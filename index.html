@@ -596,10 +596,17 @@ function renderCardMatricial(grupo,readonly){
       }
     });
     // histStr guarda breakdown por CC: {"CC1":{mes:qtd},"CC2":{...},"_total":{mes:qtd}}
+    // sem consumo carregado ao vivo: usa o histórico gravado no envio
+    if(!Object.keys(mensalAgg).length)Object.values(item.porCC).forEach(function(it){
+      var ch=it.consumo_historico;if(typeof ch==='string'){try{ch=JSON.parse(ch)}catch(e){ch=null}}
+      if(ch&&typeof ch==='object')Object.keys(ch).forEach(function(mes){mensalAgg[mes]=(mensalAgg[mes]||0)+(Number(ch[mes])||0)});
+    });
     mensalPorCC['_total']=mensalAgg;
+    // média dos últimos 6 meses (contando meses sem saída) + tipo de saída
+    var _cl=_classConsumo(mensalAgg);cons=_cl.media;
     var histStr=JSON.stringify(mensalPorCC).replace(/"/g,"'");
     var nomesCCs=grupo.map(function(s){return ccMap[s.cc]?ccMap[s.cc].nome:s.cc}).join(' + ');
-    var consDisp=cons===-1?'<1':cons>0?Math.round(cons):'—';
+    var consDisp=cons>0?_fmtCons(cons):'—';
     var semHist=cons===0&&qtdTotal>0;
     var badgeSH=semHist?'<span style="background:#fef3c7;color:#b45309;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">⚠ Sem hist.</span>':'';
 
@@ -617,7 +624,7 @@ function renderCardMatricial(grupo,readonly){
     var algumRecusado=Object.values(item.porCC).some(function(it){return it.situacao==='recusado';});
     // Destacar linha crítica: qtd pedida > 2x o consumo esperado no período
     var periodoMeses=grupo[0]?grupo[0].periodo_meses||3:3;
-    var consumoEsperado=cons*periodoMeses;
+    var consumoEsperado=_cl.tipo==='pontual'?Math.max(_cl.pico,cons*periodoMeses):cons*periodoMeses;
     var qtdMaxima=Math.max(qtdTotal,qtdGerente||0);
     var critico=cons>0&&consumoEsperado>0&&qtdMaxima>consumoEsperado*2;
     var excessoPct=consumoEsperado>0?Math.round((qtdMaxima/consumoEsperado-1)*100):0;
@@ -627,7 +634,7 @@ function renderCardMatricial(grupo,readonly){
     return'<tr style="'+trStyle+'">'
       +'<td style="font-size:13px;font-weight:500;min-width:200px">'+(todosRecusados?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':algumRecusado?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">⚠ PARCIALMENTE RECUSADO</span>':'')+( item.descricao||item.codigo)+badgeSH+badgeCritico
       +'<div style="font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace">'+item.codigo+'</div></td>'
-      +(function(){var _d=(item.descricao||item.codigo||'').replace(/"/g,'');return '<td style="text-align:center;font-size:12px">'+(cons!==0?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+_d+'" data-nome="'+nomesCCs+'" data-hist="'+histStr+'" style="font-weight:700;color:#1e40af;cursor:pointer">'+consDisp+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>';})()
+      +(function(){var _d=(item.descricao||item.codigo||'').replace(/"/g,'');return '<td style="text-align:center;font-size:12px">'+(cons!==0?'<span class="cons-clicavel" data-codigo="'+item.codigo+'" data-desc="'+_d+'" data-nome="'+nomesCCs+'" data-hist="'+histStr+'" style="font-weight:700;color:#1e40af;cursor:pointer">'+consDisp+'</span>'+_badgeTipoCons(_cl):'<span style="color:#cbd5e1">—</span>')+'</td>';})()
       +(function(){
         var _fil=String(grupo[0]?.filial||'').trim();
         var _eKey=_fil+'|'+String(item.codigo||'').trim();
@@ -706,7 +713,7 @@ function renderCardMatricial(grupo,readonly){
           var temAprov=Object.values(item.porCC).some(function(it){return it.situacao==='aprovado';});
           var hasSC=grupo.some(function(s){return s.sc_numero;});
           var display=temAprov||hasSC?qtdSalva:'—';
-          return '<td style="text-align:center;background:#f0fdf4;padding:6px;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+display+'</td>'+_tdAcao(_estoqueItemMat(grupo,item),cons,typeof display==='number'?display:0,periodo);
+          return '<td style="text-align:center;background:#f0fdf4;padding:6px;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+display+'</td>'+_tdAcao(_estoqueItemMat(grupo,item),cons,typeof display==='number'?display:0,periodo,_cl);
         }
         return '<td style="text-align:center;background:#f0fdf4;padding:6px">'
           +'<input type="number" min="0" id="'+inputId+'" value="'+(algumRecusado?0:Object.values(item.porCC).reduce(function(s,it){return s+(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0))},0))+'"'
@@ -715,7 +722,7 @@ function renderCardMatricial(grupo,readonly){
           +' oninput="ratearMasterQtd(this)"/>'
           +'<button title="Voltar ao valor do gerente (ou do almoxarife)" onclick="resetarItemMat(this)" style="'+_btnReset+'">↺</button>'+_infoAlteracao(Object.values(item.porCC))
           +'</td>'
-          +_tdAcao(_estoqueItemMat(grupo,item),cons,algumRecusado?0:Object.values(item.porCC).reduce(function(s,it){return s+(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0))},0),periodo);
+          +_tdAcao(_estoqueItemMat(grupo,item),cons,algumRecusado?0:Object.values(item.porCC).reduce(function(s,it){return s+(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0))},0),periodo,_cl);
       })()
       +colunas
       +'</tr>';
@@ -1012,7 +1019,9 @@ if(!Object.keys(_histAll).length&&it.consumo_historico&&(typeof it.consumo_histo
   if(typeof ch==='string')try{ch=JSON.parse(ch)}catch(e){}
   if(ch&&typeof ch==='object')Object.assign(_histAll,ch);
 }
-let hist=Object.keys(_histAll).length?encodeURIComponent(JSON.stringify(_histAll)):'';let consDisplay=cons===-1?'<1':Math.floor(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'):'<span style="font-size:11px;color:#cbd5e1">—</span>';
+// média dos últimos 6 meses (contando meses sem saída) + tipo de saída
+let _cl=_classConsumo(_histAll);if(Object.keys(_histAll).length)cons=_cl.media;
+let hist=Object.keys(_histAll).length?encodeURIComponent(JSON.stringify(_histAll)):'';let consDisplay=cons===-1?'<1':_fmtCons(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'+_badgeTipoCons(_cl)):'<span style="font-size:11px;color:#cbd5e1">—</span>';
 // Custo unitário para estimar valores (acessível em todo o template)
 let _custoKey2=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
 let _cu=custoMap[_custoKey2]||0;
@@ -1075,7 +1084,7 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
                   <button title="Voltar ao valor do gerente (ou do almoxarife)" onclick="resetarItemMaster(${it.id})" style="${_btnReset}">↺</button>${_infoAlteracao([it])}
                   ${isAdmin?`<button onclick="removerItemSol(${s.id},${it.id})" style="border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:13px;padding:2px;margin-left:4px" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</button>`:``}
                 </td>
-                ${_tdAcao(it.estoque_filial!=null?Number(it.estoque_filial):null,cons,isRecusadoGer?0:(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0)),s.periodo_meses||3)}
+                ${_tdAcao(it.estoque_filial!=null?Number(it.estoque_filial):null,cons,isRecusadoGer?0:(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0)),s.periodo_meses||3,_cl)}
               </tr>`}).join(``)}
             <tr style="border-top:2px solid #e2e8f0;background:#f8fafc">
               <td colspan="4" style="font-weight:700;font-size:12px;color:#0f172a">TOTAL</td>
@@ -1179,6 +1188,21 @@ function ratearMasterQtd(input){
   });
 }
 window.ratearMasterQtd=ratearMasterQtd;
+// ── Consumo: média dos últimos 6 meses (contando meses sem saída) e tipo de saída ──
+function _janelaConsumo(){var r=[],d=new Date();for(var i=5;i>=0;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(''+m.getFullYear()+String(m.getMonth()+1).padStart(2,'0'))}return r}
+function _classConsumo(mensal){
+  if(typeof mensal==='string'){try{mensal=JSON.parse(mensal)}catch(e){mensal={}}}
+  var W=_janelaConsumo(),tot=0,n=0,pico=0,mp='';
+  W.forEach(function(m){var q=Number(mensal&&mensal[m])||0;if(q>0){tot+=q;n++;if(q>pico){pico=q;mp=m}}});
+  return{media:tot/W.length,meses:n,pico:pico,mesPico:mp,tipo:n>=5?'regular':n>=3?'intermitente':n>=1?'pontual':'sem'};
+}
+function _fmtCons(v){v=Number(v)||0;return v>=10?String(Math.round(v)):(Math.round(v*10)/10).toLocaleString('pt-BR')}
+function _fmtMesCons(m){var n=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];return m?n[Number(m.slice(4,6))-1]+'/'+m.slice(2,4):''}
+function _badgeTipoCons(cl){
+  if(!cl||cl.tipo==='sem')return'';
+  var t={regular:['🟢','Regular: saída em '+cl.meses+' dos últimos 6 meses'],intermitente:['🟡','Intermitente: saída em '+cl.meses+' dos últimos 6 meses'],pontual:['🔸','Pontual: saída em só '+cl.meses+' dos últimos 6 meses · maior saída '+cl.pico+' em '+_fmtMesCons(cl.mesPico)]}[cl.tipo];
+  return'<span title="'+t[1]+'" style="font-size:9px;margin-left:2px;cursor:help">'+t[0]+'</span>';
+}
 // ── Ação de compra por item ──
 // O período de compra começa no 1º dia do mês daqui a 2 meses (ex.: em outubro → dezembro)
 function _inicioPeriodo(){var d=new Date();return new Date(d.getFullYear(),d.getMonth()+2,1)}
@@ -1188,38 +1212,44 @@ function _estoqueItemMat(grupo,item){
   grupo.forEach(function(s){(s.itens||[]).forEach(function(it){if(String(it.codigo||'').trim()===cod&&it.estoque_filial!=null)snap=Number(it.estoque_filial)})});
   return snap;
 }
-function _htmlAcao(estoque,consMes,qtd,periodo){
+function _htmlAcao(estoque,consMes,qtd,periodo,tipo,pico,mesPico){
   // Qtd master = quanto vai ser comprado. Compara com o que falta para o estoque + compra cobrir o período.
   qtd=Math.max(0,Number(qtd)||0);periodo=Number(periodo)||1;
   var fmt=function(v){return (Math.round(v*10)/10).toLocaleString('pt-BR')};
   var cinza='color:#64748b;font-size:10px;margin-top:2px';
   if(!(consMes>0)){
     if(qtd<=0)return'<span style="color:#cbd5e1">—</span>';
-    return'<span style="color:#b45309" title="Item sem consumo no histórico: não há base para calcular a necessidade">⚠ Sem consumo</span><div style="'+cinza+'">confira os '+qtd+'</div>';
+    return'<span style="color:#b45309" title="Item sem consumo nos últimos 6 meses: não há base para calcular a necessidade">⚠ Sem consumo</span><div style="'+cinza+'">confira os '+qtd+'</div>';
   }
-  var precisa=consMes*periodo;
+  pico=Number(pico)||0;
+  // Pontual (saída em 1–2 dos últimos 6 meses): a meta é ter estoque para aguentar um pico, não projetar a média
+  var pontual=tipo==='pontual'&&pico>0;
+  var precisa=pontual?pico:consMes*periodo;
   var meses=Math.max(0,(_inicioPeriodo()-new Date())/(30.44*864e5));
   var semPos=estoque==null;
   // estoque que deve sobrar até o início do período (consumo até lá já descontado)
-  var disponivel=semPos?0:Math.max(0,(Number(estoque)||0)-consMes*meses);
+  // (no pontual o próprio pico já é a margem: não desconta a média até o início do período)
+  var disponivel=semPos?0:Math.max(0,(Number(estoque)||0)-(pontual?0:consMes*meses));
   var comprar=Math.max(0,Math.ceil(precisa-disponivel));
   var cobre=(disponivel+qtd)/consMes;
-  var tit=' title="Consumo '+fmt(consMes)+'/mês × '+periodo+' mês(es) = '+Math.ceil(precisa)+
+  var tit=' title="'+(pontual?'Consumo pontual: maior saída '+pico+' em '+_fmtMesCons(mesPico)+' · meta = ter '+pico+' em estoque':'Média 6 meses '+fmt(consMes)+'/mês × '+periodo+' mês(es) = '+Math.ceil(precisa))+
     (semPos?' · sem posição de estoque (considerado 0)':' · estoque no início do período ≈ '+Math.floor(disponivel))+
     ' · estoque + qtd master cobrem ~'+fmt(cobre)+' mês(es)"';
   var linha1=comprar===0
-    ?'<span style="color:#166534;font-weight:600">✅ Estoque cobre</span>'
+    ?'<span style="color:#166534;font-weight:600">✅ Estoque cobre'+(pontual?' o pico':'')+'</span>'
     :'<span>🛒 Comprar <b>'+comprar+'</b></span>';
+  if(pontual)linha1+='<div style="color:#c2410c;font-size:10px;margin-top:1px">🔸 pontual · pico '+pico+' ('+_fmtMesCons(mesPico)+')</div>';
+  var cobreTxt=pontual?'estoque+compra '+Math.floor(disponivel+qtd)+' · pico '+pico:'cobre ~'+fmt(cobre)+' de '+periodo+' m';
   if(semPos)linha1+='<div style="'+cinza+'">⚪ sem posição de estoque</div>';
   // Qtd master × necessidade (tolerância: 10% ou 1 un.)
   var dif=qtd-comprar,tol=Math.max(1,Math.round(comprar*0.1)),linha2;
   if(Math.abs(dif)<=tol&&!(comprar===0&&qtd>0))linha2='<div style="color:#166534;font-size:10.5px;margin-top:2px">✔ na medida</div>';
-  else if(dif>0)linha2='<div style="color:#b45309;font-size:10.5px;margin-top:2px;font-weight:600">▲ '+dif+' acima</div><div style="'+cinza+'">cobre ~'+fmt(cobre)+' de '+periodo+' m</div>';
-  else linha2='<div style="color:#dc2626;font-size:10.5px;margin-top:2px;font-weight:600">▼ faltam '+(-dif)+'</div><div style="'+cinza+'">cobre ~'+fmt(cobre)+' de '+periodo+' m</div>';
+  else if(dif>0)linha2='<div style="color:#b45309;font-size:10.5px;margin-top:2px;font-weight:600">▲ '+dif+' acima</div><div style="'+cinza+'">'+cobreTxt+'</div>';
+  else linha2='<div style="color:#dc2626;font-size:10.5px;margin-top:2px;font-weight:600">▼ faltam '+(-dif)+'</div><div style="'+cinza+'">'+cobreTxt+'</div>';
   return'<div'+tit+' style="cursor:help">'+linha1+linha2+'</div>';
 }
-function _tdAcao(estoque,cons,qtd,periodo){var c=cons===-1?0.5:(Number(cons)||0);return'<td class="acao-compra" data-e="'+(estoque==null?'':estoque)+'" data-c="'+c+'" data-p="'+(Number(periodo)||1)+'" style="text-align:center;font-size:11.5px;line-height:1.3;padding:6px">'+_htmlAcao(estoque,c,qtd,periodo)+'</td>'}
-function _atualizarAcao(inp){var tr=inp.closest&&inp.closest('tr'),td=tr&&tr.querySelector('.acao-compra');if(td)td.innerHTML=_htmlAcao(td.dataset.e===''?null:Number(td.dataset.e),Number(td.dataset.c)||0,inp.value,Number(td.dataset.p)||1)}
+function _tdAcao(estoque,cons,qtd,periodo,cl){var c=cons===-1?0.5:(Number(cons)||0);cl=cl||{};return'<td class="acao-compra" data-e="'+(estoque==null?'':estoque)+'" data-c="'+c+'" data-p="'+(Number(periodo)||1)+'" data-t="'+(cl.tipo||'')+'" data-k="'+(cl.pico||0)+'" data-m="'+(cl.mesPico||'')+'" style="text-align:center;font-size:11.5px;line-height:1.3;padding:6px">'+_htmlAcao(estoque,c,qtd,periodo,cl.tipo,cl.pico,cl.mesPico)+'</td>'}
+function _atualizarAcao(inp){var tr=inp.closest&&inp.closest('tr'),td=tr&&tr.querySelector('.acao-compra');if(td)td.innerHTML=_htmlAcao(td.dataset.e===''?null:Number(td.dataset.e),Number(td.dataset.c)||0,inp.value,Number(td.dataset.p)||1,td.dataset.t,Number(td.dataset.k)||0,td.dataset.m)}
 
 // Resetar card matricial — volta todos os inputs para a qtd original do almoxarife
 function resetarCardMat(btn){

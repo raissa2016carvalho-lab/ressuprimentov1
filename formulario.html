@@ -3,8 +3,11 @@
 <script>const SUPABASE_URL=`https://eugefrjckrxisfpizkjb.supabase.co`,SUPABASE_ANON_KEY=`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI`,db=window.supabase.createClient(`https://eugefrjckrxisfpizkjb.supabase.co`,`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI`),$=id=>document.getElementById(id),GRUPOS_PERMITIDOS=new Set([`MATERIAIS DE EXPEDIENTE E CONSUMO ADM`,`MATERIAIS ELETRICOS`,`EPI / EPC E FERRAMENTAS`,`EQUIPAMENTOS DE INFORMATICA`,`MOVEIS & UTENSILIOS`,`MATERIAIS DE CONSUMO OBRA`,`MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA`,`MATERIAL P/ PERFURACAO DE ROCHAS`,`MATERIAL P/ LAVAGEM DE ISOLADORES`]);
 // Estado global
 let todosCCs=[],ccCarregado=!1,ccsSelecionados=[],consumoMap={},itensMap={},listaItens=[],itensPontuais=[],filialAtual=``,periodoMeses=3,consumoMapCC={},consumoMapMensal={};
-// Meses do início do ano atual até o mês atual — global para uso no popup e na média
-var MESES_FIXOS=(function(){var meses=[],d=new Date(),anoAtual=d.getFullYear(),mesAtual=d.getMonth();for(var m=0;m<=mesAtual;m++){meses.push(anoAtual.toString()+(m+1).toString().padStart(2,'0'))}return meses})();function onPeriodoChange(){
+// Últimos 6 meses (até o mês atual) — global para uso no popup e na média
+var MESES_FIXOS=(function(){var r=[],d=new Date();for(var i=5;i>=0;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(''+m.getFullYear()+String(m.getMonth()+1).padStart(2,'0'))}return r})();
+// Últimos 12 meses — itens com saída nesse período continuam aparecendo na lista
+var MESES_12=(function(){var r=[],d=new Date();for(var i=11;i>=0;i--){var m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(''+m.getFullYear()+String(m.getMonth()+1).padStart(2,'0'))}return r})();
+function _r1(v){return Math.round(v*10)/10}function onPeriodoChange(){
 // Recalcular todos os totais já preenchidos sem perder os valores digitados
 periodoMeses=Number($(`periodo-meses`).value)||3,$(`periodo-label`).textContent=periodoMeses,Object.values(qtdMap).forEach(it=>{let totalEl=$(`total-`+it.codigo);totalEl&&(totalEl.textContent=it.qtd*periodoMeses)})}window.onPeriodoChange=onPeriodoChange;
 // ── FILIAL ──────────────────────────────────────────────────────────────────
@@ -84,21 +87,16 @@ if(gruposEncontrados.length){
 // Acumula apenas os meses fixos para média; histórico mensal completo fica em consumoMapMensal
 consumoMap={};consumoMapCC={};consumoMapMensal={};let aggCC={};let aggCCMeses={};let aggProdTotal={};let aggProdMeses={};
 (consumoData||[]).forEach(r=>{if(!r.produto||!r.cc)return;let nome=mapCcNome[r.cc]||r.cc,k=nome+'|'+r.produto,qtd=Number(r.quantidade)||0;aggCC[k]=(aggCC[k]||0)+qtd;if(!aggCCMeses[k])aggCCMeses[k]=new Set();if(r.mes)aggCCMeses[k].add(r.mes);aggProdTotal[r.produto]=(aggProdTotal[r.produto]||0)+qtd;if(!aggProdMeses[r.produto])aggProdMeses[r.produto]=new Set();if(r.mes)aggProdMeses[r.produto].add(r.mes);if(r.mes&&r.produto){let km=nome+'|'+r.produto;if(!consumoMapMensal[km])consumoMapMensal[km]={};consumoMapMensal[km][r.mes]=(consumoMapMensal[km][r.mes]||0)+qtd}});
-Object.entries(aggCC).forEach(([k,total])=>{let nM=aggCCMeses[k]?.size||1;consumoMapCC[k]=total>0?Math.max(1,Math.round(total/nM)):0});
-// Média baseada apenas nos meses do ano atual (MESES_FIXOS)
-// aggProdMeses já tem os meses com consumo; filtrar só os do ano atual
+Object.keys(aggCC).forEach(k=>{let m=consumoMapMensal[k]||{},tot=MESES_FIXOS.reduce((s,mes)=>s+(Number(m[mes])||0),0);consumoMapCC[k]=_r1(tot/MESES_FIXOS.length)});
+// Média = total dos últimos 6 meses ÷ 6 (meses sem saída contam como zero)
+// Tipo: regular (saída em 5–6 meses), intermitente (3–4), pontual (1–2: usa o maior pico, não a média)
+let _porProdMes={};
+(consumoData||[]).forEach(r=>{if(!r.produto||!r.mes)return;let k=r.produto+'|'+r.mes;_porProdMes[k]=(_porProdMes[k]||0)+(Number(r.quantidade)||0)});
 Object.keys(aggProdTotal).forEach(produto=>{
-  let totalFixo=0,mesesComConsumo=0;
-  MESES_FIXOS.forEach(mes=>{
-    // Somar consumo de todos os CCs para este produto neste mês via aggCC temporário
-    let qtdMes=0;
-    (consumoData||[]).forEach(r=>{
-      if(r.produto===produto&&r.mes===mes) qtdMes+=Number(r.quantidade)||0;
-    });
-    if(qtdMes>0){totalFixo+=qtdMes;mesesComConsumo++;}
-  });
-  let nM=mesesComConsumo||1;
-  consumoMap[produto]={media:totalFixo>0?Math.max(1,Math.round(totalFixo/nM)):0,descricao:``};
+  let tot=0,n=0,pico=0,mesPico='',hist12=false;
+  MESES_FIXOS.forEach(mes=>{let q=_porProdMes[produto+'|'+mes]||0;if(q>0){tot+=q;n++;if(q>pico){pico=q;mesPico=mes}}});
+  MESES_12.forEach(mes=>{if((_porProdMes[produto+'|'+mes]||0)>0)hist12=true});
+  consumoMap[produto]={media:_r1(tot/MESES_FIXOS.length),pico,mesPico,hist12,tipo:n>=5?'regular':n>=3?'intermitente':n>=1?'pontual':'sem',descricao:``};
 });
 // Buscar itens dos grupos permitidos (cache sessionStorage 4h)
 let todosItens=[];
@@ -110,9 +108,9 @@ let itensFiltrados=todosItens.filter(it=>GRUPOS_PERMITIDOS.has((it.grupo||``).tr
 // Montar lista: itens com consumo primeiro, depois sem consumo
 let comConsumo=[],semConsumo=[];
 // Ordenar por consumo desc
-itensFiltrados.forEach(it=>{let cons=consumoMap[it.codigo];cons&&cons.media>0?comConsumo.push({...it,media:cons.media}):semConsumo.push({...it,media:0})}),comConsumo.sort((a,b)=>b.media-a.media);
+itensFiltrados.forEach(it=>{let cons=consumoMap[it.codigo];cons&&(cons.media>0||cons.hist12)?comConsumo.push({...it,media:cons.media,tipo:cons.tipo,pico:cons.pico,mesPico:cons.mesPico,hist12:!0}):semConsumo.push({...it,media:0})}),comConsumo.sort((a,b)=>b.media-a.media);
 // Calcular curva ABC
-let totalConsumo=comConsumo.reduce((s,it)=>s+it.media,0),acumulado=0;comConsumo.forEach(it=>{acumulado+=it.media;let pct=totalConsumo>0?acumulado/totalConsumo:1;it.curva=pct<=.2?`A`:pct<=.5?`B`:`C`}),semConsumo.forEach(it=>{it.curva=`C`}),listaItens=[...comConsumo,...semConsumo],$(`loading-itens`).style.display=`none`,$(`tabela-itens`).style.display=`table`,renderTabelaItens(),$(`area-enviar`).style.display=`block`,atualizarResumo()}function renderTabelaItens(){let tbody=$(`tbody-itens`),filtro=($(`filtro-itens`)?.value||``).toLowerCase().trim(),mostrarZero=$(`mostrar-zero`)?.checked,visiveis=listaItens.filter(it=>!(!mostrarZero&&it.media===0||filtro&&!it.descricao.toLowerCase().includes(filtro)&&!it.codigo.includes(filtro)));tbody.innerHTML=visiveis.map(it=>{
+let totalConsumo=comConsumo.reduce((s,it)=>s+it.media,0),acumulado=0;comConsumo.forEach(it=>{acumulado+=it.media;let pct=totalConsumo>0?acumulado/totalConsumo:1;it.curva=pct<=.2?`A`:pct<=.5?`B`:`C`}),semConsumo.forEach(it=>{it.curva=`C`}),listaItens=[...comConsumo,...semConsumo],$(`loading-itens`).style.display=`none`,$(`tabela-itens`).style.display=`table`,renderTabelaItens(),$(`area-enviar`).style.display=`block`,atualizarResumo()}function renderTabelaItens(){let tbody=$(`tbody-itens`),filtro=($(`filtro-itens`)?.value||``).toLowerCase().trim(),mostrarZero=$(`mostrar-zero`)?.checked,visiveis=listaItens.filter(it=>!(!mostrarZero&&it.media===0&&!it.hist12||filtro&&!it.descricao.toLowerCase().includes(filtro)&&!it.codigo.includes(filtro)));tbody.innerHTML=visiveis.map(it=>{
 // Usar valor já editado ou sugerir consumo × período
 let qtdAtual=qtdMap[it.codigo]?qtdMap[it.codigo].qtd:0;return`<tr id="row-${it.codigo}">
       <td>
@@ -257,7 +255,7 @@ for(let cc of ccsSelecionados){let itensCC=itensSelecionados.map(it=>{
 let consIndividual=consumoMapCC[cc.nome+`|`+it.codigo]||0,media=consumoMap[it.codigo]?.media||0;
 // Total de consumo de TODOS os CCs selecionados para este item
 let totalConsIndividual=ccsSelecionados.reduce((s,c)=>{return s+(consumoMapCC[c.nome+`|`+it.codigo]||0)},0);
-let qtdSugerida=Math.max(1,Math.round(media*periodoMeses*cc.proporcao));
+let _cl=consumoMap[it.codigo]||{};let qtdSugerida=_cl.tipo===`pontual`&&_cl.pico>0?Math.max(1,Math.round(_cl.pico*cc.proporcao)):Math.max(1,Math.round(media*periodoMeses*cc.proporcao));
 let qtdTotal=it.qtd>0?Math.round(it.qtd*periodoMeses):media>0?Math.round(media*periodoMeses):0;
 let qtdFinal;
 if(totalConsIndividual>0){
@@ -305,7 +303,7 @@ try{
 }catch(e){console.warn('Excel erro:',e)}
 $(`tela-form`).style.display=`none`,$(`tela-sucesso`).style.display=`block`,$(`codigo-retorno`).textContent=`#`+(ultimoId||`—`)}
 // Fechar sugestões ao clicar fora
-function renderBadgeConsumo(it){if(!it.media||it.media<=0)return'<span class="consumo-zero">\u2014</span>';var d=(it.descricao||'').replace(/"/g,'').replace(/'/g,'');return'<span class="consumo-badge" onclick="mostrarPopupConsumo(event,\''+it.codigo+'\',\''+d+'\')" title="Ver historico mensal">'+it.media+' \u{1F4CA}</span>'}
+function renderBadgeConsumo(it){if(!(it.media>0)&&!it.hist12)return'<span class="consumo-zero">\u2014</span>';var d=(it.descricao||'').replace(/"/g,'').replace(/'/g,'');var pont=it.tipo==='pontual'?'<div style="font-size:10px;color:#c2410c;margin-top:2px" title="Saída em só 1 ou 2 dos últimos 6 meses: a sugestão é ter em estoque o maior pico, não a média × período">🔸 pontual · pico '+it.pico+'</div>':'';return'<span class="consumo-badge" onclick="mostrarPopupConsumo(event,\''+it.codigo+'\',\''+d+'\')" title="Média dos últimos 6 meses (ver histórico)">'+(it.media>0?String(it.media).replace('.',','):'0')+' \u{1F4CA}</span>'+pont}
 window.renderBadgeConsumo=renderBadgeConsumo;
 function mostrarPopupConsumo(event,codigo,descricao){event.stopPropagation();var pop=document.getElementById('popup-consumo');
 // Agrega o histórico de todos os CCs que contenham esse produto
@@ -330,11 +328,10 @@ if(!Object.keys(mensal).length){
 function fmtMes(m){var a=m.slice(0,4),mo=m.slice(4,6),n=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];return n[Number(mo)-1]+'/'+a.slice(2)}
 // Mostrar meses do início do ano atual até o mês atual (em ordem crescente)
 var mesesExibir=MESES_FIXOS.slice();
-// Calcular média apenas dos meses com consumo
-var mesesComDados=mesesExibir.filter(function(m){return mensal[m]>0});
-var media=mesesComDados.length>0?Math.round(mesesComDados.reduce(function(s,m){return s+mensal[m]},0)/mesesComDados.length):0;
+// Média = total dos 6 meses ÷ 6 (meses sem saída contam como zero)
+var media=String(Math.round(mesesExibir.reduce(function(s,m){return s+(Number(mensal[m])||0)},0)/mesesExibir.length*10)/10).replace('.',',');
 var html='<span class="pop-close" onclick="fecharPopup()">\u2715</span><h4>'+descricao.slice(0,32)+'</h4>';
-if(!mesesExibir.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem historico disponivel.</div>'}else{html+='<table>'+mesesExibir.map(function(m){var qtd=mensal[m]||0;return'<tr><td>'+fmtMes(m)+'</td><td style="color:'+(qtd>0?'#1e40af':'#cbd5e1')+';font-weight:'+(qtd>0?'700':'400')+'">'+qtd+'</td></tr>'}).join('')+'<tr style="border-top:1px solid #e2e8f0"><td style="font-size:11px;color:#166534;font-weight:600;padding-top:6px">Média mensal \'+new Date().getFullYear()+\'</td><td style="color:#16a34a;font-weight:800;font-size:14px;padding-top:6px">\'+media+\'</td></tr></table>'}pop.innerHTML=html;pop.style.display='block';var r=event.target.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;if(top+ph>window.innerHeight-8)top=r.top-ph-6;pop.style.top=top+'px';pop.style.left=left+'px'}
+if(!mesesExibir.length){html+='<div style="color:#94a3b8;font-size:12px;margin-top:4px">Sem historico disponivel.</div>'}else{html+='<table>'+mesesExibir.map(function(m){var qtd=mensal[m]||0;return'<tr><td>'+fmtMes(m)+'</td><td style="color:'+(qtd>0?'#1e40af':'#cbd5e1')+';font-weight:'+(qtd>0?'700':'400')+'">'+qtd+'</td></tr>'}).join('')+'<tr style="border-top:1px solid #e2e8f0"><td style="font-size:11px;color:#166534;font-weight:600;padding-top:6px">Média mensal (6 meses)</td><td style="color:#16a34a;font-weight:800;font-size:14px;padding-top:6px">'+media+'</td></tr></table>'}pop.innerHTML=html;pop.style.display='block';var r=event.target.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight,top=r.bottom+6,left=r.left;if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;if(top+ph>window.innerHeight-8)top=r.top-ph-6;pop.style.top=top+'px';pop.style.left=left+'px'}
 window.mostrarPopupConsumo=mostrarPopupConsumo;
 function fecharPopup(){var p=document.getElementById('popup-consumo');if(p)p.style.display='none'}
 window.fecharPopup=fecharPopup;
