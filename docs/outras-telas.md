@@ -8,6 +8,9 @@
   - **SC aberta**: `pc_numero` vazio e status Pendente / Bloqueada / Em Processo de Cotação, emitida no último ano; qtd = `sc_quant - sc_quje`.
   - **Pedido em aberto**: status Pendente / Em aprovação / Recebido parcialmente / Em recebimento (Pré-nota) / Sem status, entrega a partir de 180 dias atrás;
     atrasado = entrega vencida. Passar o mouse mostra todos os PCs/SCs (fornecedor, comprador, solicitante).
+- **Curva ABC** (filtro + coluna, 26/10): calculada na hora dentro da filial e do grupo escolhidos (busca e tipo de saída não mudam a classe).
+  Peso = saída por mês (o maior entre consumo médio e trocas previstas ÷ prazo) × custo médio, ou só a quantidade ("ABC por").
+  A = linhas que somam 80% do peso, B = próximos 15%, C = últimos 5%; sem saída = sem classe. Com "Todas as filiais" classifica cada filial × item.
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
 - Meta: regular/intermitente = média × prazo; pontual = maior pico; maior entre isso e as trocas previstas.
 - Situação: **Pedir agora** (estoque + a caminho + SC aberta < meta); **Já solicitado** (só cobre contando a SC aberta);

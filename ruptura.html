@@ -50,6 +50,7 @@ tr:hover td{background:#f8fafc}
 .badge-alerta{background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700;white-space:nowrap}
 .badge-bloq{background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700;white-space:nowrap}
 .badge-azul{background:#dbeafe;color:#1e40af;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700;white-space:nowrap}
+.abc{display:inline-block;width:20px;text-align:center;border-radius:4px;font-size:11px;font-weight:800;padding:1px 0}.abc-A{background:#1e40af;color:#fff}.abc-B{background:#93c5fd;color:#1e3a8a}.abc-C{background:#e2e8f0;color:#475569}
 .badge-zero{background:#f1f5f9;color:#64748b;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700;white-space:nowrap}
 .red{color:#ef4444}.amb{color:#d97706}.verde{color:#16a34a}.cinza{color:#94a3b8}
 .paginador{display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:#fff;border-top:1px solid #e2e8f0;flex-wrap:wrap;gap:8px;font-size:13px;color:#64748b}
@@ -89,6 +90,10 @@ tr:hover td{background:#f8fafc}
   <div class="f-group"><label>Grupo</label><select id="f-grupo" onchange="aplicar()">
     <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC / Ferramentas</option><option value="FARD">Fardamento</option></select></div>
   <div class="f-group f-busca"><label>Código / Descrição / Matrícula</label><input id="f-busca" placeholder="🔍 Buscar..." oninput="aplicar()"></div>
+  <div class="f-group"><label>Curva ABC</label><select id="f-abc" onchange="aplicar()">
+    <option value="">Todas</option><option value="A">A — 80% do que sai</option><option value="AB">A + B</option><option value="B">B — próximos 15%</option><option value="C">C — últimos 5%</option></select></div>
+  <div class="f-group"><label>ABC por</label><select id="f-abc-por" onchange="aplicar()">
+    <option value="valor">Valor (consumo × custo)</option><option value="qtd">Quantidade</option></select></div>
   <div class="f-group"><label>Tipo de saída</label><select id="f-tipo" onchange="aplicar()">
     <option value="">Todos</option><option value="regular">Regular</option><option value="intermitente">Intermitente</option><option value="pontual">Pontual</option><option value="trocas">Só trocas (sem consumo)</option><option value="sem">Sem saída</option></select></div>
 </div>
@@ -289,6 +294,20 @@ function montarFiliais(){
 }
 
 // ── FILTROS ──────────────────────────────────────────────
+// Curva ABC calculada dentro da filial e do grupo escolhidos (busca e tipo de saída não mudam a classe):
+// A = itens que somam 80% do que sai, B = próximos 15%, C = últimos 5%. Sem saída = sem classe.
+function baseRisco(){
+  const fil=$('f-filial').value,gr=$('f-grupo').value,porQtd=$('f-abc-por').value==='qtd',sel=$('f-abc').value;
+  const peso=l=>porQtd?Math.max(l.media,l.trocas/l.prazo):Math.max(l.media,l.trocas/l.prazo)*l.custo;
+  const escopo=LINHAS.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr));
+  escopo.forEach(l=>{l.abc="";l.peso=peso(l)});
+  const com=escopo.filter(l=>l.peso>0).sort((a,b)=>b.peso-a.peso);
+  const tot=com.reduce((s,l)=>s+l.peso,0);let acum=0;
+  com.forEach(l=>{const antes=acum/tot;acum+=l.peso;l.abc=antes<.8?'A':antes<.95?'B':'C'});
+  const L=base(escopo);
+  return sel?L.filter(l=>l.abc&&sel.includes(l.abc)):L;
+}
+
 function base(lista){
   const fil=$('f-filial').value,gr=$('f-grupo').value,tp=$('f-tipo').value,q=$('f-busca').value.trim().toLowerCase();
   return lista.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr)&&(!tp||!l.tipo||l.tipo===tp)&&
@@ -317,7 +336,7 @@ function vidaFiltrada(){
 function aplicar(){
   if(ABA==='risco'){
     const f=PILLS_RISCO.find(p=>p[0]===PILL)||PILLS_RISCO[0];
-    FILTRADOS=base(LINHAS).filter(f[2]);
+    FILTRADOS=baseRisco().filter(f[2]);
   }else FILTRADOS=SIT==='vida'?vidaFiltrada():trocasFiltradas();
   ordenar();PAG=1;render();
 }
@@ -335,7 +354,7 @@ function setAba(a){ABA=a;SORT=null;$('aba-risco').classList.toggle('ativo',a==='
 function renderPills(){
   let h;
   if(ABA==='risco'){
-    const B=base(LINHAS);
+    const B=baseRisco();
     h=PILLS_RISCO.map(([k,t,f])=>`<button class="pill-btn ${PILL===k?'ativo':''}" onclick="setPill('${k}')">${t} (${fmtN(B.filter(f).length)})</button>`).join('');
   }else{
     const n=k=>TROCAS&&!TROCAS.erro?' ('+fmtN(trocasFiltradas(k).length)+')':'';
@@ -348,7 +367,7 @@ function renderPills(){
 function renderResumo(){
   let c;
   if(ABA==='risco'){
-    const B=base(LINHAS);
+    const B=baseRisco();
     const pedir=B.filter(l=>l.status==='pedir'),sol=B.filter(l=>l.status==='solicitado'),dep=B.filter(l=>l.status==='depende');
     const atr=B.flatMap(l=>l.atrasados);const nAtr=new Set(atr.map(p=>p.pc)).size;
     c=`<div class="resumo-card"><div class="val">${fmtN(FILTRADOS.length)}</div><div class="lab">Itens nesta lista</div></div>
@@ -404,11 +423,11 @@ function render(){
   const vis=FILTRADOS.slice((PAG-1)*POR_PAGINA,PAG*POR_PAGINA);
   let h;
   if(ABA==='risco'){
-    h=`<table><thead><tr>${th('filNome','Filial')}${th('cod','Código')}${th('desc','Descrição')}${th('ordem','Situação')}${th('est','Estoque','num')}${th('media','Consumo/mês','num')}${th('cob','Cobertura','num')}${th('trocas','Trocas prev.','num')}${th('scQtd','SC aberta','num')}${th('cam','Pedido (a caminho)','num')}${th('valor','Valor a comprar','num')}<th>Transferir de</th></tr></thead><tbody>`+
+    h=`<table><thead><tr>${th('filNome','Filial')}${th('cod','Código')}${th('desc','Descrição')}${th('peso','ABC')}${th('ordem','Situação')}${th('est','Estoque','num')}${th('media','Consumo/mês','num')}${th('cob','Cobertura','num')}${th('trocas','Trocas prev.','num')}${th('scQtd','SC aberta','num')}${th('cam','Pedido (a caminho)','num')}${th('valor','Valor a comprar','num')}<th>Transferir de</th></tr></thead><tbody>`+
     vis.map(l=>{
       const cobCor=l.cob==null?'cinza':l.cob<l.prazo/2?'red':l.cob<l.prazo?'amb':'verde';
       return`<tr><td class="cod" title="${esc(l.fil)}">${esc(l.filNome)}</td><td class="cod">${esc(l.cod)}</td><td>${esc(l.desc)}<div class="mini">${esc(tipoTxt(l))}</div></td>
-      <td>${badgeSit(l)}</td><td class="num" title="Última movimentação: ${fmtData(l.ult)}">${badgeEst(l)}</td>
+      <td title="${l.abc?'Curva '+l.abc+' · '+($('f-abc-por').value==='qtd'?fmtN(l.peso,1)+' un/mês':fmtR(l.peso)+'/mês'):'Sem saída'}">${l.abc?`<span class="abc abc-${l.abc}">${l.abc}</span>`:'<span class="cinza">—</span>'}</td><td>${badgeSit(l)}</td><td class="num" title="Última movimentação: ${fmtData(l.ult)}">${badgeEst(l)}</td>
       <td class="num">${l.media>0?fmtN(l.media,1):'<span class="cinza">—</span>'}</td>
       <td class="num ${cobCor}" title="Prazo do grupo: ${fmtN(l.prazo,1)} meses · meta ${fmtN(l.alvo)} un${l.porTrocas?' (pelas trocas)':''}">${l.cob==null?'—':fmtN(l.cob,1)+' m'}</td>
       <td class="num">${l.trocas?`<span style="${l.porTrocas?'color:#1e40af':''}" title="${fmtN(l.pessoas)} pessoas · ${fmtN(l.venc)} já vencidas${l.porTrocas?' · meta pelas trocas (consumo pedia '+fmtN(l.alvoCons)+')':''}">${fmtN(l.trocas)}</span>`:'<span class="cinza">—</span>'}</td>
@@ -450,7 +469,8 @@ function renderNota(){
     <b>Pedido (a caminho)</b> = saldo em pedido de compra do Protheus (SB2) e os pedidos em aberto (passe o mouse para ver todos).
     <b>SC aberta</b> = solicitação ainda sem pedido (pendente, bloqueada ou em cotação, último ano).
     Situação: <b>Pedir agora</b> = estoque + pedido + SC aberta não chegam à meta; <b>Já solicitado</b> = só chega contando a SC aberta;
-    <b>Depende da entrega</b> = o estoque não chega, o pedido cobre. <b>Transferir de</b>: filial com mais de ${MESES_SOBRA} meses de estoque do item.`
+    <b>Depende da entrega</b> = o estoque não chega, o pedido cobre.
+    <b>Curva ABC</b> (na filial e no grupo escolhidos): A = itens que somam 80% do que sai (em valor = consumo/mês × custo, ou em quantidade), B = próximos 15%, C = últimos 5%; conta também as trocas previstas. <b>Transferir de</b>: filial com mais de ${MESES_SOBRA} meses de estoque do item.`
     :`<b>Como funciona:</b> vida útil = mediana do tempo entre duas entregas do mesmo item (tamanhos juntos) para a mesma pessoa, nas trocas (motivos 3, 4 e 9) desde jan/2025.
     Itens pessoais = todo o fardamento e EPI de uso individual (luva, bota, óculos, balaclava, perneira, capacete, carneira, capuz, protetores, máscara, manga de borracha, cinto/talabarte/trava-quedas).
     Pessoa ativa = recebeu algum item nos últimos 60 dias; troca atrasada mais que uma vida útil sai da lista (provavelmente não usa mais o item).
@@ -464,7 +484,7 @@ function exportarExcel(){
   if(ABA==='risco'){
     nome='risco_'+PILL;
     rows=FILTRADOS.map(l=>({Filial:l.fil+' '+l.filNome,'Código':l.cod,'Descrição':l.desc,Grupo:l.gk==='FARD'?'Fardamento':'EPI / EPC / Ferramentas',
-      'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),
+      'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Curva ABC':l.abc,
       Estoque:l.est,'Consumo médio/mês':Math.round(l.media*10)/10,'Cobertura (meses)':l.cob==null?'':Math.round(l.cob*10)/10,'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
       'Trocas previstas no prazo':l.trocas,'Trocas vencidas':l.venc,Meta:l.alvo,'Meta por':l.porTrocas?'Trocas':'Consumo',
       'SC aberta (qtd)':l.scQtd,'SCs':l.scs.map(s=>s.sc).join(', '),'A caminho':l.cam,'Pedidos':l.pcs.map(p=>p.pc+' ('+fmtData(p.entrega)+')').join(', '),
