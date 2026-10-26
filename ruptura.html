@@ -50,7 +50,13 @@ tr:hover td{background:#f8faff}
 .n{text-align:right}
 .cod{color:var(--text3);font-size:10.5px}
 .tag{font-size:10.5px;border-radius:5px;padding:1px 6px;font-weight:600}
-.t-reg{background:#ecfdf3;color:var(--green)}.t-int{background:#fffbeb;color:var(--amber)}.t-pon{background:#fff7ed;color:#c2410c}
+.t-reg{background:#ecfdf3;color:var(--green)}.t-int{background:#fffbeb;color:var(--amber)}.t-pon{background:#fff7ed;color:#c2410c}.t-trc{background:#eef2ff;color:var(--primary)}
+.sub-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:none;background:none;padding:6px 12px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button.on{background:var(--primary);color:#fff;font-weight:600}
+.ptr{color:var(--primary);font-weight:600}
 .trf{color:var(--primary);font-weight:600}
 .vazio,.carregando{padding:50px;text-align:center;color:var(--text3)}
 .mais{display:block;margin:12px auto;}
@@ -79,8 +85,8 @@ tr:hover td{background:#f8faff}
   <div class="f"><label>Grupo</label><select id="f-grupo" onchange="render()">
     <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC / Ferramentas</option><option value="FARD">Fardamento</option></select></div>
   <div class="f"><label>Tipo de saída</label><select id="f-tipo" onchange="render()">
-    <option value="">Todos</option><option value="regular">Regular</option><option value="intermitente">Intermitente</option><option value="pontual">Pontual</option></select></div>
-  <div class="f"><label>Buscar</label><input id="f-busca" placeholder="Código ou descrição..." oninput="render()"></div>
+    <option value="">Todos</option><option value="regular">Regular</option><option value="intermitente">Intermitente</option><option value="pontual">Pontual</option><option value="trocas">Sem consumo (só trocas)</option></select></div>
+  <div class="f"><label>Buscar</label><input id="f-busca" placeholder="Código, descrição ou matrícula..." oninput="render()"></div>
 </div>
 
 <div class="content">
@@ -92,6 +98,8 @@ tr:hover td{background:#f8faff}
     <b>A caminho</b> = saldo em pedido de compra do Protheus (SB2). <b>Prazo do grupo</b> = tempo da SC até a chegada em 8 de cada 10 compras de 2026
     (EPI ≈ 2,3 meses; fardamento ≈ 3,3 meses). <b>Pedir agora</b>: estoque + a caminho não aguenta até uma compra nova chegar.
     <b>Depende da entrega</b>: o estoque sozinho não aguenta, o que já foi comprado cobre. <b>Transferir de</b>: filial com mais de 6 meses de estoque do item.
+    <b>Trocas previstas</b>: trocas de itens pessoais (fardamento e EPI de uso individual) que vencem dentro do prazo do grupo, pela vida útil de cada item
+    (mediana do tempo entre trocas da mesma pessoa desde jan/2025) e pelo tamanho que cada pessoa recebeu por último. Quando as trocas pedem mais que o consumo, a meta usa as trocas.
   </div>
 </div>
 
@@ -105,7 +113,9 @@ const MESES_SOBRA=6;     // filial com mais que isso de estoque pode transferir
 const DIAS_ATRASO=90;    // pedidos com entrega vencida nesse período
 const POR_PAGINA=200;
 
-let LINHAS=[],ATRASADOS=[],NOMES_FIL={},ABA='pedir',LIMITE=POR_PAGINA;
+let LINHAS=[],ATRASADOS=[],NOMES_FIL={},ITEM={},ABA='pedir',LIMITE=POR_PAGINA;
+let TROCAS=null,VIDA=null,SUB='pessoas',SIT='vencida'; // aba Vida útil e trocas (carrega depois)
+const DIAS_PRAZO=g=>Math.round(PRAZO[g]*30.44);
 
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtN=(v,d=0)=>(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -142,18 +152,24 @@ async function carregar(){
     const ini=new Date(hoje.getTime()-DIAS_ATRASO*864e5);
     const ymd=d=>''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
     const filtroGrupo='grupo.ilike.EPI*,grupo.ilike.FARDAMENTO*';
-    const [itens,estoque,consumo,pcs,fils,est_ts]=await Promise.all([
+    const [itens,estoque,consumo,pcs,fils,est_ts,tps]=await Promise.all([
       buscarTodas(()=>db.from('itens').select('codigo,descricao,grupo,preco').or(filtroGrupo).order('codigo')),
       buscarTodas(()=>db.from('estoque_sb2').select('filial,codigo,qtd_atual,saldo_pedido,custo_medio,grupo').or(filtroGrupo).order('id')),
       buscarTodas(()=>db.from('consumo_mensal').select('filial,produto,mes,quantidade').gte('mes',W[0]).order('id')),
       buscarTodas(()=>db.from('sc_pedidos_v2').select('filial,pc_filial,pc_numero,sc_numero,sc_produto,sc_descricao,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_fornecedor,pc_comprador').not('pc_numero','is',null).in('pc_status',['Pendente','Em aprovação','Recebido parcialmente','Sem status']).gte('pc_dt_entrega',ymd(ini)).lt('pc_dt_entrega',ymd(hoje)).order('pc_dt_entrega').order('id')),
       // (ordenar só por id fazia o banco percorrer a tabela toda pelo índice e estourar o tempo limite)
       db.from('filiais').select('filial,nome_filial'),
-      db.from('estoque_sb2').select('atualizado_em').order('atualizado_em',{ascending:false}).limit(1)
+      db.from('estoque_sb2').select('atualizado_em').order('atualizado_em',{ascending:false}).limit(1),
+      // trocas previstas de itens pessoais dentro do prazo de cada grupo (calculado no banco: mv_trocas_pessoa)
+      db.rpc('trocas_previstas',{p_dias_epi:DIAS_PRAZO('EPI'),p_dias_fard:DIAS_PRAZO('FARD')})
     ]);
     NOMES_FIL={};(fils.data||[]).forEach(f=>{NOMES_FIL[String(f.filial).trim().replace(/^0+/,'')]=String(f.nome_filial||'').trim()});
 
-    const ITEM={};itens.forEach(i=>{ITEM[String(i.codigo).trim()]=i});
+    ITEM={};itens.forEach(i=>{ITEM[String(i.codigo).trim()]=i});
+    // trocas previstas por filial|código (sem a tabela, o painel segue só com o consumo)
+    const TP={};
+    if(tps.error)console.warn('trocas_previstas',tps.error);
+    (tps.data||[]).forEach(t=>{const k=String(t.filial).trim()+'|'+String(t.produto).trim();TP[k]={prev:Number(t.previstas)||0,venc:Number(t.vencidas)||0,pessoas:Number(t.pessoas)||0}});
     // estoque e "a caminho" por filial|código
     const EST={};
     estoque.forEach(e=>{
@@ -187,11 +203,16 @@ async function carregar(){
     });
 
     LINHAS=[];
-    Object.entries(MEDIA).forEach(([k,c])=>{
-      const [fil,cod]=k.split('|');const it=ITEM[cod];const e=EST[k]||{est:0,cam:0,custo:0};
+    new Set([...Object.keys(MEDIA),...Object.keys(TP)]).forEach(k=>{
+      const [fil,cod]=k.split('|');const it=ITEM[cod];if(!it)return;const e=EST[k]||{est:0,cam:0,custo:0};
+      const c=MEDIA[k]||{media:0,n:0,pico:0,mp:''},tp=TP[k]||{prev:0,venc:0,pessoas:0};
       const gk=grupoKey(it.grupo),prazo=PRAZO[gk];
-      const tipo=c.n>=5?'regular':c.n>=3?'intermitente':'pontual';
-      const alvo=tipo==='pontual'?c.pico:Math.ceil(c.media*prazo);
+      const tipo=c.n>=5?'regular':c.n>=3?'intermitente':c.n>=1?'pontual':'trocas';
+      const alvoCons=tipo==='pontual'?c.pico:Math.ceil(c.media*prazo);
+      const alvoTr=Math.ceil(tp.prev);
+      const alvo=Math.max(alvoCons,alvoTr),porTrocas=alvoTr>alvoCons;
+      if(alvo<=0)return;
+      const ritmo=Math.max(c.media,tp.prev/prazo); // saída por mês: consumo ou trocas, o que for maior
       const est=Math.max(0,e.est),cam=e.cam;
       let status=null;
       if(est+cam<alvo)status='pedir';else if(est<alvo)status='depende';
@@ -199,7 +220,7 @@ async function carregar(){
       const comprar=Math.max(0,Math.ceil(alvo-est-cam));
       const custo=e.custo||Number(it.preco)||0;
       const trf=(SOBRA[cod]||[]).filter(s=>s.fil!==fil&&s.sobra>=Math.max(1,comprar)).sort((a,b)=>b.sobra-a.sobra)[0]||null;
-      LINHAS.push({fil,cod,desc:it.descricao||'',gk,tipo,media:c.media,pico:c.pico,mp:c.mp,est,cam,cob:est/c.media,prazo,alvo,comprar,custo,valor:comprar*custo,status,trf,zerado:est<=0&&cam<=0});
+      LINHAS.push({fil,cod,desc:it.descricao||'',gk,tipo,media:c.media,pico:c.pico,mp:c.mp,est,cam,cob:ritmo>0?est/ritmo:Infinity,prazo,alvo,alvoCons,trocas:alvoTr,venc:tp.venc,pessoas:tp.pessoas,porTrocas,comprar,custo,valor:comprar*custo,status,trf,zerado:est<=0&&cam<=0});
     });
     LINHAS.sort((a,b)=>b.valor-a.valor);
 
@@ -211,26 +232,47 @@ async function carregar(){
         gk:grupoKey(ITEM[String(p.sc_produto).trim()]?.grupo),qtd:Number(p.pc_quant)||0,valor:Number(p.pc_valor)||0,entrega:d,dias:Math.floor((hoje-dt)/864e5),forn:p.pc_fornecedor||'',comp:p.pc_comprador||'',status:p.pc_status||''};
     }).sort((a,b)=>b.dias-a.dias);
 
-    // filiais no filtro
-    const sel=$('f-filial'),atual=sel.value;
-    const fsel=[...new Set([...LINHAS.map(l=>l.fil),...ATRASADOS.map(a=>a.fil)])].filter(Boolean).sort();
-    sel.innerHTML='<option value="">Todas</option>'+fsel.map(f=>`<option value="${esc(f)}">${esc(nomeFil(f))}</option>`).join('');
-    if(fsel.includes(atual))sel.value=atual;
+    montarFiliais();
 
     const ts=est_ts.data?.[0]?.atualizado_em;
     $('sub').textContent='EPI / EPC / Ferramentas e Fardamento · consumo '+fmtMes(W[0])+'–'+fmtMes(W[5])+(ts?' · estoque de '+new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'');
     LIMITE=POR_PAGINA;
     render();
+    TROCAS=null;VIDA=null;carregarTrocas();
   }catch(e){
     console.error(e);
+    TROCAS=Object.assign([],{erro:e.message||String(e)});
     $('lista').innerHTML='<div class="vazio">Erro ao carregar: '+esc(e.message||e)+'</div>';
     $('sub').textContent='Erro ao carregar';
   }
 }
 
+// filiais no filtro (risco, pedidos atrasados e trocas)
+function montarFiliais(){
+  const sel=$('f-filial'),atual=sel.value;
+  const fsel=[...new Set([...LINHAS.map(l=>l.fil),...ATRASADOS.map(a=>a.fil),...(TROCAS||[]).map(t=>t.fil)])].filter(Boolean).sort();
+  sel.innerHTML='<option value="">Todas</option>'+fsel.map(f=>`<option value="${esc(f)}">${esc(nomeFil(f))}</option>`).join('');
+  if(fsel.includes(atual))sel.value=atual;
+}
+
+// Aba Vida útil e trocas: próximas trocas por pessoa (vencidas e próximos 90 dias) e vida útil por item
+async function carregarTrocas(){
+  try{
+    const [pes,vida]=await Promise.all([
+      buscarTodas(()=>db.from('vw_trocas_pessoa').select('matricula,filial,cc,fam,gk,produto,qtd,ultima,proxima,vida_util,dias').lte('dias',90).order('proxima').order('matricula').order('fam')),
+      buscarTodas(()=>db.from('mv_vida_util').select('fam,gk,exemplo,codigos,n_trocas,pessoas_troca,p25,vida_util,p75').eq('pessoal',true).not('vida_util','is',null).order('n_trocas',{ascending:false}).order('fam'))
+    ]);
+    TROCAS=pes.map(t=>{const cod=String(t.produto||'').trim();return{fil:String(t.filial||'').trim(),mat:String(t.matricula||'').trim(),cc:t.cc||'',fam:t.fam,gk:t.gk,cod,
+      desc:ITEM[cod]?.descricao||t.fam,qtd:Number(t.qtd)||1,ultima:t.ultima,proxima:t.proxima,vida:t.vida_util,dias:Number(t.dias)}});
+    VIDA=vida.map(v=>({fam:v.fam,gk:v.gk,desc:v.fam,cod:'',codigos:v.codigos||[],n:v.n_trocas,pessoas:v.pessoas_troca,p25:v.p25,vida:v.vida_util,p75:v.p75}));
+  }catch(e){console.error(e);TROCAS=[];VIDA=[];TROCAS.erro=e.message||String(e)}
+  montarFiliais();
+  render();
+}
+
 function filtrados(lista){
   const fil=$('f-filial').value,gr=$('f-grupo').value,tp=$('f-tipo').value,q=$('f-busca').value.trim().toLowerCase();
-  return lista.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr)&&(!tp||!l.tipo||l.tipo===tp)&&(!q||l.cod.includes(q)||String(l.desc).toLowerCase().includes(q)));
+  return lista.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr)&&(!tp||!l.tipo||l.tipo===tp)&&(!q||l.cod.includes(q)||String(l.desc).toLowerCase().includes(q)||(l.mat&&l.mat.includes(q))));
 }
 
 function dadosAba(){
@@ -238,12 +280,32 @@ function dadosAba(){
   if(ABA==='pedir')return L.filter(l=>l.status==='pedir');
   if(ABA==='depende')return L.filter(l=>l.status==='depende');
   if(ABA==='transferir')return L.filter(l=>l.status==='pedir'&&l.trf);
+  if(ABA==='trocas')return SUB==='vida'?vidaFiltrada():trocasFiltradas();
   return filtrados(ATRASADOS.map(a=>({...a,tipo:null})));
 }
 
 function setAba(a){ABA=a;LIMITE=POR_PAGINA;render()}
+function setSub(s){SUB=s;LIMITE=POR_PAGINA;render()}
+function setSit(s){SIT=s;LIMITE=POR_PAGINA;render()}
+
+function trocasFiltradas(sit=SIT){
+  if(!TROCAS)return[];
+  return filtrados(TROCAS).filter(t=>sit==='vencida'?t.dias<0:sit==='30'?t.dias>=0&&t.dias<=30:sit==='90'?t.dias>=0:true);
+}
+// vida útil por item + quantas trocas vencidas / nos próximos 30 dias (respeita filial, grupo e busca)
+function vidaFiltrada(){
+  if(!VIDA)return[];
+  const fil=$('f-filial').value,gr=$('f-grupo').value,q=$('f-busca').value.trim().toLowerCase();
+  const cont={};
+  filtrados(TROCAS||[]).forEach(t=>{const o=cont[t.fam]||(cont[t.fam]={venc:0,p30:0,fil:0});if(t.dias<0)o.venc++;else if(t.dias<=30)o.p30++;o.fil++});
+  return VIDA.filter(v=>(!gr||v.gk===gr)&&(!q||v.fam.toLowerCase().includes(q)||v.codigos.some(c=>c.includes(q))||cont[v.fam])&&(!fil||cont[v.fam]))
+    .map(v=>({...v,venc:cont[v.fam]?.venc||0,p30:cont[v.fam]?.p30||0}));
+}
+const fmtDia=s=>s?String(s).slice(8,10)+'/'+String(s).slice(5,7)+'/'+String(s).slice(2,4):'';
+function sitTroca(t){return t.dias<0?`<span class="red">vencida há ${fmtN(-t.dias)} d</span>`:t.dias===0?'<span class="amb">hoje</span>':`em ${fmtN(t.dias)} d`}
 
 function tagTipo(l){
+  if(l.tipo==='trocas')return`<span class="tag t-trc" title="Sem saída nos últimos 6 meses, mas há trocas previstas para pessoas da filial">só trocas</span>`;
   if(l.tipo==='pontual')return`<span class="tag t-pon" title="Saída em só 1–2 dos últimos 6 meses · maior saída ${fmtN(l.pico)} em ${fmtMes(l.mp)}">pontual · pico ${fmtN(l.pico)}</span>`;
   return`<span class="tag ${l.tipo==='regular'?'t-reg':'t-int'}">${l.tipo}</span>`;
 }
@@ -258,30 +320,46 @@ function render(){
     <div class="kpi"><div class="kpi-l">🟡 Dependem da entrega</div><div class="kpi-v amb">${fmtN(dep.length)} itens</div><div class="kpi-s">estoque não aguenta; o que está comprado cobre</div></div>
     <div class="kpi"><div class="kpi-l">Zerados e sem pedido</div><div class="kpi-v">${fmtN(zer.length)} itens</div><div class="kpi-s">estoque 0 e nada a caminho</div></div>
     <div class="kpi"><div class="kpi-l">Pedidos atrasados</div><div class="kpi-v">${fmtN(nPed)} pedidos</div><div class="kpi-s">${fmtCurto(A.reduce((s,a)=>s+a.valor,0))} · entrega vencida nos últimos ${DIAS_ATRASO} dias</div></div>`;
-  const abas=[['pedir','Pedir agora',pedir.length],['depende','Dependem da entrega',dep.length],['atrasados','Pedidos atrasados',nPed],['transferir','Transferências possíveis',trf.length]];
-  $('tabs').innerHTML=abas.map(([k,t,n])=>`<button class="tab ${ABA===k?'ativa':''}" onclick="setAba('${k}')">${t} (${fmtN(n)})</button>`).join('');
+  const nVenc=TROCAS?trocasFiltradas('vencida').length:null;
+  const abas=[['pedir','Pedir agora',pedir.length],['depende','Dependem da entrega',dep.length],['atrasados','Pedidos atrasados',nPed],['transferir','Transferências possíveis',trf.length],['trocas','Vida útil e trocas',nVenc]];
+  $('tabs').innerHTML=abas.map(([k,t,n])=>`<button class="tab ${ABA===k?'ativa':''}" onclick="setAba('${k}')"${k==='trocas'?' title="Entre parênteses: trocas vencidas"':''}>${t}${n===null?'':' ('+fmtN(n)+')'}</button>`).join('');
+
+  if(ABA==='trocas'&&!TROCAS){$('lista').innerHTML='<div class="carregando"><span class="spinner"></span>Carregando trocas por pessoa...</div>';return}
+  if(ABA==='trocas'&&TROCAS.erro){$('lista').innerHTML='<div class="card"><div class="vazio">Erro ao carregar as trocas: '+esc(TROCAS.erro)+'</div></div>';return}
+  const barra=ABA!=='trocas'?'':`<div class="sub-bar"><div class="seg"><button class="${SUB==='pessoas'?'on':''}" onclick="setSub('pessoas')">Próxima troca por pessoa</button><button class="${SUB==='vida'?'on':''}" onclick="setSub('vida')">Vida útil por item</button></div>`+
+    (SUB==='pessoas'?`<div class="seg">${[['vencida','Vencidas'],['30','Próximos 30 dias'],['90','Próximos 90 dias'],['todas','Todas']].map(([k,t])=>`<button class="${SIT===k?'on':''}" onclick="setSit('${k}')">${t} (${fmtN(trocasFiltradas(k).length)})</button>`).join('')}</div>`:'')+'</div>';
 
   const D=dadosAba();
-  if(!D.length){$('lista').innerHTML='<div class="card"><div class="vazio">Nada nesta lista com esses filtros.</div></div>';return}
+  if(!D.length){$('lista').innerHTML=barra+'<div class="card"><div class="vazio">Nada nesta lista com esses filtros.</div></div>';return}
   const vis=D.slice(0,LIMITE);
   let h;
-  if(ABA==='atrasados'){
+  if(ABA==='trocas'&&SUB==='vida'){
+    h=`<table><thead><tr><th>Item (tamanhos juntos)</th><th>Grupo</th><th class="n">Vida útil</th><th class="n">Metade das trocas entre</th><th class="n">Trocas observadas</th><th class="n">Pessoas</th><th class="n">Códigos</th><th class="n">Vencidas</th><th class="n">Próx. 30 dias</th></tr></thead><tbody>`+
+      vis.map(v=>`<tr><td class="desc">${esc(v.fam)}</td><td>${v.gk==='FARD'?'Fardamento':'EPI'}</td><td class="n"><b>${fmtN(v.vida)} dias</b></td><td class="n">${fmtN(v.p25)}–${fmtN(v.p75)} dias</td>
+        <td class="n">${fmtN(v.n)}</td><td class="n">${fmtN(v.pessoas)}</td><td class="n" title="${esc(v.codigos.join(', '))}">${fmtN(v.codigos.length)}</td>
+        <td class="n ${v.venc?'red':''}">${fmtN(v.venc)}</td><td class="n">${fmtN(v.p30)}</td></tr>`).join('')+'</tbody></table>';
+  }else if(ABA==='trocas'){
+    h=`<table><thead><tr><th>Filial</th><th>Matrícula</th><th>Item (último tamanho entregue)</th><th class="n">Qtd</th><th class="n">Última entrega</th><th class="n">Vida útil</th><th class="n">Próxima troca</th><th>Situação</th></tr></thead><tbody>`+
+      vis.map(t=>`<tr><td>${esc(nomeFil(t.fil))}</td><td>${esc(t.mat)}<div class="cod">CC ${esc(t.cc)}</div></td><td class="desc">${esc(t.desc)}<div class="cod">${esc(t.cod)}</div></td>
+        <td class="n">${fmtN(t.qtd)}</td><td class="n">${fmtDia(t.ultima)}</td><td class="n">${fmtN(t.vida)} d</td><td class="n">${fmtDia(t.proxima)}</td><td>${sitTroca(t)}</td></tr>`).join('')+'</tbody></table>';
+  }else if(ABA==='atrasados'){
     h=`<table><thead><tr><th>Filial</th><th>Pedido</th><th>Item</th><th class="n">Qtd</th><th class="n">Valor</th><th class="n">Entrega prevista</th><th class="n">Atraso</th><th>Status</th><th>Fornecedor</th><th>Comprador</th></tr></thead><tbody>`+
       vis.map(a=>`<tr><td>${esc(nomeFil(a.fil))}</td><td>PC ${esc(a.pc)}<div class="cod">SC ${esc(a.sc)}</div></td><td class="desc">${esc(a.desc)}<div class="cod">${esc(a.cod)}</div></td>
         <td class="n">${fmtN(a.qtd)}</td><td class="n">${fmtR(a.valor)}</td><td class="n">${fmtData(a.entrega)}</td>
         <td class="n ${a.dias>30?'red':'amb'}">${a.dias} dias</td><td>${esc(a.status)}</td><td class="forn">${esc(a.forn)}</td><td class="forn">${esc(a.comp)}</td></tr>`).join('')+'</tbody></table>';
   }else{
-    h=`<table><thead><tr><th>Filial</th><th>Item</th><th>Saída</th><th class="n">Consumo/mês</th><th class="n">Estoque</th><th class="n">A caminho</th><th class="n">Cobertura</th><th class="n">Prazo do grupo</th><th class="n">${ABA==='depende'?'Falta se atrasar':'Comprar'}</th><th class="n">Valor est.</th><th>Transferir de</th></tr></thead><tbody>`+
+    h=`<table><thead><tr><th>Filial</th><th>Item</th><th>Saída</th><th class="n">Consumo/mês</th><th class="n">Estoque</th><th class="n">A caminho</th><th class="n">Cobertura</th><th class="n">Prazo do grupo</th><th class="n">Trocas previstas</th><th class="n">${ABA==='depende'?'Falta se atrasar':'Comprar'}</th><th class="n">Valor est.</th><th>Transferir de</th></tr></thead><tbody>`+
       vis.map(l=>{
         const falta=Math.max(0,Math.ceil(l.alvo-l.est));
         return`<tr><td>${esc(nomeFil(l.fil))}</td><td class="desc">${esc(l.desc)}<div class="cod">${esc(l.cod)}</div></td><td>${tagTipo(l)}</td>
         <td class="n">${fmtN(l.media,1)}</td><td class="n ${l.est<=0?'red':''}">${fmtN(l.est)}</td><td class="n">${fmtN(l.cam)}</td>
-        <td class="n ${l.cob<l.prazo?'red':''}">${fmtN(l.cob,1)} m</td><td class="n">${fmtN(l.prazo,1)} m</td>
+        <td class="n ${l.cob<l.prazo?'red':''}">${l.cob===Infinity?'—':fmtN(l.cob,1)+' m'}</td><td class="n">${fmtN(l.prazo,1)} m</td>
+        <td class="n">${l.trocas?`<span class="${l.porTrocas?'ptr':''}" title="${fmtN(l.pessoas)} pessoas · ${fmtN(l.venc)} já vencidas${l.porTrocas?' · meta pelas trocas (consumo pedia '+fmtN(l.alvoCons)+')':''}">${fmtN(l.trocas)}</span>`:'<span class="cod">—</span>'}</td>
         <td class="n"><b>${fmtN(ABA==='depende'?falta:l.comprar)}</b></td><td class="n">${fmtR((ABA==='depende'?falta:l.comprar)*l.custo)}</td>
         <td>${l.trf?`<span class="trf" title="Estoque ${fmtN(l.trf.est)} · sobra ≈ ${fmtN(l.trf.sobra)} acima de ${MESES_SOBRA} meses de consumo">${esc(nomeFil(l.trf.fil))} (${fmtN(l.trf.sobra)})</span>`:'<span class="cod">—</span>'}</td></tr>`;
       }).join('')+'</tbody></table>';
   }
-  $('lista').innerHTML=`<div class="card"><div class="wrap">${h}</div></div>`+
+  $('lista').innerHTML=barra+`<div class="card"><div class="wrap">${h}</div></div>`+
     (D.length>LIMITE?`<button class="btn mais" onclick="LIMITE+=${POR_PAGINA};render()">Mostrar mais (${fmtN(D.length-LIMITE)} restantes)</button>`:'');
 }
 
@@ -289,17 +367,23 @@ function exportarExcel(){
   const D=dadosAba();
   if(!D.length){alert('Nada para exportar.');return}
   let rows;
-  if(ABA==='atrasados'){
+  if(ABA==='trocas'&&SUB==='vida'){
+    rows=D.map(v=>({Item:v.fam,Grupo:v.gk==='FARD'?'Fardamento':'EPI','Vida útil (dias)':v.vida,'25% das trocas até (dias)':v.p25,'75% das trocas até (dias)':v.p75,
+      'Trocas observadas':v.n,Pessoas:v.pessoas,'Códigos':v.codigos.join(', '),'Trocas vencidas':v.venc,'Trocas próx. 30 dias':v.p30}));
+  }else if(ABA==='trocas'){
+    rows=D.map(t=>({Filial:nomeFil(t.fil),'Matrícula':t.mat,CC:t.cc,'Código':t.cod,'Descrição':t.desc,Item:t.fam,Qtd:t.qtd,'Última entrega':fmtDia(t.ultima),
+      'Vida útil (dias)':t.vida,'Próxima troca':fmtDia(t.proxima),'Dias até a troca':t.dias,'Situação':t.dias<0?'Vencida':'Prevista'}));
+  }else if(ABA==='atrasados'){
     rows=D.map(a=>({Filial:nomeFil(a.fil),Pedido:a.pc,SC:a.sc,'Código':a.cod,'Descrição':a.desc,Qtd:a.qtd,Valor:a.valor,'Entrega prevista':fmtData(a.entrega),'Dias de atraso':a.dias,Status:a.status,Fornecedor:a.forn,Comprador:a.comp}));
   }else{
     rows=D.map(l=>({Filial:nomeFil(l.fil),'Código':l.cod,'Descrição':l.desc,Grupo:l.gk==='FARD'?'Fardamento':'EPI / EPC / Ferramentas','Tipo de saída':l.tipo,
-      'Consumo médio/mês':Math.round(l.media*10)/10,'Maior pico':l.pico,Estoque:l.est,'A caminho':l.cam,'Cobertura (meses)':Math.round(l.cob*10)/10,
-      'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,Meta:l.alvo,Comprar:l.comprar,'Custo unit.':l.custo,'Valor est.':Math.round(l.comprar*l.custo),
+      'Consumo médio/mês':Math.round(l.media*10)/10,'Maior pico':l.pico,Estoque:l.est,'A caminho':l.cam,'Cobertura (meses)':l.cob===Infinity?'':Math.round(l.cob*10)/10,
+      'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,'Trocas previstas no prazo':l.trocas,'Trocas vencidas':l.venc,Meta:l.alvo,'Meta por':l.porTrocas?'Trocas':'Consumo',Comprar:l.comprar,'Custo unit.':l.custo,'Valor est.':Math.round(l.comprar*l.custo),
       'Transferir de':l.trf?nomeFil(l.trf.fil):'','Sobra na filial de origem':l.trf?l.trf.sobra:''}));
   }
   const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Risco de ruptura');
-  XLSX.writeFile(wb,'risco_ruptura_'+ABA+'_'+new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')+'.xlsx');
+  XLSX.writeFile(wb,'risco_ruptura_'+(ABA==='trocas'?(SUB==='vida'?'vida_util':'trocas_'+SIT):ABA)+'_'+new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')+'.xlsx');
 }
 
 carregar();

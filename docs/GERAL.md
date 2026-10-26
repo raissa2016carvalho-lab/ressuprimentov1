@@ -57,6 +57,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | `justificativas_consumo` | RLS ligado (26/10): só `authenticated` lê/insere/altera; coluna `atualizado_por` | `alter table ... disable row level security` + `drop policy` + `drop column atualizado_por` |
 | `pedidos_grupo` | Valor por pedido × grupo pelo status de cada item (Comparativo Mensal). RLS: leitura pública, escrita só `service_role`. Alimentada por `sync_pedidos_grupo` no `upload_compras.py` (23/10) | `drop table public.pedidos_grupo` |
 | Solicitação nº 655 | Lançada a pedido da Raissa a partir da planilha de Baturité (Kauan, CC 141080101, 107 itens) | `delete` em `solicitacao_itens` e `solicitacoes` id 655 |
+| Vida útil e trocas (26/10) | Função `familia_item(texto)` (junta tamanhos: tira "Nº 42", "TAM M", "- G"); visões materializadas `mv_vida_util` (vida útil por item = mediana entre trocas da mesma pessoa, motivos 3/4/9) e `mv_trocas_pessoa` (última entrega e próxima troca por matrícula × item pessoal); visão `vw_trocas_pessoa` (só pessoas ativas e sem atraso maior que 1 vida útil); função `trocas_previstas(dias_epi, dias_fard)` (usada no painel de ruptura); `atualizar_vida_util()` (recalcula; só `service_role`) | `drop function trocas_previstas(int,int), atualizar_vida_util(); drop view vw_trocas_pessoa; drop materialized view mv_trocas_pessoa, mv_vida_util; drop function familia_item(text);` |
 | `mobilizacoes.criado_em` | **Ainda sem default** — rodar `alter table public.mobilizacoes alter column criado_em set default now();` | — |
 
 ### Backups guardados
@@ -75,7 +76,15 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
   Não voltar a usar `cdn.jsdelivr.net`.
 
 ## Pendências (em ordem sugerida)
-0. **Vida útil e próxima troca (combinado em 26/10, começar no próximo chat)**: a tabela `entregas_almoxarife`
+0. **Vida útil e trocas — FEITO em 26/10 (aguardando teste no Preview)**: aba "Vida útil e trocas" no `ruptura.html` e trocas previstas
+   entrando na meta do ruptura. **Falta**: (a) o recálculo — a vida útil e as próximas trocas ficam paradas na foto de 26/10 até rodar
+   `atualizar_vida_util()`. Opção 1: no fim do `sync_entregas.py` acrescentar `supabase.rpc('atualizar_vida_util').execute()`.
+   Opção 2: ligar o agendador do banco (SQL Editor): `create extension if not exists pg_cron;` e
+   `select cron.schedule('vida_util','30 9 * * *','select public.atualizar_vida_util()');` (06:30 de Brasília; desfazer: `select cron.unschedule('vida_util');`).
+   (b) vida útil padrão cadastrável (tabela para a Raissa corrigir a vida útil de um item à mão). (c) lista de itens pessoais é por palavra
+   (fardamento inteiro + LUVA, BOTA, TENIS, CALCA, CAMISA, OCULOS, BALACLAVA, PERNEIRA, CARNEIRA, CAPUZ, CAPACETE, CAPA DE CHUVA, MASCARA,
+   PROTETOR SOLAR/LABIAL/AURICULAR/FACIAL, MANGA DE BORRACHA, KIT EPI cinto/talabarte/trava-quedas) — revisar com a Raissa.
+   Anotações antigas desta pendência (combinado em 26/10): a tabela `entregas_almoxarife`
    tem entregas por matrícula (só desde 03/08/2026). Pedir à Raissa o `sync_entregas.py` para trazer desde 2025;
    calcular vida útil por item (mediana entre trocas da mesma pessoa, motivos 3/4/9) + vida útil padrão cadastrável;
    próxima troca por pessoa; trocas previstas 90 dias por filial×item alimentando o painel de ruptura; trocas vencidas.
