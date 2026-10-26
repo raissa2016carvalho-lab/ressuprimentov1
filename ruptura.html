@@ -119,7 +119,9 @@ function janela(){const r=[],d=new Date();for(let i=5;i>=0;i--){const m=new Date
 async function buscarTodas(montar){
   let all=[],off=0;
   for(;;){
-    const{data,error}=await montar().range(off,off+999);
+    let data,error;
+    // banco ocupado (ex.: sync rodando) pode estourar o tempo: tenta de novo até 2 vezes
+    for(let t=0;t<3;t++){({data,error}=await montar().range(off,off+999));if(!error)break;await new Promise(r=>setTimeout(r,2000))}
     if(error)throw error;
     if(!data||!data.length)break;
     all=all.concat(data);
@@ -141,7 +143,8 @@ async function carregar(){
       buscarTodas(()=>db.from('itens').select('codigo,descricao,grupo,preco').or(filtroGrupo).order('codigo')),
       buscarTodas(()=>db.from('estoque_sb2').select('filial,codigo,qtd_atual,saldo_pedido,custo_medio,grupo').or(filtroGrupo).order('id')),
       buscarTodas(()=>db.from('consumo_mensal').select('filial,produto,mes,quantidade').gte('mes',W[0]).order('id')),
-      buscarTodas(()=>db.from('sc_pedidos_v2').select('filial,pc_filial,pc_numero,sc_numero,sc_produto,sc_descricao,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_fornecedor,pc_comprador').not('pc_numero','is',null).gte('pc_dt_entrega',ymd(ini)).lt('pc_dt_entrega',ymd(hoje)).order('id')),
+      buscarTodas(()=>db.from('sc_pedidos_v2').select('filial,pc_filial,pc_numero,sc_numero,sc_produto,sc_descricao,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_fornecedor,pc_comprador').not('pc_numero','is',null).in('pc_status',['Pendente','Em aprovação','Recebido parcialmente','Sem status']).gte('pc_dt_entrega',ymd(ini)).lt('pc_dt_entrega',ymd(hoje)).order('pc_dt_entrega').order('id')),
+      // (ordenar só por id fazia o banco percorrer a tabela toda pelo índice e estourar o tempo limite)
       db.from('filiais').select('filial,nome_filial'),
       db.from('estoque_sb2').select('atualizado_em').order('atualizado_em',{ascending:false}).limit(1)
     ]);
