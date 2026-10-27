@@ -114,7 +114,7 @@ tr:hover td{background:#f8fafc}
 <div class="filtros-wrap">
   <div class="f-group"><label>Filial</label><select id="f-filial" onchange="aoMudarFilial()"><option value="">Todas as filiais</option></select></div>
   <div class="f-group"><label>Grupo</label><select id="f-grupo" onchange="aplicar()">
-    <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC / Ferramentas</option><option value="FARD">Fardamento</option></select></div>
+    <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC / Ferramentas (sem botas)</option><option value="BOTA">👢 Botas e calçados</option><option value="FARD">Fardamento</option></select></div>
   <div class="f-group f-busca"><label>Código / Descrição / Matrícula</label><input id="f-busca" placeholder="🔍 Buscar..." oninput="aplicar()"></div>
   <div class="f-group"><label>Curva ABC</label><select id="f-abc" onchange="aplicar()">
     <option value="">Todas</option><option value="A">A — 80% do que sai</option><option value="AB">A + B</option><option value="B">B — próximos 15%</option><option value="C">C — últimos 5%</option></select></div>
@@ -166,6 +166,10 @@ const fmtData=s=>{s=ymd8(s);return s.length===8?s.slice(6,8)+'/'+s.slice(4,6)+'/
 const dataDe=s=>{s=ymd8(s);return new Date(s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8)+'T12:00:00')};
 const nomeFil=f=>{const k=String(f||'').trim();const n=(NOMES_FIL[k.replace(/^0+/,'')]||'').replace(/^FILIAL\s+/i,'').toUpperCase();return n||k};
 const grupoKey=g=>/^FARD/i.test(g||'')?'FARD':'EPI';
+// Botas e calçados ficam num filtro próprio (saem de "EPI / EPC / Ferramentas")
+const ehBota=d=>/^(BOTA|BOTINA|TENIS|SAPATO)\b/i.test(String(d||'').trim());
+const grupoOk=(gk,desc,gr)=>!gr||(gr==='BOTA'?ehBota(desc):gr==='EPI'?gk==='EPI'&&!ehBota(desc):gk===gr);
+const nomeGrupo=(gk,desc)=>ehBota(desc)?'Botas e calçados':gk==='FARD'?'Fardamento':'EPI / EPC / Ferramentas';
 const ymd=d=>''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
 
 function janela(){const r=[],d=new Date();for(let i=5;i>=0;i--){const m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(''+m.getFullYear()+String(m.getMonth()+1).padStart(2,'0'))}return r}
@@ -205,7 +209,7 @@ async function carregar(){
     const filtroGrupo='grupo.ilike.EPI*,grupo.ilike.FARDAMENTO*';
     const [itens,estoque,consumo,mot,scs,pcs,fils,est_ts,tps,forms]=await Promise.all([
       buscarTodas(()=>db.from('itens').select('codigo,descricao,grupo,preco').or(filtroGrupo).order('codigo')),
-      buscarTodas(()=>db.from('estoque_sb2').select('filial,codigo,qtd_atual,saldo_pedido,custo_medio,dt_ult_movimento').or(filtroGrupo).order('id')),
+      buscarTodas(()=>db.from('estoque_sb2').select('filial,codigo,armazem,qtd_atual,saldo_pedido,custo_medio,dt_ult_movimento,atualizado_em').or(filtroGrupo).order('id')),
       buscarTodas(()=>db.from('consumo_mensal').select('filial,produto,mes,quantidade').gte('mes',W[0]).order('id')),
       // saídas de mobilização e admissional (para tirar do consumo — kits de equipe nova são compra direcionada)
       buscarTodas(()=>db.rpc('consumo_por_motivo',{p_mes_ini:W[0],p_motivos:['MOBILIZAÇÃO','ADMISSIONAL']})).catch(e=>{console.warn('consumo_por_motivo',e);return null}),
@@ -272,8 +276,10 @@ function calcular(){
     const EST={};
     estoque.forEach(e=>{
       const k=String(e.filial).trim()+'|'+String(e.codigo).trim();
-      const o=EST[k]||(EST[k]={est:0,cam:0,custo:0,ult:''});
+      const o=EST[k]||(EST[k]={est:0,cam:0,custo:0,ult:'',arm:{},em:''});
       o.est+=Number(e.qtd_atual)||0;
+      const ar=String(e.armazem||'').trim().replace(/^0+(?=\d\d)/,'')||'—';if(Number(e.qtd_atual))o.arm[ar]=(o.arm[ar]||0)+Number(e.qtd_atual);
+      if(e.atualizado_em&&e.atualizado_em>o.em)o.em=e.atualizado_em;
       o.cam+=Math.max(0,Number(e.saldo_pedido)||0); // saldo negativo no Protheus = 0
       if(Number(e.custo_medio)>0)o.custo=Number(e.custo_medio);
       if(e.dt_ult_movimento&&ymd8(e.dt_ult_movimento)>o.ult)o.ult=ymd8(e.dt_ult_movimento);
@@ -366,7 +372,7 @@ function calcular(){
     LINHAS=[];
     new Set([...Object.keys(EST),...Object.keys(MEDIA),...Object.keys(TP),...Object.keys(SC),...Object.keys(PC),...Object.keys(FORM)]).forEach(k=>{
       const [fil,cod]=k.split('|');const it=ITEM[cod];if(!it)return;
-      const e=EST[k]||{est:0,cam:0,custo:0,ult:''},c=MEDIA[k]||{media:0,n:0,pico:0,mp:''},tp=TP[k]||{prev:0,venc:0,pessoas:0};
+      const e=EST[k]||{est:0,cam:0,custo:0,ult:'',arm:{},em:''},c=MEDIA[k]||{media:0,n:0,pico:0,mp:''},tp=TP[k]||{prev:0,venc:0,pessoas:0};
       const scl=SC[k]||[],pcl=PC[k]||[];
       const gk=grupoKey(it.grupo),prazo=PRAZO[gk];
       const tipo=c.n>=5?'regular':c.n>=3?'intermitente':c.n>=1?'pontual':tp.prev>0?'trocas':'sem';
@@ -399,7 +405,7 @@ function calcular(){
       const trf=status==='pedir'?(SOBRA[cod]||[]).filter(s=>s.fil!==fil&&s.sobra>=Math.max(1,comprar)).sort((a,b)=>b.sobra-a.sobra)[0]||null:null;
       const atrasados=pcl.filter(p=>p.atraso>0);
       const proxEntrega=pcl.filter(p=>p.atraso<=0).map(p=>p.entrega).sort()[0]||'';
-      LINHAS.push({fil,filNome:nomeFil(fil),cod,desc:it.descricao||'',gk,tipo,media:c.media,tirado:TIRADO[k]||null,mob:MOB[k]?.q||0,pctMob:MOB[k]?.pct||0,tot6:TOT6[k]||0,pico:c.pico,mp:c.mp,est,cam,ult:e.ult,
+      LINHAS.push({fil,filNome:nomeFil(fil),cod,desc:it.descricao||'',gk,tipo,media:c.media,tirado:TIRADO[k]||null,mob:MOB[k]?.q||0,pctMob:MOB[k]?.pct||0,tot6:TOT6[k]||0,pico:c.pico,mp:c.mp,est,cam,ult:e.ult,arm:e.arm,estEm:e.em,
         cob:ritmo>0?est/ritmo:null,prazo,alvo,alvoCons,trocas:alvoTr,venc:tp.venc,pessoas:tp.pessoas,porTrocas,
         fm,fq,precisa,ver,abaixoPico:tipo==='pontual'&&c.pico>0&&est+cam+scQtd+fq<c.pico,fSug:fm?fm.sug:-1,fAlm:fm?fm.alm:-1,fGer:fm&&fm.temGer?fm.ger:-1,fFin:fm?(fm.rec?0:fm.fin):-1,scs:scl,scQtd,pcs:pcl,atrasados,atrasoMax:atrasados.reduce((m,p)=>Math.max(m,p.atraso),0),proxEntrega,
         comprar,custo,valor:comprar*custo,status,ordem:{pedir:0,solicitado:1,depende:2,ok:3,sem:4}[status],trf,zerado:est<=0&&alvo>0});
@@ -435,7 +441,7 @@ function montarFiliais(){
 function baseRisco(fil=$('f-filial').value,semCurva=false){
   const gr=$('f-grupo').value,porQtd=$('f-abc-por').value==='qtd',sel=semCurva?'':$('f-abc').value;
   const peso=l=>porQtd?Math.max(l.media,l.trocas/l.prazo):Math.max(l.media,l.trocas/l.prazo)*l.custo;
-  const escopo=LINHAS.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr));
+  const escopo=LINHAS.filter(l=>(!fil||l.fil===fil)&&grupoOk(l.gk,l.desc,gr));
   escopo.forEach(l=>{l.abc="";l.peso=peso(l)});
   const com=escopo.filter(l=>l.peso>0).sort((a,b)=>b.peso-a.peso);
   const tot=com.reduce((s,l)=>s+l.peso,0);let acum=0;
@@ -446,7 +452,7 @@ function baseRisco(fil=$('f-filial').value,semCurva=false){
 
 function base(lista,fil=$('f-filial').value){
   const gr=$('f-grupo').value,tp=$('f-tipo').value,q=$('f-busca').value.trim().toLowerCase();
-  return lista.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr)&&(!tp||!l.tipo||l.tipo===tp)&&
+  return lista.filter(l=>(!fil||l.fil===fil)&&grupoOk(l.gk,l.desc,gr)&&(!tp||!l.tipo||l.tipo===tp)&&
     (!q||l.cod.includes(q)||String(l.desc).toLowerCase().includes(q)||(l.mat&&l.mat.includes(q))));
 }
 const PILLS_RISCO=[['todos','Todos',()=>true],['pedir','🔴 Pedir agora',l=>l.status==='pedir'],['solicitado','📝 Já solicitado (SC ou formulário cobre)',l=>l.status==='solicitado'],
@@ -466,7 +472,7 @@ function vidaFiltrada(){
   const fil=$('f-filial').value,gr=$('f-grupo').value,q=$('f-busca').value.trim().toLowerCase();
   const cont={};
   base(TROCAS&&!TROCAS.erro?TROCAS:[]).forEach(t=>{const o=cont[t.fam]||(cont[t.fam]={venc:0,p30:0});if(t.dias<0)o.venc++;else if(t.dias<=30)o.p30++});
-  return VIDA.filter(v=>(!gr||v.gk===gr)&&(!q||v.fam.toLowerCase().includes(q)||v.codigos.some(c=>c.includes(q))||cont[v.fam])&&(!fil||cont[v.fam]))
+  return VIDA.filter(v=>grupoOk(v.gk,v.fam,gr)&&(!q||v.fam.toLowerCase().includes(q)||v.codigos.some(c=>c.includes(q))||cont[v.fam])&&(!fil||cont[v.fam]))
     .map(v=>({...v,venc:cont[v.fam]?.venc||0,p30:cont[v.fam]?.p30||0}));
 }
 
@@ -592,6 +598,11 @@ function badgeSit0(l){
   if(l.status==='ok')return`<span class="badge-ok">✓ Normal</span>`;
   return`<span class="badge-zero">Sem saída</span>`;
 }
+function estTip(l){
+  const a=Object.entries(l.arm||{}).sort();
+  return(a.length?a.map(([k,q])=>'Armazém '+k+': '+fmtN(q)).join('\n'):'Sem saldo em nenhum armazém')+
+    '\nÚltima movimentação: '+fmtData(l.ult)+(l.estEm?'\nFoto do estoque (Protheus): '+new Date(l.estEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'');
+}
 function badgeEst(l){
   if(l.est<=0)return`<span class="${l.alvo>0?'badge-alerta':'badge-zero'}">0</span>`;
   return`<span class="${l.status==='ok'||l.status==='sem'?'badge-ok':l.status==='depende'?'badge-bloq':'badge-alerta'}">${fmtN(l.est)}</span>`;
@@ -657,7 +668,7 @@ function render(){
     vis.map(l=>{
       const cobCor=l.cob==null?'cinza':l.cob<l.prazo/2?'red':l.cob<l.prazo?'amb':'verde';
       return`<tr><td class="cod" title="${esc(l.fil)}">${esc(l.filNome)}</td><td class="cod">${esc(l.cod)}</td><td style="min-width:240px">${esc(l.desc)}<div class="mini">${esc(tipoTxt(l))}${l.pctMob>=PESO_MOB?` · <span style="color:#7c3aed;font-weight:700" title="${fmtN(l.mob)} un saíram por mobilização nos 6 meses — ${$('x-mob').checked?'já fora da média':'ainda contando na média'}">${fmtN(l.pctMob*100)}% mobilização</span>`:''}</div></td>
-      <td title="${l.abc?'Curva '+l.abc+' · '+($('f-abc-por').value==='qtd'?fmtN(l.peso,1)+' un/mês':fmtR(l.peso)+'/mês'):'Sem saída'}">${l.abc?`<span class="abc abc-${l.abc}">${l.abc}</span>`:'<span class="cinza">—</span>'}</td><td>${badgeSit(l)}</td><td class="num" title="Última movimentação: ${fmtData(l.ult)}">${badgeEst(l)}</td>
+      <td title="${l.abc?'Curva '+l.abc+' · '+($('f-abc-por').value==='qtd'?fmtN(l.peso,1)+' un/mês':fmtR(l.peso)+'/mês'):'Sem saída'}">${l.abc?`<span class="abc abc-${l.abc}">${l.abc}</span>`:'<span class="cinza">—</span>'}</td><td>${badgeSit(l)}</td><td class="num" title="${esc(estTip(l))}" style="cursor:help">${badgeEst(l)}</td>
       <td class="num"><span class="pop-cons" onclick="abrirConsumo(event,'${esc(l.fil)}','${esc(l.cod)}')" title="Clique para ver mês a mês">${l.media>0?fmtN(Math.max(1,Math.round(l.media))):'<span class="cinza">—</span>'}${l.tirado?'<span class="mini" style="color:#7c3aed"> *</span>':''}</span></td>
       <td class="num ${cobCor}" title="Estoque dura ≈ ${l.cob==null?'—':fmtN(l.cob,1)+' meses'} · prazo do grupo ${fmtN(l.prazo*30.44)} dias · meta ${fmtN(l.alvo)} un${l.porTrocas?' (pelas trocas)':''}">${l.cob==null?'—':fmtN(Math.round(l.cob*30.44))+' d'}</td>
       <td class="num">${l.trocas?`<span style="${l.porTrocas?'color:#1e40af':''}" title="${fmtN(l.pessoas)} pessoas · ${fmtN(l.venc)} já vencidas${l.porTrocas?' · meta pelas trocas (consumo pedia '+fmtN(l.alvoCons)+')':''}">${fmtN(l.trocas)}</span>`:'<span class="cinza">—</span>'}</td>
@@ -785,9 +796,9 @@ function exportarExcel(){
   let rows,nome;
   if(ABA==='risco'){
     nome='risco_'+PILL;
-    rows=FILTRADOS.map(l=>({Filial:l.fil+' '+l.filNome,'Código':l.cod,'Descrição':l.desc,Grupo:l.gk==='FARD'?'Fardamento':'EPI / EPC / Ferramentas',
+    rows=FILTRADOS.map(l=>({Filial:l.fil+' '+l.filNome,'Código':l.cod,'Descrição':l.desc,Grupo:nomeGrupo(l.gk,l.desc),
       'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Abaixo do pico (sem mobilização)':l.abaixoPico?'sim (pico '+l.pico+')':'','Curva ABC':l.abc,
-      Estoque:l.est,'Consumo médio/mês':Math.round(l.media),'% da saída por mobilização':Math.round(l.pctMob*100),'Tirado do consumo (6 meses)':l.tirado?Object.entries(l.tirado).map(([m,q])=>m+' '+q).join(' · '):'','Cobertura (dias)':l.cob==null?'':Math.round(l.cob*30.44),'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
+      Estoque:l.est,'Estoque por armazém':Object.entries(l.arm||{}).sort().map(([k,q])=>k+': '+q).join(' · '),'Consumo médio/mês':Math.round(l.media),'% da saída por mobilização':Math.round(l.pctMob*100),'Tirado do consumo (6 meses)':l.tirado?Object.entries(l.tirado).map(([m,q])=>m+' '+q).join(' · '):'','Cobertura (dias)':l.cob==null?'':Math.round(l.cob*30.44),'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
       'Trocas previstas no prazo':l.trocas,'Trocas vencidas':l.venc,Meta:l.alvo,'Meta por':l.porTrocas?'Trocas':'Consumo',
       'Form. almoxarife':l.fm?l.fm.alm:'','Form. gerente':l.fm&&l.fm.temGer?l.fm.ger:'','Form. final (master)':l.fm?(l.fm.rec?'recusado':l.fm.fin):'',
       'Form. conta como pedido':l.fq||'','Veredito do formulário':l.ver?VEREDITO[l.ver][0].replace(/^\S+\s/,''):'','Faltava sem o formulário':l.precisa,
