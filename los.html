@@ -5,126 +5,112 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>B&Q — Sistemas</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#f0f2f5;font-family:'Inter',sans-serif;min-height:100vh}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#f1f5f9;color:#0f172a;min-height:100vh;display:flex;flex-direction:column}
+a{color:inherit;text-decoration:none}
 
-.header{background:#0d1b3e;padding:0 32px;height:64px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-.logo{font-size:24px;font-weight:700;color:#fff;font-style:italic}
-.logo span{color:#f26522}
-.header-sub{font-size:12px;color:#8ba3cc;border-left:2px solid #f26522;padding-left:12px;line-height:1.4}
-.time{font-size:11px;color:#8ba3cc}
+.topo{background:#0f172a;color:#fff;padding:14px 28px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.marca{font-size:20px;font-weight:800;font-style:italic;letter-spacing:-.3px}
+.marca b{color:#f26522}
+.topo .sep{width:1px;height:26px;background:#334155}
+.topo h1{font-size:14px;font-weight:600;color:#cbd5e1}
+.topo .data{margin-left:auto;font-size:12px;color:#94a3b8}
 
-.hero{background:linear-gradient(135deg,#0d1b3e 0%,#1a3a6e 100%);padding:48px 32px 40px;text-align:center}
-.hero h1{font-size:28px;font-weight:700;color:#fff;margin-bottom:8px}
-.hero p{font-size:14px;color:#8ba3cc}
+.main{flex:1;width:100%;max-width:1120px;margin:0 auto;padding:28px 28px 12px}
+.ola{font-size:22px;font-weight:800;letter-spacing:-.3px}
+.ola-sub{font-size:13px;color:#64748b;margin-top:4px;margin-bottom:26px}
 
-.main{padding:32px;max-width:1200px;margin:0 auto}
-.section-title{font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px;padding-left:4px}
+.secao{margin-bottom:26px}
+.secao-tit{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.secao-tit::after{content:'';flex:1;height:1px;background:#e2e8f0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 38px 16px 18px;display:flex;gap:14px;align-items:flex-start;transition:border-color .15s,box-shadow .15s,transform .15s;position:relative}
+.card:hover{border-color:var(--c);box-shadow:0 6px 18px rgba(15,23,42,.08);transform:translateY(-2px)}
+.ico{width:42px;height:42px;border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.tit{font-size:14.5px;font-weight:700;margin-bottom:3px}
+.desc{font-size:12.5px;color:#64748b;line-height:1.45}
+.ir{position:absolute;right:14px;top:14px;color:#cbd5e1;font-size:16px;transition:color .15s}
+.card:hover .ir{color:var(--c)}
+.novo{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:#b91c1c;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:2px}
 
-.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.08);border:1px solid #e2e6ea;cursor:pointer;transition:all .2s;text-decoration:none;display:block}
-.card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.12);border-color:var(--c)}
-.card-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px;background:var(--bg)}
-.card-title{font-size:15px;font-weight:600;color:#1a1a2e;margin-bottom:6px}
-.card-desc{font-size:12px;color:#6b7280;line-height:1.5}
-.card-badge{display:inline-block;margin-top:12px;font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--bg);color:var(--c)}
-
-.footer{text-align:center;padding:24px;font-size:11px;color:#9ca3af}
+.rodape{text-align:center;padding:18px;font-size:11px;color:#94a3b8}
+@media(max-width:600px){.topo,.main{padding-left:16px;padding-right:16px}.topo .data{display:none}.ola{font-size:19px}}
 </style>
 </head>
 <body>
 
-<div class="header">
-  <div style="display:flex;align-items:center;gap:16px">
-    <div class="logo">B<span>&</span>Q</div>
-    <div class="header-sub">Portal de<br>Sistemas Internos</div>
-  </div>
-  <div class="time" id="time"></div>
-</div>
-
-<div class="hero">
-  <h1>Central de Sistemas B&Q</h1>
-  <p>Acesse os painéis e ferramentas do seu setor</p>
+<div class="topo">
+  <div class="marca">B<b>&amp;</b>Q</div>
+  <div class="sep"></div>
+  <h1>Sistemas internos</h1>
+  <div class="data" id="data"></div>
 </div>
 
 <div class="main">
+  <div class="ola" id="ola">Olá!</div>
+  <div class="ola-sub">Escolha o painel que você quer abrir.</div>
 
-  <!-- COMPRAS -->
-  <div class="section-title">📦 Compras</div>
-  <div class="grid">
-    <a href="/compras.html" class="card" style="--c:#f26522;--bg:#fff7f3">
-      <div class="card-icon">📊</div>
-      <div class="card-title">Painel de Compras</div>
-      <div class="card-desc">SCs, pedidos, indicadores e detalhamento SC × Pedido com filtros avançados.</div>
-      <span class="card-badge">COMPRAS</span>
-    </a>
+  <div class="secao">
+    <div class="secao-tit">Ressuprimento</div>
+    <div class="grid">
+      <a href="/formulario.html" class="card" style="--c:#16a34a;--bg:#f0fdf4">
+        <div class="ico">📝</div>
+        <div><div class="tit">Formulário de solicitação</div><div class="desc">O almoxarife pede o material com base no consumo dos centros de custo.</div></div>
+        <span class="ir">→</span>
+      </a>
+      <a href="/gerente.html" class="card" style="--c:#7c3aed;--bg:#f5f3ff">
+        <div class="ico">✅</div>
+        <div><div class="tit">Aprovação do gerente</div><div class="desc">O gerente avalia as solicitações dos seus centros de custo.</div></div>
+        <span class="ir">→</span>
+      </a>
+      <a href="/index.html" class="card" style="--c:#1e40af;--bg:#eff6ff">
+        <div class="ico">🗂️</div>
+        <div><div class="tit">Painel principal</div><div class="desc">Solicitações, acompanhamento de SCs e pedidos, mobilizações e consolidados.</div></div>
+        <span class="ir">→</span>
+      </a>
+    </div>
   </div>
 
-  <!-- ALMOXARIFADO -->
-  <div class="section-title">🏭 Almoxarifado & Ressuprimento</div>
-  <div class="grid">
-    <a href="/index.html" class="card" style="--c:#2563eb;--bg:#eff6ff">
-      <div class="card-icon">🏠</div>
-      <div class="card-title">Painel Principal</div>
-      <div class="card-desc">Solicitações de ressuprimento, mobilizações, acompanhamento de PCs e consolidados.</div>
-      <span class="card-badge">ALMOXARIFADO</span>
-    </a>
-    <a href="/formulario.html" class="card" style="--c:#16a34a;--bg:#f0fdf4">
-      <div class="card-icon">📝</div>
-      <div class="card-title">Formulário de Solicitação</div>
-      <div class="card-desc">Solicite ressuprimento de itens com base no consumo dos centros de custo.</div>
-      <span class="card-badge">ALMOXARIFE</span>
-    </a>
-    <a href="/gerente.html" class="card" style="--c:#7c3aed;--bg:#f5f3ff">
-      <div class="card-icon">✅</div>
-      <div class="card-title">Aprovação — Gerente</div>
-      <div class="card-desc">Painel de aprovação de solicitações de ressuprimento pelos gerentes e master.</div>
-      <span class="card-badge">GERENTE</span>
-    </a>
-    <a href="/estoque.html" class="card" style="--c:#0891b2;--bg:#f0f9ff">
-      <div class="card-icon">📦</div>
-      <div class="card-title">Posição de Estoque</div>
-      <div class="card-desc">Posição atual do estoque e comparativo com fluxo de movimentos SD3.</div>
-      <span class="card-badge">ESTOQUE</span>
-    </a>
-    <a href="/ruptura.html" class="card" style="--c:#b91c1c;--bg:#fef2f2">
-      <div class="card-icon">🚨</div>
-      <div class="card-title">Risco de Ruptura</div>
-      <div class="card-desc">EPI e fardamento: o que pedir agora, o que depende da entrega, pedidos atrasados e transferências possíveis.</div>
-      <span class="card-badge">RUPTURA</span>
-    </a>
+  <div class="secao">
+    <div class="secao-tit">Estoque</div>
+    <div class="grid">
+      <a href="/ruptura.html" class="card" style="--c:#b91c1c;--bg:#fef2f2">
+        <div class="ico">🚨</div>
+        <div><div class="tit">Risco de ruptura <span class="novo">NOVO</span></div><div class="desc">EPI e fardamento por filial: o que pedir, o que pode faltar, formulário, SCs, pedidos e trocas.</div></div>
+        <span class="ir">→</span>
+      </a>
+      <a href="/estoque.html" class="card" style="--c:#0891b2;--bg:#ecfeff">
+        <div class="ico">📦</div>
+        <div><div class="tit">Posição de estoque</div><div class="desc">Saldo atual por filial e armazém, cobertura e comparativo de movimentos.</div></div>
+        <span class="ir">→</span>
+      </a>
+    </div>
   </div>
 
-  <!-- FINANCEIRO / CONSUMO -->
-  <div class="section-title">💰 Consumo & Fechamento</div>
-  <div class="grid">
-    <a href="/fechamento.html" class="card" style="--c:#dc2626;--bg:#fef2f2">
-      <div class="card-icon">📅</div>
-      <div class="card-title">Fechamento de Consumo</div>
-      <div class="card-desc">Análise mensal de consumo SCP com devoluções, auditoria e relatórios.</div>
-      <span class="card-badge">FECHAMENTO</span>
-    </a>
-    <a href="/manutencao.html" class="card" style="--c:#ca8a04;--bg:#fefce8">
-      <div class="card-icon">🔧</div>
-      <div class="card-title">Manutenção</div>
-      <div class="card-desc">Painel de manutenção e veículos.</div>
-      <span class="card-badge">MANUTENÇÃO</span>
-    </a>
+  <div class="secao">
+    <div class="secao-tit">Compras e consumo</div>
+    <div class="grid">
+      <a href="/compras.html" class="card" style="--c:#f26522;--bg:#fff7ed">
+        <div class="ico">🛒</div>
+        <div><div class="tit">Painel de compras</div><div class="desc">SCs, pedidos, indicadores e comparativo mensal.</div></div>
+        <span class="ir">→</span>
+      </a>
+      <a href="/fechamento.html" class="card" style="--c:#dc2626;--bg:#fef2f2">
+        <div class="ico">📅</div>
+        <div><div class="tit">Fechamento de consumo</div><div class="desc">Consumo do mês com devoluções, justificativas e relatórios.</div></div>
+        <span class="ir">→</span>
+      </a>
+    </div>
   </div>
-
 </div>
 
-<div class="footer">B&Q Energia Ltda · Sistemas Internos · <span id="ano"></span></div>
+<div class="rodape">B&amp;Q Energia · Sistemas internos</div>
 
 <script>
-function tick(){
-  const d=new Date();
-  document.getElementById("time").textContent=d.toLocaleString("pt-BR");
-  document.getElementById("ano").textContent=d.getFullYear();
-}
-tick(); setInterval(tick,1000);
+const d=new Date(),h=d.getHours();
+document.getElementById('ola').textContent=(h<12?'Bom dia':h<18?'Boa tarde':'Boa noite')+'!';
+document.getElementById('data').textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
 </script>
 </body>
 </html>
