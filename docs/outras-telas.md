@@ -86,7 +86,9 @@
   grade de fardamento semestral, alerta de formulário não enviado, contratos com fornecedor (compras).
 
 ## los.html — Menu inicial
-Página com os links para todas as telas. Sem banco de dados.
+Página com os links para todas as telas. Sem banco de dados. Repaginada em 27/10 (mesmo visual do ruptura/estoque):
+seções Ressuprimento (formulário, gerente, painel principal), Estoque (risco de ruptura, posição) e Compras e consumo (compras, fechamento).
+**Manutenção saiu do menu** (a página `manutencao.html` continua existindo).
 
 ## formulario.html — Solicitação de ressuprimento (almoxarife, sem login)
 - Escolhe filial e CCs, mostra itens dos grupos permitidos (`cc_grupos`) com quantidade sugerida pelo
