@@ -1,5 +1,90 @@
 # Outras telas
 
+## ruptura.html — Risco de Ruptura (out/2026, sem login)
+- **Visual igual ao `estoque.html` (Posição)** desde 26/10: topo escuro, filtros, botões-pílula, cartões, tabela ordenável
+  (clique no título) com 100 linhas por página, Excel da lista filtrada. Uma linha por **filial × item** de EPI/EPC/Ferramentas e Fardamento.
+- **Tela inicial = cartões por filial** (27/10): nome, SKUs (filial × item), quantos A/B/C (curva da própria filial), itens a romper
+  (= "Pedir agora", com valor e quantos são curva A), barra Pedir/Já solicitado/Depende/Normal, PCs atrasados. Ordenados por itens a romper.
+  Clique abre a lista da filial ("← Filiais" volta; "Ver lista de todas as filiais" abre tudo). Na lista, SC aberta e Pedido mostram também o status
+  (Bloqueada/Pendente/Em cotação; Pendente/Em aprovação/...).
+- **Botão "Top itens"** (27/10): cartão por código somando todas as filiais (top 30 + "ver mais 30"), com curva ABC da empresa,
+  filiais a romper (de quantas têm o item), saída/mês (consumo ou trocas, o maior, somado), estoque, cobertura, SC aberta, a caminho,
+  PCs atrasados e onde vai romper. Ordem: mais saem (padrão) / mais filiais a romper / maior valor a comprar. Clique abre o item filial por filial.
+- Lê `itens`, `estoque_sb2` (qtd_atual, `saldo_pedido` = a caminho; negativo vira 0), `consumo_mensal` (6 meses ÷ 6),
+  `sc_pedidos_v2`, `filiais` e a função `trocas_previstas`.
+  - **SC aberta**: `pc_numero` vazio e status Pendente / Bloqueada / Em Processo de Cotação, emitida no último ano; qtd = `sc_quant - sc_quje`.
+  - **Pedido em aberto**: status Pendente / Em aprovação / Recebido parcialmente / Em recebimento (Pré-nota) / Sem status, entrega a partir de 180 dias atrás;
+    atrasado = entrega vencida. Passar o mouse mostra todos os PCs/SCs (fornecedor, comprador, solicitante).
+- **Curva ABC** (filtro + coluna, 26/10): calculada na hora dentro da filial e do grupo escolhidos (busca e tipo de saída não mudam a classe).
+  Peso = saída por mês (o maior entre consumo médio e trocas previstas ÷ prazo) × custo médio, ou só a quantidade ("ABC por").
+  A = linhas que somam 80% do peso, B = próximos 15%, C = últimos 5%; sem saída = sem classe. Com "Todas as filiais" classifica cada filial × item.
+- **Auditoria do último formulário** (27/10) — metodologia para apresentar à gerência (piloto: Cascavel, estoque 100%):
+  - Último formulário = rodada mais recente da filial em `solicitacoes` (status ≠ recusada; junta formulários até 15 dias antes do último, todos os CCs).
+    Itens em `solicitacao_itens`: `qtd_sugerida` (sistema) → `qtd_almoxarife` → `qtd_gerente` → `quantidade` (final do master; roxo = mudou), `situacao` recusado.
+  - A final de formulário **sem SC** conta como já pedida (situação "No formulário"); depois que vira SC passa a contar pela SC aberta / pedido.
+  - Veredito por item: ✅ coberto · ✂️ cortado e pode faltar · 🚫 recusado e pode faltar · ⚠ pedido não cobre · ❗ ficou de fora
+    e pode faltar · ➖ fora do formulário, mas estoque / pedido / SC cobre · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
+  - Colunas separadas (fundo lilás, ordenáveis): Almoxarife (sugestão do formulário no mouse) | Gerente | Master (final) | Veredito (27/10).
+    A coluna e a pílula "Transferir de" foram tiradas a pedido da Raissa (o cálculo de sobra continua no código).
+  - Na lista da filial: cartão roxo com nº/CC/status/solicitante, quantos itens cada um mexeu, recusados e os vereditos com valor.
+    Cartão da filial mostra a data/status do formulário. Excel traz as colunas do formulário.
+  - ⚠ Lê `solicitacoes`/`solicitacao_itens` com a chave pública: quando fizer a **RLS fase C**, liberar leitura dessas colunas para esta tela
+    (ou criar uma função só de leitura), senão a auditoria some (o resto do painel continua).
+- **Tirar do consumo** (27/10): caixinhas Mobilização e Admissional, **as duas desmarcadas por padrão** (a Raissa ainda não confia
+  no consumo e está em período de ressuprimento — preferiu não deixar de comprar). Itens com 30% ou mais da saída de 6 meses por
+  mobilização ganham a marca roxa "% mobilização" (pílula "🟣 Mobilização pesa"; também nos cartões do Top itens). Desconta do `consumo_mensal` as saídas desses motivos
+  (`consumo_por_motivo` sobre o `consumo_scp`, que bate com o `consumo_mensal` em 99,6% dos filial × item × mês). Motivo nas entregas:
+  1 perda, 2 roubo, 3 desgaste, 4 defeito, 5 admissional, 6 mal uso, 7 manutenção, 8 transferência, 9 consumo, **A mobilização**, C complementação.
+  Motivo: itens caros como detector de tensão saem em kits de equipe nova — compra direcionada, não ressuprimento (pedido da gerente).
+  O `*` roxo no consumo mostra quanto foi tirado. Se a função falhar, segue com todo o consumo e mostra aviso.
+- **Banco ocupado** (27/10): com syncs de compras rodando (`scs`, `sc_pedidos`) + limpeza automática, até `itens` levou 8,5 s e tudo deu
+  500 (statement timeout, limite de 3 s do anon). A página agora faz no máximo 3 consultas ao mesmo tempo, tenta de novo após 3 s e 6 s e
+  mostra "banco ocupado" com botão Tentar de novo.
+- **Popup do consumo** (27/10): clique no número abre o mês a mês dos 6 meses — saiu (total), mobilização e demais motivos; média, trocas, meta e cobertura.
+- Filtro Grupo com **👢 Botas e calçados** separado (descrição começa com BOTA/BOTINA/TENIS/SAPATO; sai de "EPI sem botas") — 27/10.
+- Estoque: mouse mostra o saldo **por armazém** e o horário da foto do `estoque_sb2` (o painel soma todos os armazéns; em Cascavel o EPI
+  está todo no 01 — o 04 é frota). Outras filiais têm EPI nos armazéns 02, 05, 52, 58, 09, 11, 12, 10: confirmar quais são reserva/descarte.
+- **🛡️ Estoque de segurança** (27/10): coluna com escudo — clique pede a quantidade de segurança (sugestão: pico, ou consumo/mês) e grava
+  em `estoque_seguranca` com **filial = 'TODAS'** (marcado uma vez vale para todas as filiais; a qtd é por filial; 0 tira). Pílula "🛡️ Estoque de segurança" lista os itens; "+N" = comprar a mais
+  (meta + segurança − estoque − pedido − SC − formulário − o que já está em "Pedir"). Cartão da filial mostra quantos e quanto comprar.
+  Sem a tabela, o escudo fica cinza. Vereditos dizem **"pode faltar"** (antes "vai faltar"); o aviso de pico é "⚠ Abaixo do pico".
+  SQL (SQL Editor):
+  ```sql
+  create table public.estoque_seguranca(
+    id bigint generated always as identity primary key,
+    filial text not null, codigo text not null, descricao text,
+    qtd numeric not null default 0, observacao text,
+    criado_em timestamptz not null default now(), atualizado_em timestamptz not null default now(),
+    unique (filial, codigo));
+  alter table public.estoque_seguranca enable row level security;
+  create policy seg_ler on public.estoque_seguranca for select to anon, authenticated using (true);
+  create policy seg_incluir on public.estoque_seguranca for insert to anon, authenticated with check (true);
+  create policy seg_alterar on public.estoque_seguranca for update to anon, authenticated using (true) with check (true);
+  create policy seg_apagar on public.estoque_seguranca for delete to anon, authenticated using (true);
+  grant select, insert, update, delete on public.estoque_seguranca to anon, authenticated;
+  ```
+- Layout (27/10): filtros numa linha só; situações da lista num **menu suspenso "Mostrar"** (antes pílulas); caixinhas de
+  mobilização/admissional viraram o menu **Consumo** (todas / sem mobilização / sem admissional / sem os dois); texto "Como funciona"
+  escondido no botão **ℹ️** do topo.
+- Consumo/mês sem decimais; cobertura em **dias** (estoque ÷ saída por mês × 30) — 27/10, a pedido da Raissa.
+- Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
+- Meta: média × prazo para **todos** (inclusive pontual, desde 27/10), ou as trocas previstas se forem maiores.
+  Pontual: o maior pico do mês **sem mobilização** vira só o aviso amarelo "⚠ abaixo do pico" (pílula própria) quando
+  estoque + pedido + SC + formulário < pico — não entra na compra (ex.: colete air bag Cascavel, pico 3 em jul/26, estoque 2).
+  Veredito novo: "🚫 Recusado · estoque cobre".
+- Situação: **Pedir agora** (estoque + a caminho + SC aberta < meta); **Já solicitado** (só cobre contando a SC aberta);
+  **Depende da entrega** (estoque < meta ≤ estoque + a caminho); Normal; Sem saída. Pílulas extras: zerados com saída, pedido atrasado,
+  SC aberta, pode transferir (filial com estoque > 6 meses de consumo).
+- **Trocas previstas** (26/10): `trocas_previstas(71, 99)` devolve, por filial × código, as trocas de itens pessoais que caem dentro do
+  prazo do grupo (vencidas contam como hoje; item de vida curta conta mais de uma troca; no máximo 4 unidades por pessoa). Usa o
+  **código/tamanho que a pessoa recebeu por último** e a filial da entrega mais recente dela. Número azul = a meta veio das trocas.
+- **Botão "Vida útil e trocas"** no topo: pílulas Vencidas / Próximos 30 / 90 dias / Todas (lê `vw_trocas_pessoa` com `dias <= 90`,
+  carrega depois do resto) e "Vida útil por item" (`mv_vida_util`, tamanhos juntos, faixa p25–p75). Busca aceita matrícula.
+  Pessoa ativa = recebeu algo nos últimos 60 dias; troca atrasada mais que 1 vida útil sai da lista.
+  Entregas não têm o nome do funcionário (o `solicitante` é o almoxarife) — só matrícula e CC.
+- Próximas etapas combinadas: mínimos de itens críticos (NR-10/altura) por equipe, reserva de mobilização,
+  grade de fardamento semestral, alerta de formulário não enviado, contratos com fornecedor (compras).
+
 ## los.html — Menu inicial
 Página com os links para todas as telas. Sem banco de dados.
 
