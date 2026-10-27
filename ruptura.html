@@ -358,7 +358,9 @@ function calcular(){
         const f=porId[i.solicitacao_id];if(!f)return;
         const cod=String(i.codigo||'').trim(),fil=filKey(f.filial),k=fil+'|'+cod,R=FORMFIL[fil];
         const num=v=>v==null||v===''?null:Number(v);
-        const sug=num(i.qtd_sugerida),alm=num(i.qtd_almoxarife),ger=num(i.qtd_gerente),fin=num(i.quantidade)??0;
+        const sug=num(i.qtd_sugerida),fin=num(i.quantidade)??0,ger=num(i.qtd_gerente);
+        // item incluído pelo painel (almoxarife vazio): na auditoria conta como almoxarife 0 — quem incluiu foi o master
+        const alm=i.master_alterado_por==='painel ruptura'&&i.qtd_almoxarife==null?0:num(i.qtd_almoxarife);
         const rec=/recus/i.test(i.situacao||'');
         R.itens++;if(alm!=null&&sug!=null&&alm!==sug)R.alm++;if(ger!=null&&ger!==alm)R.ger++;if(i.master_alterado_em)R.mst++;if(rec)R.rec++;
         if(!ITEM[cod])return;
