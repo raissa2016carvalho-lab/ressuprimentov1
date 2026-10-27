@@ -35,6 +35,9 @@
   1 perda, 2 roubo, 3 desgaste, 4 defeito, 5 admissional, 6 mal uso, 7 manutenção, 8 transferência, 9 consumo, **A mobilização**, C complementação.
   Motivo: itens caros como detector de tensão saem em kits de equipe nova — compra direcionada, não ressuprimento (pedido da gerente).
   O `*` roxo no consumo mostra quanto foi tirado. Se a função falhar, segue com todo o consumo e mostra aviso.
+- **Banco ocupado** (27/10): com syncs de compras rodando (`scs`, `sc_pedidos`) + limpeza automática, até `itens` levou 8,5 s e tudo deu
+  500 (statement timeout, limite de 3 s do anon). A página agora faz no máximo 3 consultas ao mesmo tempo, tenta de novo após 3 s e 6 s e
+  mostra "banco ocupado" com botão Tentar de novo.
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
 - Meta: regular/intermitente = média × prazo; pontual = maior pico; maior entre isso e as trocas previstas.
 - Situação: **Pedir agora** (estoque + a caminho + SC aberta < meta); **Já solicitado** (só cobre contando a SC aberta);

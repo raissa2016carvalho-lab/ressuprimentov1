@@ -162,12 +162,22 @@ const ymd=d=>''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.
 function janela(){const r=[],d=new Date();for(let i=5;i>=0;i--){const m=new Date(d.getFullYear(),d.getMonth()-i,1);r.push(''+m.getFullYear()+String(m.getMonth()+1).padStart(2,'0'))}return r}
 
 // Busca todas as páginas de uma consulta (o banco devolve no máx. 1000 linhas por vez)
+// No máximo 3 consultas ao banco ao mesmo tempo (muitas juntas pesam quando um sync está rodando)
+const MAX_CONSULTAS=3,FILA=[];let emCurso=0;
+function limitar(fn){
+  return new Promise((ok,falha)=>{
+    const ir=()=>{emCurso++;Promise.resolve().then(fn).then(ok,falha).finally(()=>{emCurso--;if(FILA.length)FILA.shift()()})};
+    emCurso<MAX_CONSULTAS?ir():FILA.push(ir);
+  });
+}
+const bancoOcupado=e=>/57014|statement timeout|timeout/i.test((e&&(e.code+' '+e.message))||String(e));
+
 async function buscarTodas(montar){
   let all=[],off=0;
   for(;;){
     let data,error;
-    // banco ocupado (ex.: sync rodando) pode estourar o tempo: tenta de novo até 2 vezes
-    for(let t=0;t<3;t++){({data,error}=await montar().range(off,off+999));if(!error)break;await new Promise(r=>setTimeout(r,2000))}
+    // banco ocupado (ex.: sync rodando) pode estourar o tempo: tenta de novo até 2 vezes, esperando 3 s e 6 s
+    for(let t=0;t<3;t++){({data,error}=await limitar(async()=>await montar().range(off,off+999)));if(!error)break;if(t<2)await new Promise(r=>setTimeout(r,3000*(t+1)))}
     if(error)throw error;
     if(!data||!data.length)break;
     all=all.concat(data);
@@ -195,10 +205,10 @@ async function carregar(){
       // pedidos ainda não recebidos (entrega a partir de 180 dias atrás)
       // (ordenar só por id fazia o banco percorrer a tabela toda pelo índice e estourar o tempo limite)
       buscarTodas(()=>db.from('sc_pedidos_v2').select('filial,pc_filial,pc_numero,sc_numero,sc_produto,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_fornecedor,pc_comprador').not('pc_numero','is',null).in('pc_status',PC_ABERTO).gte('pc_dt_entrega',ymd(new Date(hoje.getTime()-180*864e5))).order('pc_dt_entrega').order('id')),
-      db.from('filiais').select('filial,nome_filial'),
-      db.from('estoque_sb2').select('atualizado_em').order('atualizado_em',{ascending:false}).limit(1),
+      limitar(async()=>await db.from('filiais').select('filial,nome_filial')),
+      limitar(async()=>await db.from('estoque_sb2').select('atualizado_em').order('atualizado_em',{ascending:false}).limit(1)),
       // trocas previstas de itens pessoais dentro do prazo de cada grupo (calculado no banco: mv_trocas_pessoa)
-      db.rpc('trocas_previstas',{p_dias_epi:DIAS_PRAZO('EPI'),p_dias_fard:DIAS_PRAZO('FARD')}),
+      limitar(async()=>await db.rpc('trocas_previstas',{p_dias_epi:DIAS_PRAZO('EPI'),p_dias_fard:DIAS_PRAZO('FARD')})),
       // último formulário de ressuprimento de cada filial (sem ele, o painel segue sem a auditoria)
       carregarFormularios().catch(e=>{console.warn('formularios',e);return null})
     ]);
@@ -217,7 +227,9 @@ async function carregar(){
   }catch(e){
     console.error(e);
     TROCAS=Object.assign([],{erro:e.message||String(e)});
-    $('tabela').innerHTML='<div class="vazio">Erro ao carregar: '+esc(e.message||e)+'</div>';
+    $('tabela').innerHTML=bancoOcupado(e)
+      ?'<div class="vazio">⏳ <b>O banco está ocupado agora</b> (provavelmente algum sync do Protheus rodando) e não respondeu a tempo.<br>Espere os syncs terminarem e tente de novo.<br><br><button class="btn-atualizar" onclick="carregar()">↻ Tentar de novo</button></div>'
+      :'<div class="vazio">Erro ao carregar: '+esc(e.message||e)+'<br><br><button class="btn-atualizar" onclick="carregar()">↻ Tentar de novo</button></div>';
     $('tag-sync').textContent='Erro ao carregar';
   }
 }
@@ -227,7 +239,7 @@ async function carregar(){
 const DIAS_RODADA=15;
 const filKey=f=>{f=String(f||'').trim();return f.length===1?'0'+f:f};
 async function carregarFormularios(){
-  const {data:sols,error}=await db.from('solicitacoes').select('id,filial,cc,status,sc_numero,criado_em,solicitante_nome,periodo_meses').neq('status','recusada').order('criado_em',{ascending:false}).limit(1000);
+  const {data:sols,error}=await limitar(async()=>await db.from('solicitacoes').select('id,filial,cc,status,sc_numero,criado_em,solicitante_nome,periodo_meses').neq('status','recusada').order('criado_em',{ascending:false}).limit(1000));
   if(error)throw error;
   const RODADA={};
   (sols||[]).forEach(s=>{
