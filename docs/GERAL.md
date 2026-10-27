@@ -96,7 +96,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
    (precisa filtrar só itens pessoais — tinta, lâmina etc. não são por pessoa; e agrupar tamanhos do fardamento). Outros pontos combinados p/ ruptura: mínimo por equipe
    p/ itens críticos (NR-10/altura), reserva de mobilização, grade de fardamento semestral, alerta de formulário não enviado.
 1. **Segurança RLS fase B**: configurações (centros_custo, gerentes_cc, cc_grupos, itens, cc_pessoas, bases_status…) — todos leem, só admin altera (função `is_admin()` usando `perfis_usuario`).
-2. **Segurança RLS fase C**: `solicitacoes` e `solicitacao_itens` (formulário cria via RPC; gerente altera os CCs dele; admin tudo). Também `perfis_usuario` e `pedidos_redefinicao`.
+2. **Segurança RLS fase C**: `solicitacoes` e `solicitacao_itens` (⚠ o `ruptura.html` lê essas tabelas para a auditoria do último formulário — manter leitura ou fazer função) (formulário cria via RPC; gerente altera os CCs dele; admin tudo). Também `perfis_usuario` e `pedidos_redefinicao`.
 3. **Syncs** (ver `docs/syncs.md`): rodar em fila, não todos juntos; parar syncs que não alimentam o site.
 4. **Tela compras**: reaplicar carga por período (commits `f849d5d` e `8137792`) quando os syncs estiverem leves, recriando os índices.
 5. **Tela estoque**: otimizar (baixa estoque inteiro e 38 mil itens no comparativo).

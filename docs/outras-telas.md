@@ -18,6 +18,16 @@
 - **Curva ABC** (filtro + coluna, 26/10): calculada na hora dentro da filial e do grupo escolhidos (busca e tipo de saída não mudam a classe).
   Peso = saída por mês (o maior entre consumo médio e trocas previstas ÷ prazo) × custo médio, ou só a quantidade ("ABC por").
   A = linhas que somam 80% do peso, B = próximos 15%, C = últimos 5%; sem saída = sem classe. Com "Todas as filiais" classifica cada filial × item.
+- **Auditoria do último formulário** (27/10) — metodologia para apresentar à gerência (piloto: Cascavel, estoque 100%):
+  - Último formulário = rodada mais recente da filial em `solicitacoes` (status ≠ recusada; junta formulários até 15 dias antes do último, todos os CCs).
+    Itens em `solicitacao_itens`: `qtd_sugerida` (sistema) → `qtd_almoxarife` → `qtd_gerente` → `quantidade` (final do master; roxo = mudou), `situacao` recusado.
+  - A final de formulário **sem SC** conta como já pedida (situação "No formulário"); depois que vira SC passa a contar pela SC aberta / pedido.
+  - Veredito por item: ✅ coberto · ✂️ cortado e vai faltar · 🚫 recusado e vai faltar · ⚠ pedido não cobre · ❗ ficou de fora
+    (o painel pede e o item não estava no formulário) · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
+  - Na lista da filial: cartão roxo com nº/CC/status/solicitante, quantos itens cada um mexeu, recusados e os vereditos com valor.
+    Cartão da filial mostra a data/status do formulário. Excel traz as colunas do formulário.
+  - ⚠ Lê `solicitacoes`/`solicitacao_itens` com a chave pública: quando fizer a **RLS fase C**, liberar leitura dessas colunas para esta tela
+    (ou criar uma função só de leitura), senão a auditoria some (o resto do painel continua).
 - **Tirar do consumo** (27/10): caixinhas Mobilização e Admissional, **as duas desmarcadas por padrão** (a Raissa ainda não confia
   no consumo e está em período de ressuprimento — preferiu não deixar de comprar). Itens com 30% ou mais da saída de 6 meses por
   mobilização ganham a marca roxa "% mobilização" (pílula "🟣 Mobilização pesa"; também nos cartões do Top itens). Desconta do `consumo_mensal` as saídas desses motivos
