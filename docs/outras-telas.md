@@ -23,7 +23,7 @@
     Itens em `solicitacao_itens`: `qtd_sugerida` (sistema) → `qtd_almoxarife` → `qtd_gerente` → `quantidade` (final do master; roxo = mudou), `situacao` recusado.
   - A final de formulário **sem SC** conta como já pedida (situação "No formulário"); depois que vira SC passa a contar pela SC aberta / pedido.
   - Veredito por item: ✅ coberto · ✂️ cortado e vai faltar · 🚫 recusado e vai faltar · ⚠ pedido não cobre · ❗ ficou de fora
-    (o painel pede e o item não estava no formulário) · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
+    e vai faltar · ➖ fora do formulário, mas estoque / pedido / SC cobre · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
   - Colunas separadas (fundo lilás, ordenáveis): Almoxarife (sugestão do formulário no mouse) | Gerente | Master (final) | Veredito (27/10).
     A coluna e a pílula "Transferir de" foram tiradas a pedido da Raissa (o cálculo de sobra continua no código).
   - Na lista da filial: cartão roxo com nº/CC/status/solicitante, quantos itens cada um mexeu, recusados e os vereditos com valor.

@@ -373,7 +373,7 @@ function calcular(){
       const precisa=Math.max(0,Math.ceil(alvo-est-cam-scQtd)); // o que faltava sem contar o formulário
       let ver='';
       if(FORMFIL[fil]){
-        if(!fm)ver=status==='pedir'?'fora':'';
+        if(!fm)ver={pedir:'fora',ok:'fora_est',depende:'fora_ped',solicitado:'fora_sc'}[status]||'';
         else if(status==='pedir')ver=fm.rec?'recusado':fm.fin<Math.max(fm.alm,fm.ger)?'cortado':'naocobre';
         else if(fm.fin>=3&&fm.fin>precisa*2&&fm.fin-precisa>=3)ver='amais';
         else ver='coberto';
@@ -435,7 +435,7 @@ function base(lista,fil=$('f-filial').value){
 const PILLS_RISCO=[['todos','Todos',()=>true],['pedir','🔴 Pedir agora',l=>l.status==='pedir'],['solicitado','📝 Já solicitado (SC ou formulário cobre)',l=>l.status==='solicitado'],
   ['depende','🟡 Depende da entrega',l=>l.status==='depende'],['zerado','✕ Zerados com saída',l=>l.zerado],['atrasado','⏰ Pedido atrasado',l=>l.atrasados.length>0],
   ['sc','SC aberta',l=>l.scs.length>0],['ff','📋 No formulário',l=>!!l.fm],['cortado','✂️ Cortado/recusado e vai faltar',l=>l.ver==='cortado'||l.ver==='recusado'],
-  ['fora','❗ Ficou de fora',l=>l.ver==='fora'],['amais','➕ Pediu a mais',l=>l.ver==='amais'],['mob','🟣 Mobilização pesa',l=>l.pctMob>=PESO_MOB]];
+  ['fora','❗ Ficou de fora e vai faltar',l=>l.ver==='fora'],['foraok','➖ Fora do formulário · já coberto',l=>/^fora_/.test(l.ver)],['amais','➕ Pediu a mais',l=>l.ver==='amais'],['mob','🟣 Mobilização pesa',l=>l.pctMob>=PESO_MOB]];
 const PILLS_TROCAS=[['vencida','Vencidas',t=>t.dias<0],['30','Próximos 30 dias',t=>t.dias>=0&&t.dias<=30],['90','Próximos 90 dias',t=>t.dias>=0],['todas','Todas',()=>true]];
 
 function trocasFiltradas(sit=SIT){
@@ -509,7 +509,7 @@ function cartaoFormulario(){
   if(VISTA!=='lista'||!f||ITEM_SEL)return'';
   if(!R)return`<div class="resumo-card" style="flex-basis:100%"><div class="lab">📋 Sem formulário de ressuprimento registrado para esta filial.</div></div>`;
   const B=baseRisco(f,true),n=v=>B.filter(l=>l.ver===v),val=L=>fmtCurto(L.reduce((s,l)=>s+l.comprar*l.custo,0));
-  const cort=[...n('cortado'),...n('recusado')],fora=n('fora'),am=n('amais'),cob=n('coberto'),nc=n('naocobre');
+  const cort=[...n('cortado'),...n('recusado')],fora=n('fora'),foraok=B.filter(l=>/^fora_/.test(l.ver)),am=n('amais'),cob=n('coberto'),nc=n('naocobre');
   const fs=R.forms;
   return`<div class="resumo-card" style="flex-basis:100%;border-left:4px solid #7c3aed">
     <div style="display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline">
@@ -522,7 +522,8 @@ function cartaoFormulario(){
       <span class="verde">✅ Coberto <b>${fmtN(cob.length)}</b></span>
       <span class="red">✂️ Cortado/recusado e vai faltar <b>${fmtN(cort.length)}</b> (${val(cort)})</span>
       <span class="amb">⚠ Pedido não cobre <b>${fmtN(nc.length)}</b> (${val(nc)})</span>
-      <span class="red">❗ Ficou de fora <b>${fmtN(fora.length)}</b> (${val(fora)})</span>
+      <span class="red">❗ Ficou de fora e vai faltar <b>${fmtN(fora.length)}</b> (${val(fora)})</span>
+      <span style="color:#64748b">➖ Fora do formulário, mas já coberto <b>${fmtN(foraok.length)}</b> (estoque ${fmtN(n('fora_est').length)} · pedido ${fmtN(n('fora_ped').length)} · SC ${fmtN(n('fora_sc').length)})</span>
       <span style="color:#1e40af">➕ Pediu a mais <b>${fmtN(am.length)}</b></span></div></div>`;
 }
 
@@ -548,7 +549,8 @@ function renderResumo(){
 }
 
 const VEREDITO={coberto:['✅ Coberto','badge-ok'],cortado:['✂️ Cortado e vai faltar','badge-alerta'],recusado:['🚫 Recusado e vai faltar','badge-alerta'],
-  naocobre:['⚠ Pedido não cobre','badge-bloq'],amais:['➕ Pediu a mais','badge-azul'],fora:['❗ Ficou de fora','badge-alerta']};
+  naocobre:['⚠ Pedido não cobre','badge-bloq'],amais:['➕ Pediu a mais','badge-azul'],fora:['❗ Ficou de fora e vai faltar','badge-alerta'],
+  fora_est:['➖ Fora do formulário · estoque cobre','badge-zero'],fora_ped:['➖ Fora do formulário · pedido cobre','badge-zero'],fora_sc:['➖ Fora do formulário · SC cobre','badge-zero']};
 // Colunas do último formulário: uma por etapa (roxo = mudou em relação à etapa anterior) + veredito
 function colsForm(l){
   const v=l.ver?`<span class="${VEREDITO[l.ver][1]}">${VEREDITO[l.ver][0]}</span>`:'<span class="cinza">—</span>';
@@ -719,7 +721,7 @@ function renderNota(){
     Situação: <b>Pedir agora</b> = estoque + pedido + SC aberta não chegam à meta; <b>Já solicitado</b> = só chega contando a SC aberta;
     <b>Depende da entrega</b> = o estoque não chega, o pedido cobre.
     <b>Último formulário</b>: rodada mais recente de cada filial (formulários até ${DIAS_RODADA} dias antes do último, todos os CCs; recusados inteiros não contam). Mostra almoxarife → gerente → final do master (roxo = mudou);
-    a final de formulário que ainda não virou SC conta como <b>já pedida</b>. Veredito: ✂️ cortado e ainda vai faltar; ⚠ o pedido (mesmo sem corte) não cobre; ❗ o painel pede e o item não estava no formulário; ➕ final mais que o dobro do que faltava.
+    a final de formulário que ainda não virou SC conta como <b>já pedida</b>. Veredito: ✂️ cortado e ainda vai faltar; ⚠ o pedido (mesmo sem corte) não cobre; ❗ o item não estava no formulário e vai faltar; ➖ não estava no formulário, mas o estoque, um pedido ou uma SC já cobre; ➕ final mais que o dobro do que faltava.
     <b>Tirar do consumo</b>: por padrão o consumo conta <b>todas</b> as saídas. Marque <b>Mobilização</b> (motivo A — kits de equipe nova, compra direcionada) e/ou Admissional (motivo 5) para tirá-las da média; o <span style="color:#7c3aed">*</span> mostra quanto foi tirado.
     <span style="color:#7c3aed;font-weight:700">% mobilização</span> aparece no item quando 30% ou mais da saída de 6 meses foi mobilização (pílula "Mobilização pesa").
     <b>Curva ABC</b> (na filial e no grupo escolhidos): A = itens que somam 80% do que sai (em valor = consumo/mês × custo, ou em quantidade), B = próximos 15%, C = últimos 5%; conta também as trocas previstas.`
