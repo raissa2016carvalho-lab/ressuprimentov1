@@ -40,7 +40,7 @@
 - **Banco ocupado** (27/10): com syncs de compras rodando (`scs`, `sc_pedidos`) + limpeza automática, até `itens` levou 8,5 s e tudo deu
   500 (statement timeout, limite de 3 s do anon). A página agora faz no máximo 3 consultas ao mesmo tempo, tenta de novo após 3 s e 6 s e
   mostra "banco ocupado" com botão Tentar de novo.
-- **Popup do consumo** (27/10): clique no número abre o mês a mês dos 6 meses — saiu, mobilização, admissional, o que entrou na média, média, trocas, meta e cobertura.
+- **Popup do consumo** (27/10): clique no número abre o mês a mês dos 6 meses — saiu (total), mobilização e demais motivos; média, trocas, meta e cobertura.
 - Consumo/mês sem decimais; cobertura em **dias** (estoque ÷ saída por mês × 30) — 27/10, a pedido da Raissa.
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
 - Meta: média × prazo para **todos** (inclusive pontual, desde 27/10), ou as trocas previstas se forem maiores.

@@ -622,13 +622,13 @@ function abrirConsumo(ev,fil,cod){
   const k=fil+'|'+cod,l=LINHAS.find(x=>x.fil===fil&&x.cod===cod);if(!POP||!l)return;
   const o=POP.ORIG[k]||{},mm=POP.MOTMES[k]||{},u=POP.CONS[k]||{};
   const tMob=$('x-mob').checked,tAdm=$('x-adm').checked;
-  let tot=0,mob=0,adm=0,usa=0;
-  const lin=POP.W.map(m=>{const q=o[m]||0,qm=mm[m]?.['MOBILIZAÇÃO']||0,qa=mm[m]?.['ADMISSIONAL']||0,qu=u[m]||0;tot+=q;mob+=qm;adm+=qa;usa+=qu;
-    return`<tr><td>${fmtMes(m)}</td><td class="num">${q?fmtN(q):'<span class="cinza">0</span>'}</td><td class="num" style="color:#7c3aed">${qm?fmtN(qm):'<span class="cinza">—</span>'}</td><td class="num">${qa?fmtN(qa):'<span class="cinza">—</span>'}</td><td class="num"><b>${fmtN(qu)}</b></td></tr>`}).join('');
+  let tot=0,mob=0,usa=0;
+  const lin=POP.W.map(m=>{const q=o[m]||0,qm=Math.min(q,mm[m]?.['MOBILIZAÇÃO']||0),qu=u[m]||0;tot+=q;mob+=qm;usa+=qu;
+    return`<tr><td>${fmtMes(m)}</td><td class="num"><b>${q?fmtN(q):'<span class="cinza">0</span>'}</b></td><td class="num" style="color:#7c3aed">${qm?fmtN(qm):'<span class="cinza">—</span>'}</td><td class="num">${q-qm?fmtN(q-qm):'<span class="cinza">—</span>'}</td></tr>`}).join('');
   const p=$('popup-consumo');
   p.innerHTML=`<button class="fechar" onclick="fecharConsumo()">×</button><h4>${esc(l.desc)}</h4><div class="mini">${esc(cod)} · ${esc(l.filNome)} · ${esc(tipoTxt(l))}</div>
-    <table><thead><tr><th>Mês</th><th class="num">Saiu</th><th class="num">Mobiliz.</th><th class="num">Admiss.</th><th class="num">Na média</th></tr></thead><tbody>${lin}
-    <tr style="border-top:2px solid #e2e8f0"><td><b>Total</b></td><td class="num"><b>${fmtN(tot)}</b></td><td class="num" style="color:#7c3aed">${fmtN(mob)}</td><td class="num">${fmtN(adm)}</td><td class="num"><b>${fmtN(usa)}</b></td></tr></tbody></table>
+    <table><thead><tr><th>Mês</th><th class="num">Saiu (total)</th><th class="num">Mobilização</th><th class="num">Demais motivos</th></tr></thead><tbody>${lin}
+    <tr style="border-top:2px solid #e2e8f0"><td><b>Total</b></td><td class="num"><b>${fmtN(tot)}</b></td><td class="num" style="color:#7c3aed">${fmtN(mob)}</td><td class="num">${fmtN(tot-mob)}</td></tr></tbody></table>
     <div class="mini" style="margin-top:8px;line-height:1.5">Média = ${fmtN(usa)} ÷ 6 = <b>${fmtN(usa/6,1)}/mês</b>${tMob||tAdm?' (sem '+[tMob&&'mobilização',tAdm&&'admissional'].filter(Boolean).join(' e ')+')':' (todas as saídas)'}.
     ${l.trocas?`<br>Trocas previstas no prazo: <b>${fmtN(l.trocas)}</b>${l.porTrocas?' — a meta veio das trocas':''}.`:''}
     <br>Meta para ${fmtN(l.prazo*30.44)} dias: <b>${fmtN(l.alvo)}</b> · estoque ${fmtN(l.est)} · cobre ≈ ${l.cob==null?'—':fmtN(Math.round(l.cob*30.44))+' dias'}.</div>`;
