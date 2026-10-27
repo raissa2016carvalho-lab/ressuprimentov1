@@ -2161,12 +2161,17 @@ _mobsTodas=mobs;
 // Agrupa as mobilizações pelo campo "grupo" (ex.: ENEL SP) e, dentro do grupo, separa em colunas por onda
 let grupos={};mobs.forEach(m=>{let g=_grupoMob(m);(grupos[g]=grupos[g]||[]).push(m)});
 _gruposMob=Object.keys(grupos).sort((a,b)=>a===_SEM_GRUPO_MOB?1:b===_SEM_GRUPO_MOB?-1:Math.max(...grupos[b].map(m=>m.id))-Math.max(...grupos[a].map(m=>m.id))).map(nome=>({nome,mobs:grupos[nome].sort((a,b)=>a.id-b.id)}));
-$(`lista-mob`).innerHTML=`<div id="mob-grupos" class="mob-grupos">${_gruposMob.map((g,i)=>_cardGrupoMob(g,i)).join('')}</div>`+_gruposMob.map((g,i)=>_viewGrupoMob(g,i)).join('');
+let nOcultos=_gruposMob.filter(g=>_grupoOcultoMob(g.nome)).length;
+$(`lista-mob`).innerHTML=`<div id="mob-grupos"><div class="mob-grupos">${_gruposMob.map((g,i)=>_grupoOcultoMob(g.nome)?'':_cardGrupoMob(g,i)).join('')}</div>${nOcultos?`<div style="margin-top:14px"><button class="mob-voltar" onclick="toggleOcultosMob(this)">👁 Mostrar ocultos (${nOcultos})</button><div id="mob-grupos-ocultos" class="mob-grupos" style="display:none;margin-top:12px;opacity:.75">${_gruposMob.map((g,i)=>_grupoOcultoMob(g.nome)?_cardGrupoMob(g,i):'').join('')}</div></div>`:''}</div>`+_gruposMob.map((g,i)=>_viewGrupoMob(g,i)).join('');
 _montarFiltroMob();_atualizarGruposMob();
 let reabrir=_gruposMob.findIndex(g=>g.nome===_grupoMobAberto);if(reabrir>=0)abrirGrupoMob(reabrir);
 setTimeout(()=>carregarResumosMob(_mobsTodas),300);}
 const _SEM_GRUPO_MOB='Outras mobilizações';
 let _gruposMob=[],_grupoMobAberto=null;
+// Grupo cujo nome começa com "OCULTO" não aparece na tela inicial (fica em "Mostrar ocultos")
+function _grupoOcultoMob(nome){return /^oculto/i.test(String(nome||'').trim())}
+function toggleOcultosMob(b){let el=document.getElementById('mob-grupos-ocultos');if(!el)return;let ver=el.style.display==='none';el.style.display=ver?'':'none';b.textContent=(ver?'🙈 Esconder ocultos':'👁 Mostrar ocultos')+` (${el.children.length})`}
+window.toggleOcultosMob=toggleOcultosMob;
 function _grupoMob(m){return String(m.grupo||'').trim()||_SEM_GRUPO_MOB}
 function _ondaMob(nome){let x=String(nome||'').match(/(\d+)\s*[ªºo°]?\s*onda/i);return x?Number(x[1]):0}
 function _nomeOndaMob(o){return o?o+'ª onda':'Sem onda'}
