@@ -552,11 +552,11 @@ const VEREDITO={coberto:['✅ Coberto','badge-ok'],cortado:['✂️ Cortado e va
 // Colunas do último formulário: uma por etapa (roxo = mudou em relação à etapa anterior) + veredito
 function colsForm(l){
   const v=l.ver?`<span class="${VEREDITO[l.ver][1]}">${VEREDITO[l.ver][0]}</span>`:'<span class="cinza">—</span>';
-  if(!l.fm)return`<td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="fcol">${v}</td>`;
+  if(!l.fm)return`<td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="fcol">${v}</td>`;
   const f=l.fm,mud=(a,b)=>a!==b?' style="color:#7c3aed;font-weight:800"':'';
   const tip=[...new Set(f.forms.map(x=>`Formulário nº ${x.id} · CC ${x.cc} · ${fmtData(ymd8(String(x.criado_em).slice(0,10)))} · ${x.status.replace('_',' ')}${x.sc_numero?' · SC '+x.sc_numero:' · sem SC'}`))]
     .concat([`Faltava (sem o formulário): ${fmtN(l.precisa)} un`]).concat(f.just).join('\n');
-  return`<td class="num fcol">${fmtN(f.sug)}</td><td class="num fcol"${mud(f.alm,f.sug)}>${fmtN(f.alm)}</td>
+  return`<td class="num fcol" title="Sugestão do formulário (consumo × período): ${fmtN(f.sug)}"${mud(f.alm,f.sug)}>${fmtN(f.alm)}</td>
     <td class="num fcol"${f.temGer?mud(f.ger,f.alm):''}>${f.temGer?fmtN(f.ger):'<span class="cinza">—</span>'}</td>
     <td class="num fcol"${mud(f.fin,f.ger)}>${f.rec?'<span class="red" title="Recusado">✕ recusado</span>':fmtN(f.fin)}</td>
     <td class="fcol" title="${esc(tip)}" style="cursor:help">${v}</td>`;
@@ -603,13 +603,13 @@ function render(){
   const vis=FILTRADOS.slice((PAG-1)*POR_PAGINA,PAG*POR_PAGINA);
   let h;
   if(ABA==='risco'){
-    h=`<table><thead><tr>${th('filNome','Filial')}${th('cod','Código')}${th('desc','Descrição')}${th('peso','ABC')}${th('ordem','Situação')}${th('est','Estoque','num')}${th('media','Consumo/mês','num')}${th('cob','Cobertura','num')}${th('trocas','Trocas prev.','num')}${th('fSug','Form: sistema','num fcol')}${th('fAlm','Almoxarife','num fcol')}${th('fGer','Gerente','num fcol')}${th('fFin','Master (final)','num fcol')}${th('ver','Veredito','fcol')}${th('scQtd','SC aberta','num')}${th('cam','Pedido (a caminho)','num')}${th('valor','Valor a comprar','num')}</tr></thead><tbody>`+
+    h=`<table><thead><tr>${th('filNome','Filial')}${th('cod','Código')}${th('desc','Descrição')}${th('peso','ABC')}${th('ordem','Situação')}${th('est','Estoque','num')}${th('media','Consumo/mês','num')}${th('cob','Cobertura','num')}${th('trocas','Trocas prev.','num')}${th('fAlm','Almoxarife','num fcol')}${th('fGer','Gerente','num fcol')}${th('fFin','Master (final)','num fcol')}${th('ver','Veredito','fcol')}${th('scQtd','SC aberta','num')}${th('cam','Pedido (a caminho)','num')}${th('valor','Valor a comprar','num')}</tr></thead><tbody>`+
     vis.map(l=>{
       const cobCor=l.cob==null?'cinza':l.cob<l.prazo/2?'red':l.cob<l.prazo?'amb':'verde';
       return`<tr><td class="cod" title="${esc(l.fil)}">${esc(l.filNome)}</td><td class="cod">${esc(l.cod)}</td><td style="min-width:240px">${esc(l.desc)}<div class="mini">${esc(tipoTxt(l))}${l.pctMob>=PESO_MOB?` · <span style="color:#7c3aed;font-weight:700" title="${fmtN(l.mob)} un saíram por mobilização nos 6 meses — ${$('x-mob').checked?'já fora da média':'ainda contando na média'}">${fmtN(l.pctMob*100)}% mobilização</span>`:''}</div></td>
       <td title="${l.abc?'Curva '+l.abc+' · '+($('f-abc-por').value==='qtd'?fmtN(l.peso,1)+' un/mês':fmtR(l.peso)+'/mês'):'Sem saída'}">${l.abc?`<span class="abc abc-${l.abc}">${l.abc}</span>`:'<span class="cinza">—</span>'}</td><td>${badgeSit(l)}</td><td class="num" title="Última movimentação: ${fmtData(l.ult)}">${badgeEst(l)}</td>
-      <td class="num" ${l.tirado?`title="Fora da média (6 meses): ${esc(Object.entries(l.tirado).map(([m,q])=>m.toLowerCase()+' '+fmtN(q)+' un').join(' · '))}"`:''}>${l.media>0?fmtN(l.media,1):'<span class="cinza">—</span>'}${l.tirado?'<span class="mini" style="color:#7c3aed"> *</span>':''}</td>
-      <td class="num ${cobCor}" title="Prazo do grupo: ${fmtN(l.prazo,1)} meses · meta ${fmtN(l.alvo)} un${l.porTrocas?' (pelas trocas)':''}">${l.cob==null?'—':fmtN(l.cob,1)+' m'}</td>
+      <td class="num" ${l.tirado?`title="Fora da média (6 meses): ${esc(Object.entries(l.tirado).map(([m,q])=>m.toLowerCase()+' '+fmtN(q)+' un').join(' · '))}"`:''}>${l.media>0?fmtN(Math.max(1,Math.round(l.media))):'<span class="cinza">—</span>'}${l.tirado?'<span class="mini" style="color:#7c3aed"> *</span>':''}</td>
+      <td class="num ${cobCor}" title="Estoque dura ≈ ${l.cob==null?'—':fmtN(l.cob,1)+' meses'} · prazo do grupo ${fmtN(l.prazo*30.44)} dias · meta ${fmtN(l.alvo)} un${l.porTrocas?' (pelas trocas)':''}">${l.cob==null?'—':fmtN(Math.round(l.cob*30.44))+' d'}</td>
       <td class="num">${l.trocas?`<span style="${l.porTrocas?'color:#1e40af':''}" title="${fmtN(l.pessoas)} pessoas · ${fmtN(l.venc)} já vencidas${l.porTrocas?' · meta pelas trocas (consumo pedia '+fmtN(l.alvoCons)+')':''}">${fmtN(l.trocas)}</span>`:'<span class="cinza">—</span>'}</td>
       ${colsForm(l)}<td class="num">${celSC(l)}</td><td class="num">${celPC(l)}</td>
       <td class="num">${l.valor>0?fmtR(l.valor):'<span class="cinza">—</span>'}</td></tr>`}).join('')+'</tbody></table>';
@@ -688,7 +688,7 @@ function renderItemCards(){
         <span style="width:${pct(o.pedir,ativos)};background:#ef4444"></span><span style="width:${pct(o.sol,ativos)};background:#3b82f6"></span>
         <span style="width:${pct(o.dep,ativos)};background:#f59e0b"></span><span style="width:${pct(o.ok,ativos)};background:#22c55e"></span></div>
       <div class="cf-abc"><span class="q">Saída/mês <b>${fmtN(o.media)}</b></span><span class="q">Estoque <b>${fmtN(o.est)}</b></span>
-        <span class="q ${cob!=null&&cob<2?'red':''}">Cobertura <b>${cob!=null?fmtN(cob,1)+' m':'—'}</b></span></div>
+        <span class="q ${cob!=null&&cob<2?'red':''}">Cobertura <b>${cob!=null?fmtN(Math.round(cob*30.44))+' d':'—'}</b></span></div>
       <div class="cf-rod"><span>📝 SC aberta <b>${o.scQtd?fmtN(o.scQtd)+' ('+o.nSc+')':'—'}</b></span><span>🚚 A caminho <b>${o.cam?fmtN(o.cam):'—'}</b></span>
         <span>⏰ PCs atrasados <b class="${o.atr?'red':''}">${fmtN(o.atr)}</b></span></div>
       ${o.tot6>0&&o.mob/o.tot6>=PESO_MOB?`<div class="mini" style="margin-top:6px;color:#7c3aed;font-weight:700">🟣 ${fmtN(100*o.mob/o.tot6)}% da saída foi mobilização (${fmtN(o.mob)} un em 6 meses)</div>`:''}
@@ -737,9 +737,9 @@ function exportarExcel(){
     nome='risco_'+PILL;
     rows=FILTRADOS.map(l=>({Filial:l.fil+' '+l.filNome,'Código':l.cod,'Descrição':l.desc,Grupo:l.gk==='FARD'?'Fardamento':'EPI / EPC / Ferramentas',
       'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Curva ABC':l.abc,
-      Estoque:l.est,'Consumo médio/mês':Math.round(l.media*10)/10,'% da saída por mobilização':Math.round(l.pctMob*100),'Tirado do consumo (6 meses)':l.tirado?Object.entries(l.tirado).map(([m,q])=>m+' '+q).join(' · '):'','Cobertura (meses)':l.cob==null?'':Math.round(l.cob*10)/10,'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
+      Estoque:l.est,'Consumo médio/mês':Math.round(l.media),'% da saída por mobilização':Math.round(l.pctMob*100),'Tirado do consumo (6 meses)':l.tirado?Object.entries(l.tirado).map(([m,q])=>m+' '+q).join(' · '):'','Cobertura (dias)':l.cob==null?'':Math.round(l.cob*30.44),'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
       'Trocas previstas no prazo':l.trocas,'Trocas vencidas':l.venc,Meta:l.alvo,'Meta por':l.porTrocas?'Trocas':'Consumo',
-      'Form. sugerido':l.fm?l.fm.sug:'','Form. almoxarife':l.fm?l.fm.alm:'','Form. gerente':l.fm&&l.fm.temGer?l.fm.ger:'','Form. final (master)':l.fm?(l.fm.rec?'recusado':l.fm.fin):'',
+      'Form. almoxarife':l.fm?l.fm.alm:'','Form. gerente':l.fm&&l.fm.temGer?l.fm.ger:'','Form. final (master)':l.fm?(l.fm.rec?'recusado':l.fm.fin):'',
       'Form. conta como pedido':l.fq||'','Veredito do formulário':l.ver?VEREDITO[l.ver][0].replace(/^\S+\s/,''):'','Faltava sem o formulário':l.precisa,
       'SC aberta (qtd)':l.scQtd,'SCs':l.scs.map(s=>s.sc).join(', '),'A caminho':l.cam,'Pedidos':l.pcs.map(p=>p.pc+' ('+fmtData(p.entrega)+')').join(', '),
       'Maior atraso (dias)':l.atrasoMax||'',Comprar:l.comprar,'Custo unit.':l.custo,'Valor a comprar':Math.round(l.valor)}));

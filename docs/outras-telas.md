@@ -24,7 +24,7 @@
   - A final de formulário **sem SC** conta como já pedida (situação "No formulário"); depois que vira SC passa a contar pela SC aberta / pedido.
   - Veredito por item: ✅ coberto · ✂️ cortado e vai faltar · 🚫 recusado e vai faltar · ⚠ pedido não cobre · ❗ ficou de fora
     (o painel pede e o item não estava no formulário) · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
-  - Colunas separadas (fundo lilás, ordenáveis): Form: sistema | Almoxarife | Gerente | Master (final) | Veredito (27/10).
+  - Colunas separadas (fundo lilás, ordenáveis): Almoxarife (sugestão do formulário no mouse) | Almoxarife | Gerente | Master (final) | Veredito (27/10).
     A coluna e a pílula "Transferir de" foram tiradas a pedido da Raissa (o cálculo de sobra continua no código).
   - Na lista da filial: cartão roxo com nº/CC/status/solicitante, quantos itens cada um mexeu, recusados e os vereditos com valor.
     Cartão da filial mostra a data/status do formulário. Excel traz as colunas do formulário.
@@ -40,6 +40,7 @@
 - **Banco ocupado** (27/10): com syncs de compras rodando (`scs`, `sc_pedidos`) + limpeza automática, até `itens` levou 8,5 s e tudo deu
   500 (statement timeout, limite de 3 s do anon). A página agora faz no máximo 3 consultas ao mesmo tempo, tenta de novo após 3 s e 6 s e
   mostra "banco ocupado" com botão Tentar de novo.
+- Consumo/mês sem decimais; cobertura em **dias** (estoque ÷ saída por mês × 30) — 27/10, a pedido da Raissa.
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
 - Meta: regular/intermitente = média × prazo; pontual = maior pico; maior entre isso e as trocas previstas.
 - Situação: **Pedir agora** (estoque + a caminho + SC aberta < meta); **Já solicitado** (só cobre contando a SC aberta);
