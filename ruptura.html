@@ -279,9 +279,9 @@ function calcular(){
       o[c.mes]=(o[c.mes]||0)+(Number(c.quantidade)||0);
     });
     // quanto da saída de 6 meses veio de mobilização (marca o item, mesmo sem tirar do consumo)
-    const MOB={},TOT6={};
+    const MOB={},TOT6={},MOBMES={};
     Object.entries(CONS).forEach(([k,m])=>{TOT6[k]=Object.values(m).reduce((a,b)=>a+b,0)});
-    (mot||[]).forEach(r=>{if(r.motivo!=='MOBILIZAÇÃO')return;const k=String(r.filial).trim()+'|'+String(r.produto).trim();MOB[k]=(MOB[k]||0)+(Number(r.quantidade)||0)});
+    (mot||[]).forEach(r=>{if(r.motivo!=='MOBILIZAÇÃO')return;const k=String(r.filial).trim()+'|'+String(r.produto).trim(),q=Number(r.quantidade)||0;MOB[k]=(MOB[k]||0)+q;(MOBMES[k]=MOBMES[k]||{})[r.mes]=(MOBMES[k][r.mes]||0)+q});
     Object.keys(MOB).forEach(k=>{const tot=Object.values(CONS[k]||{}).reduce((a,b)=>a+b,0);MOB[k]={q:Math.min(MOB[k],tot),pct:tot>0?Math.min(1,MOB[k]/tot):0}});
     // tira as saídas dos motivos marcados (mobilização / admissional)
     const tirar=[$('x-mob').checked&&'MOBILIZAÇÃO',$('x-adm').checked&&'ADMISSIONAL'].filter(Boolean),TIRADO={};
@@ -293,9 +293,12 @@ function calcular(){
       const t=TIRADO[k]||(TIRADO[k]={});t[r.motivo]=(t[r.motivo]||0)+q;
     });
     const MEDIA={};
+    // maior pico do mês SEM as saídas de mobilização (se a mobilização ainda não foi tirada pela caixinha)
+    const mobJaTirada=tirar.includes('MOBILIZAÇÃO');
     Object.entries(CONS).forEach(([k,m])=>{
       let tot=0,n=0,pico=0,mp='';
-      W.forEach(mes=>{const q=m[mes]||0;if(q>0){tot+=q;n++;if(q>pico){pico=q;mp=mes}}});
+      W.forEach(mes=>{const q=m[mes]||0;if(q>0){tot+=q;n++}
+        const qs=q-(mobJaTirada?0:Math.min(q,MOBMES[k]?.[mes]||0));if(qs>pico){pico=qs;mp=mes}});
       if(tot>0)MEDIA[k]={media:tot/W.length,n,pico,mp};
     });
     // trocas previstas por filial|código (sem a tabela, o painel segue só com o consumo)
@@ -354,7 +357,7 @@ function calcular(){
       const scl=SC[k]||[],pcl=PC[k]||[];
       const gk=grupoKey(it.grupo),prazo=PRAZO[gk];
       const tipo=c.n>=5?'regular':c.n>=3?'intermitente':c.n>=1?'pontual':tp.prev>0?'trocas':'sem';
-      const alvoCons=tipo==='pontual'?c.pico:Math.ceil(c.media*prazo);
+      const alvoCons=Math.ceil(c.media*prazo); // pontual também usa a média; o pico vira só aviso (abaixoPico)
       const alvoTr=Math.ceil(tp.prev);
       const alvo=Math.max(alvoCons,alvoTr),porTrocas=alvoTr>alvoCons;
       const est=Math.max(0,e.est),cam=e.cam;
@@ -375,6 +378,7 @@ function calcular(){
       if(FORMFIL[fil]){
         if(!fm)ver={pedir:'fora',ok:'fora_est',depende:'fora_ped',solicitado:'fora_sc'}[status]||'';
         else if(status==='pedir')ver=fm.rec?'recusado':fm.fin<Math.max(fm.alm,fm.ger)?'cortado':'naocobre';
+        else if(fm.rec)ver='rec_ok';
         else if(fm.fin>=3&&fm.fin>precisa*2&&fm.fin-precisa>=3)ver='amais';
         else ver='coberto';
       }
@@ -384,7 +388,7 @@ function calcular(){
       const proxEntrega=pcl.filter(p=>p.atraso<=0).map(p=>p.entrega).sort()[0]||'';
       LINHAS.push({fil,filNome:nomeFil(fil),cod,desc:it.descricao||'',gk,tipo,media:c.media,tirado:TIRADO[k]||null,mob:MOB[k]?.q||0,pctMob:MOB[k]?.pct||0,tot6:TOT6[k]||0,pico:c.pico,mp:c.mp,est,cam,ult:e.ult,
         cob:ritmo>0?est/ritmo:null,prazo,alvo,alvoCons,trocas:alvoTr,venc:tp.venc,pessoas:tp.pessoas,porTrocas,
-        fm,fq,precisa,ver,fSug:fm?fm.sug:-1,fAlm:fm?fm.alm:-1,fGer:fm&&fm.temGer?fm.ger:-1,fFin:fm?(fm.rec?0:fm.fin):-1,scs:scl,scQtd,pcs:pcl,atrasados,atrasoMax:atrasados.reduce((m,p)=>Math.max(m,p.atraso),0),proxEntrega,
+        fm,fq,precisa,ver,abaixoPico:tipo==='pontual'&&c.pico>0&&est+cam+scQtd+fq<c.pico,fSug:fm?fm.sug:-1,fAlm:fm?fm.alm:-1,fGer:fm&&fm.temGer?fm.ger:-1,fFin:fm?(fm.rec?0:fm.fin):-1,scs:scl,scQtd,pcs:pcl,atrasados,atrasoMax:atrasados.reduce((m,p)=>Math.max(m,p.atraso),0),proxEntrega,
         comprar,custo,valor:comprar*custo,status,ordem:{pedir:0,solicitado:1,depende:2,ok:3,sem:4}[status],trf,zerado:est<=0&&alvo>0});
     });
 }
@@ -435,7 +439,7 @@ function base(lista,fil=$('f-filial').value){
 const PILLS_RISCO=[['todos','Todos',()=>true],['pedir','🔴 Pedir agora',l=>l.status==='pedir'],['solicitado','📝 Já solicitado (SC ou formulário cobre)',l=>l.status==='solicitado'],
   ['depende','🟡 Depende da entrega',l=>l.status==='depende'],['zerado','✕ Zerados com saída',l=>l.zerado],['atrasado','⏰ Pedido atrasado',l=>l.atrasados.length>0],
   ['sc','SC aberta',l=>l.scs.length>0],['ff','📋 No formulário',l=>!!l.fm],['cortado','✂️ Cortado/recusado e vai faltar',l=>l.ver==='cortado'||l.ver==='recusado'],
-  ['fora','❗ Ficou de fora e vai faltar',l=>l.ver==='fora'],['foraok','➖ Fora do formulário · já coberto',l=>/^fora_/.test(l.ver)],['amais','➕ Pediu a mais',l=>l.ver==='amais'],['mob','🟣 Mobilização pesa',l=>l.pctMob>=PESO_MOB]];
+  ['fora','❗ Ficou de fora e vai faltar',l=>l.ver==='fora'],['foraok','➖ Fora do formulário · já coberto',l=>/^fora_/.test(l.ver)],['amais','➕ Pediu a mais',l=>l.ver==='amais'],['pico','⚠ Abaixo do pico',l=>l.abaixoPico],['mob','🟣 Mobilização pesa',l=>l.pctMob>=PESO_MOB]];
 const PILLS_TROCAS=[['vencida','Vencidas',t=>t.dias<0],['30','Próximos 30 dias',t=>t.dias>=0&&t.dias<=30],['90','Próximos 90 dias',t=>t.dias>=0],['todas','Todas',()=>true]];
 
 function trocasFiltradas(sit=SIT){
@@ -550,7 +554,8 @@ function renderResumo(){
 
 const VEREDITO={coberto:['✅ Coberto','badge-ok'],cortado:['✂️ Cortado e vai faltar','badge-alerta'],recusado:['🚫 Recusado e vai faltar','badge-alerta'],
   naocobre:['⚠ Pedido não cobre','badge-bloq'],amais:['➕ Pediu a mais','badge-azul'],fora:['❗ Ficou de fora e vai faltar','badge-alerta'],
-  fora_est:['➖ Fora do formulário · estoque cobre','badge-zero'],fora_ped:['➖ Fora do formulário · pedido cobre','badge-zero'],fora_sc:['➖ Fora do formulário · SC cobre','badge-zero']};
+  fora_est:['➖ Fora do formulário · estoque cobre','badge-zero'],fora_ped:['➖ Fora do formulário · pedido cobre','badge-zero'],fora_sc:['➖ Fora do formulário · SC cobre','badge-zero'],
+  rec_ok:['🚫 Recusado · estoque cobre','badge-zero']};
 // Colunas do último formulário: uma por etapa (roxo = mudou em relação à etapa anterior) + veredito
 function colsForm(l){
   const v=l.ver?`<span class="${VEREDITO[l.ver][1]}">${VEREDITO[l.ver][0]}</span>`:'<span class="cinza">—</span>';
@@ -564,6 +569,10 @@ function colsForm(l){
     <td class="fcol" title="${esc(tip)}" style="cursor:help">${v}</td>`;
 }
 function badgeSit(l){
+  const pico=l.abaixoPico?`<div style="margin-top:3px"><span class="badge-bloq" title="Maior saída num mês (sem mobilização): ${fmtN(l.pico)} em ${fmtMes(l.mp)}. Estoque + pedido + SC + formulário = ${fmtN(l.est+l.cam+l.scQtd+l.fq)}. Só aviso — não entra na compra.">⚠ abaixo do pico (${fmtN(l.pico)})</span></div>`:'';
+  return badgeSit0(l)+pico;
+}
+function badgeSit0(l){
   if(l.status==='pedir')return`<span class="badge-alerta">🔴 Pedir ${fmtN(l.comprar)}</span>`;
   if(l.status==='solicitado')return`<span class="badge-azul">📝 ${l.fq>0&&l.est+l.cam+l.scQtd<l.alvo?'No formulário':'Já solicitado'}</span>`;
   if(l.status==='depende')return`<span class="badge-bloq">🟡 Depende da entrega</span>`;
@@ -576,7 +585,7 @@ function badgeEst(l){
 }
 function tipoTxt(l){
   if(l.tipo==='trocas')return'só trocas';
-  if(l.tipo==='pontual')return'pontual · pico '+fmtN(l.pico)+' em '+fmtMes(l.mp);
+  if(l.tipo==='pontual')return'pontual · pico '+fmtN(l.pico)+(l.mp?' em '+fmtMes(l.mp):'')+' (sem mobilização)';
   return l.tipo==='sem'?'sem saída':l.tipo;
 }
 function celSC(l){
@@ -713,7 +722,7 @@ function irPag(p){PAG=p;render();window.scrollTo({top:$('resumo').offsetTop,beha
 
 function renderNota(){
   $('nota').innerHTML=ABA==='risco'?
-    `<b>Como funciona:</b> consumo = média dos últimos 6 meses (meses sem saída contam zero); itens <b>pontuais</b> (saída em 1–2 dos 6 meses) usam o maior pico.
+    `<b>Como funciona:</b> consumo = média dos últimos 6 meses (meses sem saída contam zero); itens <b>pontuais</b> (saída em 1–2 dos 6 meses) também usam a média; o maior pico do mês (sem mobilização) vira só o aviso <b>⚠ abaixo do pico</b>, sem entrar na compra.
     <b>Prazo do grupo</b> = tempo da SC até a chegada em 8 de cada 10 compras de 2026 (EPI ≈ 2,3 meses; fardamento ≈ 3,3 meses); a <b>meta</b> é o consumo desse prazo.
     <b>Trocas prev.</b> = trocas de itens pessoais que vencem dentro do prazo, pela vida útil de cada item e pelo tamanho que cada pessoa recebeu por último; em azul quando a meta veio das trocas.
     <b>Pedido (a caminho)</b> = saldo em pedido de compra do Protheus (SB2) e os pedidos em aberto (passe o mouse para ver todos).
@@ -738,7 +747,7 @@ function exportarExcel(){
   if(ABA==='risco'){
     nome='risco_'+PILL;
     rows=FILTRADOS.map(l=>({Filial:l.fil+' '+l.filNome,'Código':l.cod,'Descrição':l.desc,Grupo:l.gk==='FARD'?'Fardamento':'EPI / EPC / Ferramentas',
-      'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Curva ABC':l.abc,
+      'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Abaixo do pico (sem mobilização)':l.abaixoPico?'sim (pico '+l.pico+')':'','Curva ABC':l.abc,
       Estoque:l.est,'Consumo médio/mês':Math.round(l.media),'% da saída por mobilização':Math.round(l.pctMob*100),'Tirado do consumo (6 meses)':l.tirado?Object.entries(l.tirado).map(([m,q])=>m+' '+q).join(' · '):'','Cobertura (dias)':l.cob==null?'':Math.round(l.cob*30.44),'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
       'Trocas previstas no prazo':l.trocas,'Trocas vencidas':l.venc,Meta:l.alvo,'Meta por':l.porTrocas?'Trocas':'Consumo',
       'Form. almoxarife':l.fm?l.fm.alm:'','Form. gerente':l.fm&&l.fm.temGer?l.fm.ger:'','Form. final (master)':l.fm?(l.fm.rec?'recusado':l.fm.fin):'',

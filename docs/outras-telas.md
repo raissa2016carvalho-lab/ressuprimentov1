@@ -42,7 +42,10 @@
   mostra "banco ocupado" com botão Tentar de novo.
 - Consumo/mês sem decimais; cobertura em **dias** (estoque ÷ saída por mês × 30) — 27/10, a pedido da Raissa.
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
-- Meta: regular/intermitente = média × prazo; pontual = maior pico; maior entre isso e as trocas previstas.
+- Meta: média × prazo para **todos** (inclusive pontual, desde 27/10), ou as trocas previstas se forem maiores.
+  Pontual: o maior pico do mês **sem mobilização** vira só o aviso amarelo "⚠ abaixo do pico" (pílula própria) quando
+  estoque + pedido + SC + formulário < pico — não entra na compra (ex.: colete air bag Cascavel, pico 3 em jul/26, estoque 2).
+  Veredito novo: "🚫 Recusado · estoque cobre".
 - Situação: **Pedir agora** (estoque + a caminho + SC aberta < meta); **Já solicitado** (só cobre contando a SC aberta);
   **Depende da entrega** (estoque < meta ≤ estoque + a caminho); Normal; Sem saída. Pílulas extras: zerados com saída, pedido atrasado,
   SC aberta, pode transferir (filial com estoque > 6 meses de consumo).
