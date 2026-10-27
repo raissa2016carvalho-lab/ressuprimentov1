@@ -10,7 +10,7 @@
 .mob-gv-topo{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}.mob-gv-nome{font-size:16px;font-weight:800;text-transform:uppercase}
 .mob-voltar{background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;color:#1e40af}
 .mob-colunas.varias{display:grid;gap:14px;align-items:start}
-.mob-col{background:#e2e8f0;border-radius:12px;padding:10px;min-width:0}.mob-col-tit{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#334155;margin:2px 4px 10px;display:flex;align-items:center;gap:8px}.mob-col-tit span{background:#fff;border-radius:10px;padding:1px 8px;color:#1e40af}
+.mob-col{background:#e2e8f0;border-radius:12px;padding:10px;min-width:0}.mob-col-tit{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#334155;margin:2px 4px 10px;display:flex;align-items:center;gap:8px}.mob-col-tit span{background:#fff;border-radius:10px;padding:1px 8px;color:#1e40af}.mob-opct{margin-left:auto;font-size:18px;font-weight:800;letter-spacing:0;text-transform:none;color:#94a3b8}
 .mob-col .card{margin-bottom:10px}.mob-col .card-topo{flex-wrap:wrap;padding:12px 14px}.mob-col .card-titulo{font-size:13px}.mob-col .card.mob-sel{border-color:#1e40af;box-shadow:0 0 0 2px #bfdbfe}
 .mob-painel{background:#fff;border:1px solid #1e40af;border-radius:12px;margin-top:16px;overflow:hidden;scroll-margin-top:12px}.mob-painel-topo{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;background:#eff6ff}.mob-painel-tit{font-weight:800;font-size:14px}.mob-painel-topo button{background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:600;color:#475569}
 .mob-painel .card-corpo{border-top:0}
@@ -2198,7 +2198,7 @@ function _cardGrupoMob(g,i){
 function _viewGrupoMob(g,i){
   let ondas=[...new Set(g.mobs.map(m=>_ondaMob(m.nome)))].sort((a,b)=>(a||99)-(b||99));
   let varias=ondas.length>1||ondas[0]!==0;
-  let cols=varias?ondas.map(o=>{let l=g.mobs.filter(m=>_ondaMob(m.nome)===o);return `<div class="mob-col"><div class="mob-col-tit">${_nomeOndaMob(o)} <span>${l.length}</span></div>${l.map(_cardMobHtml).join('')}</div>`}).join(''):g.mobs.map(_cardMobHtml).join('');
+  let cols=varias?ondas.map(o=>{let l=g.mobs.filter(m=>_ondaMob(m.nome)===o);return `<div class="mob-col"><div class="mob-col-tit">${_nomeOndaMob(o)} <span>${l.length}</span><b class="mob-opct" id="mob-opct-${i}-${o}" data-ids="${l.map(m=>m.id).join(',')}">…</b></div>${l.map(_cardMobHtml).join('')}</div>`}).join(''):g.mobs.map(_cardMobHtml).join('');
   return `<div class="mob-gv" id="mob-gv-${i}" style="display:none">
     <div class="mob-gv-topo"><button class="mob-voltar" onclick="voltarGruposMob()">← Todos os grupos</button><div class="mob-gv-nome">${_escV(g.nome)}</div></div>
     <div class="mob-colunas ${varias?'varias':'uma'}" style="${varias?`grid-template-columns:repeat(${ondas.length},minmax(250px,1fr))`:''}">${cols}</div>
@@ -2230,6 +2230,13 @@ function _atualizarGruposMob(){
     let pct=t?Math.round(a/t*100):0,cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';
     el.textContent=pct+'%';el.style.color=cor;
     let b=document.getElementById('mob-gbar-'+i);if(b){b.style.width=pct+'%';b.style.background=cor}
+    document.querySelectorAll(`#mob-gv-${i} .mob-opct`).forEach(o=>{
+      let ids=o.dataset.ids.split(',').map(Number),pr=ids.filter(id=>_resumoMob[id]),ot=0,oa=0;
+      pr.forEach(id=>{ot+=_resumoMob[id].total;oa+=_resumoMob[id].atend});
+      if(!pr.length){o.textContent='…';return}
+      let op=ot?Math.round(oa/ot*100):0;o.textContent=op+'%'+(pr.length<ids.length?' …':'');o.style.color=op===100?'#16a34a':op>0?'#1e40af':'#94a3b8';
+      o.title=`${oa} de ${ot} itens atendidos nesta onda`;
+    });
     let d=document.getElementById('mob-gdet-'+i);if(d)d.textContent=`· ${a} de ${t} itens atendidos`+(falta?` · calculando ${falta}...`:'');
   });
 }
