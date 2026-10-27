@@ -93,8 +93,27 @@ tr:hover td{background:#f8fafc}
 .nota:not(.aberta){display:none}
 .nota{font-size:11.5px;color:#64748b;line-height:1.55;padding:16px 24px 28px}
 @media(max-width:600px){.topo,.filtros-wrap,.pills,.resumo,.tabela-wrap,.paginador,.nota{padding-left:16px;padding-right:16px}.topo-right{margin-left:0;width:100%}.f-group{width:100%}.f-group select{width:100%}}
+/* login: enquanto não entrar, só a tela de login aparece */
+body.bq-trancado>*:not(#tela-login){display:none!important}
+.lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
+.lg-inp{width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
+.lg-inp:focus{border-color:#1e40af}
 </style>
-<body>
+<body class="bq-trancado">
+
+<!-- Login (mesmo usuário e senha do Painel principal) -->
+<div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
+  <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px;box-shadow:0 20px 50px #00000066">
+    <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
+    <h1 style="margin:0 0 4px;font-size:16px">Risco de Ruptura</h1>
+    <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
+    <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
+    <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrarRuptura()">
+    <div id="lg-msg" style="color:#991b1b;background:#fee2e2;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:12px;display:none"></div>
+    <button id="lg-btn" onclick="entrarRuptura()" style="width:100%;background:#1e40af;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+    <a class="bq-login-voltar" href="/los.html">← Voltar ao menu de sistemas</a>
+  </div>
+</div>
 
 <div class="topo">
   <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
@@ -113,6 +132,7 @@ tr:hover td{background:#f8fafc}
     <button class="btn-atualizar" onclick="$('nota').classList.toggle('aberta')" title="Como o painel calcula">ℹ️</button>
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
     <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
+    <button class="btn-atualizar" onclick="sairRuptura()" title="Sair">Sair</button>
   </div>
 </div>
 
@@ -885,7 +905,20 @@ function exportarExcel(){
   XLSX.writeFile(wb,'ruptura_'+nome+'_'+new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')+'.xlsx');
 }
 
-carregar();
+// Login: só carrega o painel depois de entrar (mesmo usuário do Painel principal)
+function _liberarRuptura(){document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
+async function entrarRuptura(){
+  let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');
+  msg.style.display='none';
+  if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
+  b.disabled=true;b.textContent='Entrando...';
+  let{error}=await db.auth.signInWithPassword({email,password:senha});
+  b.disabled=false;b.textContent='Entrar';
+  if(error){msg.textContent=error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message;msg.style.display='block';return}
+  _liberarRuptura();
+}
+async function sairRuptura(){await db.auth.signOut();location.reload()}
+(async()=>{let{data}=await db.auth.getSession();if(data&&data.session)_liberarRuptura();else $('tela-login').style.display='flex'})();
 </script>
 </body>
 </html>

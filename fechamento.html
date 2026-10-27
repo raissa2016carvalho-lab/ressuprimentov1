@@ -239,6 +239,22 @@ tr:last-child td{border-bottom:none}
     #tela-login .login-error{margin-top:16px;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:500;text-align:center;display:none;animation:shakeL .4s ease}
     @keyframes shakeL{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
     @media(max-width:960px){#tela-login .brand-panel{display:none}#tela-login .form-panel{width:100%;min-width:0;padding:24px}}
+
+    /* padrão B&Q */
+    #tela-login{background:radial-gradient(circle at 25% 15%,#1e3a8a 0,#0f172a 65%)!important;font-family:system-ui,-apple-system,'Segoe UI',sans-serif!important;justify-content:center;align-items:center}
+    #tela-login .grid-bg,#tela-login .orb,#tela-login .brand-panel{display:none!important}
+    #tela-login .form-panel{flex:1;width:auto;min-width:0;padding:20px}
+    #tela-login .login-card{background:#fff;backdrop-filter:none;border:0;border-radius:14px;max-width:360px;padding:32px;box-shadow:0 20px 50px #00000066}
+    #tela-login .card-title{color:#0f172a!important;font-size:16px!important;margin-bottom:4px!important}
+    #tela-login .card-sub{color:#64748b!important;margin-bottom:18px!important;font-size:12.5px!important}
+    #tela-login .field{margin-bottom:14px}
+    #tela-login .field-label{color:#64748b;font-size:12px;margin-bottom:5px}
+    #tela-login .field-input{background:#fff;border:1px solid #e2e8f0;color:#0f172a;font-size:14px;padding:10px 12px;border-radius:9px}
+    #tela-login .field-input::placeholder{color:#94a3b8}
+    #tela-login .field-input:focus{border-color:#1e40af;box-shadow:none;background:#fff}
+    #tela-login .btn-login{background:#1e40af;border-radius:9px;padding:11px;font-size:14px;margin-top:0;box-shadow:none}
+    #tela-login .btn-login:hover{box-shadow:none;transform:none;background:#1d4ed8}
+    #tela-login #link-modo{color:#1e40af!important;opacity:1!important}
   </style>
   <div class="grid-bg"></div>
   <div class="orb" style="width:500px;height:500px;background:#e87722;opacity:.08;top:-150px;right:-120px"></div>
@@ -259,7 +275,7 @@ tr:last-child td{border-bottom:none}
 
   <div class="form-panel">
     <div class="login-card">
-      <div class="card-title" style="font-size:22px;font-weight:700;color:#fff;margin-bottom:6px">Fechamento de Consumo</div>
+      <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span><div class="card-title" style="font-size:22px;font-weight:700;color:#fff;margin-bottom:6px">Fechamento de Consumo</div>
       <div class="card-sub" style="font-size:13px;color:#7b8baa;margin-bottom:32px">Entre com suas credenciais para acessar o painel.</div>
 
       <form id="login-form" onsubmit="return _fazerLogin(event)">
@@ -289,7 +305,7 @@ tr:last-child td{border-bottom:none}
       <div class="login-error" id="login-error"></div>
       <div style="text-align:center;margin-top:24px">
         <a href="#" onclick="_alternarModo(event)" id="link-modo" style="color:#e87722;text-decoration:none;font-size:12px;font-weight:600;opacity:.8">🔑 Alterar minha senha</a>
-        <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.18)">Sistema de Ressuprimento • v1.1</div>
+        <a class="bq-login-voltar" href="/los.html">← Voltar ao menu de sistemas</a>
       </div>
     </div>
   </div>
