@@ -79,6 +79,7 @@ tr:hover td{background:#f8fafc}
 .card-fil .cf-rod{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;padding-top:8px;border-top:1px solid #f1f5f9;font-size:11.5px;color:#64748b}
 .card-fil .cf-rod b{color:#0f172a}
 .cards-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px;color:#64748b}
+.btn-incluir{border:1px solid #16a34a;background:#f0fdf4;color:#166534;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}.btn-incluir:hover{background:#dcfce7}
 .seg-btn{border:1px solid #e2e8f0;background:#fff;border-radius:6px;width:28px;height:26px;cursor:pointer;font-size:14px;color:#94a3b8;padding:0}.seg-btn:hover{border-color:#0f766e;color:#0f766e}.seg-btn.on{background:#ccfbf1;border-color:#0f766e}
 .pop-cons{cursor:pointer;border-bottom:1px dotted #1e40af;color:#1e40af}
 #popup-consumo{display:none;position:fixed;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:14px 16px;min-width:300px;max-width:360px;font-size:12.5px}
@@ -394,7 +395,6 @@ function calcular(){
       let status;
       if(alvo<=0)status='sem';
       else if(est>=alvo)status='ok';
-      else if(est+cam>=alvo)status='depende';
       else if(est+cam+scQtd+fq>=alvo)status='solicitado';
       else status='pedir';
       const comprar=status==='pedir'?Math.ceil(alvo-est-cam-scQtd-fq):0;
@@ -402,7 +402,7 @@ function calcular(){
       const precisa=Math.max(0,Math.ceil(alvo-est-cam-scQtd)); // o que faltava sem contar o formulário
       let ver='';
       if(FORMFIL[fil]){
-        if(!fm)ver={pedir:'fora',ok:'fora_est',depende:'fora_ped',solicitado:'fora_sc'}[status]||'';
+        if(!fm)ver=status==='pedir'?'fora':status==='ok'?'fora_est':status==='solicitado'?(est+cam>=alvo?'fora_ped':'fora_sc'):'';
         else if(status==='pedir')ver=fm.rec?'recusado':fm.fin<Math.max(fm.alm,fm.ger)?'cortado':'naocobre';
         else if(fm.rec)ver='rec_ok';
         else if(fm.fin>=3&&fm.fin>precisa*2&&fm.fin-precisa>=3)ver='amais';
@@ -415,7 +415,7 @@ function calcular(){
       LINHAS.push({fil,filNome:nomeFil(fil),cod,desc:it.descricao||'',gk,tipo,media:c.media,tirado:TIRADO[k]||null,mob:MOB[k]?.q||0,pctMob:MOB[k]?.pct||0,tot6:TOT6[k]||0,pico:c.pico,mp:c.mp,est,cam,ult:e.ult,arm:e.arm,estEm:e.em,
         cob:ritmo>0?est/ritmo:null,prazo,alvo,alvoCons,trocas:alvoTr,venc:tp.venc,pessoas:tp.pessoas,porTrocas,
         fm,fq,precisa,ver,abaixoPico:tipo==='pontual'&&c.pico>0&&est+cam+scQtd+fq<c.pico,fSug:fm?fm.sug:-1,fAlm:fm?fm.alm:-1,fGer:fm&&fm.temGer?fm.ger:-1,fFin:fm?(fm.rec?0:fm.fin):-1,scs:scl,scQtd,pcs:pcl,atrasados,atrasoMax:atrasados.reduce((m,p)=>Math.max(m,p.atraso),0),proxEntrega,
-        comprar,custo,valor:comprar*custo,status,ordem:{pedir:0,solicitado:1,depende:2,ok:3,sem:4}[status],trf,zerado:est<=0&&alvo>0});
+        comprar,custo,valor:comprar*custo,status,ordem:{pedir:0,solicitado:1,ok:3,sem:4}[status],trf,zerado:est<=0&&alvo>0});
     });
 }
 
@@ -462,8 +462,8 @@ function base(lista,fil=$('f-filial').value){
   return lista.filter(l=>(!fil||l.fil===fil)&&grupoOk(l.gk,l.desc,gr)&&(!tp||!l.tipo||l.tipo===tp)&&
     (!q||l.cod.includes(q)||String(l.desc).toLowerCase().includes(q)||(l.mat&&l.mat.includes(q))));
 }
-const PILLS_RISCO=[['todos','Todos',()=>true],['pedir','🔴 Pedir agora',l=>l.status==='pedir'],['solicitado','📝 Já solicitado (SC ou formulário cobre)',l=>l.status==='solicitado'],
-  ['depende','🟡 Depende da entrega',l=>l.status==='depende'],['zerado','✕ Zerados com saída',l=>l.zerado],['atrasado','⏰ Pedido atrasado',l=>l.atrasados.length>0],
+const PILLS_RISCO=[['todos','Todos',()=>true],['pedir','🔴 Pedir agora',l=>l.status==='pedir'],['solicitado','📝 Já solicitado (pedido, SC ou formulário cobre)',l=>l.status==='solicitado'],
+  ['zerado','✕ Zerados com saída',l=>l.zerado],['atrasado','⏰ Pedido atrasado',l=>l.atrasados.length>0],
   ['sc','SC aberta',l=>l.scs.length>0],['ff','📋 No formulário',l=>!!l.fm],['cortado','✂️ Cortado/recusado e pode faltar',l=>l.ver==='cortado'||l.ver==='recusado'],
   ['fora','❗ Ficou de fora e pode faltar',l=>l.ver==='fora'],['foraok','➖ Fora do formulário · já coberto',l=>/^fora_/.test(l.ver)],['amais','➕ Pediu a mais',l=>l.ver==='amais'],['pico','⚠ Abaixo do pico',l=>l.abaixoPico],['seg','🛡️ Estoque de segurança',l=>!!segDe(l)],['mob','🟣 Mobilização pesa',l=>l.pctMob>=PESO_MOB]];
 const PILLS_TROCAS=[['vencida','Vencidas',t=>t.dias<0],['30','Próximos 30 dias',t=>t.dias>=0&&t.dias<=30],['90','Próximos 90 dias',t=>t.dias>=0],['todas','Todas',()=>true]];
@@ -564,12 +564,11 @@ function renderResumo(){
   let c;
   if(ABA==='risco'){
     const B=baseRisco();
-    const pedir=B.filter(l=>l.status==='pedir'),sol=B.filter(l=>l.status==='solicitado'),dep=B.filter(l=>l.status==='depende');
+    const pedir=B.filter(l=>l.status==='pedir'),sol=B.filter(l=>l.status==='solicitado');
     const atr=B.flatMap(l=>l.atrasados);const nAtr=new Set(atr.map(p=>p.pc)).size;
     c=`<div class="resumo-card"><div class="val">${fmtN(VISTA!=='lista'?B.length:FILTRADOS.length)}</div><div class="lab">${VISTA!=='lista'?'SKUs (filial × item)':'Itens nesta lista'}</div></div>
       <div class="resumo-card alerta"><div class="val">${fmtN(pedir.length)}</div><div class="lab">Pedir agora</div><div class="sub">≈ ${fmtCurto(pedir.reduce((s,l)=>s+l.valor,0))} para cobrir até a próxima chegada</div></div>
-      <div class="resumo-card azul"><div class="val">${fmtN(sol.length)}</div><div class="lab">Já solicitado</div><div class="sub">SC aberta ou formulário cobre — acompanhar</div></div>
-      <div class="resumo-card bloq"><div class="val">${fmtN(dep.length)}</div><div class="lab">Depende da entrega</div><div class="sub">estoque não aguenta; o pedido cobre</div></div>
+      <div class="resumo-card azul"><div class="val">${fmtN(sol.length)}</div><div class="lab">Já solicitado</div><div class="sub">pedido, SC ou formulário cobre — acompanhar</div></div>
       <div class="resumo-card alerta"><div class="val">${fmtN(nAtr)}</div><div class="lab">Pedidos atrasados</div><div class="sub">${fmtCurto(atr.reduce((s,p)=>s+p.valor,0))} com entrega vencida</div></div>`;
   }else{
     const v=trocasFiltradas('vencida'),p30=trocasFiltradas('30'),p90=trocasFiltradas('90');
@@ -586,8 +585,31 @@ const VEREDITO={coberto:['✅ Coberto','badge-ok'],cortado:['✂️ Cortado e po
   fora_est:['➖ Fora do formulário · estoque cobre','badge-zero'],fora_ped:['➖ Fora do formulário · pedido cobre','badge-zero'],fora_sc:['➖ Fora do formulário · SC cobre','badge-zero'],
   rec_ok:['🚫 Recusado · estoque cobre','badge-zero']};
 // Colunas do último formulário: uma por etapa (roxo = mudou em relação à etapa anterior) + veredito
+// formulários da rodada que ainda aceitam inclusão (sem SC, pendente ou aguardando master)
+const formsAbertos=fil=>(FORMFIL[fil]?.forms||[]).filter(f=>!f.sc_numero&&['pendente','aguardando_master'].includes(f.status));
+function btnIncluir(l){
+  if(!['fora','cortado','recusado','naocobre'].includes(l.ver)||!formsAbertos(l.fil).length)return'';
+  return`<div style="margin-top:4px"><button class="btn-incluir" onclick="incluirNoForm('${esc(l.fil)}','${esc(l.cod)}')" title="Coloca o item no último formulário, já aprovado, para virar SC">➕ ${l.fm?'Ajustar':'Incluir'} no formulário</button></div>`;
+}
+async function incluirNoForm(fil,cod){
+  const l=LINHAS.find(x=>x.fil===fil&&x.cod===cod);if(!l)return;
+  const abertos=formsAbertos(fil);if(!abertos.length){alert('Não há formulário aberto (sem SC) nesta filial.');return}
+  let form=abertos[0];
+  if(abertos.length>1){
+    const r=prompt('Em qual formulário?\n\n'+abertos.map((f,i)=>`${i+1} — nº ${f.id} · CC ${f.cc} · ${f.status.replace('_',' ')}`).join('\n'),'1');
+    if(r===null)return;form=abertos[Number(r)-1];if(!form){alert('Opção inválida.');return}
+  }
+  const atual=l.fm&&!l.fm.rec?l.fm.fin:0,sug=Math.max(1,atual+l.comprar);
+  const r=prompt(`➕ ${l.desc}\n${l.filNome} · formulário nº ${form.id} (CC ${form.cc})\n\n${l.fm?'Hoje a final é '+fmtN(atual)+'. ':''}Quantidade FINAL no formulário (já aprovada para virar SC):`,String(sug));
+  if(r===null)return;
+  const q=Math.round(Number(String(r).replace(',','.'))||0);if(q<=0){alert('Quantidade inválida.');return}
+  try{
+    const {error}=await db.rpc('incluir_item_ruptura',{p_solicitacao_id:form.id,p_codigo:cod,p_qtd:q});if(error)throw error;
+    DADOS.forms=await carregarFormularios();calcular();aplicar();
+  }catch(e){alert('Não consegui incluir: '+(e.message||e))}
+}
 function colsForm(l){
-  const v=l.ver?`<span class="${VEREDITO[l.ver][1]}">${VEREDITO[l.ver][0]}</span>`:'<span class="cinza">—</span>';
+  const v=(l.ver?`<span class="${VEREDITO[l.ver][1]}">${VEREDITO[l.ver][0]}</span>`:'<span class="cinza">—</span>')+btnIncluir(l);
   if(!l.fm)return`<td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="fcol">${v}</td>`;
   const f=l.fm,mud=(a,b)=>a!==b?' style="color:#7c3aed;font-weight:800"':'';
   const tip=[...new Set(f.forms.map(x=>`Formulário nº ${x.id} · CC ${x.cc} · ${fmtData(ymd8(String(x.criado_em).slice(0,10)))} · ${x.status.replace('_',' ')}${x.sc_numero?' · SC '+x.sc_numero:' · sem SC'}`))]
@@ -598,9 +620,8 @@ function colsForm(l){
     <td class="fcol" title="${esc(tip)}" style="cursor:help">${v}</td>`;
 }
 // Estoque de segurança: guardado na tabela estoque_seguranca (filial + código + quantidade)
-// marcado uma vez vale para todas as filiais (gravado com filial = 'TODAS'; a quantidade é por filial)
-const SEG_TODAS='TODAS';
-const segDe=l=>SEG[l.fil+'|'+l.cod]||SEG[SEG_TODAS+'|'+l.cod]||null;
+// por filial: cada filial marca o seu (filial + código)
+const segDe=l=>SEG[l.fil+'|'+l.cod]||null;
 function segInfo(l){
   const g=segDe(l);if(!g)return null;
   const falta=Math.max(0,Math.ceil(l.alvo+g.qtd-l.est-l.cam-l.scQtd-l.fq)); // meta normal + segurança
@@ -610,22 +631,22 @@ function celSeg(l){
   if(!SEG_OK)return`<span class="cinza" title="A tabela estoque_seguranca ainda não foi criada no banco">🛡️</span>`;
   const g=segInfo(l);
   if(!g)return`<button class="seg-btn" title="Marcar como estoque de segurança" onclick="marcarSeg('${esc(l.fil)}','${esc(l.cod)}')">☆</button>`;
-  return`<button class="seg-btn on" title="Estoque de segurança (todas as filiais): ${fmtN(g.qtd)} un por filial${g.obs?' · '+esc(g.obs):''}\nComprar a mais para a segurança: ${fmtN(g.extra)}\nClique para alterar ou tirar" onclick="marcarSeg('${esc(l.fil)}','${esc(l.cod)}')">🛡️</button><div class="mini" style="text-align:center">${fmtN(g.qtd)}${g.extra?`<br><b style="color:#0f766e">+${fmtN(g.extra)}</b>`:''}</div>`;
+  return`<button class="seg-btn on" title="Estoque de segurança nesta filial: ${fmtN(g.qtd)} un${g.obs?' · '+esc(g.obs):''}\nComprar a mais para a segurança: ${fmtN(g.extra)}\nClique para alterar ou tirar" onclick="marcarSeg('${esc(l.fil)}','${esc(l.cod)}')">🛡️</button><div class="mini" style="text-align:center">${fmtN(g.qtd)}${g.extra?`<br><b style="color:#0f766e">+${fmtN(g.extra)}</b>`:''}</div>`;
 }
 async function marcarSeg(fil,cod){
   const l=LINHAS.find(x=>x.fil===fil&&x.cod===cod);if(!l)return;
-  const k=SEG_TODAS+'|'+cod,atual=SEG[k];
+  const k=fil+'|'+cod,atual=SEG[k];
   const sug=atual?atual.qtd:Math.max(1,l.abaixoPico?l.pico:Math.ceil(l.media));
-  const r=prompt(`🛡️ Estoque de segurança — ${l.desc}\nVale para TODAS as filiais.\n\nQuantidade de segurança POR FILIAL (fora a meta normal; em ${l.filNome} a meta é ${fmtN(l.alvo)}):${atual?'\n(deixe 0 para tirar da lista)':''}`,String(sug));
+  const r=prompt(`🛡️ Estoque de segurança — ${l.desc}\n${l.filNome}\n\nQuantidade de segurança nesta filial (fora a meta normal de ${fmtN(l.alvo)}):${atual?'\n(deixe 0 para tirar da lista)':''}`,String(sug));
   if(r===null)return;
   const q=Math.max(0,Math.round(Number(String(r).replace(',','.'))||0));
   try{
     if(q===0){
       if(!atual)return;
-      const {error}=await db.from('estoque_seguranca').delete().eq('filial',SEG_TODAS).eq('codigo',cod);if(error)throw error;
+      const {error}=await db.from('estoque_seguranca').delete().eq('filial',fil).eq('codigo',cod);if(error)throw error;
       delete SEG[k];
     }else{
-      const {error}=await db.from('estoque_seguranca').upsert({filial:SEG_TODAS,codigo:cod,descricao:l.desc,qtd:q,atualizado_em:new Date().toISOString()},{onConflict:'filial,codigo'});if(error)throw error;
+      const {error}=await db.from('estoque_seguranca').upsert({filial:fil,codigo:cod,descricao:l.desc,qtd:q,atualizado_em:new Date().toISOString()},{onConflict:'filial,codigo'});if(error)throw error;
       SEG[k]={qtd:q,obs:atual?.obs||'',em:new Date().toISOString()};
     }
     aplicar();
@@ -638,7 +659,6 @@ function badgeSit(l){
 function badgeSit0(l){
   if(l.status==='pedir')return`<span class="badge-alerta">🔴 Pedir ${fmtN(l.comprar)}</span>`;
   if(l.status==='solicitado')return`<span class="badge-azul">📝 ${l.fq>0&&l.est+l.cam+l.scQtd<l.alvo?'No formulário':'Já solicitado'}</span>`;
-  if(l.status==='depende')return`<span class="badge-bloq">🟡 Depende da entrega</span>`;
   if(l.status==='ok')return`<span class="badge-ok">✓ Normal</span>`;
   return`<span class="badge-zero">Sem saída</span>`;
 }
@@ -649,7 +669,7 @@ function estTip(l){
 }
 function badgeEst(l){
   if(l.est<=0)return`<span class="${l.alvo>0?'badge-alerta':'badge-zero'}">0</span>`;
-  return`<span class="${l.status==='ok'||l.status==='sem'?'badge-ok':l.status==='depende'?'badge-bloq':'badge-alerta'}">${fmtN(l.est)}</span>`;
+  return`<span class="${l.status==='ok'||l.status==='sem'?'badge-ok':l.status==='solicitado'?'badge-bloq':'badge-alerta'}">${fmtN(l.est)}</span>`;
 }
 function tipoTxt(l){
   if(l.tipo==='trocas')return'só trocas';
@@ -743,23 +763,23 @@ function renderCards(){
     const n=s=>L.filter(l=>l.status===s).length;
     const abc={A:0,B:0,C:0};T.forEach(l=>{if(l.abc)abc[l.abc]++});
     const atr=new Set(L.flatMap(l=>l.atrasados.map(p=>p.pc))).size;
-    return{f,skus:T.length,comSaida:abc.A+abc.B+abc.C,abc,pedir:n('pedir'),sol:n('solicitado'),dep:n('depende'),ok:n('ok'),atr,
+    return{f,skus:T.length,comSaida:abc.A+abc.B+abc.C,abc,pedir:n('pedir'),sol:n('solicitado'),ok:n('ok'),atr,
       valor:L.filter(l=>l.status==='pedir').reduce((s,l)=>s+l.valor,0),seg:L.filter(l=>segDe(l)).length,segExtra:L.reduce((s,l)=>s+(segInfo(l)?.extra||0),0),aPedirA:L.filter(l=>l.status==='pedir'&&l.abc==='A').length};
   }).filter(c=>c.skus>0).sort((a,b)=>b.pedir-a.pedir||b.valor-a.valor||a.f.localeCompare(b.f));
   if(!C.length){$('tabela').innerHTML='<div class="vazio">Nenhuma filial com esses filtros.</div>';return}
   const pct=(v,t)=>(100*v/t).toFixed(1)+'%';
   $('tabela').innerHTML=`<div class="cards-topo"><span>Clique na filial para ver os itens, SCs e pedidos. Ordenado por itens a romper.</span>
     <button class="pill-btn" onclick="abrirFilial('')">Ver lista de todas as filiais</button></div><div class="cards-fil">`+
-    C.map(c=>{const ativos=c.pedir+c.sol+c.dep+c.ok||1;return`<button class="card-fil" onclick="abrirFilial('${esc(c.f)}')">
+    C.map(c=>{const ativos=c.pedir+c.sol+c.ok||1;return`<button class="card-fil" onclick="abrirFilial('${esc(c.f)}')">
       <div class="cf-top"><span class="cf-nome">${esc(nomeFil(c.f))}</span><span class="cf-cod">${esc(c.f)}</span></div>
       <div class="cf-risco"><b class="${c.pedir?'red':'verde'}">${fmtN(c.pedir)}</b><span class="cf-lab">itens a romper${c.pedir?' · ≈ '+fmtCurto(c.valor):''}${c.aPedirA?` · <span class="red" style="font-weight:700">${fmtN(c.aPedirA)} curva A</span>`:''}</span></div>
-      <div class="cf-barra" title="Pedir agora / Já solicitado / Depende da entrega / Normal">
+      <div class="cf-barra" title="Pedir agora / Já solicitado / Normal">
         <span style="width:${pct(c.pedir,ativos)};background:#ef4444"></span><span style="width:${pct(c.sol,ativos)};background:#3b82f6"></span>
-        <span style="width:${pct(c.dep,ativos)};background:#f59e0b"></span><span style="width:${pct(c.ok,ativos)};background:#22c55e"></span></div>
+        <span style="width:${pct(c.ok,ativos)};background:#22c55e"></span></div>
       <div class="cf-abc"><span class="q"><b>${fmtN(c.skus)}</b> SKUs</span>
         ${['A','B','C'].map(k=>`<span class="q"><span class="abc abc-${k}">${k}</span>${fmtN(c.abc[k])}</span>`).join('')}
         <span class="q cinza">${fmtN(c.skus-c.comSaida)} sem saída</span></div>
-      <div class="cf-rod">${FORMFIL[c.f]?`<span style="flex-basis:100%;color:#7c3aed">📋 Formulário ${fmtData(ymd8(String(FORMFIL[c.f].ultimo).slice(0,10)))} · ${esc(FORMFIL[c.f].forms[0].status.replace('_',' '))}${FORMFIL[c.f].forms.some(x=>!x.sc_numero)?' · sem SC':''}</span>`:'<span style="flex-basis:100%" class="cinza">📋 Sem formulário</span>'}<span>📝 Já solicitado <b>${fmtN(c.sol)}</b></span><span>🟡 Depende <b>${fmtN(c.dep)}</b></span><span>⏰ PCs atrasados <b class="${c.atr?'red':''}">${fmtN(c.atr)}</b></span>${c.seg?`<span style="color:#0f766e">🛡️ Segurança <b style="color:#0f766e">${fmtN(c.seg)}</b>${c.segExtra?' · comprar '+fmtN(c.segExtra)+' un':''}</span>`:''}</div>
+      <div class="cf-rod">${FORMFIL[c.f]?`<span style="flex-basis:100%;color:#7c3aed">📋 Formulário ${fmtData(ymd8(String(FORMFIL[c.f].ultimo).slice(0,10)))} · ${esc(FORMFIL[c.f].forms[0].status.replace('_',' '))}${FORMFIL[c.f].forms.some(x=>!x.sc_numero)?' · sem SC':''}</span>`:'<span style="flex-basis:100%" class="cinza">📋 Sem formulário</span>'}<span>📝 Já solicitado <b>${fmtN(c.sol)}</b></span><span>⏰ PCs atrasados <b class="${c.atr?'red':''}">${fmtN(c.atr)}</b></span>${c.seg?`<span style="color:#0f766e">🛡️ Segurança <b style="color:#0f766e">${fmtN(c.seg)}</b>${c.segExtra?' · comprar '+fmtN(c.segExtra)+' un':''}</span>`:''}</div>
     </button>`}).join('')+'</div>';
 }
 
@@ -769,7 +789,7 @@ function renderItemCards(){
   const sel=$('f-abc').value,porQtd=$('f-abc-por').value==='qtd';
   const G={};
   baseRisco('',true).forEach(l=>{
-    const o=G[l.cod]||(G[l.cod]={cod:l.cod,desc:l.desc,mob:0,tot6:0,peso:0,media:0,trocas:0,est:0,cam:0,scQtd:0,nSc:0,nPc:0,atr:0,valor:0,fils:0,pedir:0,sol:0,dep:0,ok:0,romper:[]});
+    const o=G[l.cod]||(G[l.cod]={cod:l.cod,desc:l.desc,mob:0,tot6:0,peso:0,media:0,trocas:0,est:0,cam:0,scQtd:0,nSc:0,nPc:0,atr:0,valor:0,fils:0,pedir:0,sol:0,ok:0,romper:[]});
     o.mob+=l.mob;o.tot6+=l.tot6;o.peso+=l.peso;o.media+=Math.max(l.media,l.trocas/l.prazo);o.trocas+=l.trocas;o.est+=l.est;o.cam+=l.cam;o.scQtd+=l.scQtd;o.nSc+=l.scs.length;o.nPc+=l.pcs.length;o.atr+=l.atrasados.length;
     o.valor+=l.valor;o.fils++;if(l.status in o)o[l.status]++;if(l.status==='pedir')o.romper.push(l.fil);
   });
@@ -783,15 +803,15 @@ function renderItemCards(){
   const opc=[['saida','Mais saem'],['romper','Mais filiais a romper'],['valor','Maior valor a comprar']];
   $('tabela').innerHTML=`<div class="cards-topo"><span>Top ${fmtN(Math.min(TOP,L.length))} de ${fmtN(L.length)} itens com saída (todas as filiais somadas). Clique no item para ver filial por filial.</span>
     <div class="seg-ord">${opc.map(([k,t])=>`<button class="pill-btn ${ORD_ITEM===k?'ativo':''}" onclick="setOrdItem('${k}')">${t}</button>`).join(' ')}</div></div><div class="cards-fil">`+
-    L.slice(0,TOP).map((o,i)=>{const ativos=o.pedir+o.sol+o.dep+o.ok||1;const cob=o.media>0?o.est/o.media:null;
+    L.slice(0,TOP).map((o,i)=>{const ativos=o.pedir+o.sol+o.ok||1;const cob=o.media>0?o.est/o.media:null;
       const nomes=o.romper.map(nomeFil);
       return`<button class="card-fil" onclick="abrirItem('${esc(o.cod)}')">
       <div class="cf-top"><span class="cf-cod">#${i+1} · ${esc(o.cod)}</span><span class="abc abc-${o.abc}" title="Curva ${o.abc} na empresa">${o.abc}</span></div>
       <div class="cf-nome" style="margin-top:4px;line-height:1.3">${esc(o.desc)}</div>
       <div class="cf-risco"><b class="${o.pedir?'red':'verde'}">${fmtN(o.pedir)}</b><span class="cf-lab">de ${fmtN(o.fils)} filiais a romper${o.valor?' · ≈ '+fmtCurto(o.valor):''}</span></div>
-      <div class="cf-barra" title="Filiais: Pedir agora / Já solicitado / Depende da entrega / Normal">
+      <div class="cf-barra" title="Filiais: Pedir agora / Já solicitado / Normal">
         <span style="width:${pct(o.pedir,ativos)};background:#ef4444"></span><span style="width:${pct(o.sol,ativos)};background:#3b82f6"></span>
-        <span style="width:${pct(o.dep,ativos)};background:#f59e0b"></span><span style="width:${pct(o.ok,ativos)};background:#22c55e"></span></div>
+        <span style="width:${pct(o.ok,ativos)};background:#22c55e"></span></div>
       <div class="cf-abc"><span class="q">Saída/mês <b>${fmtN(o.media)}</b></span><span class="q">Estoque <b>${fmtN(o.est)}</b></span>
         <span class="q ${cob!=null&&cob<2?'red':''}">Cobertura <b>${cob!=null?fmtN(Math.round(cob*30.44))+' d':'—'}</b></span></div>
       <div class="cf-rod"><span>📝 SC aberta <b>${o.scQtd?fmtN(o.scQtd)+' ('+o.nSc+')':'—'}</b></span><span>🚚 A caminho <b>${o.cam?fmtN(o.cam):'—'}</b></span>
@@ -821,8 +841,9 @@ function renderNota(){
     <b>Trocas prev.</b> = trocas de itens pessoais que vencem dentro do prazo, pela vida útil de cada item e pelo tamanho que cada pessoa recebeu por último; em azul quando a meta veio das trocas.
     <b>Pedido (a caminho)</b> = saldo em pedido de compra do Protheus (SB2) e os pedidos em aberto (passe o mouse para ver todos).
     <b>SC aberta</b> = solicitação ainda sem pedido (pendente, bloqueada ou em cotação, último ano).
-    Situação: <b>Pedir agora</b> = estoque + pedido + SC aberta não chegam à meta; <b>Já solicitado</b> = só chega contando a SC aberta;
-    <b>Depende da entrega</b> = o estoque não chega, o pedido cobre.
+    Situação: <b>Pedir agora</b> = estoque + pedido + SC aberta não chegam à meta; <b>Já solicitado</b> = o estoque sozinho não chega, mas pedido a caminho, SC aberta ou formulário cobre;
+
+    <b>➕ Incluir no formulário</b>: nos itens que ficaram de fora, foram cortados ou não cobrem, coloca a quantidade final no último formulário (sem SC), já aprovada para virar SC — aparece no Painel principal como alterada pelo master ("painel ruptura").
     <b>Último formulário</b>: rodada mais recente de cada filial (formulários até ${DIAS_RODADA} dias antes do último, todos os CCs; recusados inteiros não contam). Mostra almoxarife → gerente → final do master (roxo = mudou);
     a final de formulário que ainda não virou SC conta como <b>já pedida</b>. Veredito: ✂️ cortado e ainda pode faltar; ⚠ o pedido (mesmo sem corte) não cobre; ❗ o item não estava no formulário e pode faltar; ➖ não estava no formulário, mas o estoque, um pedido ou uma SC já cobre; ➕ final mais que o dobro do que faltava.
     <b>Tirar do consumo</b>: por padrão o consumo conta <b>todas</b> as saídas. Marque <b>Mobilização</b> (motivo A — kits de equipe nova, compra direcionada) e/ou Admissional (motivo 5) para tirá-las da média; o <span style="color:#7c3aed">*</span> mostra quanto foi tirado.
@@ -841,7 +862,7 @@ function exportarExcel(){
   if(ABA==='risco'){
     nome='risco_'+PILL;
     rows=FILTRADOS.map(l=>({Filial:l.fil+' '+l.filNome,'Código':l.cod,'Descrição':l.desc,Grupo:nomeGrupo(l.gk,l.desc),
-      'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Abaixo do pico (sem mobilização)':l.abaixoPico?'sim (pico '+l.pico+')':'','Curva ABC':l.abc,
+      'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Abaixo do pico (sem mobilização)':l.abaixoPico?'sim (pico '+l.pico+')':'','Curva ABC':l.abc,
       'Estoque de segurança':segInfo(l)?.qtd||'','Comprar p/ segurança':segInfo(l)?.extra||'',Estoque:l.est,'Estoque por armazém':Object.entries(l.arm||{}).sort().map(([k,q])=>k+': '+q).join(' · '),'Consumo médio/mês':Math.round(l.media),'% da saída por mobilização':Math.round(l.pctMob*100),'Tirado do consumo (6 meses)':l.tirado?Object.entries(l.tirado).map(([m,q])=>m+' '+q).join(' · '):'','Cobertura (dias)':l.cob==null?'':Math.round(l.cob*30.44),'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
       'Trocas previstas no prazo':l.trocas,'Trocas vencidas':l.venc,Meta:l.alvo,'Meta por':l.porTrocas?'Trocas':'Consumo',
       'Form. almoxarife':l.fm?l.fm.alm:'','Form. gerente':l.fm&&l.fm.temGer?l.fm.ger:'','Form. final (master)':l.fm?(l.fm.rec?'recusado':l.fm.fin):'',

@@ -24,6 +24,9 @@
   - A final de formulário **sem SC** conta como já pedida (situação "No formulário"); depois que vira SC passa a contar pela SC aberta / pedido.
   - Veredito por item: ✅ coberto · ✂️ cortado e pode faltar · 🚫 recusado e pode faltar · ⚠ pedido não cobre · ❗ ficou de fora
     e pode faltar · ➖ fora do formulário, mas estoque / pedido / SC cobre · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
+  - **➕ Incluir/Ajustar no formulário** (27/10): botão no veredito dos itens que ficaram de fora, foram cortados/recusados ou
+    não cobrem, quando a filial tem formulário sem SC (pendente/aguardando master). Pergunta o formulário (se houver mais de um CC) e a
+    quantidade FINAL (sugestão = final atual + Comprar) e chama `incluir_item_ruptura` → o item fica aprovado para virar SC no Painel principal.
   - Colunas separadas (fundo lilás, ordenáveis): Almoxarife (sugestão do formulário no mouse) | Gerente | Master (final) | Veredito (27/10).
     A coluna e a pílula "Transferir de" foram tiradas a pedido da Raissa (o cálculo de sobra continua no código).
   - Na lista da filial: cartão roxo com nº/CC/status/solicitante, quantos itens cada um mexeu, recusados e os vereditos com valor.
@@ -45,7 +48,7 @@
 - Estoque: mouse mostra o saldo **por armazém** e o horário da foto do `estoque_sb2` (o painel soma todos os armazéns; em Cascavel o EPI
   está todo no 01 — o 04 é frota). Outras filiais têm EPI nos armazéns 02, 05, 52, 58, 09, 11, 12, 10: confirmar quais são reserva/descarte.
 - **🛡️ Estoque de segurança** (27/10): coluna com escudo — clique pede a quantidade de segurança (sugestão: pico, ou consumo/mês) e grava
-  em `estoque_seguranca` com **filial = 'TODAS'** (marcado uma vez vale para todas as filiais; a qtd é por filial; 0 tira). Pílula "🛡️ Estoque de segurança" lista os itens; "+N" = comprar a mais
+  em `estoque_seguranca` **por filial** (filial + código; 0 tira). (Em 27/10 chegou a valer para todas as filiais; a Raissa voltou atrás.) Pílula "🛡️ Estoque de segurança" lista os itens; "+N" = comprar a mais
   (meta + segurança − estoque − pedido − SC − formulário − o que já está em "Pedir"). Cartão da filial mostra quantos e quanto comprar.
   Sem a tabela, o escudo fica cinza. Vereditos dizem **"pode faltar"** (antes "vai faltar"); o aviso de pico é "⚠ Abaixo do pico".
   SQL (SQL Editor):
@@ -72,8 +75,8 @@
   Pontual: o maior pico do mês **sem mobilização** vira só o aviso amarelo "⚠ abaixo do pico" (pílula própria) quando
   estoque + pedido + SC + formulário < pico — não entra na compra (ex.: colete air bag Cascavel, pico 3 em jul/26, estoque 2).
   Veredito novo: "🚫 Recusado · estoque cobre".
-- Situação: **Pedir agora** (estoque + a caminho + SC aberta < meta); **Já solicitado** (só cobre contando a SC aberta);
-  **Depende da entrega** (estoque < meta ≤ estoque + a caminho); Normal; Sem saída. Pílulas extras: zerados com saída, pedido atrasado,
+- Situação: **Pedir agora** (estoque + a caminho + SC aberta + formulário < meta); **Já solicitado** (o estoque sozinho não chega,
+  mas pedido a caminho, SC aberta ou formulário cobre — "Depende da entrega" foi juntado aqui em 27/10); Normal; Sem saída. Pílulas extras: zerados com saída, pedido atrasado,
   SC aberta, pode transferir (filial com estoque > 6 meses de consumo).
 - **Trocas previstas** (26/10): `trocas_previstas(71, 99)` devolve, por filial × código, as trocas de itens pessoais que caem dentro do
   prazo do grupo (vencidas contam como hoje; item de vida curta conta mais de uma troca; no máximo 4 unidades por pessoa). Usa o
