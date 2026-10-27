@@ -22,8 +22,8 @@
   - Último formulário = rodada mais recente da filial em `solicitacoes` (status ≠ recusada; junta formulários até 15 dias antes do último, todos os CCs).
     Itens em `solicitacao_itens`: `qtd_sugerida` (sistema) → `qtd_almoxarife` → `qtd_gerente` → `quantidade` (final do master; roxo = mudou), `situacao` recusado.
   - A final de formulário **sem SC** conta como já pedida (situação "No formulário"); depois que vira SC passa a contar pela SC aberta / pedido.
-  - Veredito por item: ✅ coberto · ✂️ cortado e vai faltar · 🚫 recusado e vai faltar · ⚠ pedido não cobre · ❗ ficou de fora
-    e vai faltar · ➖ fora do formulário, mas estoque / pedido / SC cobre · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
+  - Veredito por item: ✅ coberto · ✂️ cortado e pode faltar · 🚫 recusado e pode faltar · ⚠ pedido não cobre · ❗ ficou de fora
+    e pode faltar · ➖ fora do formulário, mas estoque / pedido / SC cobre · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
   - Colunas separadas (fundo lilás, ordenáveis): Almoxarife (sugestão do formulário no mouse) | Gerente | Master (final) | Veredito (27/10).
     A coluna e a pílula "Transferir de" foram tiradas a pedido da Raissa (o cálculo de sobra continua no código).
   - Na lista da filial: cartão roxo com nº/CC/status/solicitante, quantos itens cada um mexeu, recusados e os vereditos com valor.
@@ -45,9 +45,9 @@
 - Estoque: mouse mostra o saldo **por armazém** e o horário da foto do `estoque_sb2` (o painel soma todos os armazéns; em Cascavel o EPI
   está todo no 01 — o 04 é frota). Outras filiais têm EPI nos armazéns 02, 05, 52, 58, 09, 11, 12, 10: confirmar quais são reserva/descarte.
 - **🛡️ Estoque de segurança** (27/10): coluna com escudo — clique pede a quantidade de segurança (sugestão: pico, ou consumo/mês) e grava
-  em `estoque_seguranca` (upsert por filial+código; 0 tira). Pílula "🛡️ Estoque de segurança" lista os itens; "+N" = comprar a mais
+  em `estoque_seguranca` com **filial = 'TODAS'** (marcado uma vez vale para todas as filiais; a qtd é por filial; 0 tira). Pílula "🛡️ Estoque de segurança" lista os itens; "+N" = comprar a mais
   (meta + segurança − estoque − pedido − SC − formulário − o que já está em "Pedir"). Cartão da filial mostra quantos e quanto comprar.
-  Sem a tabela, o escudo fica cinza. O aviso de pico agora se chama **"⚠ Pode faltar"**.
+  Sem a tabela, o escudo fica cinza. Vereditos dizem **"pode faltar"** (antes "vai faltar"); o aviso de pico é "⚠ Abaixo do pico".
   SQL (SQL Editor):
   ```sql
   create table public.estoque_seguranca(

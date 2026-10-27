@@ -463,8 +463,8 @@ function base(lista,fil=$('f-filial').value){
 }
 const PILLS_RISCO=[['todos','Todos',()=>true],['pedir','🔴 Pedir agora',l=>l.status==='pedir'],['solicitado','📝 Já solicitado (SC ou formulário cobre)',l=>l.status==='solicitado'],
   ['depende','🟡 Depende da entrega',l=>l.status==='depende'],['zerado','✕ Zerados com saída',l=>l.zerado],['atrasado','⏰ Pedido atrasado',l=>l.atrasados.length>0],
-  ['sc','SC aberta',l=>l.scs.length>0],['ff','📋 No formulário',l=>!!l.fm],['cortado','✂️ Cortado/recusado e vai faltar',l=>l.ver==='cortado'||l.ver==='recusado'],
-  ['fora','❗ Ficou de fora e vai faltar',l=>l.ver==='fora'],['foraok','➖ Fora do formulário · já coberto',l=>/^fora_/.test(l.ver)],['amais','➕ Pediu a mais',l=>l.ver==='amais'],['pico','⚠ Pode faltar',l=>l.abaixoPico],['seg','🛡️ Estoque de segurança',l=>!!SEG[l.fil+'|'+l.cod]],['mob','🟣 Mobilização pesa',l=>l.pctMob>=PESO_MOB]];
+  ['sc','SC aberta',l=>l.scs.length>0],['ff','📋 No formulário',l=>!!l.fm],['cortado','✂️ Cortado/recusado e pode faltar',l=>l.ver==='cortado'||l.ver==='recusado'],
+  ['fora','❗ Ficou de fora e pode faltar',l=>l.ver==='fora'],['foraok','➖ Fora do formulário · já coberto',l=>/^fora_/.test(l.ver)],['amais','➕ Pediu a mais',l=>l.ver==='amais'],['pico','⚠ Abaixo do pico',l=>l.abaixoPico],['seg','🛡️ Estoque de segurança',l=>!!segDe(l)],['mob','🟣 Mobilização pesa',l=>l.pctMob>=PESO_MOB]];
 const PILLS_TROCAS=[['vencida','Vencidas',t=>t.dias<0],['30','Próximos 30 dias',t=>t.dias>=0&&t.dias<=30],['90','Próximos 90 dias',t=>t.dias>=0],['todas','Todas',()=>true]];
 
 function trocasFiltradas(sit=SIT){
@@ -532,7 +532,7 @@ function renderPills(){
   $('pills').innerHTML=h;
 }
 
-// Cartão do formulário (na lista de uma filial): quem mexeu e o que vai faltar — para apresentar à gerência
+// Cartão do formulário (na lista de uma filial): quem mexeu e o que pode faltar — para apresentar à gerência
 function cartaoFormulario(){
   const f=$('f-filial').value,R=FORMFIL[f];
   if(VISTA!=='lista'||!f||ITEM_SEL)return'';
@@ -549,9 +549,9 @@ function cartaoFormulario(){
       <span>Gerente mudou <b>${fmtN(R.ger)}</b></span><span>Master mudou <b>${fmtN(R.mst)}</b></span><span>Recusados <b>${fmtN(R.rec)}</b></span></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:6px;font-size:12.5px">
       <span class="verde">✅ Coberto <b>${fmtN(cob.length)}</b></span>
-      <span class="red">✂️ Cortado/recusado e vai faltar <b>${fmtN(cort.length)}</b> (${val(cort)})</span>
+      <span class="red">✂️ Cortado/recusado e pode faltar <b>${fmtN(cort.length)}</b> (${val(cort)})</span>
       <span class="amb">⚠ Pedido não cobre <b>${fmtN(nc.length)}</b> (${val(nc)})</span>
-      <span class="red">❗ Ficou de fora e vai faltar <b>${fmtN(fora.length)}</b> (${val(fora)})</span>
+      <span class="red">❗ Ficou de fora e pode faltar <b>${fmtN(fora.length)}</b> (${val(fora)})</span>
       <span style="color:#64748b">➖ Fora do formulário, mas já coberto <b>${fmtN(foraok.length)}</b> (estoque ${fmtN(n('fora_est').length)} · pedido ${fmtN(n('fora_ped').length)} · SC ${fmtN(n('fora_sc').length)})</span>
       <span style="color:#1e40af">➕ Pediu a mais <b>${fmtN(am.length)}</b></span></div></div>`;
 }
@@ -577,8 +577,8 @@ function renderResumo(){
   $('resumo').innerHTML=(ABA==='risco'?cartaoFormulario():'')+c;
 }
 
-const VEREDITO={coberto:['✅ Coberto','badge-ok'],cortado:['✂️ Cortado e vai faltar','badge-alerta'],recusado:['🚫 Recusado e vai faltar','badge-alerta'],
-  naocobre:['⚠ Pedido não cobre','badge-bloq'],amais:['➕ Pediu a mais','badge-azul'],fora:['❗ Ficou de fora e vai faltar','badge-alerta'],
+const VEREDITO={coberto:['✅ Coberto','badge-ok'],cortado:['✂️ Cortado e pode faltar','badge-alerta'],recusado:['🚫 Recusado e pode faltar','badge-alerta'],
+  naocobre:['⚠ Pedido não cobre','badge-bloq'],amais:['➕ Pediu a mais','badge-azul'],fora:['❗ Ficou de fora e pode faltar','badge-alerta'],
   fora_est:['➖ Fora do formulário · estoque cobre','badge-zero'],fora_ped:['➖ Fora do formulário · pedido cobre','badge-zero'],fora_sc:['➖ Fora do formulário · SC cobre','badge-zero'],
   rec_ok:['🚫 Recusado · estoque cobre','badge-zero']};
 // Colunas do último formulário: uma por etapa (roxo = mudou em relação à etapa anterior) + veredito
@@ -594,8 +594,11 @@ function colsForm(l){
     <td class="fcol" title="${esc(tip)}" style="cursor:help">${v}</td>`;
 }
 // Estoque de segurança: guardado na tabela estoque_seguranca (filial + código + quantidade)
+// marcado uma vez vale para todas as filiais (gravado com filial = 'TODAS'; a quantidade é por filial)
+const SEG_TODAS='TODAS';
+const segDe=l=>SEG[l.fil+'|'+l.cod]||SEG[SEG_TODAS+'|'+l.cod]||null;
 function segInfo(l){
-  const g=SEG[l.fil+'|'+l.cod];if(!g)return null;
+  const g=segDe(l);if(!g)return null;
   const falta=Math.max(0,Math.ceil(l.alvo+g.qtd-l.est-l.cam-l.scQtd-l.fq)); // meta normal + segurança
   return{...g,extra:Math.max(0,falta-l.comprar)};
 }
@@ -603,29 +606,29 @@ function celSeg(l){
   if(!SEG_OK)return`<span class="cinza" title="A tabela estoque_seguranca ainda não foi criada no banco">🛡️</span>`;
   const g=segInfo(l);
   if(!g)return`<button class="seg-btn" title="Marcar como estoque de segurança" onclick="marcarSeg('${esc(l.fil)}','${esc(l.cod)}')">☆</button>`;
-  return`<button class="seg-btn on" title="Estoque de segurança: ${fmtN(g.qtd)} un${g.obs?' · '+esc(g.obs):''}\nComprar a mais para a segurança: ${fmtN(g.extra)}\nClique para alterar ou tirar" onclick="marcarSeg('${esc(l.fil)}','${esc(l.cod)}')">🛡️</button><div class="mini" style="text-align:center">${fmtN(g.qtd)}${g.extra?`<br><b style="color:#0f766e">+${fmtN(g.extra)}</b>`:''}</div>`;
+  return`<button class="seg-btn on" title="Estoque de segurança (todas as filiais): ${fmtN(g.qtd)} un por filial${g.obs?' · '+esc(g.obs):''}\nComprar a mais para a segurança: ${fmtN(g.extra)}\nClique para alterar ou tirar" onclick="marcarSeg('${esc(l.fil)}','${esc(l.cod)}')">🛡️</button><div class="mini" style="text-align:center">${fmtN(g.qtd)}${g.extra?`<br><b style="color:#0f766e">+${fmtN(g.extra)}</b>`:''}</div>`;
 }
 async function marcarSeg(fil,cod){
   const l=LINHAS.find(x=>x.fil===fil&&x.cod===cod);if(!l)return;
-  const k=fil+'|'+cod,atual=SEG[k];
+  const k=SEG_TODAS+'|'+cod,atual=SEG[k];
   const sug=atual?atual.qtd:Math.max(1,l.abaixoPico?l.pico:Math.ceil(l.media));
-  const r=prompt(`🛡️ Estoque de segurança — ${l.desc}\n${l.filNome}\n\nQuantidade de segurança (fora a meta normal de ${fmtN(l.alvo)}):${atual?'\n(deixe 0 para tirar da lista)':''}`,String(sug));
+  const r=prompt(`🛡️ Estoque de segurança — ${l.desc}\nVale para TODAS as filiais.\n\nQuantidade de segurança POR FILIAL (fora a meta normal; em ${l.filNome} a meta é ${fmtN(l.alvo)}):${atual?'\n(deixe 0 para tirar da lista)':''}`,String(sug));
   if(r===null)return;
   const q=Math.max(0,Math.round(Number(String(r).replace(',','.'))||0));
   try{
     if(q===0){
       if(!atual)return;
-      const {error}=await db.from('estoque_seguranca').delete().eq('filial',fil).eq('codigo',cod);if(error)throw error;
+      const {error}=await db.from('estoque_seguranca').delete().eq('filial',SEG_TODAS).eq('codigo',cod);if(error)throw error;
       delete SEG[k];
     }else{
-      const {error}=await db.from('estoque_seguranca').upsert({filial:fil,codigo:cod,descricao:l.desc,qtd:q,atualizado_em:new Date().toISOString()},{onConflict:'filial,codigo'});if(error)throw error;
+      const {error}=await db.from('estoque_seguranca').upsert({filial:SEG_TODAS,codigo:cod,descricao:l.desc,qtd:q,atualizado_em:new Date().toISOString()},{onConflict:'filial,codigo'});if(error)throw error;
       SEG[k]={qtd:q,obs:atual?.obs||'',em:new Date().toISOString()};
     }
     aplicar();
   }catch(e){alert('Não consegui salvar: '+(e.message||e))}
 }
 function badgeSit(l){
-  const pico=l.abaixoPico?`<div style="margin-top:3px"><span class="badge-bloq" title="Maior saída num mês (sem mobilização): ${fmtN(l.pico)} em ${fmtMes(l.mp)}. Estoque + pedido + SC + formulário = ${fmtN(l.est+l.cam+l.scQtd+l.fq)}. Só aviso — não entra na compra.">⚠ Pode faltar (pico ${fmtN(l.pico)})</span></div>`:'';
+  const pico=l.abaixoPico?`<div style="margin-top:3px"><span class="badge-bloq" title="Maior saída num mês (sem mobilização): ${fmtN(l.pico)} em ${fmtMes(l.mp)}. Estoque + pedido + SC + formulário = ${fmtN(l.est+l.cam+l.scQtd+l.fq)}. Só aviso — não entra na compra.">⚠ Abaixo do pico (${fmtN(l.pico)})</span></div>`:'';
   return badgeSit0(l)+pico;
 }
 function badgeSit0(l){
@@ -737,7 +740,7 @@ function renderCards(){
     const abc={A:0,B:0,C:0};T.forEach(l=>{if(l.abc)abc[l.abc]++});
     const atr=new Set(L.flatMap(l=>l.atrasados.map(p=>p.pc))).size;
     return{f,skus:T.length,comSaida:abc.A+abc.B+abc.C,abc,pedir:n('pedir'),sol:n('solicitado'),dep:n('depende'),ok:n('ok'),atr,
-      valor:L.filter(l=>l.status==='pedir').reduce((s,l)=>s+l.valor,0),seg:L.filter(l=>SEG[l.fil+'|'+l.cod]).length,segExtra:L.reduce((s,l)=>s+(segInfo(l)?.extra||0),0),aPedirA:L.filter(l=>l.status==='pedir'&&l.abc==='A').length};
+      valor:L.filter(l=>l.status==='pedir').reduce((s,l)=>s+l.valor,0),seg:L.filter(l=>segDe(l)).length,segExtra:L.reduce((s,l)=>s+(segInfo(l)?.extra||0),0),aPedirA:L.filter(l=>l.status==='pedir'&&l.abc==='A').length};
   }).filter(c=>c.skus>0).sort((a,b)=>b.pedir-a.pedir||b.valor-a.valor||a.f.localeCompare(b.f));
   if(!C.length){$('tabela').innerHTML='<div class="vazio">Nenhuma filial com esses filtros.</div>';return}
   const pct=(v,t)=>(100*v/t).toFixed(1)+'%';
@@ -809,7 +812,7 @@ function irPag(p){PAG=p;render();window.scrollTo({top:$('resumo').offsetTop,beha
 
 function renderNota(){
   $('nota').innerHTML=ABA==='risco'?
-    `<b>Como funciona:</b> consumo = média dos últimos 6 meses (meses sem saída contam zero); itens <b>pontuais</b> (saída em 1–2 dos 6 meses) também usam a média; o maior pico do mês (sem mobilização) vira só o aviso <b>⚠ Pode faltar</b>, sem entrar na compra. <b>🛡️ Estoque de segurança</b>: clique no escudo para guardar o item com a quantidade de segurança; a pílula lista esses itens e quanto comprar a mais para ter a segurança.
+    `<b>Como funciona:</b> consumo = média dos últimos 6 meses (meses sem saída contam zero); itens <b>pontuais</b> (saída em 1–2 dos 6 meses) também usam a média; o maior pico do mês (sem mobilização) vira só o aviso <b>⚠ Abaixo do pico</b>, sem entrar na compra. <b>🛡️ Estoque de segurança</b>: clique no escudo para guardar o item com a quantidade de segurança; a pílula lista esses itens e quanto comprar a mais para ter a segurança.
     <b>Prazo do grupo</b> = tempo da SC até a chegada em 8 de cada 10 compras de 2026 (EPI ≈ 2,3 meses; fardamento ≈ 3,3 meses); a <b>meta</b> é o consumo desse prazo.
     <b>Trocas prev.</b> = trocas de itens pessoais que vencem dentro do prazo, pela vida útil de cada item e pelo tamanho que cada pessoa recebeu por último; em azul quando a meta veio das trocas.
     <b>Pedido (a caminho)</b> = saldo em pedido de compra do Protheus (SB2) e os pedidos em aberto (passe o mouse para ver todos).
@@ -817,7 +820,7 @@ function renderNota(){
     Situação: <b>Pedir agora</b> = estoque + pedido + SC aberta não chegam à meta; <b>Já solicitado</b> = só chega contando a SC aberta;
     <b>Depende da entrega</b> = o estoque não chega, o pedido cobre.
     <b>Último formulário</b>: rodada mais recente de cada filial (formulários até ${DIAS_RODADA} dias antes do último, todos os CCs; recusados inteiros não contam). Mostra almoxarife → gerente → final do master (roxo = mudou);
-    a final de formulário que ainda não virou SC conta como <b>já pedida</b>. Veredito: ✂️ cortado e ainda vai faltar; ⚠ o pedido (mesmo sem corte) não cobre; ❗ o item não estava no formulário e vai faltar; ➖ não estava no formulário, mas o estoque, um pedido ou uma SC já cobre; ➕ final mais que o dobro do que faltava.
+    a final de formulário que ainda não virou SC conta como <b>já pedida</b>. Veredito: ✂️ cortado e ainda pode faltar; ⚠ o pedido (mesmo sem corte) não cobre; ❗ o item não estava no formulário e pode faltar; ➖ não estava no formulário, mas o estoque, um pedido ou uma SC já cobre; ➕ final mais que o dobro do que faltava.
     <b>Tirar do consumo</b>: por padrão o consumo conta <b>todas</b> as saídas. Marque <b>Mobilização</b> (motivo A — kits de equipe nova, compra direcionada) e/ou Admissional (motivo 5) para tirá-las da média; o <span style="color:#7c3aed">*</span> mostra quanto foi tirado.
     <span style="color:#7c3aed;font-weight:700">% mobilização</span> aparece no item quando 30% ou mais da saída de 6 meses foi mobilização (pílula "Mobilização pesa").
     <b>Curva ABC</b> (na filial e no grupo escolhidos): A = itens que somam 80% do que sai (em valor = consumo/mês × custo, ou em quantidade), B = próximos 15%, C = últimos 5%; conta também as trocas previstas.`
@@ -834,7 +837,7 @@ function exportarExcel(){
   if(ABA==='risco'){
     nome='risco_'+PILL;
     rows=FILTRADOS.map(l=>({Filial:l.fil+' '+l.filNome,'Código':l.cod,'Descrição':l.desc,Grupo:nomeGrupo(l.gk,l.desc),
-      'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Pode faltar (pico sem mobilização)':l.abaixoPico?'sim (pico '+l.pico+')':'','Curva ABC':l.abc,
+      'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Abaixo do pico (sem mobilização)':l.abaixoPico?'sim (pico '+l.pico+')':'','Curva ABC':l.abc,
       'Estoque de segurança':segInfo(l)?.qtd||'','Comprar p/ segurança':segInfo(l)?.extra||'',Estoque:l.est,'Estoque por armazém':Object.entries(l.arm||{}).sort().map(([k,q])=>k+': '+q).join(' · '),'Consumo médio/mês':Math.round(l.media),'% da saída por mobilização':Math.round(l.pctMob*100),'Tirado do consumo (6 meses)':l.tirado?Object.entries(l.tirado).map(([m,q])=>m+' '+q).join(' · '):'','Cobertura (dias)':l.cob==null?'':Math.round(l.cob*30.44),'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
       'Trocas previstas no prazo':l.trocas,'Trocas vencidas':l.venc,Meta:l.alvo,'Meta por':l.porTrocas?'Trocas':'Consumo',
       'Form. almoxarife':l.fm?l.fm.alm:'','Form. gerente':l.fm&&l.fm.temGer?l.fm.ger:'','Form. final (master)':l.fm?(l.fm.rec?'recusado':l.fm.fin):'',
