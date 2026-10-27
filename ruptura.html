@@ -78,6 +78,13 @@ tr:hover td{background:#f8fafc}
 .card-fil .cf-rod{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;padding-top:8px;border-top:1px solid #f1f5f9;font-size:11.5px;color:#64748b}
 .card-fil .cf-rod b{color:#0f172a}
 .cards-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px;color:#64748b}
+.pop-cons{cursor:pointer;border-bottom:1px dotted #1e40af;color:#1e40af}
+#popup-consumo{display:none;position:fixed;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:14px 16px;min-width:300px;max-width:360px;font-size:12.5px}
+#popup-consumo h4{font-size:12.5px;font-weight:700;margin-bottom:2px;padding-right:18px}
+#popup-consumo table{border:none;margin-top:8px;font-size:12px}
+#popup-consumo th{cursor:default;background:#f8fafc;padding:5px 6px;font-size:10.5px}
+#popup-consumo td{padding:4px 6px}
+#popup-consumo .fechar{position:absolute;top:8px;right:10px;cursor:pointer;color:#94a3b8;font-size:16px;border:none;background:none}
 .fcol{background:#faf5ff}th.fcol{background:#f3e8ff;color:#6b21a8}
 .pill-voltar{border:1px solid #1e40af;color:#1e40af;background:#eff6ff}
 .nota{font-size:11.5px;color:#64748b;line-height:1.55;padding:16px 24px 28px}
@@ -127,6 +134,7 @@ tr:hover td{background:#f8fafc}
 <div class="tabela-wrap"><div id="tabela"><div class="loading">Conectando ao banco...</div></div></div>
 <div class="paginador" id="paginador" style="display:none"><span id="pag-info"></span><div class="pag-btns" id="pag-btns"></div></div>
 <div class="nota" id="nota"></div>
+<div id="popup-consumo"></div>
 
 <script>
 const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
@@ -142,7 +150,7 @@ const POR_PAGINA=100;
 const SC_ABERTA=['Solicitação Pendente','Solicitação Bloqueada','Solicitação em Processo de Cotação'];
 const PC_ABERTO=['Pendente','Em aprovação','Recebido parcialmente','Em recebimento (Pré-nota)','Sem status'];
 
-let LINHAS=[],NOMES_FIL={},ITEM={},DADOS=null,FORMFIL={};
+let LINHAS=[],NOMES_FIL={},ITEM={},DADOS=null,FORMFIL={},POP=null;
 let ABA='risco',PILL='pedir',SIT='vencida',PAG=1,SORT=null,DIR=1;
 let TROCAS=null,VIDA=null,FILTRADOS=[];
 let VISTA='filiais'; // cartões por filial ('filiais') ou por item ('itens') → lista ao clicar ('lista')
@@ -278,6 +286,11 @@ function calcular(){
       const o=CONS[k]||(CONS[k]={});
       o[c.mes]=(o[c.mes]||0)+(Number(c.quantidade)||0);
     });
+    // guarda o mês a mês original e por motivo (popup do consumo)
+    const ORIG={},MOTMES={};
+    Object.entries(CONS).forEach(([k,m])=>{ORIG[k]={...m}});
+    (mot||[]).forEach(r=>{const k=String(r.filial).trim()+'|'+String(r.produto).trim();const o=(MOTMES[k]=MOTMES[k]||{});(o[r.mes]=o[r.mes]||{})[r.motivo]=(o[r.mes][r.motivo]||0)+(Number(r.quantidade)||0)});
+    POP={W,ORIG,MOTMES,CONS};
     // quanto da saída de 6 meses veio de mobilização (marca o item, mesmo sem tirar do consumo)
     const MOB={},TOT6={},MOBMES={};
     Object.entries(CONS).forEach(([k,m])=>{TOT6[k]=Object.values(m).reduce((a,b)=>a+b,0)});
@@ -603,6 +616,32 @@ function celPC(l){
   return`<span title="${esc(tip)}" style="cursor:help"><b>${fmtN(l.cam)}</b> <span class="mini">${l.pcs.length>1?l.pcs.length+' PCs':'PC '+esc(l.pcs[0].pc)}<br>${esc(st)} · ${det}</span></span>`;
 }
 
+// Popup do consumo: mês a mês dos 6 meses (total, mobilização, admissional, o que entrou na média)
+function abrirConsumo(ev,fil,cod){
+  ev.stopPropagation();
+  const k=fil+'|'+cod,l=LINHAS.find(x=>x.fil===fil&&x.cod===cod);if(!POP||!l)return;
+  const o=POP.ORIG[k]||{},mm=POP.MOTMES[k]||{},u=POP.CONS[k]||{};
+  const tMob=$('x-mob').checked,tAdm=$('x-adm').checked;
+  let tot=0,mob=0,adm=0,usa=0;
+  const lin=POP.W.map(m=>{const q=o[m]||0,qm=mm[m]?.['MOBILIZAÇÃO']||0,qa=mm[m]?.['ADMISSIONAL']||0,qu=u[m]||0;tot+=q;mob+=qm;adm+=qa;usa+=qu;
+    return`<tr><td>${fmtMes(m)}</td><td class="num">${q?fmtN(q):'<span class="cinza">0</span>'}</td><td class="num" style="color:#7c3aed">${qm?fmtN(qm):'<span class="cinza">—</span>'}</td><td class="num">${qa?fmtN(qa):'<span class="cinza">—</span>'}</td><td class="num"><b>${fmtN(qu)}</b></td></tr>`}).join('');
+  const p=$('popup-consumo');
+  p.innerHTML=`<button class="fechar" onclick="fecharConsumo()">×</button><h4>${esc(l.desc)}</h4><div class="mini">${esc(cod)} · ${esc(l.filNome)} · ${esc(tipoTxt(l))}</div>
+    <table><thead><tr><th>Mês</th><th class="num">Saiu</th><th class="num">Mobiliz.</th><th class="num">Admiss.</th><th class="num">Na média</th></tr></thead><tbody>${lin}
+    <tr style="border-top:2px solid #e2e8f0"><td><b>Total</b></td><td class="num"><b>${fmtN(tot)}</b></td><td class="num" style="color:#7c3aed">${fmtN(mob)}</td><td class="num">${fmtN(adm)}</td><td class="num"><b>${fmtN(usa)}</b></td></tr></tbody></table>
+    <div class="mini" style="margin-top:8px;line-height:1.5">Média = ${fmtN(usa)} ÷ 6 = <b>${fmtN(usa/6,1)}/mês</b>${tMob||tAdm?' (sem '+[tMob&&'mobilização',tAdm&&'admissional'].filter(Boolean).join(' e ')+')':' (todas as saídas)'}.
+    ${l.trocas?`<br>Trocas previstas no prazo: <b>${fmtN(l.trocas)}</b>${l.porTrocas?' — a meta veio das trocas':''}.`:''}
+    <br>Meta para ${fmtN(l.prazo*30.44)} dias: <b>${fmtN(l.alvo)}</b> · estoque ${fmtN(l.est)} · cobre ≈ ${l.cob==null?'—':fmtN(Math.round(l.cob*30.44))+' dias'}.</div>`;
+  p.style.display='block';
+  const r=ev.target.getBoundingClientRect(),w=p.offsetWidth,h=p.offsetHeight;
+  p.style.left=Math.max(8,Math.min(r.left-w/2,innerWidth-w-8))+'px';
+  p.style.top=(r.bottom+h+8<innerHeight?r.bottom+6:Math.max(8,r.top-h-6))+'px';
+}
+function fecharConsumo(){$('popup-consumo').style.display='none'}
+document.addEventListener('click',e=>{if(!e.target.closest('#popup-consumo'))fecharConsumo()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharConsumo()});
+window.addEventListener('scroll',fecharConsumo,true);
+
 function render(){
   renderPills();renderResumo();renderNota();
   const th=(c,t,cls='')=>`<th class="${cls}" onclick="sortBy('${c}')">${t}${SORT===c?(DIR===1?' ↑':' ↓'):''}</th>`;
@@ -619,7 +658,7 @@ function render(){
       const cobCor=l.cob==null?'cinza':l.cob<l.prazo/2?'red':l.cob<l.prazo?'amb':'verde';
       return`<tr><td class="cod" title="${esc(l.fil)}">${esc(l.filNome)}</td><td class="cod">${esc(l.cod)}</td><td style="min-width:240px">${esc(l.desc)}<div class="mini">${esc(tipoTxt(l))}${l.pctMob>=PESO_MOB?` · <span style="color:#7c3aed;font-weight:700" title="${fmtN(l.mob)} un saíram por mobilização nos 6 meses — ${$('x-mob').checked?'já fora da média':'ainda contando na média'}">${fmtN(l.pctMob*100)}% mobilização</span>`:''}</div></td>
       <td title="${l.abc?'Curva '+l.abc+' · '+($('f-abc-por').value==='qtd'?fmtN(l.peso,1)+' un/mês':fmtR(l.peso)+'/mês'):'Sem saída'}">${l.abc?`<span class="abc abc-${l.abc}">${l.abc}</span>`:'<span class="cinza">—</span>'}</td><td>${badgeSit(l)}</td><td class="num" title="Última movimentação: ${fmtData(l.ult)}">${badgeEst(l)}</td>
-      <td class="num" ${l.tirado?`title="Fora da média (6 meses): ${esc(Object.entries(l.tirado).map(([m,q])=>m.toLowerCase()+' '+fmtN(q)+' un').join(' · '))}"`:''}>${l.media>0?fmtN(Math.max(1,Math.round(l.media))):'<span class="cinza">—</span>'}${l.tirado?'<span class="mini" style="color:#7c3aed"> *</span>':''}</td>
+      <td class="num"><span class="pop-cons" onclick="abrirConsumo(event,'${esc(l.fil)}','${esc(l.cod)}')" title="Clique para ver mês a mês">${l.media>0?fmtN(Math.max(1,Math.round(l.media))):'<span class="cinza">—</span>'}${l.tirado?'<span class="mini" style="color:#7c3aed"> *</span>':''}</span></td>
       <td class="num ${cobCor}" title="Estoque dura ≈ ${l.cob==null?'—':fmtN(l.cob,1)+' meses'} · prazo do grupo ${fmtN(l.prazo*30.44)} dias · meta ${fmtN(l.alvo)} un${l.porTrocas?' (pelas trocas)':''}">${l.cob==null?'—':fmtN(Math.round(l.cob*30.44))+' d'}</td>
       <td class="num">${l.trocas?`<span style="${l.porTrocas?'color:#1e40af':''}" title="${fmtN(l.pessoas)} pessoas · ${fmtN(l.venc)} já vencidas${l.porTrocas?' · meta pelas trocas (consumo pedia '+fmtN(l.alvoCons)+')':''}">${fmtN(l.trocas)}</span>`:'<span class="cinza">—</span>'}</td>
       ${colsForm(l)}<td class="num">${celSC(l)}</td><td class="num">${celPC(l)}</td>
