@@ -5,7 +5,7 @@
 <title>Posição de Estoque</title>
 <script src="vendor/supabase-2.118.0.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
-<style>
+<link rel="stylesheet" href="/padrao.css"><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;min-height:100vh}
 .topo{background:#0f172a;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
@@ -56,13 +56,13 @@ tr:hover td{background:#f8fafc}
 <body>
 
 <div class="topo">
-  <div class="logo">E</div>
+  <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
   <div>
     <h1>Posição de Estoque</h1>
     <span>LWHSB2010 — SB2</span>
   </div>
   <div class="tag" id="tag-sync">Carregando...</div>
-  <div id="tag-ultima" style="font-size:11px;color:#475569;margin-left:4px"></div>
+  <div id="tag-ultima" style="font-size:11px;color:#94a3b8;margin-left:4px"></div>
   <div style="display:flex;gap:6px;margin-right:12px">
     <button id="btn-aba-pos" onclick="irAbaEstoque('posicao')" style="background:#1e40af;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">Posição</button>
     <button id="btn-aba-comp" onclick="irAbaEstoque('comparativo')" style="background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📊 Comparativo</button>

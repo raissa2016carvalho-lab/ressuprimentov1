@@ -1,0 +1,28 @@
+/* Padrão visual B&Q — usado por todas as telas (topo escuro + marca B&Q) */
+:root{
+  --bq-escuro:#0f172a;   /* topo */
+  --bq-azul:#1e40af;     /* botões e destaques */
+  --bq-laranja:#f26522;  /* só o "&" da marca */
+  --bq-fundo:#f1f5f9;
+  --bq-borda:#e2e8f0;
+  --bq-texto:#0f172a;
+  --bq-cinza:#64748b;
+  --bq-verde:#16a34a;
+  --bq-vermelho:#dc2626;
+  --bq-fonte:system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+/* Marca B&Q (imagem oficial). O texto fica escondido, só para leitores de tela */
+.bq-marca{display:inline-block;flex-shrink:0;width:96px;height:30px;background:url(/logo-bq-branco.png) left center/contain no-repeat;font-size:0;line-height:0;color:transparent;text-decoration:none;padding-right:14px;margin-right:2px;border-right:1px solid #334155;box-sizing:content-box}
+.bq-marca b{font-size:0}
+.bq-marca.claro{background-image:url(/logo-bq.png);border-right:0;padding-right:0;width:110px;height:35px}
+.bq-topo{background:var(--bq-escuro);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:var(--bq-fonte)}
+.bq-topo h1{font-size:15px;font-weight:700;margin:0}
+.bq-topo .bq-sub{color:#94a3b8;font-size:12px;margin-top:2px}
+@media(max-width:600px){.bq-topo{padding-left:16px;padding-right:16px}}
+nav .bq-marca{width:68px;height:24px;padding-right:9px}
+/* Telas de login no padrão B&Q: fundo escuro, cartão branco com o logo azul */
+.bq-login-fundo{background:radial-gradient(circle at 25% 15%,#1e3a8a 0,#0f172a 65%)!important;width:100%;box-sizing:border-box;justify-content:center;align-items:center}
+.bq-login-fundo .login-card{border:0;box-shadow:0 20px 50px #00000066;padding:32px}
+.bq-login-logo{display:block;width:120px;height:38px;background:url(/logo-bq.png) left center/contain no-repeat;margin-bottom:18px}
+.bq-login-voltar{display:block;text-align:center;margin-top:16px;font-size:12.5px;color:#64748b;text-decoration:none}
+.bq-login-voltar:hover{color:#1e40af}

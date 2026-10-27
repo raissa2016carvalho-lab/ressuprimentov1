@@ -8,23 +8,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 :root{
-  --bg:#f0f2f5; --surface:#ffffff; --surface2:#f8f9fb; --border:#e2e6ea;
-  --navy:#0d1b3e; --navy2:#112250; --orange:#f26522; --orange2:#ff8c42;
-  --text:#1a1a2e; --muted:#6b7280; --green:#16a34a; --red:#dc2626;
-  --blue:#2563eb; --font:'Inter',sans-serif;
+  --bg:#f1f5f9; --surface:#ffffff; --surface2:#f8fafc; --border:#e2e8f0;
+  --navy:#0f172a; --navy2:#1e293b; --orange:#1e40af; --orange2:#1d4ed8; /* padrão B&Q: azul nos destaques */
+  --text:#0f172a; --muted:#64748b; --green:#16a34a; --red:#dc2626;
+  --blue:#1e40af; --font:system-ui,-apple-system,'Segoe UI',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;min-height:100vh}
 
-.header{background:var(--navy);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.header{background:var(--navy);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:60px}
 .logo{display:flex;align-items:center;gap:12px}
 .logo-text{font-size:22px;font-weight:700;color:#fff;font-style:italic}
-.logo-sub{font-size:11px;color:#8ba3cc;border-left:2px solid var(--orange);padding-left:10px;line-height:1.4}
+.logo-sub{font-size:11px;color:#94a3b8;border-left:2px solid var(--orange);padding-left:10px;line-height:1.4}
 .header-right{display:flex;align-items:center;gap:16px}
 .header-title{background:var(--orange);color:#fff;font-weight:700;font-size:12px;padding:6px 16px;border-radius:4px;letter-spacing:.5px}
-.header-time{color:#8ba3cc;font-size:11px;text-align:right}
+.header-time{color:#94a3b8;font-size:11px;text-align:right}
 
 .tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:4px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .tab{padding:14px 22px;font-size:13px;font-weight:500;color:var(--muted);background:none;border:none;cursor:pointer;border-bottom:3px solid transparent;transition:.2s}
@@ -84,7 +83,7 @@ tr:hover td{background:#fff8f5}
 #loading-overlay{position:fixed;inset:0;background:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:20px}
 .spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,.2);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loading-text{color:#8ba3cc;font-size:14px}
+.loading-text{color:#94a3b8;font-size:14px}
 .prog-loading{width:320px;background:rgba(255,255,255,.1);border-radius:20px;height:6px;overflow:hidden}
 .prog-loading-bar{height:100%;background:var(--orange);border-radius:20px;transition:width .3s;width:0%}
 .prog-loading-pct{color:var(--orange);font-size:13px;font-weight:600}
@@ -104,7 +103,7 @@ canvas{max-height:220px}
 .cmp-note{font-size:11px;color:var(--muted);padding:0 24px 0}
 @media(max-width:750px){.cmp-dd-panel{width:calc(100vw - 32px)}}
 </style>
-</head>
+<link rel="stylesheet" href="/padrao.css"></head>
 <body>
 
 <div id="loading-overlay">
@@ -117,8 +116,8 @@ canvas{max-height:220px}
 
 <div class="header">
   <div class="logo">
-    <div class="logo-text">B&Q</div>
-    <div class="logo-sub">Sistema de<br>Compras</div>
+    <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
+    <div><div style="font-size:15px;font-weight:700;color:#fff">Painel de Compras</div><div style="font-size:12px;color:#94a3b8;margin-top:2px">SCs, pedidos e indicadores</div></div>
   </div>
   <div class="header-right">
     <div class="header-time" id="last-update"></div>
@@ -394,7 +393,7 @@ canvas{max-height:220px}
 const SUPA_URL  = "https://eugefrjckrxisfpizkjb.supabase.co";
 const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI";
 const H = {"apikey":SUPA_ANON,"Authorization":"Bearer "+SUPA_ANON};
-const PAL = ['#f26522','#2563eb','#16a34a','#dc2626','#7c3aed','#0891b2','#ca8a04','#be185d','#059669','#9333ea'];
+const PAL = ['#1e40af','#f26522','#16a34a','#dc2626','#7c3aed','#0891b2','#ca8a04','#be185d','#059669','#9333ea'];
 const PER = 20;
 
 let ALL_SC=[], ALL_PED=[], ALL_DET=[], FILIAIS={}, fSC=[], fPed=[], fDet=[], scPg=1, pedPg=1, detPg=1;
