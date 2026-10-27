@@ -65,7 +65,8 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 
 ### Backups guardados
 `backup_mobilizacoes_2026_10_22`, `backup_mobilizacao_itens_2026_10_22`, `backup_mobilizacao_scs_2026_10_22`
-(mobilizações #31–35) e `backup_mob_36_37_*` (mobilizações de teste #36 e #37).
+(mobilizações #31–35), `backup_mob_36_37_*` (mobilizações de teste #36 e #37) e `backup_mob_40_43_2026_10_27_*`
+(SKY #40 e #43 antes de antecipar 1 equipe, 27/10).
 
 ## Syncs alterados no computador da Raissa (26/10)
 - `upload_compras.py`: grava `pedidos_grupo` (valor por pedido × grupo pelo status de cada item) e corrige
@@ -97,6 +98,11 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
    Pessoas ativas (entrega nos últimos 60 d): 2.007 → 3.537 trocas previstas em 30 d, 10.156 em 90 d; 10.560 "vencidas"
    (precisa filtrar só itens pessoais — tinta, lâmina etc. não são por pessoa; e agrupar tamanhos do fardamento). Outros pontos combinados p/ ruptura: mínimo por equipe
    p/ itens críticos (NR-10/altura), reserva de mobilização, grade de fardamento semestral, alerta de formulário não enviado.
+0b. **Ruptura — "a caminho" sem olhar status da SC (achado em 27/10, fazer depois)**: o "a caminho" vem do `estoque_sb2.saldo_pedido`
+   (Protheus), que não sabe se a SC foi rejeitada ou o PC está em aprovação. Dos 1.747 filial×item de EPI/fard com saldo a caminho:
+   541 têm PC válido em `sc_pedidos_v2`, 102 só "Em aprovação", **1.205 sem nenhum PC aberto** na base. Proposta: "a caminho" = só PCs
+   válidos (Pendente / Recebido parcialmente / Em recebimento, SC não rejeitada nem eliminada); "Em aprovação" mostrado à parte e sem
+   cobrir a falta; aviso quando o SB2 tem saldo sem PC válido.
 1. **Segurança RLS fase B**: configurações (centros_custo, gerentes_cc, cc_grupos, itens, cc_pessoas, bases_status…) — todos leem, só admin altera (função `is_admin()` usando `perfis_usuario`).
 2. **Segurança RLS fase C**: `solicitacoes` e `solicitacao_itens` (⚠ o `ruptura.html` lê essas tabelas para a auditoria do último formulário — manter leitura ou fazer função) (formulário cria via RPC; gerente altera os CCs dele; admin tudo). Também `perfis_usuario` e `pedidos_redefinicao`.
 3. **Syncs** (ver `docs/syncs.md`): rodar em fila, não todos juntos; parar syncs que não alimentam o site.
