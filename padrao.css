@@ -20,3 +20,9 @@
 .bq-topo .bq-sub{color:#94a3b8;font-size:12px;margin-top:2px}
 @media(max-width:600px){.bq-topo{padding-left:16px;padding-right:16px}}
 nav .bq-marca{width:68px;height:24px;padding-right:9px}
+/* Telas de login no padrão B&Q: fundo escuro, cartão branco com o logo azul */
+.bq-login-fundo{background:radial-gradient(circle at 25% 15%,#1e3a8a 0,#0f172a 65%)!important;width:100%;box-sizing:border-box;justify-content:center;align-items:center}
+.bq-login-fundo .login-card{border:0;box-shadow:0 20px 50px #00000066;padding:32px}
+.bq-login-logo{display:block;width:120px;height:38px;background:url(/logo-bq.png) left center/contain no-repeat;margin-bottom:18px}
+.bq-login-voltar{display:block;text-align:center;margin-top:16px;font-size:12.5px;color:#64748b;text-decoration:none}
+.bq-login-voltar:hover{color:#1e40af}
