@@ -7,6 +7,9 @@
   (= "Pedir agora", com valor e quantos são curva A), barra Pedir/Já solicitado/Depende/Normal, PCs atrasados. Ordenados por itens a romper.
   Clique abre a lista da filial ("← Filiais" volta; "Ver lista de todas as filiais" abre tudo). Na lista, SC aberta e Pedido mostram também o status
   (Bloqueada/Pendente/Em cotação; Pendente/Em aprovação/...).
+- **Botão "Top itens"** (27/10): cartão por código somando todas as filiais (top 30 + "ver mais 30"), com curva ABC da empresa,
+  filiais a romper (de quantas têm o item), saída/mês (consumo ou trocas, o maior, somado), estoque, cobertura, SC aberta, a caminho,
+  PCs atrasados e onde vai romper. Ordem: mais saem (padrão) / mais filiais a romper / maior valor a comprar. Clique abre o item filial por filial.
 - Lê `itens`, `estoque_sb2` (qtd_atual, `saldo_pedido` = a caminho; negativo vira 0), `consumo_mensal` (6 meses ÷ 6),
   `sc_pedidos_v2`, `filiais` e a função `trocas_previstas`.
   - **SC aberta**: `pc_numero` vazio e status Pendente / Bloqueada / Em Processo de Cotação, emitida no último ano; qtd = `sc_quant - sc_quje`.

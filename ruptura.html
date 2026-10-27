@@ -93,7 +93,8 @@ tr:hover td{background:#f8fafc}
   <div class="tag" id="tag-sync">Carregando...</div>
   <div id="tag-ultima" style="font-size:11px;color:#94a3b8"></div>
   <div style="display:flex;gap:6px">
-    <button class="aba-btn ativo" id="aba-risco" onclick="setAba('risco')">Posição e risco</button>
+    <button class="aba-btn ativo" id="aba-risco" onclick="setAba('risco')">🏢 Filiais</button>
+    <button class="aba-btn" id="aba-itens" onclick="setAba('itens')">📦 Top itens</button>
     <button class="aba-btn" id="aba-trocas" onclick="setAba('trocas')">👕 Vida útil e trocas</button>
   </div>
   <div class="topo-right">
@@ -103,7 +104,7 @@ tr:hover td{background:#f8fafc}
 </div>
 
 <div class="filtros-wrap">
-  <div class="f-group"><label>Filial</label><select id="f-filial" onchange="VISTA=this.value?'lista':'filiais';aplicar()"><option value="">Todas as filiais</option></select></div>
+  <div class="f-group"><label>Filial</label><select id="f-filial" onchange="aoMudarFilial()"><option value="">Todas as filiais</option></select></div>
   <div class="f-group"><label>Grupo</label><select id="f-grupo" onchange="aplicar()">
     <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC / Ferramentas</option><option value="FARD">Fardamento</option></select></div>
   <div class="f-group f-busca"><label>Código / Descrição / Matrícula</label><input id="f-busca" placeholder="🔍 Buscar..." oninput="aplicar()"></div>
@@ -137,7 +138,8 @@ const PC_ABERTO=['Pendente','Em aprovação','Recebido parcialmente','Em recebim
 let LINHAS=[],NOMES_FIL={},ITEM={};
 let ABA='risco',PILL='pedir',SIT='vencida',PAG=1,SORT=null,DIR=1;
 let TROCAS=null,VIDA=null,FILTRADOS=[];
-let VISTA='filiais'; // posição e risco: cartões por filial → lista ao clicar
+let VISTA='filiais'; // cartões por filial ('filiais') ou por item ('itens') → lista ao clicar ('lista')
+let ORIGEM='filiais',ITEM_SEL='',ORD_ITEM='saida',TOP=30;
 
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtN=(v,d=0)=>(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -275,7 +277,7 @@ async function carregar(){
     });
 
     montarFiliais();
-    if(VISTA==='filiais')$('f-filial').value='';
+    if(VISTA!=='lista')$('f-filial').value='';
     const ts=est_ts.data?.[0]?.atualizado_em;
     $('tag-sync').textContent=fmtN(LINHAS.length)+' filial × item';
     $('tag-ultima').innerHTML='consumo '+fmtMes(W[0])+'–'+fmtMes(W[5])+(ts?' · estoque de <b style="color:#e2e8f0">'+new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</b>':'');
@@ -323,7 +325,7 @@ function baseRisco(fil=$('f-filial').value,semCurva=false){
   const com=escopo.filter(l=>l.peso>0).sort((a,b)=>b.peso-a.peso);
   const tot=com.reduce((s,l)=>s+l.peso,0);let acum=0;
   com.forEach(l=>{const antes=acum/tot;acum+=l.peso;l.abc=antes<.8?'A':antes<.95?'B':'C'});
-  const L=base(escopo,fil);
+  const L=base(escopo,fil).filter(l=>!ITEM_SEL||l.cod===ITEM_SEL);
   return sel?L.filter(l=>l.abc&&sel.includes(l.abc)):L;
 }
 
@@ -353,7 +355,7 @@ function vidaFiltrada(){
 }
 
 function aplicar(){
-  if(ABA==='risco'&&VISTA==='filiais')FILTRADOS=[];
+  if(ABA==='risco'&&VISTA!=='lista')FILTRADOS=[];
   else if(ABA==='risco'){
     const f=PILLS_RISCO.find(p=>p[0]===PILL)||PILLS_RISCO[0];
     FILTRADOS=baseRisco().filter(f[2]);
@@ -368,18 +370,30 @@ function ordenar(){
 }
 function sortBy(c){if(SORT===c)DIR=-DIR;else{SORT=c;DIR=1}ordenar();PAG=1;render()}
 function setPill(p){if(ABA==='risco')PILL=p;else SIT=p;SORT=null;aplicar()}
-function abrirFilial(f){VISTA='lista';$('f-filial').value=f;PILL='todos';SORT=null;aplicar();window.scrollTo({top:0})}
-function voltarFiliais(){VISTA='filiais';$('f-filial').value='';SORT=null;aplicar()}
-function setAba(a){ABA=a;SORT=null;$('aba-risco').classList.toggle('ativo',a==='risco');$('aba-trocas').classList.toggle('ativo',a==='trocas');aplicar()}
+function abrirFilial(f){VISTA='lista';ITEM_SEL='';$('f-filial').value=f;PILL='todos';SORT=null;aplicar();window.scrollTo({top:0})}
+function abrirItem(c){VISTA='lista';ITEM_SEL=c;$('f-filial').value='';PILL='todos';SORT=null;aplicar();window.scrollTo({top:0})}
+function voltar(){VISTA=ORIGEM;ITEM_SEL='';$('f-filial').value='';SORT=null;aplicar()}
+function aoMudarFilial(){if(ABA==='risco')VISTA=$('f-filial').value||ITEM_SEL?'lista':ORIGEM;aplicar()}
+function setAba(a){
+  SORT=null;
+  if(a==='trocas')ABA='trocas';
+  else{ABA='risco';ORIGEM=a==='itens'?'itens':'filiais';VISTA=ORIGEM;ITEM_SEL='';$('f-filial').value='';TOP=30}
+  $('aba-risco').classList.toggle('ativo',ABA==='risco'&&ORIGEM==='filiais');
+  $('aba-itens').classList.toggle('ativo',ABA==='risco'&&ORIGEM==='itens');
+  $('aba-trocas').classList.toggle('ativo',ABA==='trocas');
+  aplicar();
+}
+function setOrdItem(o){ORD_ITEM=o;TOP=30;render()}
 
 // ── RENDER ───────────────────────────────────────────────
 function renderPills(){
   let h;
   if(ABA==='risco'){
-    if(VISTA==='filiais'){$('pills').style.display='none';return}
+    if(VISTA!=='lista'){$('pills').style.display='none';return}
     const B=baseRisco();
     const f=$('f-filial').value;
-    h=`<button class="pill-btn pill-voltar" onclick="voltarFiliais()">← Filiais</button><span style="align-self:center;font-weight:800;font-size:13px;margin:0 6px">${f?esc(f+' — '+nomeFil(f)):'Todas as filiais'}</span><span class="pill-sep"></span>`+PILLS_RISCO.map(([k,t,f])=>`<button class="pill-btn ${PILL===k?'ativo':''}" onclick="setPill('${k}')">${t} (${fmtN(B.filter(f).length)})</button>`).join('');
+    const titulo=(ITEM_SEL?ITEM_SEL+' — '+(ITEM[ITEM_SEL]?.descricao||''):'')+(ITEM_SEL&&f?' · ':'')+(f?f+' — '+nomeFil(f):ITEM_SEL?'':'Todas as filiais');
+    h=`<button class="pill-btn pill-voltar" onclick="voltar()">← ${ORIGEM==='itens'?'Itens':'Filiais'}</button><span style="align-self:center;font-weight:800;font-size:13px;margin:0 6px">${esc(titulo)}</span><span class="pill-sep"></span>`+PILLS_RISCO.map(([k,t,f])=>`<button class="pill-btn ${PILL===k?'ativo':''}" onclick="setPill('${k}')">${t} (${fmtN(B.filter(f).length)})</button>`).join('');
   }else{
     const n=k=>TROCAS&&!TROCAS.erro?' ('+fmtN(trocasFiltradas(k).length)+')':'';
     h=PILLS_TROCAS.map(([k,t])=>`<button class="pill-btn ${SIT===k?'ativo':''}" onclick="setPill('${k}')">${t}${n(k)}</button>`).join('')+
@@ -395,7 +409,7 @@ function renderResumo(){
     const B=baseRisco();
     const pedir=B.filter(l=>l.status==='pedir'),sol=B.filter(l=>l.status==='solicitado'),dep=B.filter(l=>l.status==='depende');
     const atr=B.flatMap(l=>l.atrasados);const nAtr=new Set(atr.map(p=>p.pc)).size;
-    c=`<div class="resumo-card"><div class="val">${fmtN(VISTA==='filiais'?B.length:FILTRADOS.length)}</div><div class="lab">${VISTA==='filiais'?'SKUs (filial × item)':'Itens nesta lista'}</div></div>
+    c=`<div class="resumo-card"><div class="val">${fmtN(VISTA!=='lista'?B.length:FILTRADOS.length)}</div><div class="lab">${VISTA!=='lista'?'SKUs (filial × item)':'Itens nesta lista'}</div></div>
       <div class="resumo-card alerta"><div class="val">${fmtN(pedir.length)}</div><div class="lab">Pedir agora</div><div class="sub">≈ ${fmtCurto(pedir.reduce((s,l)=>s+l.valor,0))} para cobrir até a próxima chegada</div></div>
       <div class="resumo-card azul"><div class="val">${fmtN(sol.length)}</div><div class="lab">Já solicitado</div><div class="sub">SC aberta cobre — acompanhar compras</div></div>
       <div class="resumo-card bloq"><div class="val">${fmtN(dep.length)}</div><div class="lab">Depende da entrega</div><div class="sub">estoque não aguenta; o pedido cobre</div></div>
@@ -445,6 +459,7 @@ function render(){
   renderPills();renderResumo();renderNota();
   const th=(c,t,cls='')=>`<th class="${cls}" onclick="sortBy('${c}')">${t}${SORT===c?(DIR===1?' ↑':' ↓'):''}</th>`;
   if(ABA==='risco'&&VISTA==='filiais'){renderCards();return}
+  if(ABA==='risco'&&VISTA==='itens'){renderItemCards();return}
   if(ABA==='trocas'&&!TROCAS){$('tabela').innerHTML='<div class="loading">Carregando trocas por pessoa...</div>';$('paginador').style.display='none';return}
   if(ABA==='trocas'&&TROCAS.erro){$('tabela').innerHTML='<div class="vazio">Erro ao carregar as trocas: '+esc(TROCAS.erro)+'</div>';$('paginador').style.display='none';return}
   if(!FILTRADOS.length){$('tabela').innerHTML='<div class="vazio">Nenhum item encontrado com esses filtros.</div>';$('paginador').style.display='none';return}
@@ -505,6 +520,44 @@ function renderCards(){
         <span class="q cinza">${fmtN(c.skus-c.comSaida)} sem saída</span></div>
       <div class="cf-rod"><span>📝 Já solicitado <b>${fmtN(c.sol)}</b></span><span>🟡 Depende <b>${fmtN(c.dep)}</b></span><span>⏰ PCs atrasados <b class="${c.atr?'red':''}">${fmtN(c.atr)}</b></span></div>
     </button>`}).join('')+'</div>';
+}
+
+// Top itens: um cartão por código somando as filiais (curva ABC da empresa) — clique abre o item filial por filial
+function renderItemCards(){
+  $('paginador').style.display='none';
+  const sel=$('f-abc').value,porQtd=$('f-abc-por').value==='qtd';
+  const G={};
+  baseRisco('',true).forEach(l=>{
+    const o=G[l.cod]||(G[l.cod]={cod:l.cod,desc:l.desc,peso:0,media:0,trocas:0,est:0,cam:0,scQtd:0,nSc:0,nPc:0,atr:0,valor:0,fils:0,pedir:0,sol:0,dep:0,ok:0,romper:[]});
+    o.peso+=l.peso;o.media+=Math.max(l.media,l.trocas/l.prazo);o.trocas+=l.trocas;o.est+=l.est;o.cam+=l.cam;o.scQtd+=l.scQtd;o.nSc+=l.scs.length;o.nPc+=l.pcs.length;o.atr+=l.atrasados.length;
+    o.valor+=l.valor;o.fils++;if(l.status in o)o[l.status]++;if(l.status==='pedir')o.romper.push(l.fil);
+  });
+  const todos=Object.values(G);
+  const com=todos.filter(o=>o.peso>0).sort((a,b)=>b.peso-a.peso),tot=com.reduce((s,o)=>s+o.peso,0);let acum=0;
+  com.forEach(o=>{const antes=acum/tot;acum+=o.peso;o.abc=antes<.8?'A':antes<.95?'B':'C'});
+  const ord={saida:(a,b)=>b.peso-a.peso,romper:(a,b)=>b.pedir-a.pedir||b.peso-a.peso,valor:(a,b)=>b.valor-a.valor||b.peso-a.peso}[ORD_ITEM];
+  const L=todos.filter(o=>o.peso>0&&(!sel||sel.includes(o.abc))).sort(ord);
+  if(!L.length){$('tabela').innerHTML='<div class="vazio">Nenhum item com esses filtros.</div>';return}
+  const pct=(v,t)=>(100*v/t).toFixed(1)+'%';
+  const opc=[['saida','Mais saem'],['romper','Mais filiais a romper'],['valor','Maior valor a comprar']];
+  $('tabela').innerHTML=`<div class="cards-topo"><span>Top ${fmtN(Math.min(TOP,L.length))} de ${fmtN(L.length)} itens com saída (todas as filiais somadas). Clique no item para ver filial por filial.</span>
+    <div class="seg-ord">${opc.map(([k,t])=>`<button class="pill-btn ${ORD_ITEM===k?'ativo':''}" onclick="setOrdItem('${k}')">${t}</button>`).join(' ')}</div></div><div class="cards-fil">`+
+    L.slice(0,TOP).map((o,i)=>{const ativos=o.pedir+o.sol+o.dep+o.ok||1;const cob=o.media>0?o.est/o.media:null;
+      const nomes=o.romper.map(nomeFil);
+      return`<button class="card-fil" onclick="abrirItem('${esc(o.cod)}')">
+      <div class="cf-top"><span class="cf-cod">#${i+1} · ${esc(o.cod)}</span><span class="abc abc-${o.abc}" title="Curva ${o.abc} na empresa">${o.abc}</span></div>
+      <div class="cf-nome" style="margin-top:4px;line-height:1.3">${esc(o.desc)}</div>
+      <div class="cf-risco"><b class="${o.pedir?'red':'verde'}">${fmtN(o.pedir)}</b><span class="cf-lab">de ${fmtN(o.fils)} filiais a romper${o.valor?' · ≈ '+fmtCurto(o.valor):''}</span></div>
+      <div class="cf-barra" title="Filiais: Pedir agora / Já solicitado / Depende da entrega / Normal">
+        <span style="width:${pct(o.pedir,ativos)};background:#ef4444"></span><span style="width:${pct(o.sol,ativos)};background:#3b82f6"></span>
+        <span style="width:${pct(o.dep,ativos)};background:#f59e0b"></span><span style="width:${pct(o.ok,ativos)};background:#22c55e"></span></div>
+      <div class="cf-abc"><span class="q">Saída/mês <b>${fmtN(o.media)}</b></span><span class="q">Estoque <b>${fmtN(o.est)}</b></span>
+        <span class="q ${cob!=null&&cob<2?'red':''}">Cobertura <b>${cob!=null?fmtN(cob,1)+' m':'—'}</b></span></div>
+      <div class="cf-rod"><span>📝 SC aberta <b>${o.scQtd?fmtN(o.scQtd)+' ('+o.nSc+')':'—'}</b></span><span>🚚 A caminho <b>${o.cam?fmtN(o.cam):'—'}</b></span>
+        <span>⏰ PCs atrasados <b class="${o.atr?'red':''}">${fmtN(o.atr)}</b></span></div>
+      ${nomes.length?`<div class="mini" style="margin-top:6px">Romper em: <span class="red">${esc(nomes.slice(0,3).join(', '))}${nomes.length>3?' +'+(nomes.length-3):''}</span></div>`:''}
+    </button>`}).join('')+'</div>'+
+    (L.length>TOP?`<div style="text-align:center;margin-top:12px"><button class="pill-btn" onclick="TOP+=30;render()">Ver mais 30 (${fmtN(L.length-TOP)} restantes)</button></div>`:'');
 }
 
 function renderPaginador(){
