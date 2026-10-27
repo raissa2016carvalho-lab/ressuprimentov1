@@ -112,6 +112,11 @@ tr:hover td{background:#f8fafc}
     <option value="">Todas</option><option value="A">A — 80% do que sai</option><option value="AB">A + B</option><option value="B">B — próximos 15%</option><option value="C">C — últimos 5%</option></select></div>
   <div class="f-group"><label>ABC por</label><select id="f-abc-por" onchange="aplicar()">
     <option value="valor">Valor (consumo × custo)</option><option value="qtd">Quantidade</option></select></div>
+  <div class="f-group"><label>Tirar do consumo</label>
+    <div style="display:flex;gap:12px;align-items:center;height:36px;font-size:13px">
+      <label style="display:flex;gap:5px;align-items:center;margin:0;font-size:13px;color:#0f172a;font-weight:500" title="Saídas com motivo A (kits de equipe nova) — compra direcionada, não ressuprimento"><input type="checkbox" id="x-mob" checked onchange="recalcular()" style="padding:0"> Mobilização</label>
+      <label style="display:flex;gap:5px;align-items:center;margin:0;font-size:13px;color:#0f172a;font-weight:500" title="Saídas com motivo 5 (primeira entrega a funcionário novo)"><input type="checkbox" id="x-adm" onchange="recalcular()" style="padding:0"> Admissional</label>
+      <span id="aviso-mot" class="red" style="font-size:11px"></span></div></div>
   <div class="f-group"><label>Tipo de saída</label><select id="f-tipo" onchange="aplicar()">
     <option value="">Todos</option><option value="regular">Regular</option><option value="intermitente">Intermitente</option><option value="pontual">Pontual</option><option value="trocas">Só trocas (sem consumo)</option><option value="sem">Sem saída</option></select></div>
 </div>
@@ -135,7 +140,7 @@ const POR_PAGINA=100;
 const SC_ABERTA=['Solicitação Pendente','Solicitação Bloqueada','Solicitação em Processo de Cotação'];
 const PC_ABERTO=['Pendente','Em aprovação','Recebido parcialmente','Em recebimento (Pré-nota)','Sem status'];
 
-let LINHAS=[],NOMES_FIL={},ITEM={};
+let LINHAS=[],NOMES_FIL={},ITEM={},DADOS=null;
 let ABA='risco',PILL='pedir',SIT='vencida',PAG=1,SORT=null,DIR=1;
 let TROCAS=null,VIDA=null,FILTRADOS=[];
 let VISTA='filiais'; // cartões por filial ('filiais') ou por item ('itens') → lista ao clicar ('lista')
@@ -178,10 +183,12 @@ async function carregar(){
   try{
     const W=janela(),hoje=new Date();
     const filtroGrupo='grupo.ilike.EPI*,grupo.ilike.FARDAMENTO*';
-    const [itens,estoque,consumo,scs,pcs,fils,est_ts,tps]=await Promise.all([
+    const [itens,estoque,consumo,mot,scs,pcs,fils,est_ts,tps]=await Promise.all([
       buscarTodas(()=>db.from('itens').select('codigo,descricao,grupo,preco').or(filtroGrupo).order('codigo')),
       buscarTodas(()=>db.from('estoque_sb2').select('filial,codigo,qtd_atual,saldo_pedido,custo_medio,dt_ult_movimento').or(filtroGrupo).order('id')),
       buscarTodas(()=>db.from('consumo_mensal').select('filial,produto,mes,quantidade').gte('mes',W[0]).order('id')),
+      // saídas de mobilização e admissional (para tirar do consumo — kits de equipe nova são compra direcionada)
+      buscarTodas(()=>db.rpc('consumo_por_motivo',{p_mes_ini:W[0],p_motivos:['MOBILIZAÇÃO','ADMISSIONAL']})).catch(e=>{console.warn('consumo_por_motivo',e);return null}),
       // SCs ainda sem pedido (último ano)
       buscarTodas(()=>db.from('sc_pedidos_v2').select('filial,sc_numero,sc_item,sc_produto,sc_quant,sc_quje,sc_emissao,sc_status,sc_solicitante').is('pc_numero',null).in('sc_status',SC_ABERTA).gte('sc_emissao',ymd(new Date(hoje.getTime()-365*864e5))).order('sc_emissao').order('id')),
       // pedidos ainda não recebidos (entrega a partir de 180 dias atrás)
@@ -194,7 +201,27 @@ async function carregar(){
     ]);
     NOMES_FIL={};(fils.data||[]).forEach(f=>{NOMES_FIL[String(f.filial).trim().replace(/^0+/,'')]=String(f.nome_filial||'').trim()});
     ITEM={};itens.forEach(i=>{ITEM[String(i.codigo).trim()]=i});
+    DADOS={W,hoje,estoque,consumo,mot,scs,pcs,tps};
+    calcular();
 
+    montarFiliais();
+    if(VISTA!=='lista')$('f-filial').value='';
+    const ts=est_ts.data?.[0]?.atualizado_em;
+    $('tag-sync').textContent=fmtN(LINHAS.length)+' filial × item';
+    $('tag-ultima').innerHTML='consumo '+fmtMes(W[0])+'–'+fmtMes(W[5])+(ts?' · estoque de <b style="color:#e2e8f0">'+new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</b>':'');
+    aplicar();
+    carregarTrocas();
+  }catch(e){
+    console.error(e);
+    TROCAS=Object.assign([],{erro:e.message||String(e)});
+    $('tabela').innerHTML='<div class="vazio">Erro ao carregar: '+esc(e.message||e)+'</div>';
+    $('tag-sync').textContent='Erro ao carregar';
+  }
+}
+
+// Monta LINHAS (uma por filial × item) a partir dos dados baixados; roda de novo quando muda o que sai do consumo
+function calcular(){
+    const {W,hoje,estoque,consumo,mot,scs,pcs,tps}=DADOS;
     // estoque e "a caminho" por filial|código
     const EST={};
     estoque.forEach(e=>{
@@ -212,6 +239,15 @@ async function carregar(){
       const k=String(c.filial).trim()+'|'+cod;
       const o=CONS[k]||(CONS[k]={});
       o[c.mes]=(o[c.mes]||0)+(Number(c.quantidade)||0);
+    });
+    // tira as saídas dos motivos marcados (mobilização / admissional)
+    const tirar=[$('x-mob').checked&&'MOBILIZAÇÃO',$('x-adm').checked&&'ADMISSIONAL'].filter(Boolean),TIRADO={};
+    $('aviso-mot').textContent=mot?'':'⚠ não foi possível separar mobilização — consumo com todas as saídas';
+    (mot||[]).forEach(r=>{
+      if(!tirar.includes(r.motivo))return;
+      const k=String(r.filial).trim()+'|'+String(r.produto).trim(),o=CONS[k];if(!o||!(r.mes in o))return;
+      const q=Math.min(o[r.mes],Number(r.quantidade)||0);o[r.mes]-=q;
+      const t=TIRADO[k]||(TIRADO[k]={});t[r.motivo]=(t[r.motivo]||0)+q;
     });
     const MEDIA={};
     Object.entries(CONS).forEach(([k,m])=>{
@@ -270,25 +306,11 @@ async function carregar(){
       const trf=status==='pedir'?(SOBRA[cod]||[]).filter(s=>s.fil!==fil&&s.sobra>=Math.max(1,comprar)).sort((a,b)=>b.sobra-a.sobra)[0]||null:null;
       const atrasados=pcl.filter(p=>p.atraso>0);
       const proxEntrega=pcl.filter(p=>p.atraso<=0).map(p=>p.entrega).sort()[0]||'';
-      LINHAS.push({fil,filNome:nomeFil(fil),cod,desc:it.descricao||'',gk,tipo,media:c.media,pico:c.pico,mp:c.mp,est,cam,ult:e.ult,
+      LINHAS.push({fil,filNome:nomeFil(fil),cod,desc:it.descricao||'',gk,tipo,media:c.media,tirado:TIRADO[k]||null,pico:c.pico,mp:c.mp,est,cam,ult:e.ult,
         cob:ritmo>0?est/ritmo:null,prazo,alvo,alvoCons,trocas:alvoTr,venc:tp.venc,pessoas:tp.pessoas,porTrocas,
         scs:scl,scQtd,pcs:pcl,atrasados,atrasoMax:atrasados.reduce((m,p)=>Math.max(m,p.atraso),0),proxEntrega,
         comprar,custo,valor:comprar*custo,status,ordem:{pedir:0,solicitado:1,depende:2,ok:3,sem:4}[status],trf,zerado:est<=0&&alvo>0});
     });
-
-    montarFiliais();
-    if(VISTA!=='lista')$('f-filial').value='';
-    const ts=est_ts.data?.[0]?.atualizado_em;
-    $('tag-sync').textContent=fmtN(LINHAS.length)+' filial × item';
-    $('tag-ultima').innerHTML='consumo '+fmtMes(W[0])+'–'+fmtMes(W[5])+(ts?' · estoque de <b style="color:#e2e8f0">'+new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</b>':'');
-    aplicar();
-    carregarTrocas();
-  }catch(e){
-    console.error(e);
-    TROCAS=Object.assign([],{erro:e.message||String(e)});
-    $('tabela').innerHTML='<div class="vazio">Erro ao carregar: '+esc(e.message||e)+'</div>';
-    $('tag-sync').textContent='Erro ao carregar';
-  }
 }
 
 // Vida útil e trocas: próximas trocas por pessoa (vencidas e próximos 90 dias) e vida útil por item
@@ -370,6 +392,7 @@ function ordenar(){
 }
 function sortBy(c){if(SORT===c)DIR=-DIR;else{SORT=c;DIR=1}ordenar();PAG=1;render()}
 function setPill(p){if(ABA==='risco')PILL=p;else SIT=p;SORT=null;aplicar()}
+function recalcular(){if(DADOS){calcular();aplicar()}}
 function abrirFilial(f){VISTA='lista';ITEM_SEL='';$('f-filial').value=f;PILL='todos';SORT=null;aplicar();window.scrollTo({top:0})}
 function abrirItem(c){VISTA='lista';ITEM_SEL=c;$('f-filial').value='';PILL='todos';SORT=null;aplicar();window.scrollTo({top:0})}
 function voltar(){VISTA=ORIGEM;ITEM_SEL='';$('f-filial').value='';SORT=null;aplicar()}
@@ -471,7 +494,7 @@ function render(){
       const cobCor=l.cob==null?'cinza':l.cob<l.prazo/2?'red':l.cob<l.prazo?'amb':'verde';
       return`<tr><td class="cod" title="${esc(l.fil)}">${esc(l.filNome)}</td><td class="cod">${esc(l.cod)}</td><td>${esc(l.desc)}<div class="mini">${esc(tipoTxt(l))}</div></td>
       <td title="${l.abc?'Curva '+l.abc+' · '+($('f-abc-por').value==='qtd'?fmtN(l.peso,1)+' un/mês':fmtR(l.peso)+'/mês'):'Sem saída'}">${l.abc?`<span class="abc abc-${l.abc}">${l.abc}</span>`:'<span class="cinza">—</span>'}</td><td>${badgeSit(l)}</td><td class="num" title="Última movimentação: ${fmtData(l.ult)}">${badgeEst(l)}</td>
-      <td class="num">${l.media>0?fmtN(l.media,1):'<span class="cinza">—</span>'}</td>
+      <td class="num" ${l.tirado?`title="Fora da média (6 meses): ${esc(Object.entries(l.tirado).map(([m,q])=>m.toLowerCase()+' '+fmtN(q)+' un').join(' · '))}"`:''}>${l.media>0?fmtN(l.media,1):'<span class="cinza">—</span>'}${l.tirado?'<span class="mini" style="color:#7c3aed"> *</span>':''}</td>
       <td class="num ${cobCor}" title="Prazo do grupo: ${fmtN(l.prazo,1)} meses · meta ${fmtN(l.alvo)} un${l.porTrocas?' (pelas trocas)':''}">${l.cob==null?'—':fmtN(l.cob,1)+' m'}</td>
       <td class="num">${l.trocas?`<span style="${l.porTrocas?'color:#1e40af':''}" title="${fmtN(l.pessoas)} pessoas · ${fmtN(l.venc)} já vencidas${l.porTrocas?' · meta pelas trocas (consumo pedia '+fmtN(l.alvoCons)+')':''}">${fmtN(l.trocas)}</span>`:'<span class="cinza">—</span>'}</td>
       <td class="num">${celSC(l)}</td><td class="num">${celPC(l)}</td>
@@ -581,6 +604,7 @@ function renderNota(){
     <b>SC aberta</b> = solicitação ainda sem pedido (pendente, bloqueada ou em cotação, último ano).
     Situação: <b>Pedir agora</b> = estoque + pedido + SC aberta não chegam à meta; <b>Já solicitado</b> = só chega contando a SC aberta;
     <b>Depende da entrega</b> = o estoque não chega, o pedido cobre.
+    <b>Tirar do consumo</b>: saídas de <b>mobilização</b> (motivo A — kits de equipe nova, compra direcionada) ficam fora da média por padrão; admissional (motivo 5) é opcional. O <span style="color:#7c3aed">*</span> no consumo mostra quanto foi tirado.
     <b>Curva ABC</b> (na filial e no grupo escolhidos): A = itens que somam 80% do que sai (em valor = consumo/mês × custo, ou em quantidade), B = próximos 15%, C = últimos 5%; conta também as trocas previstas. <b>Transferir de</b>: filial com mais de ${MESES_SOBRA} meses de estoque do item.`
     :`<b>Como funciona:</b> vida útil = mediana do tempo entre duas entregas do mesmo item (tamanhos juntos) para a mesma pessoa, nas trocas (motivos 3, 4 e 9) desde jan/2025.
     Itens pessoais = todo o fardamento e EPI de uso individual (luva, bota, óculos, balaclava, perneira, capacete, carneira, capuz, protetores, máscara, manga de borracha, cinto/talabarte/trava-quedas).
@@ -596,7 +620,7 @@ function exportarExcel(){
     nome='risco_'+PILL;
     rows=FILTRADOS.map(l=>({Filial:l.fil+' '+l.filNome,'Código':l.cod,'Descrição':l.desc,Grupo:l.gk==='FARD'?'Fardamento':'EPI / EPC / Ferramentas',
       'Situação':{pedir:'Pedir agora',solicitado:'Já solicitado',depende:'Depende da entrega',ok:'Normal',sem:'Sem saída'}[l.status],'Tipo de saída':tipoTxt(l),'Curva ABC':l.abc,
-      Estoque:l.est,'Consumo médio/mês':Math.round(l.media*10)/10,'Cobertura (meses)':l.cob==null?'':Math.round(l.cob*10)/10,'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
+      Estoque:l.est,'Consumo médio/mês':Math.round(l.media*10)/10,'Tirado do consumo (6 meses)':l.tirado?Object.entries(l.tirado).map(([m,q])=>m+' '+q).join(' · '):'','Cobertura (meses)':l.cob==null?'':Math.round(l.cob*10)/10,'Prazo do grupo (meses)':Math.round(l.prazo*10)/10,
       'Trocas previstas no prazo':l.trocas,'Trocas vencidas':l.venc,Meta:l.alvo,'Meta por':l.porTrocas?'Trocas':'Consumo',
       'SC aberta (qtd)':l.scQtd,'SCs':l.scs.map(s=>s.sc).join(', '),'A caminho':l.cam,'Pedidos':l.pcs.map(p=>p.pc+' ('+fmtData(p.entrega)+')').join(', '),
       'Maior atraso (dias)':l.atrasoMax||'',Comprar:l.comprar,'Custo unit.':l.custo,'Valor a comprar':Math.round(l.valor),

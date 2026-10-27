@@ -18,6 +18,11 @@
 - **Curva ABC** (filtro + coluna, 26/10): calculada na hora dentro da filial e do grupo escolhidos (busca e tipo de saída não mudam a classe).
   Peso = saída por mês (o maior entre consumo médio e trocas previstas ÷ prazo) × custo médio, ou só a quantidade ("ABC por").
   A = linhas que somam 80% do peso, B = próximos 15%, C = últimos 5%; sem saída = sem classe. Com "Todas as filiais" classifica cada filial × item.
+- **Tirar do consumo** (27/10): caixinhas Mobilização (marcada) e Admissional. Desconta do `consumo_mensal` as saídas desses motivos
+  (`consumo_por_motivo` sobre o `consumo_scp`, que bate com o `consumo_mensal` em 99,6% dos filial × item × mês). Motivo nas entregas:
+  1 perda, 2 roubo, 3 desgaste, 4 defeito, 5 admissional, 6 mal uso, 7 manutenção, 8 transferência, 9 consumo, **A mobilização**, C complementação.
+  Motivo: itens caros como detector de tensão saem em kits de equipe nova — compra direcionada, não ressuprimento (pedido da gerente).
+  O `*` roxo no consumo mostra quanto foi tirado. Se a função falhar, segue com todo o consumo e mostra aviso.
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
 - Meta: regular/intermitente = média × prazo; pontual = maior pico; maior entre isso e as trocas previstas.
 - Situação: **Pedir agora** (estoque + a caminho + SC aberta < meta); **Já solicitado** (só cobre contando a SC aberta);
