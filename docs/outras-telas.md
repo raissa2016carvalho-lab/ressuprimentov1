@@ -44,6 +44,25 @@
 - Filtro Grupo com **👢 Botas e calçados** separado (descrição começa com BOTA/BOTINA/TENIS/SAPATO; sai de "EPI sem botas") — 27/10.
 - Estoque: mouse mostra o saldo **por armazém** e o horário da foto do `estoque_sb2` (o painel soma todos os armazéns; em Cascavel o EPI
   está todo no 01 — o 04 é frota). Outras filiais têm EPI nos armazéns 02, 05, 52, 58, 09, 11, 12, 10: confirmar quais são reserva/descarte.
+- **🛡️ Estoque de segurança** (27/10): coluna com escudo — clique pede a quantidade de segurança (sugestão: pico, ou consumo/mês) e grava
+  em `estoque_seguranca` (upsert por filial+código; 0 tira). Pílula "🛡️ Estoque de segurança" lista os itens; "+N" = comprar a mais
+  (meta + segurança − estoque − pedido − SC − formulário − o que já está em "Pedir"). Cartão da filial mostra quantos e quanto comprar.
+  Sem a tabela, o escudo fica cinza. O aviso de pico agora se chama **"⚠ Pode faltar"**.
+  SQL (SQL Editor):
+  ```sql
+  create table public.estoque_seguranca(
+    id bigint generated always as identity primary key,
+    filial text not null, codigo text not null, descricao text,
+    qtd numeric not null default 0, observacao text,
+    criado_em timestamptz not null default now(), atualizado_em timestamptz not null default now(),
+    unique (filial, codigo));
+  alter table public.estoque_seguranca enable row level security;
+  create policy seg_ler on public.estoque_seguranca for select to anon, authenticated using (true);
+  create policy seg_incluir on public.estoque_seguranca for insert to anon, authenticated with check (true);
+  create policy seg_alterar on public.estoque_seguranca for update to anon, authenticated using (true) with check (true);
+  create policy seg_apagar on public.estoque_seguranca for delete to anon, authenticated using (true);
+  grant select, insert, update, delete on public.estoque_seguranca to anon, authenticated;
+  ```
 - Consumo/mês sem decimais; cobertura em **dias** (estoque ÷ saída por mês × 30) — 27/10, a pedido da Raissa.
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
 - Meta: média × prazo para **todos** (inclusive pontual, desde 27/10), ou as trocas previstas se forem maiores.
