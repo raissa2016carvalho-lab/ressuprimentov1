@@ -65,7 +65,8 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 
 ### Backups guardados
 `backup_mobilizacoes_2026_10_22`, `backup_mobilizacao_itens_2026_10_22`, `backup_mobilizacao_scs_2026_10_22`
-(mobilizações #31–35) e `backup_mob_36_37_*` (mobilizações de teste #36 e #37).
+(mobilizações #31–35), `backup_mob_36_37_*` (mobilizações de teste #36 e #37) e `backup_mob_40_43_2026_10_27_*`
+(SKY #40 e #43 antes de antecipar 1 equipe, 27/10).
 
 ## Syncs alterados no computador da Raissa (26/10)
 - `upload_compras.py`: grava `pedidos_grupo` (valor por pedido × grupo pelo status de cada item) e corrige

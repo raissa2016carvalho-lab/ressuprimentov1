@@ -27,6 +27,11 @@ Fonte: planilha "Mobilização São Paulo Enel 3", abas CONSTRUÇÃO, LINHA VIVA
 
 3ª onda (5 construção, 1 SKY, 1 LV) **ainda não foi criada**.
 
+**27/10 — 1 equipe SKY antecipada da 2ª para a 1ª onda:** #40 virou "1ª ONDA ENEL SP - SKY (2 EQ) (TESTE)" (2 equipes, 946 peças,
+estoque 9 un — recebeu as 3 un da #43: trado, escova de aço, chave de fenda 5/16") e #43 virou "2ª ONDA ENEL SP - SKY (1 EQ) (TESTE)"
+(1 equipe, 473 peças, sem estoque). A SC 000125 da #40 cobre só 1 equipe: **falta abrir SC para a 2ª equipe e associar no card**.
+Backup: `backup_mob_40_43_2026_10_27_mob`, `_itens`, `_estoque` (desfazer = voltar desses backups).
+
 - **Estoque**: copiado (sem remover) do estoque registrado na **#28** (75 itens, 864 un.), em ordem:
   1ª onda antes da 2ª; dentro da onda Linha Viva → Construção → SKY. Usado: 651 un. na 1ª, 121 na 2ª.
 - Itens sem código na planilha ficaram de fora (uniformes sem tamanho, FROTA/TI, manga e luva de borracha sem número).
