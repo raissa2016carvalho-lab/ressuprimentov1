@@ -63,6 +63,9 @@
   create policy seg_apagar on public.estoque_seguranca for delete to anon, authenticated using (true);
   grant select, insert, update, delete on public.estoque_seguranca to anon, authenticated;
   ```
+- Layout (27/10): filtros numa linha só; situações da lista num **menu suspenso "Mostrar"** (antes pílulas); caixinhas de
+  mobilização/admissional viraram o menu **Consumo** (todas / sem mobilização / sem admissional / sem os dois); texto "Como funciona"
+  escondido no botão **ℹ️** do topo.
 - Consumo/mês sem decimais; cobertura em **dias** (estoque ÷ saída por mês × 30) — 27/10, a pedido da Raissa.
 - Prazo do grupo fixo no código (p80 SC→chegada em 2026): EPI 71 dias, fardamento 99 dias (`PRAZO`).
 - Meta: média × prazo para **todos** (inclusive pontual, desde 27/10), ou as trocas previstas se forem maiores.

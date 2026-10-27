@@ -78,7 +78,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
   Não voltar a usar `cdn.jsdelivr.net`.
 
 ## Pendências (em ordem sugerida)
-0. **Vida útil e trocas — FEITO em 26/10 (aguardando teste no Preview)**: aba "Vida útil e trocas" no `ruptura.html` e trocas previstas
+0. **Painel Risco de Ruptura v2 — publicado em 27/10 (PR #28, que inclui o #27)**. Falta: rodar o SQL da `estoque_seguranca` (ver `outras-telas.md`). **Vida útil e trocas — FEITO em 26/10**: aba "Vida útil e trocas" no `ruptura.html` e trocas previstas
    entrando na meta do ruptura. **Falta**: (a) o recálculo — a vida útil e as próximas trocas ficam paradas na foto de 26/10 até rodar
    `atualizar_vida_util()`. Opção 1: no fim do `sync_entregas.py` acrescentar `supabase.rpc('atualizar_vida_util').execute()`.
    Opção 2: ligar o agendador do banco (SQL Editor): `create extension if not exists pg_cron;` e

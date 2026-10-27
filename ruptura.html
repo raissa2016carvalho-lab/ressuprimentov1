@@ -16,16 +16,17 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f
 .topo-right{margin-left:auto;display:flex;gap:8px;align-items:center}
 .aba-btn{background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
 .aba-btn.ativo{background:#1e40af;color:#fff;border-color:#1e40af}
-.filtros-wrap{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.filtros-wrap{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
 .filtros-wrap label{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px}
-.filtros-wrap input,.filtros-wrap select{border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;outline:none;background:#fff}
+.filtros-wrap input,.filtros-wrap select{border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:12.5px;font-family:inherit;outline:none;background:#fff}
 .filtros-wrap input:focus,.filtros-wrap select:focus{border-color:#1e40af}
 .f-group{display:flex;flex-direction:column;min-width:0}
-.f-busca{flex:1;min-width:200px}
+.f-busca{flex:1;min-width:150px}
 .f-busca input{width:100%}
-.pills{display:flex;flex-wrap:wrap;gap:6px;padding:12px 24px;background:#fff;border-bottom:1px solid #e2e8f0}
+.pills{display:flex;flex-wrap:wrap;gap:6px;padding:8px 24px;background:#fff;border-bottom:1px solid #e2e8f0}
 .pill-btn{border:1px solid #e2e8f0;border-radius:999px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:#475569;font-family:inherit;transition:all .15s}
 .pill-btn.ativo{background:#1e40af;border-color:#1e40af;color:#fff}
+.sel-sit{border:1px solid #1e40af;border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;color:#0f172a;background:#eff6ff;font-weight:600;min-width:260px;max-width:100%}
 .pill-sep{width:1px;background:#e2e8f0;margin:0 6px}
 .resumo{display:flex;flex-wrap:wrap;gap:10px;padding:16px 24px}
 .resumo-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;min-width:140px;flex:1}
@@ -88,6 +89,7 @@ tr:hover td{background:#f8fafc}
 #popup-consumo .fechar{position:absolute;top:8px;right:10px;cursor:pointer;color:#94a3b8;font-size:16px;border:none;background:none}
 .fcol{background:#faf5ff}th.fcol{background:#f3e8ff;color:#6b21a8}
 .pill-voltar{border:1px solid #1e40af;color:#1e40af;background:#eff6ff}
+.nota:not(.aberta){display:none}
 .nota{font-size:11.5px;color:#64748b;line-height:1.55;padding:16px 24px 28px}
 @media(max-width:600px){.topo,.filtros-wrap,.pills,.resumo,.tabela-wrap,.paginador,.nota{padding-left:16px;padding-right:16px}.topo-right{margin-left:0;width:100%}.f-group{width:100%}.f-group select{width:100%}}
 </style>
@@ -107,6 +109,7 @@ tr:hover td{background:#f8fafc}
     <button class="aba-btn" id="aba-trocas" onclick="setAba('trocas')">👕 Vida útil e trocas</button>
   </div>
   <div class="topo-right">
+    <button class="btn-atualizar" onclick="$('nota').classList.toggle('aberta')" title="Como o painel calcula">ℹ️</button>
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
     <button class="btn-excel" onclick="exportarExcel()">⬇ Excel</button>
   </div>
@@ -115,19 +118,17 @@ tr:hover td{background:#f8fafc}
 <div class="filtros-wrap">
   <div class="f-group"><label>Filial</label><select id="f-filial" onchange="aoMudarFilial()"><option value="">Todas as filiais</option></select></div>
   <div class="f-group"><label>Grupo</label><select id="f-grupo" onchange="aplicar()">
-    <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC / Ferramentas (sem botas)</option><option value="BOTA">👢 Botas e calçados</option><option value="FARD">Fardamento</option></select></div>
-  <div class="f-group f-busca"><label>Código / Descrição / Matrícula</label><input id="f-busca" placeholder="🔍 Buscar..." oninput="aplicar()"></div>
+    <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC (sem botas)</option><option value="BOTA">👢 Botas</option><option value="FARD">Fardamento</option></select></div>
+  <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Código, descrição ou matrícula" oninput="aplicar()"></div>
   <div class="f-group"><label>Curva ABC</label><select id="f-abc" onchange="aplicar()">
-    <option value="">Todas</option><option value="A">A — 80% do que sai</option><option value="AB">A + B</option><option value="B">B — próximos 15%</option><option value="C">C — últimos 5%</option></select></div>
+    <option value="">Todas</option><option value="A">A (80%)</option><option value="AB">A + B</option><option value="B">B (15%)</option><option value="C">C (5%)</option></select></div>
   <div class="f-group"><label>ABC por</label><select id="f-abc-por" onchange="aplicar()">
-    <option value="valor">Valor (consumo × custo)</option><option value="qtd">Quantidade</option></select></div>
-  <div class="f-group"><label>Tirar do consumo</label>
-    <div style="display:flex;gap:12px;align-items:center;height:36px;font-size:13px">
-      <label style="display:flex;gap:5px;align-items:center;margin:0;font-size:13px;color:#0f172a;font-weight:500" title="Saídas com motivo A (kits de equipe nova) — compra direcionada, não ressuprimento"><input type="checkbox" id="x-mob" onchange="recalcular()" style="padding:0"> Mobilização</label>
-      <label style="display:flex;gap:5px;align-items:center;margin:0;font-size:13px;color:#0f172a;font-weight:500" title="Saídas com motivo 5 (primeira entrega a funcionário novo)"><input type="checkbox" id="x-adm" onchange="recalcular()" style="padding:0"> Admissional</label>
-      <span id="aviso-mot" class="red" style="font-size:11px"></span></div></div>
+    <option value="valor">Valor</option><option value="qtd">Quantidade</option></select></div>
+  <div class="f-group"><label>Consumo</label><select id="f-consumo" onchange="recalcular()" title="Mobilização = motivo A (kits de equipe nova). Admissional = motivo 5 (primeira entrega a funcionário novo).">
+    <option value="">Todas as saídas</option><option value="mob">Sem mobilização</option><option value="adm">Sem admissional</option><option value="ambos">Sem os dois</option></select>
+    <span id="aviso-mot" class="red" style="font-size:11px"></span></div>
   <div class="f-group"><label>Tipo de saída</label><select id="f-tipo" onchange="aplicar()">
-    <option value="">Todos</option><option value="regular">Regular</option><option value="intermitente">Intermitente</option><option value="pontual">Pontual</option><option value="trocas">Só trocas (sem consumo)</option><option value="sem">Sem saída</option></select></div>
+    <option value="">Todos</option><option value="regular">Regular</option><option value="intermitente">Intermitente</option><option value="pontual">Pontual</option><option value="trocas">Só trocas</option><option value="sem">Sem saída</option></select></div>
 </div>
 
 <div class="pills" id="pills"></div>
@@ -309,7 +310,7 @@ function calcular(){
     (mot||[]).forEach(r=>{if(r.motivo!=='MOBILIZAÇÃO')return;const k=String(r.filial).trim()+'|'+String(r.produto).trim(),q=Number(r.quantidade)||0;MOB[k]=(MOB[k]||0)+q;(MOBMES[k]=MOBMES[k]||{})[r.mes]=(MOBMES[k][r.mes]||0)+q});
     Object.keys(MOB).forEach(k=>{const tot=Object.values(CONS[k]||{}).reduce((a,b)=>a+b,0);MOB[k]={q:Math.min(MOB[k],tot),pct:tot>0?Math.min(1,MOB[k]/tot):0}});
     // tira as saídas dos motivos marcados (mobilização / admissional)
-    const tirar=[$('x-mob').checked&&'MOBILIZAÇÃO',$('x-adm').checked&&'ADMISSIONAL'].filter(Boolean),TIRADO={};
+    const tirar=[tiraMob()&&'MOBILIZAÇÃO',tiraAdm()&&'ADMISSIONAL'].filter(Boolean),TIRADO={};
     $('aviso-mot').textContent=mot?'':'⚠ não foi possível separar mobilização — consumo com todas as saídas';
     (mot||[]).forEach(r=>{
       if(!tirar.includes(r.motivo))return;
@@ -498,6 +499,7 @@ function ordenar(){
 }
 function sortBy(c){if(SORT===c)DIR=-DIR;else{SORT=c;DIR=1}ordenar();PAG=1;render()}
 function setPill(p){if(ABA==='risco')PILL=p;else SIT=p;SORT=null;aplicar()}
+const tiraMob=()=>/mob|ambos/.test($('f-consumo').value),tiraAdm=()=>/adm|ambos/.test($('f-consumo').value);
 function recalcular(){if(DADOS){calcular();aplicar()}}
 function abrirFilial(f){VISTA='lista';ITEM_SEL='';$('f-filial').value=f;PILL='todos';SORT=null;aplicar();window.scrollTo({top:0})}
 function abrirItem(c){VISTA='lista';ITEM_SEL=c;$('f-filial').value='';PILL='todos';SORT=null;aplicar();window.scrollTo({top:0})}
@@ -522,7 +524,9 @@ function renderPills(){
     const B=baseRisco();
     const f=$('f-filial').value;
     const titulo=(ITEM_SEL?ITEM_SEL+' — '+(ITEM[ITEM_SEL]?.descricao||''):'')+(ITEM_SEL&&f?' · ':'')+(f?f+' — '+nomeFil(f):ITEM_SEL?'':'Todas as filiais');
-    h=`<button class="pill-btn pill-voltar" onclick="voltar()">← ${ORIGEM==='itens'?'Itens':'Filiais'}</button><span style="align-self:center;font-weight:800;font-size:13px;margin:0 6px">${esc(titulo)}</span><span class="pill-sep"></span>`+PILLS_RISCO.map(([k,t,f])=>`<button class="pill-btn ${PILL===k?'ativo':''}" onclick="setPill('${k}')">${t} (${fmtN(B.filter(f).length)})</button>`).join('');
+    h=`<button class="pill-btn pill-voltar" onclick="voltar()">← ${ORIGEM==='itens'?'Itens':'Filiais'}</button><span style="align-self:center;font-weight:800;font-size:13px;margin:0 6px">${esc(titulo)}</span><span class="pill-sep"></span>
+      <label style="align-self:center;font-size:11px;font-weight:600;color:#64748b">Mostrar</label>
+      <select class="sel-sit" onchange="setPill(this.value)">${PILLS_RISCO.map(([k,t,f])=>`<option value="${k}" ${PILL===k?'selected':''}>${t} (${fmtN(B.filter(f).length)})</option>`).join('')}</select>`;
   }else{
     const n=k=>TROCAS&&!TROCAS.erro?' ('+fmtN(trocasFiltradas(k).length)+')':'';
     h=PILLS_TROCAS.map(([k,t])=>`<button class="pill-btn ${SIT===k?'ativo':''}" onclick="setPill('${k}')">${t}${n(k)}</button>`).join('')+
@@ -672,7 +676,7 @@ function abrirConsumo(ev,fil,cod){
   ev.stopPropagation();
   const k=fil+'|'+cod,l=LINHAS.find(x=>x.fil===fil&&x.cod===cod);if(!POP||!l)return;
   const o=POP.ORIG[k]||{},mm=POP.MOTMES[k]||{},u=POP.CONS[k]||{};
-  const tMob=$('x-mob').checked,tAdm=$('x-adm').checked;
+  const tMob=tiraMob(),tAdm=tiraAdm();
   let tot=0,mob=0,usa=0;
   const lin=POP.W.map(m=>{const q=o[m]||0,qm=Math.min(q,mm[m]?.['MOBILIZAÇÃO']||0),qu=u[m]||0;tot+=q;mob+=qm;usa+=qu;
     return`<tr><td>${fmtMes(m)}</td><td class="num"><b>${q?fmtN(q):'<span class="cinza">0</span>'}</b></td><td class="num" style="color:#7c3aed">${qm?fmtN(qm):'<span class="cinza">—</span>'}</td><td class="num">${q-qm?fmtN(q-qm):'<span class="cinza">—</span>'}</td></tr>`}).join('');
@@ -707,7 +711,7 @@ function render(){
     h=`<table><thead><tr><th title="Estoque de segurança">🛡️</th>${th('filNome','Filial')}${th('cod','Código')}${th('desc','Descrição')}${th('peso','ABC')}${th('ordem','Situação')}${th('est','Estoque','num')}${th('media','Consumo/mês','num')}${th('cob','Cobertura','num')}${th('trocas','Trocas prev.','num')}${th('fAlm','Almoxarife','num fcol')}${th('fGer','Gerente','num fcol')}${th('fFin','Master (final)','num fcol')}${th('ver','Veredito','fcol')}${th('scQtd','SC aberta','num')}${th('cam','Pedido (a caminho)','num')}${th('valor','Valor a comprar','num')}</tr></thead><tbody>`+
     vis.map(l=>{
       const cobCor=l.cob==null?'cinza':l.cob<l.prazo/2?'red':l.cob<l.prazo?'amb':'verde';
-      return`<tr><td>${celSeg(l)}</td><td class="cod" title="${esc(l.fil)}">${esc(l.filNome)}</td><td class="cod">${esc(l.cod)}</td><td style="min-width:240px">${esc(l.desc)}<div class="mini">${esc(tipoTxt(l))}${l.pctMob>=PESO_MOB?` · <span style="color:#7c3aed;font-weight:700" title="${fmtN(l.mob)} un saíram por mobilização nos 6 meses — ${$('x-mob').checked?'já fora da média':'ainda contando na média'}">${fmtN(l.pctMob*100)}% mobilização</span>`:''}</div></td>
+      return`<tr><td>${celSeg(l)}</td><td class="cod" title="${esc(l.fil)}">${esc(l.filNome)}</td><td class="cod">${esc(l.cod)}</td><td style="min-width:240px">${esc(l.desc)}<div class="mini">${esc(tipoTxt(l))}${l.pctMob>=PESO_MOB?` · <span style="color:#7c3aed;font-weight:700" title="${fmtN(l.mob)} un saíram por mobilização nos 6 meses — ${tiraMob()?'já fora da média':'ainda contando na média'}">${fmtN(l.pctMob*100)}% mobilização</span>`:''}</div></td>
       <td title="${l.abc?'Curva '+l.abc+' · '+($('f-abc-por').value==='qtd'?fmtN(l.peso,1)+' un/mês':fmtR(l.peso)+'/mês'):'Sem saída'}">${l.abc?`<span class="abc abc-${l.abc}">${l.abc}</span>`:'<span class="cinza">—</span>'}</td><td>${badgeSit(l)}</td><td class="num" title="${esc(estTip(l))}" style="cursor:help">${badgeEst(l)}</td>
       <td class="num"><span class="pop-cons" onclick="abrirConsumo(event,'${esc(l.fil)}','${esc(l.cod)}')" title="Clique para ver mês a mês">${l.media>0?fmtN(Math.max(1,Math.round(l.media))):'<span class="cinza">—</span>'}${l.tirado?'<span class="mini" style="color:#7c3aed"> *</span>':''}</span></td>
       <td class="num ${cobCor}" title="Estoque dura ≈ ${l.cob==null?'—':fmtN(l.cob,1)+' meses'} · prazo do grupo ${fmtN(l.prazo*30.44)} dias · meta ${fmtN(l.alvo)} un${l.porTrocas?' (pelas trocas)':''}">${l.cob==null?'—':fmtN(Math.round(l.cob*30.44))+' d'}</td>
