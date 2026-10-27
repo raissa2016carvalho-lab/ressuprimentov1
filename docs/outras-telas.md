@@ -3,6 +3,10 @@
 ## ruptura.html — Risco de Ruptura (out/2026, sem login)
 - **Visual igual ao `estoque.html` (Posição)** desde 26/10: topo escuro, filtros, botões-pílula, cartões, tabela ordenável
   (clique no título) com 100 linhas por página, Excel da lista filtrada. Uma linha por **filial × item** de EPI/EPC/Ferramentas e Fardamento.
+- **Tela inicial = cartões por filial** (27/10): nome, SKUs (filial × item), quantos A/B/C (curva da própria filial), itens a romper
+  (= "Pedir agora", com valor e quantos são curva A), barra Pedir/Já solicitado/Depende/Normal, PCs atrasados. Ordenados por itens a romper.
+  Clique abre a lista da filial ("← Filiais" volta; "Ver lista de todas as filiais" abre tudo). Na lista, SC aberta e Pedido mostram também o status
+  (Bloqueada/Pendente/Em cotação; Pendente/Em aprovação/...).
 - Lê `itens`, `estoque_sb2` (qtd_atual, `saldo_pedido` = a caminho; negativo vira 0), `consumo_mensal` (6 meses ÷ 6),
   `sc_pedidos_v2`, `filiais` e a função `trocas_previstas`.
   - **SC aberta**: `pc_numero` vazio e status Pendente / Bloqueada / Em Processo de Cotação, emitida no último ano; qtd = `sc_quant - sc_quje`.

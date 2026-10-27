@@ -62,6 +62,23 @@ tr:hover td{background:#f8fafc}
 .loading{text-align:center;color:#94a3b8;padding:48px;font-size:13px}
 .btn-excel{background:#166534;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
 .btn-atualizar{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.cards-fil{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.card-fil{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s;text-align:left;font-family:inherit;color:inherit;width:100%}
+.card-fil:hover{border-color:#1e40af;box-shadow:0 2px 10px rgba(30,64,175,.12)}
+.card-fil .cf-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.card-fil .cf-nome{font-size:13.5px;font-weight:800;color:#0f172a}
+.card-fil .cf-cod{font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8}
+.card-fil .cf-risco{display:flex;align-items:baseline;gap:6px;margin-top:10px;flex-wrap:wrap}
+.card-fil .cf-risco b{font-size:26px;font-weight:800;line-height:1}
+.card-fil .cf-lab{font-size:11.5px;color:#64748b}
+.card-fil .cf-barra{height:5px;background:#f1f5f9;border-radius:3px;margin:8px 0;overflow:hidden;display:flex}
+.card-fil .cf-barra span{display:block;height:100%}
+.card-fil .cf-abc{display:flex;gap:6px 10px;flex-wrap:wrap;margin-top:8px}
+.card-fil .cf-abc span.q{font-size:11.5px;color:#475569;font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.card-fil .cf-rod{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;padding-top:8px;border-top:1px solid #f1f5f9;font-size:11.5px;color:#64748b}
+.card-fil .cf-rod b{color:#0f172a}
+.cards-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px;color:#64748b}
+.pill-voltar{border:1px solid #1e40af;color:#1e40af;background:#eff6ff}
 .nota{font-size:11.5px;color:#64748b;line-height:1.55;padding:16px 24px 28px}
 @media(max-width:600px){.topo,.filtros-wrap,.pills,.resumo,.tabela-wrap,.paginador,.nota{padding-left:16px;padding-right:16px}.topo-right{margin-left:0;width:100%}.f-group{width:100%}.f-group select{width:100%}}
 </style>
@@ -86,7 +103,7 @@ tr:hover td{background:#f8fafc}
 </div>
 
 <div class="filtros-wrap">
-  <div class="f-group"><label>Filial</label><select id="f-filial" onchange="aplicar()"><option value="">Todas as filiais</option></select></div>
+  <div class="f-group"><label>Filial</label><select id="f-filial" onchange="VISTA=this.value?'lista':'filiais';aplicar()"><option value="">Todas as filiais</option></select></div>
   <div class="f-group"><label>Grupo</label><select id="f-grupo" onchange="aplicar()">
     <option value="">EPI + Fardamento</option><option value="EPI">EPI / EPC / Ferramentas</option><option value="FARD">Fardamento</option></select></div>
   <div class="f-group f-busca"><label>Código / Descrição / Matrícula</label><input id="f-busca" placeholder="🔍 Buscar..." oninput="aplicar()"></div>
@@ -120,6 +137,7 @@ const PC_ABERTO=['Pendente','Em aprovação','Recebido parcialmente','Em recebim
 let LINHAS=[],NOMES_FIL={},ITEM={};
 let ABA='risco',PILL='pedir',SIT='vencida',PAG=1,SORT=null,DIR=1;
 let TROCAS=null,VIDA=null,FILTRADOS=[];
+let VISTA='filiais'; // posição e risco: cartões por filial → lista ao clicar
 
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtN=(v,d=0)=>(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -257,6 +275,7 @@ async function carregar(){
     });
 
     montarFiliais();
+    if(VISTA==='filiais')$('f-filial').value='';
     const ts=est_ts.data?.[0]?.atualizado_em;
     $('tag-sync').textContent=fmtN(LINHAS.length)+' filial × item';
     $('tag-ultima').innerHTML='consumo '+fmtMes(W[0])+'–'+fmtMes(W[5])+(ts?' · estoque de <b style="color:#e2e8f0">'+new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</b>':'');
@@ -296,20 +315,20 @@ function montarFiliais(){
 // ── FILTROS ──────────────────────────────────────────────
 // Curva ABC calculada dentro da filial e do grupo escolhidos (busca e tipo de saída não mudam a classe):
 // A = itens que somam 80% do que sai, B = próximos 15%, C = últimos 5%. Sem saída = sem classe.
-function baseRisco(){
-  const fil=$('f-filial').value,gr=$('f-grupo').value,porQtd=$('f-abc-por').value==='qtd',sel=$('f-abc').value;
+function baseRisco(fil=$('f-filial').value,semCurva=false){
+  const gr=$('f-grupo').value,porQtd=$('f-abc-por').value==='qtd',sel=semCurva?'':$('f-abc').value;
   const peso=l=>porQtd?Math.max(l.media,l.trocas/l.prazo):Math.max(l.media,l.trocas/l.prazo)*l.custo;
   const escopo=LINHAS.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr));
   escopo.forEach(l=>{l.abc="";l.peso=peso(l)});
   const com=escopo.filter(l=>l.peso>0).sort((a,b)=>b.peso-a.peso);
   const tot=com.reduce((s,l)=>s+l.peso,0);let acum=0;
   com.forEach(l=>{const antes=acum/tot;acum+=l.peso;l.abc=antes<.8?'A':antes<.95?'B':'C'});
-  const L=base(escopo);
+  const L=base(escopo,fil);
   return sel?L.filter(l=>l.abc&&sel.includes(l.abc)):L;
 }
 
-function base(lista){
-  const fil=$('f-filial').value,gr=$('f-grupo').value,tp=$('f-tipo').value,q=$('f-busca').value.trim().toLowerCase();
+function base(lista,fil=$('f-filial').value){
+  const gr=$('f-grupo').value,tp=$('f-tipo').value,q=$('f-busca').value.trim().toLowerCase();
   return lista.filter(l=>(!fil||l.fil===fil)&&(!gr||l.gk===gr)&&(!tp||!l.tipo||l.tipo===tp)&&
     (!q||l.cod.includes(q)||String(l.desc).toLowerCase().includes(q)||(l.mat&&l.mat.includes(q))));
 }
@@ -334,7 +353,8 @@ function vidaFiltrada(){
 }
 
 function aplicar(){
-  if(ABA==='risco'){
+  if(ABA==='risco'&&VISTA==='filiais')FILTRADOS=[];
+  else if(ABA==='risco'){
     const f=PILLS_RISCO.find(p=>p[0]===PILL)||PILLS_RISCO[0];
     FILTRADOS=baseRisco().filter(f[2]);
   }else FILTRADOS=SIT==='vida'?vidaFiltrada():trocasFiltradas();
@@ -348,19 +368,24 @@ function ordenar(){
 }
 function sortBy(c){if(SORT===c)DIR=-DIR;else{SORT=c;DIR=1}ordenar();PAG=1;render()}
 function setPill(p){if(ABA==='risco')PILL=p;else SIT=p;SORT=null;aplicar()}
+function abrirFilial(f){VISTA='lista';$('f-filial').value=f;PILL='todos';SORT=null;aplicar();window.scrollTo({top:0})}
+function voltarFiliais(){VISTA='filiais';$('f-filial').value='';SORT=null;aplicar()}
 function setAba(a){ABA=a;SORT=null;$('aba-risco').classList.toggle('ativo',a==='risco');$('aba-trocas').classList.toggle('ativo',a==='trocas');aplicar()}
 
 // ── RENDER ───────────────────────────────────────────────
 function renderPills(){
   let h;
   if(ABA==='risco'){
+    if(VISTA==='filiais'){$('pills').style.display='none';return}
     const B=baseRisco();
-    h=PILLS_RISCO.map(([k,t,f])=>`<button class="pill-btn ${PILL===k?'ativo':''}" onclick="setPill('${k}')">${t} (${fmtN(B.filter(f).length)})</button>`).join('');
+    const f=$('f-filial').value;
+    h=`<button class="pill-btn pill-voltar" onclick="voltarFiliais()">← Filiais</button><span style="align-self:center;font-weight:800;font-size:13px;margin:0 6px">${f?esc(f+' — '+nomeFil(f)):'Todas as filiais'}</span><span class="pill-sep"></span>`+PILLS_RISCO.map(([k,t,f])=>`<button class="pill-btn ${PILL===k?'ativo':''}" onclick="setPill('${k}')">${t} (${fmtN(B.filter(f).length)})</button>`).join('');
   }else{
     const n=k=>TROCAS&&!TROCAS.erro?' ('+fmtN(trocasFiltradas(k).length)+')':'';
     h=PILLS_TROCAS.map(([k,t])=>`<button class="pill-btn ${SIT===k?'ativo':''}" onclick="setPill('${k}')">${t}${n(k)}</button>`).join('')+
       `<span class="pill-sep"></span><button class="pill-btn ${SIT==='vida'?'ativo':''}" onclick="setPill('vida')">Vida útil por item</button>`;
   }
+  $('pills').style.display='';
   $('pills').innerHTML=h;
 }
 
@@ -370,7 +395,7 @@ function renderResumo(){
     const B=baseRisco();
     const pedir=B.filter(l=>l.status==='pedir'),sol=B.filter(l=>l.status==='solicitado'),dep=B.filter(l=>l.status==='depende');
     const atr=B.flatMap(l=>l.atrasados);const nAtr=new Set(atr.map(p=>p.pc)).size;
-    c=`<div class="resumo-card"><div class="val">${fmtN(FILTRADOS.length)}</div><div class="lab">Itens nesta lista</div></div>
+    c=`<div class="resumo-card"><div class="val">${fmtN(VISTA==='filiais'?B.length:FILTRADOS.length)}</div><div class="lab">${VISTA==='filiais'?'SKUs (filial × item)':'Itens nesta lista'}</div></div>
       <div class="resumo-card alerta"><div class="val">${fmtN(pedir.length)}</div><div class="lab">Pedir agora</div><div class="sub">≈ ${fmtCurto(pedir.reduce((s,l)=>s+l.valor,0))} para cobrir até a próxima chegada</div></div>
       <div class="resumo-card azul"><div class="val">${fmtN(sol.length)}</div><div class="lab">Já solicitado</div><div class="sub">SC aberta cobre — acompanhar compras</div></div>
       <div class="resumo-card bloq"><div class="val">${fmtN(dep.length)}</div><div class="lab">Depende da entrega</div><div class="sub">estoque não aguenta; o pedido cobre</div></div>
@@ -405,18 +430,21 @@ function celSC(l){
   if(!l.scs.length)return'<span class="cinza">—</span>';
   const tip=l.scs.map(s=>`SC ${s.sc} · ${fmtN(s.qtd)} un · ${fmtData(s.emissao)} · ${s.status}${s.solic?' · '+s.solic:''}`).join('\n');
   const velha=l.scs.reduce((m,s)=>Math.max(m,s.dias),0);
-  return`<span title="${esc(tip)}" style="cursor:help"><b>${fmtN(l.scQtd)}</b> <span class="mini">${l.scs.length>1?l.scs.length+' SCs':'SC '+esc(l.scs[0].sc)}<br><span class="${velha>30?'amb':''}">há ${fmtN(velha)} d</span></span></span>`;
+  const st=[...new Set(l.scs.map(s=>s.status))].join(' / ');
+  return`<span title="${esc(tip)}" style="cursor:help"><b>${fmtN(l.scQtd)}</b> <span class="mini">${l.scs.length>1?l.scs.length+' SCs':'SC '+esc(l.scs[0].sc)}<br><span class="${/bloq/i.test(st)?'amb':''}">${esc(st)}</span> · <span class="${velha>30?'amb':''}">há ${fmtN(velha)} d</span></span></span>`;
 }
 function celPC(l){
   if(!l.pcs.length)return l.cam>0?`<b>${fmtN(l.cam)}</b>`:'<span class="cinza">—</span>';
   const tip=l.pcs.map(p=>`PC ${p.pc} · ${fmtN(p.qtd)} un · entrega ${fmtData(p.entrega)}${p.atraso>0?' (atrasado '+p.atraso+' d)':''} · ${p.status} · ${p.forn}${p.comp?' · comprador '+p.comp:''}`).join('\n');
   const det=l.atrasados.length?`<span class="red">atrasado ${fmtN(l.atrasoMax)} d</span>`:`entrega ${fmtData(l.proxEntrega)}`;
-  return`<span title="${esc(tip)}" style="cursor:help"><b>${fmtN(l.cam)}</b> <span class="mini">${l.pcs.length>1?l.pcs.length+' PCs':'PC '+esc(l.pcs[0].pc)}<br>${det}</span></span>`;
+  const st=[...new Set(l.pcs.map(p=>p.status))].join(' / ');
+  return`<span title="${esc(tip)}" style="cursor:help"><b>${fmtN(l.cam)}</b> <span class="mini">${l.pcs.length>1?l.pcs.length+' PCs':'PC '+esc(l.pcs[0].pc)}<br>${esc(st)} · ${det}</span></span>`;
 }
 
 function render(){
   renderPills();renderResumo();renderNota();
   const th=(c,t,cls='')=>`<th class="${cls}" onclick="sortBy('${c}')">${t}${SORT===c?(DIR===1?' ↑':' ↓'):''}</th>`;
+  if(ABA==='risco'&&VISTA==='filiais'){renderCards();return}
   if(ABA==='trocas'&&!TROCAS){$('tabela').innerHTML='<div class="loading">Carregando trocas por pessoa...</div>';$('paginador').style.display='none';return}
   if(ABA==='trocas'&&TROCAS.erro){$('tabela').innerHTML='<div class="vazio">Erro ao carregar as trocas: '+esc(TROCAS.erro)+'</div>';$('paginador').style.display='none';return}
   if(!FILTRADOS.length){$('tabela').innerHTML='<div class="vazio">Nenhum item encontrado com esses filtros.</div>';$('paginador').style.display='none';return}
@@ -447,6 +475,36 @@ function render(){
   }
   $('tabela').innerHTML=h;
   renderPaginador();
+}
+
+// Tela inicial: um cartão por filial (SKUs, curva ABC da filial, itens a romper) — clique abre a lista da filial
+function renderCards(){
+  $('paginador').style.display='none';
+  const fils=[...new Set(LINHAS.map(l=>l.fil))].filter(Boolean);
+  const C=fils.map(f=>{
+    const T=baseRisco(f,true);                 // todos os SKUs da filial (curva sem filtro)
+    const L=baseRisco(f);                      // com o filtro de curva escolhido
+    const n=s=>L.filter(l=>l.status===s).length;
+    const abc={A:0,B:0,C:0};T.forEach(l=>{if(l.abc)abc[l.abc]++});
+    const atr=new Set(L.flatMap(l=>l.atrasados.map(p=>p.pc))).size;
+    return{f,skus:T.length,comSaida:abc.A+abc.B+abc.C,abc,pedir:n('pedir'),sol:n('solicitado'),dep:n('depende'),ok:n('ok'),atr,
+      valor:L.filter(l=>l.status==='pedir').reduce((s,l)=>s+l.valor,0),aPedirA:L.filter(l=>l.status==='pedir'&&l.abc==='A').length};
+  }).filter(c=>c.skus>0).sort((a,b)=>b.pedir-a.pedir||b.valor-a.valor||a.f.localeCompare(b.f));
+  if(!C.length){$('tabela').innerHTML='<div class="vazio">Nenhuma filial com esses filtros.</div>';return}
+  const pct=(v,t)=>(100*v/t).toFixed(1)+'%';
+  $('tabela').innerHTML=`<div class="cards-topo"><span>Clique na filial para ver os itens, SCs e pedidos. Ordenado por itens a romper.</span>
+    <button class="pill-btn" onclick="abrirFilial('')">Ver lista de todas as filiais</button></div><div class="cards-fil">`+
+    C.map(c=>{const ativos=c.pedir+c.sol+c.dep+c.ok||1;return`<button class="card-fil" onclick="abrirFilial('${esc(c.f)}')">
+      <div class="cf-top"><span class="cf-nome">${esc(nomeFil(c.f))}</span><span class="cf-cod">${esc(c.f)}</span></div>
+      <div class="cf-risco"><b class="${c.pedir?'red':'verde'}">${fmtN(c.pedir)}</b><span class="cf-lab">itens a romper${c.pedir?' · ≈ '+fmtCurto(c.valor):''}${c.aPedirA?` · <span class="red" style="font-weight:700">${fmtN(c.aPedirA)} curva A</span>`:''}</span></div>
+      <div class="cf-barra" title="Pedir agora / Já solicitado / Depende da entrega / Normal">
+        <span style="width:${pct(c.pedir,ativos)};background:#ef4444"></span><span style="width:${pct(c.sol,ativos)};background:#3b82f6"></span>
+        <span style="width:${pct(c.dep,ativos)};background:#f59e0b"></span><span style="width:${pct(c.ok,ativos)};background:#22c55e"></span></div>
+      <div class="cf-abc"><span class="q"><b>${fmtN(c.skus)}</b> SKUs</span>
+        ${['A','B','C'].map(k=>`<span class="q"><span class="abc abc-${k}">${k}</span>${fmtN(c.abc[k])}</span>`).join('')}
+        <span class="q cinza">${fmtN(c.skus-c.comSaida)} sem saída</span></div>
+      <div class="cf-rod"><span>📝 Já solicitado <b>${fmtN(c.sol)}</b></span><span>🟡 Depende <b>${fmtN(c.dep)}</b></span><span>⏰ PCs atrasados <b class="${c.atr?'red':''}">${fmtN(c.atr)}</b></span></div>
+    </button>`}).join('')+'</div>';
 }
 
 function renderPaginador(){
