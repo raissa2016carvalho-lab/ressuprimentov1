@@ -201,8 +201,16 @@ tr:last-child td{border-bottom:none}
   .f-group{flex:1 1 140px}
   .f-group select,.f-group input{max-width:none;width:100%}
 }
+
+/* topo no padrão B&Q (escuro) */
+.header{background:#0f172a!important;border-bottom:0!important}
+.header .header-title{color:#fff}.header .header-sub{color:#94a3b8}
+.header #sync-badge{color:#94a3b8}
+.header .user-box{color:#cbd5e1;border-color:#334155}.header .user-box #user-nome{color:#fff}
+.header .btn-voltar{background:#fff;border-color:#e2e8f0;color:#334155;font-weight:600}.header .btn-voltar:hover{background:#f1f5f9;color:#0f172a}
+.header .btn-excel{background:#166534;border-color:#166534}
 </style>
-</head>
+<link rel="stylesheet" href="/padrao.css"></head>
 <body>
 
 <!-- ══════════════ TELA DE LOGIN (visível por padrão) ══════════════ -->
@@ -291,7 +299,7 @@ tr:last-child td{border-bottom:none}
 <div id="painel-app" style="display:none">
 
 <div class="header">
-  <a class="brand" href="/los.html" title="Voltar ao menu"><b>B</b>&amp;<b>Q</b></a>
+  <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
   <div>
     <div class="header-title">Fechamento de Consumo</div>
     <div class="header-sub" id="sub-header">Carregando...</div>

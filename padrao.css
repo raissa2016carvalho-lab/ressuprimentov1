@@ -1,0 +1,20 @@
+/* Padrão visual B&Q — usado por todas as telas (topo escuro + marca B&Q) */
+:root{
+  --bq-escuro:#0f172a;   /* topo */
+  --bq-azul:#1e40af;     /* botões e destaques */
+  --bq-laranja:#f26522;  /* só o "&" da marca */
+  --bq-fundo:#f1f5f9;
+  --bq-borda:#e2e8f0;
+  --bq-texto:#0f172a;
+  --bq-cinza:#64748b;
+  --bq-verde:#16a34a;
+  --bq-vermelho:#dc2626;
+  --bq-fonte:system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+.bq-marca{font-family:var(--bq-fonte);font-size:20px;font-weight:800;font-style:italic;letter-spacing:-.3px;line-height:1;color:#fff;text-decoration:none;flex-shrink:0;padding-right:14px;border-right:1px solid #334155;white-space:nowrap}
+.bq-marca b{color:var(--bq-laranja);font-weight:800}
+.bq-marca.claro{color:var(--bq-texto);border-right:0;padding-right:0}
+.bq-topo{background:var(--bq-escuro);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:var(--bq-fonte)}
+.bq-topo h1{font-size:15px;font-weight:700;margin:0}
+.bq-topo .bq-sub{color:#94a3b8;font-size:12px;margin-top:2px}
+@media(max-width:600px){.bq-topo{padding-left:16px;padding-right:16px}}
