@@ -79,6 +79,7 @@ tr:hover td{background:#f8fafc}
 .card-fil .cf-rod{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;padding-top:8px;border-top:1px solid #f1f5f9;font-size:11.5px;color:#64748b}
 .card-fil .cf-rod b{color:#0f172a}
 .cards-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px;color:#64748b}
+.btn-incluir{border:1px solid #16a34a;background:#f0fdf4;color:#166534;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}.btn-incluir:hover{background:#dcfce7}
 .seg-btn{border:1px solid #e2e8f0;background:#fff;border-radius:6px;width:28px;height:26px;cursor:pointer;font-size:14px;color:#94a3b8;padding:0}.seg-btn:hover{border-color:#0f766e;color:#0f766e}.seg-btn.on{background:#ccfbf1;border-color:#0f766e}
 .pop-cons{cursor:pointer;border-bottom:1px dotted #1e40af;color:#1e40af}
 #popup-consumo{display:none;position:fixed;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:14px 16px;min-width:300px;max-width:360px;font-size:12.5px}
@@ -584,8 +585,31 @@ const VEREDITO={coberto:['✅ Coberto','badge-ok'],cortado:['✂️ Cortado e po
   fora_est:['➖ Fora do formulário · estoque cobre','badge-zero'],fora_ped:['➖ Fora do formulário · pedido cobre','badge-zero'],fora_sc:['➖ Fora do formulário · SC cobre','badge-zero'],
   rec_ok:['🚫 Recusado · estoque cobre','badge-zero']};
 // Colunas do último formulário: uma por etapa (roxo = mudou em relação à etapa anterior) + veredito
+// formulários da rodada que ainda aceitam inclusão (sem SC, pendente ou aguardando master)
+const formsAbertos=fil=>(FORMFIL[fil]?.forms||[]).filter(f=>!f.sc_numero&&['pendente','aguardando_master'].includes(f.status));
+function btnIncluir(l){
+  if(!['fora','cortado','recusado','naocobre'].includes(l.ver)||!formsAbertos(l.fil).length)return'';
+  return`<div style="margin-top:4px"><button class="btn-incluir" onclick="incluirNoForm('${esc(l.fil)}','${esc(l.cod)}')" title="Coloca o item no último formulário, já aprovado, para virar SC">➕ ${l.fm?'Ajustar':'Incluir'} no formulário</button></div>`;
+}
+async function incluirNoForm(fil,cod){
+  const l=LINHAS.find(x=>x.fil===fil&&x.cod===cod);if(!l)return;
+  const abertos=formsAbertos(fil);if(!abertos.length){alert('Não há formulário aberto (sem SC) nesta filial.');return}
+  let form=abertos[0];
+  if(abertos.length>1){
+    const r=prompt('Em qual formulário?\n\n'+abertos.map((f,i)=>`${i+1} — nº ${f.id} · CC ${f.cc} · ${f.status.replace('_',' ')}`).join('\n'),'1');
+    if(r===null)return;form=abertos[Number(r)-1];if(!form){alert('Opção inválida.');return}
+  }
+  const atual=l.fm&&!l.fm.rec?l.fm.fin:0,sug=Math.max(1,atual+l.comprar);
+  const r=prompt(`➕ ${l.desc}\n${l.filNome} · formulário nº ${form.id} (CC ${form.cc})\n\n${l.fm?'Hoje a final é '+fmtN(atual)+'. ':''}Quantidade FINAL no formulário (já aprovada para virar SC):`,String(sug));
+  if(r===null)return;
+  const q=Math.round(Number(String(r).replace(',','.'))||0);if(q<=0){alert('Quantidade inválida.');return}
+  try{
+    const {error}=await db.rpc('incluir_item_ruptura',{p_solicitacao_id:form.id,p_codigo:cod,p_qtd:q});if(error)throw error;
+    DADOS.forms=await carregarFormularios();calcular();aplicar();
+  }catch(e){alert('Não consegui incluir: '+(e.message||e))}
+}
 function colsForm(l){
-  const v=l.ver?`<span class="${VEREDITO[l.ver][1]}">${VEREDITO[l.ver][0]}</span>`:'<span class="cinza">—</span>';
+  const v=(l.ver?`<span class="${VEREDITO[l.ver][1]}">${VEREDITO[l.ver][0]}</span>`:'<span class="cinza">—</span>')+btnIncluir(l);
   if(!l.fm)return`<td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="num fcol cinza">—</td><td class="fcol">${v}</td>`;
   const f=l.fm,mud=(a,b)=>a!==b?' style="color:#7c3aed;font-weight:800"':'';
   const tip=[...new Set(f.forms.map(x=>`Formulário nº ${x.id} · CC ${x.cc} · ${fmtData(ymd8(String(x.criado_em).slice(0,10)))} · ${x.status.replace('_',' ')}${x.sc_numero?' · SC '+x.sc_numero:' · sem SC'}`))]
@@ -819,6 +843,7 @@ function renderNota(){
     <b>SC aberta</b> = solicitação ainda sem pedido (pendente, bloqueada ou em cotação, último ano).
     Situação: <b>Pedir agora</b> = estoque + pedido + SC aberta não chegam à meta; <b>Já solicitado</b> = o estoque sozinho não chega, mas pedido a caminho, SC aberta ou formulário cobre;
 
+    <b>➕ Incluir no formulário</b>: nos itens que ficaram de fora, foram cortados ou não cobrem, coloca a quantidade final no último formulário (sem SC), já aprovada para virar SC — aparece no Painel principal como alterada pelo master ("painel ruptura").
     <b>Último formulário</b>: rodada mais recente de cada filial (formulários até ${DIAS_RODADA} dias antes do último, todos os CCs; recusados inteiros não contam). Mostra almoxarife → gerente → final do master (roxo = mudou);
     a final de formulário que ainda não virou SC conta como <b>já pedida</b>. Veredito: ✂️ cortado e ainda pode faltar; ⚠ o pedido (mesmo sem corte) não cobre; ❗ o item não estava no formulário e pode faltar; ➖ não estava no formulário, mas o estoque, um pedido ou uma SC já cobre; ➕ final mais que o dobro do que faltava.
     <b>Tirar do consumo</b>: por padrão o consumo conta <b>todas</b> as saídas. Marque <b>Mobilização</b> (motivo A — kits de equipe nova, compra direcionada) e/ou Admissional (motivo 5) para tirá-las da média; o <span style="color:#7c3aed">*</span> mostra quanto foi tirado.

@@ -24,6 +24,9 @@
   - A final de formulário **sem SC** conta como já pedida (situação "No formulário"); depois que vira SC passa a contar pela SC aberta / pedido.
   - Veredito por item: ✅ coberto · ✂️ cortado e pode faltar · 🚫 recusado e pode faltar · ⚠ pedido não cobre · ❗ ficou de fora
     e pode faltar · ➖ fora do formulário, mas estoque / pedido / SC cobre · ➕ pediu a mais (final > 2× o que faltava e ≥ 3 un a mais).
+  - **➕ Incluir/Ajustar no formulário** (27/10): botão no veredito dos itens que ficaram de fora, foram cortados/recusados ou
+    não cobrem, quando a filial tem formulário sem SC (pendente/aguardando master). Pergunta o formulário (se houver mais de um CC) e a
+    quantidade FINAL (sugestão = final atual + Comprar) e chama `incluir_item_ruptura` → o item fica aprovado para virar SC no Painel principal.
   - Colunas separadas (fundo lilás, ordenáveis): Almoxarife (sugestão do formulário no mouse) | Gerente | Master (final) | Veredito (27/10).
     A coluna e a pílula "Transferir de" foram tiradas a pedido da Raissa (o cálculo de sobra continua no código).
   - Na lista da filial: cartão roxo com nº/CC/status/solicitante, quantos itens cada um mexeu, recusados e os vereditos com valor.
