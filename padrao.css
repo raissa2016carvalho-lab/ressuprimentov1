@@ -11,10 +11,12 @@
   --bq-vermelho:#dc2626;
   --bq-fonte:system-ui,-apple-system,'Segoe UI',sans-serif;
 }
-.bq-marca{font-family:var(--bq-fonte);font-size:20px;font-weight:800;font-style:italic;letter-spacing:-.3px;line-height:1;color:#fff;text-decoration:none;flex-shrink:0;padding-right:14px;border-right:1px solid #334155;white-space:nowrap}
-.bq-marca b{color:var(--bq-laranja);font-weight:800}
-.bq-marca.claro{color:var(--bq-texto);border-right:0;padding-right:0}
+/* Marca B&Q (imagem oficial). O texto fica escondido, só para leitores de tela */
+.bq-marca{display:inline-block;flex-shrink:0;width:96px;height:30px;background:url(/logo-bq-branco.png) left center/contain no-repeat;font-size:0;line-height:0;color:transparent;text-decoration:none;padding-right:14px;margin-right:2px;border-right:1px solid #334155;box-sizing:content-box}
+.bq-marca b{font-size:0}
+.bq-marca.claro{background-image:url(/logo-bq.png);border-right:0;padding-right:0;width:110px;height:35px}
 .bq-topo{background:var(--bq-escuro);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:var(--bq-fonte)}
 .bq-topo h1{font-size:15px;font-weight:700;margin:0}
 .bq-topo .bq-sub{color:#94a3b8;font-size:12px;margin-top:2px}
 @media(max-width:600px){.bq-topo{padding-left:16px;padding-right:16px}}
+nav .bq-marca{width:68px;height:24px;padding-right:9px}
