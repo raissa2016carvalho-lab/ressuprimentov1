@@ -758,7 +758,8 @@ function renderCardMatricial(grupo,readonly){
   // Card com mais de um gerente: só fica "aguardando revisão" quando todos responderam
   var faltaGer=grupo.filter(function(s){return s.status==='pendente'&&(gerentesMapCC[s.cc]||[]).length>0}).length;
   if(temAguardando&&faltaGer)temAguardando=false;
-  var badgeSt=(faltaGer&&grupo.some(function(s){return s.status==='aguardando_master'}))?'<span class="pill" style="background:#fef3c7;color:#92400e">⏳ Falta '+faltaGer+' gerente'+(faltaGer>1?'s':'')+' responder</span>':temAguardando?'<span class="pill p-aguardando_master">⚡ Aguardando revisão</span>':temAnalise?'<span class="pill p-em_analise">Em análise</span>':temRecusada?'<span class="pill" style="background:#fee2e2;color:#dc2626">❌ Recusada</span>':temParcial?'<span class="pill" style="background:#fff7ed;color:#c2410c">⚠️ Parcial</span>':'<span class="pill p-pendente">Pendente</span>';
+  var _mIni=_masterIniciou(grupo);
+  var badgeSt=(_mIni&&!faltaGer)?_PILL_MASTER:(faltaGer&&grupo.some(function(s){return s.status==='aguardando_master'}))?'<span class="pill" style="background:#fef3c7;color:#92400e">⏳ Falta '+faltaGer+' gerente'+(faltaGer>1?'s':'')+' responder</span>':temAguardando?'<span class="pill p-aguardando_master">⚡ Aguardando revisão</span>':temAnalise?'<span class="pill p-em_analise">Em análise</span>':temRecusada?'<span class="pill" style="background:#fee2e2;color:#dc2626">❌ Recusada</span>':temParcial?'<span class="pill" style="background:#fff7ed;color:#c2410c">⚠️ Parcial</span>':'<span class="pill p-pendente">Pendente</span>';
 
   // Campo SC por CC + botão salvar
   var camposSC=grupo.map(function(s){
@@ -775,7 +776,7 @@ function renderCardMatricial(grupo,readonly){
   return'<div class="card" style="margin-bottom:14px">'
     +'<div class="card-topo" onclick="toggleCardMat(this)">'
     +'<div style="flex:1">'
-    +'<div class="card-titulo">'+codigosIds+' <span style="color:#94a3b8;font-weight:500;font-size:12px">'+filialNome+'</span> '+badgeSt+'</div>'
+    +'<div class="card-titulo">'+codigosIds+' <span style="color:#94a3b8;font-weight:500;font-size:12px">'+filialNome+'</span> '+'<span data-selo-sols=" '+grupo.map(function(x){return x.id}).join(' ')+' ">'+badgeSt+(_mIni&&faltaGer?' '+_PILL_MASTER:'')+'</span>'+'</div>'
     +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+tituloCCs+'</div>'
     +'<div class="card-sub">'+s0.solicitante_nome+' · mat. '+s0.solicitante_matricula+' · '+fmtData(s0.criado_em)+' · '+itensList.length+' item(ns) · 📅 '+periodo+'m'+(s0.justificativa?' · "'+s0.justificativa+'"':'')+' </div>'+_ultimaAtualizacaoHtml(grupo)+'</div>'
     +'<div style="text-align:right;flex-shrink:0;margin-left:12px">'
@@ -966,7 +967,7 @@ function gerarExcelMatricial(ids){
   XLSX.utils.book_append_sheet(wb,ws,'SC');
   XLSX.writeFile(wb,nomePlanilha+'.xlsx');
 }
-window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`recusada`?`<span class="pill" style="background:#fee2e2;color:#dc2626;margin-left:6px">❌ Recusada pelo gerente</span>`:s.status===`parcial`?`<span class="pill" style="background:#fff7ed;color:#c2410c;margin-left:6px">⚠️ Parcialmente aprovada</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
+window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){let base=ccMap[s.cc],nomeBase=base?base.nome:s.cc,temGerente=(gerentesMapCC[s.cc]||[]).length>0,badgeGerente=_masterIniciou([s])?`<span class="pill" style="background:#e0e7ff;color:#3730a3;margin-left:6px">📝 Em avaliação pelo master</span>`:s.status===`aguardando_master`?`<span class="pill p-aguardando_master" style="margin-left:6px">⚡ Aguardando sua revisão</span>`:s.status===`recusada`?`<span class="pill" style="background:#fee2e2;color:#dc2626;margin-left:6px">❌ Recusada pelo gerente</span>`:s.status===`parcial`?`<span class="pill" style="background:#fff7ed;color:#c2410c;margin-left:6px">⚠️ Parcialmente aprovada</span>`:s.status===`pendente`&&temGerente?`<span class="pill" style="background:#dbeafe;color:#1e40af;margin-left:6px">🔵 Na etapa gerente</span>`:``,pessoasCC=pessoasMap[s.cc]||[],totalPessoas=pessoasCC.reduce((acc,p)=>acc+p.qtd,0),badgePessoasId=`pessoas-detalhe-`+s.id,badgePessoas=totalPessoas>0?`
       <span onclick="event.stopPropagation();var el=document.getElementById('${badgePessoasId}');el.style.display=el.style.display==='none'?'block':'none';"
         style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;cursor:pointer;margin-left:8px">
         👥 ${totalPessoas} ▾
@@ -982,7 +983,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
         <div class="card-topo" onclick="toggleCard(${s.id})">
           <div style="flex:1;min-width:0">
             <div class="card-titulo">${nomeBase} <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
-              <span class="pill p-${s.status}">${LABEL_STATUS[s.status]||s.status}</span>${badgeGerente}${badgePessoas}</div>
+              <span class="pill p-${s.status}">${LABEL_STATUS[s.status]||s.status}</span><span data-selo-sols=" ${s.id} ">${badgeGerente}</span>${badgePessoas}</div>
             <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns)${s.sc_numero?` · SC `+s.sc_numero:``}${s.periodo_meses?` · <span style="background:#f0fdf4;color:#166534;border-radius:4px;padding:1px 7px;font-weight:700">📅 `+s.periodo_meses+`m</span>`:``}</div>
             ${s.justificativa?`<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>`:``}
             ${_ultimaAtualizacaoHtml([s])}
@@ -1148,13 +1149,23 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
 // Executa as gravações em lotes paralelos (em vez de uma por vez)
 async function _emLotes(lista,fn,n){n=n||10;for(var i=0;i<lista.length;i+=n){var r=await Promise.all(lista.slice(i,i+n).map(fn));r.forEach(function(x){if(x&&x.error)console.error('Erro ao salvar:',x.error.message)})}}
 // Gerente já avaliou? (qtd_gerente gravada, ou solicitação já passou do status pendente)
+// Master já começou a avaliar: salvou rascunho (atualizado por alguém que não é gerente do CC) ou alterou alguma qtd
+function _masterIniciou(sols){return (sols||[]).some(function(s){
+  if(s.status!=='pendente'&&s.status!=='aguardando_master')return false;
+  if(s._masterSalvou||(s.itens||[]).some(function(it){return it.master_alterado_em}))return true;
+  var q=String(s.atualizado_por||'').toLowerCase().trim();
+  return !!q&&q.indexOf('@')>0&&(gerentesMapCC[s.cc]||[]).map(function(e){return String(e).toLowerCase()}).indexOf(q)<0;
+})}
+var _PILL_MASTER='<span class="pill" style="background:#e0e7ff;color:#3730a3">📝 Em avaliação pelo master</span>';
+// Atualiza o selo do card na hora, depois de salvar
+function _atualizarSeloCard(solId){document.querySelectorAll('[data-selo-sols*=" '+solId+' "]').forEach(function(el){var ids=el.dataset.seloSols.trim().split(' ').map(Number);var sols=ids.map(function(i){return solicitacoes.find(function(x){return x.id===i})}).filter(Boolean);if(_masterIniciou(sols)&&!el.innerHTML.includes('Em avaliação pelo master'))el.innerHTML=el.innerHTML.replace(/<span class="pill p-aguardando_master"[^<]*<\/span>/,'')+' '+_PILL_MASTER})}
 // Nome curto a partir do e-mail (thiago.almeida@... → Thiago)
 function _nomeGer(email){var p=String(email||'').split('@')[0].split(/[._-]/)[0];return p?p.charAt(0).toUpperCase()+p.slice(1).toLowerCase():''}
 // Selo no topo da coluna do CC: quem é o gerente e se já respondeu
 function _statusGerenteCC(s){
   var gs=(gerentesMapCC[s.cc]||[]);if(!gs.length)return'<div style="font-size:10px;color:#94a3b8;margin-top:3px;font-weight:500">sem gerente</div>';
   var resp=s.status!=='pendente';
-  var quem=resp&&s.atualizado_por&&gs.indexOf(String(s.atualizado_por).toLowerCase())>=0?_nomeGer(s.atualizado_por):gs.map(_nomeGer).join(' / ');
+  var quem=resp&&s.atualizado_por&&gs.map(function(e){return String(e).toLowerCase()}).indexOf(String(s.atualizado_por).toLowerCase())>=0?_nomeGer(s.atualizado_por):gs.map(_nomeGer).join(' / ');
   return resp?'<div title="'+gs.join(', ')+'" style="font-size:10px;margin-top:3px;font-weight:700;color:#166534;background:#dcfce7;border-radius:5px;padding:1px 5px;display:inline-block">✓ '+quem+' respondeu</div>'
              :'<div title="'+gs.join(', ')+'" style="font-size:10px;margin-top:3px;font-weight:700;color:#92400e;background:#fef3c7;border-radius:5px;padding:1px 5px;display:inline-block">⏳ aguardando '+quem+'</div>';
 }
@@ -1380,6 +1391,7 @@ async function salvarRascunho(solId){
     observacao:obs,
     atualizado_em:new Date().toISOString(),atualizado_por:(typeof userEmail!=='undefined'&&userEmail)||null
   }).eq('id',solId);
+  sol.atualizado_por=(typeof userEmail!=='undefined'&&userEmail)||sol.atualizado_por;sol._masterSalvou=true;_atualizarSeloCard(solId);
   if(msgEl)msgEl.innerHTML='<div class="msg ok">💾 Rascunho salvo! A solicitação permanece na lista.</div>';
   setTimeout(()=>{if(msgEl)msgEl.innerHTML='';},3000);
 }
@@ -1398,6 +1410,7 @@ async function salvarRascunhoGrupo(btn){
       return r;
     });
     await db.from('solicitacoes').update({atualizado_em:new Date().toISOString(),atualizado_por:(typeof userEmail!=='undefined'&&userEmail)||null}).eq('id',solId);
+    sol.atualizado_por=(typeof userEmail!=='undefined'&&userEmail)||sol.atualizado_por;sol._masterSalvou=true;_atualizarSeloCard(solId);
   }
   if(msgEl)msgEl.innerHTML='<span style="color:#1e40af;font-weight:600">💾 Rascunho salvo! As quantidades master estão guardadas.</span>';
   setTimeout(()=>{if(msgEl)msgEl.innerHTML='';},3000);
