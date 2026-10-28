@@ -550,7 +550,7 @@ function renderCardMatricial(grupo,readonly){
   var cabecalhos=grupo.map(function(s){
     var nome=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
     var nomeShort=nome.split(' ').slice(-2).join(' ');
-    return'<th style="min-width:80px;text-align:center">'+nomeShort+'<br><span style="font-size:10px;color:#94a3b8">'+s.cc+'</span></th>';
+    return'<th style="min-width:80px;text-align:center">'+nomeShort+'<br><span style="font-size:10px;color:#94a3b8">'+s.cc+'</span>'+_statusGerenteCC(s)+'</th>';
   }).join('');
 
   // Linhas
@@ -755,7 +755,10 @@ function renderCardMatricial(grupo,readonly){
   var temAnalise=grupo.some(function(s){return s.status==='em_analise'});
   var temRecusada=grupo.every(function(s){return s.status==='recusada'});
   var temParcial=grupo.some(function(s){return s.status==='parcial'});
-  var badgeSt=temAguardando?'<span class="pill p-aguardando_master">⚡ Aguardando revisão</span>':temAnalise?'<span class="pill p-em_analise">Em análise</span>':temRecusada?'<span class="pill" style="background:#fee2e2;color:#dc2626">❌ Recusada</span>':temParcial?'<span class="pill" style="background:#fff7ed;color:#c2410c">⚠️ Parcial</span>':'<span class="pill p-pendente">Pendente</span>';
+  // Card com mais de um gerente: só fica "aguardando revisão" quando todos responderam
+  var faltaGer=grupo.filter(function(s){return s.status==='pendente'&&(gerentesMapCC[s.cc]||[]).length>0}).length;
+  if(temAguardando&&faltaGer)temAguardando=false;
+  var badgeSt=(faltaGer&&grupo.some(function(s){return s.status==='aguardando_master'}))?'<span class="pill" style="background:#fef3c7;color:#92400e">⏳ Falta '+faltaGer+' gerente'+(faltaGer>1?'s':'')+' responder</span>':temAguardando?'<span class="pill p-aguardando_master">⚡ Aguardando revisão</span>':temAnalise?'<span class="pill p-em_analise">Em análise</span>':temRecusada?'<span class="pill" style="background:#fee2e2;color:#dc2626">❌ Recusada</span>':temParcial?'<span class="pill" style="background:#fff7ed;color:#c2410c">⚠️ Parcial</span>':'<span class="pill p-pendente">Pendente</span>';
 
   // Campo SC por CC + botão salvar
   var camposSC=grupo.map(function(s){
@@ -1145,6 +1148,16 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
 // Executa as gravações em lotes paralelos (em vez de uma por vez)
 async function _emLotes(lista,fn,n){n=n||10;for(var i=0;i<lista.length;i+=n){var r=await Promise.all(lista.slice(i,i+n).map(fn));r.forEach(function(x){if(x&&x.error)console.error('Erro ao salvar:',x.error.message)})}}
 // Gerente já avaliou? (qtd_gerente gravada, ou solicitação já passou do status pendente)
+// Nome curto a partir do e-mail (thiago.almeida@... → Thiago)
+function _nomeGer(email){var p=String(email||'').split('@')[0].split(/[._-]/)[0];return p?p.charAt(0).toUpperCase()+p.slice(1).toLowerCase():''}
+// Selo no topo da coluna do CC: quem é o gerente e se já respondeu
+function _statusGerenteCC(s){
+  var gs=(gerentesMapCC[s.cc]||[]);if(!gs.length)return'<div style="font-size:10px;color:#94a3b8;margin-top:3px;font-weight:500">sem gerente</div>';
+  var resp=s.status!=='pendente';
+  var quem=resp&&s.atualizado_por&&gs.indexOf(String(s.atualizado_por).toLowerCase())>=0?_nomeGer(s.atualizado_por):gs.map(_nomeGer).join(' / ');
+  return resp?'<div title="'+gs.join(', ')+'" style="font-size:10px;margin-top:3px;font-weight:700;color:#166534;background:#dcfce7;border-radius:5px;padding:1px 5px;display:inline-block">✓ '+quem+' respondeu</div>'
+             :'<div title="'+gs.join(', ')+'" style="font-size:10px;margin-top:3px;font-weight:700;color:#92400e;background:#fef3c7;border-radius:5px;padding:1px 5px;display:inline-block">⏳ aguardando '+quem+'</div>';
+}
 function _gerenteAvaliou(it,sol){return it.qtd_gerente!=null||!!(sol&&sol.status&&sol.status!=='pendente')}
 // Chave do card: solicitações com o mesmo grupo_envio ficam juntas; sem grupo, mesma matrícula + janela de 3 minutos
 function _chaveGrupo(s){if(s.grupo_envio)return 'G|'+s.grupo_envio;let dt=new Date(s.criado_em),mb=Math.floor(dt.getMinutes()/3)*3;return s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+mb}
