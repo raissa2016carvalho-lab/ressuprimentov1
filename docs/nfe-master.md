@@ -1,0 +1,50 @@
+# NFe Master (HMIT) → Supabase
+
+Objetivo: medir o **atraso entre a emissão da NF e a entrada no Protheus**, por filial e por setor,
+e depois ligar com a SD1 (`movimentos_entrada`) e com os pedidos.
+
+## Origem
+- Banco PostgreSQL do NFe Master: `192.168.1.13:5432`, banco `nfemaster` (rede interna → o sync roda no PC da Raissa).
+- `nfemanager.tb_nfe` (cabeçalho, ~65 mil notas) + `nfemanager.tb_empresanfe` (filial destinatária)
+  + `protheus.tb_integracaoprotheusnfe` (status no Protheus, pedido, código Protheus do fornecedor).
+- Filial: os 4 dígitos depois da barra do CNPJ da empresa (`/0007` → 07 Sobral). O campo
+  `codigofilialerp` do NFe Master está vazio/errado — não usar.
+
+## Códigos (a confirmar com notas de exemplo)
+- `statusintegracao`: 3 (45 mil) / 2 (19 mil) / 1 (484) → provável Integrado / Associado / Pendente.
+- `statusnfe`: A autorizada, C cancelada, D denegada, V = ?
+- Manifestação (SEFAZ): 210200 confirmação, 210210 ciência, 210220 desconhecimento, 210240 operação não realizada.
+
+## Passo 1 — tabela `nfe_master` (rodar no SQL Editor)
+```sql
+create table public.nfe_master (
+  id bigint primary key,
+  chave text, numero bigint, serie bigint, modelo text,
+  filial text, empresa_nome text, empresa_cnpj text,
+  fornecedor_cnpj text, fornecedor_nome text, fornecedor_fantasia text, fornecedor_uf text,
+  fornecedor_cod text, fornecedor_loja text,
+  emissao timestamp, autorizacao timestamp, chegada timestamp, integracao timestamp, alterado timestamp,
+  status_nfe text, status_integracao text, status_protheus text, msg_protheus text, pedido text,
+  tipo_operacao text, natureza text, valor_total numeric, valor_produtos numeric,
+  em_tratativa boolean, motivo_tratativa text, data_tratativa timestamp, erro_integracao text,
+  manifestacao text, data_manifestacao timestamp,
+  atualizado_em timestamptz default now()
+);
+create index nfe_master_filial_emissao on public.nfe_master (filial, emissao);
+create index nfe_master_fornecedor on public.nfe_master (fornecedor_cnpj);
+create index nfe_master_chave on public.nfe_master (chave);
+alter table public.nfe_master enable row level security;
+create policy leitura_publica on public.nfe_master for select to anon, authenticated using (true);
+-- desfazer: drop table public.nfe_master;
+```
+
+## Passo 1 — sync
+`scripts/sync_nfe_master.py` (copiar para `C:\painel-protheus`, preencher usuário/senha/chave).
+1ª vez carrega desde 01/01/2025; depois revisa só o que mudou nos últimos 3 dias (upsert, não apaga).
+
+## Próximos passos
+2. Setor por fornecedor: tabela `fornecedor_setor` (cnpj → setor: compras, almoxarifado, fiscal, RH,
+   frota, oficina…) preenchida pela Raissa no painel.
+3. Ligar com a SD1: acrescentar no `sync_movimentos_entrada.py` chave da NF-e (F1_CHVNFE), data de
+   digitação (D1_DTDIGIT), pedido/item (D1_PEDIDO, D1_ITEMPC) e CC (D1_CC).
+4. Painel "Notas fiscais": notas emitidas sem entrada × dias de atraso, por filial e setor.
