@@ -15,10 +15,19 @@ import sys, time, datetime, decimal
 import psycopg2, psycopg2.extras
 from supabase import create_client
 
-# ── CONFIGURAÇÃO (preencher no seu computador; não mandar para ninguém) ───────────
-NFE = dict(host="192.168.1.13", port=5432, dbname="nfemaster", user="XXXX", password="XXXX")
-SUPABASE_URL = "https://eugefrjckrxisfpizkjb.supabase.co"
-SUPABASE_KEY = "XXXX"            # chave service_role (a mesma dos outros syncs)
+# ── NFE MASTER (PostgreSQL) — login do banco nfemaster ─────────────────────────────
+SERVIDOR = "192.168.1.13"
+PORTA    = 5432
+USUARIO  = "XXXX"
+SENHA    = r"XXXX"
+BANCO    = "nfemaster"
+
+# ── SUPABASE — o mesmo dos outros syncs ────────────────────────────────────────────
+RESSUP_URL = "https://eugefrjckrxisfpizkjb.supabase.co"
+RESSUP_KEY = "XXXX"
+
+NFE = dict(host=SERVIDOR, port=PORTA, dbname=BANCO, user=USUARIO, password=SENHA)
+SUPABASE_URL, SUPABASE_KEY = RESSUP_URL, RESSUP_KEY
 DESDE = "20250101"               # 1ª carga: notas emitidas a partir desta data
 DIAS_REVISAO = 3                 # nas próximas vezes, revisa o que mudou nestes dias
 LOTE = 500
