@@ -354,6 +354,11 @@ canvas{max-height:220px}
     <select id="cmp-ano-b" onchange="renderComparativo()"></select>
     <span style="color:var(--muted)">com</span>
     <select id="cmp-ano-a" onchange="renderComparativo()"></select>
+    <span class="fl">Mobilização</span>
+    <select id="cmp-mob" onchange="renderComparativo()" title="Pela observação da SC ligada ao pedido (palavra MOBILIZAÇÃO)">
+      <option value="">Tudo</option><option value="so">Só mobilizações</option><option value="sem">Sem mobilizações</option>
+    </select>
+    <span id="cmp-mes-chip"></span>
     <span class="fl">Status</span>
     <select id="cmp-status" onchange="renderComparativo()">
       <option value="rec">Só recebidos</option>
@@ -1067,7 +1072,18 @@ function renderDetTable(){
 // ── COMPARATIVO MENSAL ────────────────────────────────────────────────────────
 const MESES=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const STATUS_FORA=["Rejeitado pelo aprovador","PC Eliminado por Resíduo"];
-let CMP_GRUPOS=[], CMP_SEL=new Set(), CMP_BASE=null, CMP_FONTE="", CMP_CARREGANDO=false;
+let CMP_GRUPOS=[], CMP_SEL=new Set(), CMP_BASE=null, CMP_FONTE="", CMP_CARREGANDO=false, CMP_MES=null, CMP_MOB=null;
+// Pedido de mobilização = a observação da SC ligada tem "MOBILIZAÇÃO" (não conta "desmobilização", "Mobi" de carro nem "mobile")
+function ehMob(obs){ const t=String(obs||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase(); return /(^|[^S])MOBILIZ|MOBIZAC/.test(t); }
+function cmpMobSet(){
+  if(CMP_MOB) return CMP_MOB;
+  const scMob=new Set(); CMP_MOB=new Set();
+  ALL_SC.forEach(r=>{ if(ehMob(r.C1_OBS)){ const fil=String(r.C1_FILIAL||"").trim();
+    scMob.add(String(r.C1_NUM||"").trim()+"|"+fil); if(r.pedido_num) CMP_MOB.add(String(r.pedido_num).trim()+"|"+fil); } });
+  ALL_PED.forEach(r=>{ const fil=String(r.C7_FILIAL||"").trim(); if(scMob.has(String(r.C7_NUMSC||"").trim()+"|"+fil)) CMP_MOB.add(String(r.C7_NUM||"").trim()+"|"+fil); });
+  return CMP_MOB;
+}
+function cmpClicaMes(m){ CMP_MES = CMP_MES===m ? null : m; renderComparativo(); }
 
 // Base do comparativo: valores por pedido × grupo, já separados pelo status de cada ITEM
 // (tabela pedidos_grupo, alimentada pelo upload_compras.py). Sem ela, usa a tabela pedidos
@@ -1171,6 +1187,7 @@ function renderComparativo(){
   const anoA=document.getElementById("cmp-ano-a").value, anoB=document.getElementById("cmp-ano-b").value;
   const fil=document.getElementById("cmp-filial").value, tipo=document.getElementById("cmp-tipo").value;
   const modoSt=document.getElementById("cmp-status").value;
+  const mob=document.getElementById("cmp-mob").value, mobSet=mob?cmpMobSet():null;
   const hoje=new Date();
   const mesAtual=hoje.getFullYear()+"-"+String(hoje.getMonth()+1).padStart(2,"0");
   const diaAtual=String(hoje.getDate()).padStart(2,"0");
@@ -1185,6 +1202,7 @@ function renderComparativo(){
     const v=r.v[modoSt]; if(!v) return;
     if(fil&&r.fil!==fil) return;
     if(tipo&&r.tipo!==tipo) return;
+    if(mob){ const e=mobSet.has(r.num+"|"+r.fil); if(mob==="so"&&!e) return; if(mob==="sem"&&e) return; }
     linhas.push({ano, m:+d.slice(5,7)-1, dia:d.slice(8,10), g:r.g, v, ped:r.num+"|"+r.fil});
   });
   // mês atual do ano comparado: o ano base entra só até o mesmo dia
@@ -1214,9 +1232,12 @@ function renderComparativo(){
   document.getElementById("cmp-ch-title").textContent="Valor de pedidos mês a mês (R$) — "+anoA+" × "+anoB+
     (CMP_SEL.size?" — "+(CMP_SEL.size===1?cmpGrpNome([...CMP_SEL][0]):CMP_SEL.size+" grupos"):"");
   mkChart("ch-cmp","bar",MESES,[
-    {label:anoA,data:vA.map(v=>Math.round(v)),backgroundColor:"#94a3b8",borderRadius:4},
-    {label:anoB,data:vB.map((v,m)=>comp(m)?Math.round(v):null),backgroundColor:PAL[0],borderRadius:4}
-  ],{labelFmt:fmtCurto,labelRot:-90,plugins:{legend:{display:true,labels:{color:"#374151",font:{size:11}}},
+    {label:anoA,data:vA.map(v=>Math.round(v)),backgroundColor:MESES.map((x,m)=>CMP_MES==null||CMP_MES===m?"#94a3b8":"#e2e8f0"),borderRadius:4},
+    {label:anoB,data:vB.map((v,m)=>comp(m)?Math.round(v):null),backgroundColor:MESES.map((x,m)=>CMP_MES==null||CMP_MES===m?PAL[0]:"#c7d2fe"),borderRadius:4}
+  ],{labelFmt:fmtCurto,labelRot:-90,
+     onClick:(ev,els)=>{ if(els&&els.length) cmpClicaMes(els[0].index); },
+     onHover:(ev,els)=>{ ev.native&&ev.native.target&&(ev.native.target.style.cursor=els&&els.length?"pointer":"default"); },
+     plugins:{legend:{display:true,labels:{color:"#374151",font:{size:11}}},
      tooltip:{callbacks:{label:c=>c.dataset.label+": "+fmtM(c.raw)}}},
      scales:{x:{ticks:{color:"#6b7280"}},y:{ticks:{color:"#6b7280",callback:v=>Math.abs(v)>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":"R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil"}}}});
 
@@ -1225,7 +1246,7 @@ function renderComparativo(){
   for(let m=0;m<12;m++){
     if(!comp(m)){ h+=`<tr style="color:var(--muted)"><td>${MESES[m]}</td><td class="r">${fmtM(vA[m])}</td><td class="r">–</td><td class="r">–</td><td class="r">–</td><td class="r">${qA[m]}</td><td class="r">–</td></tr>`; continue; }
     const x=cmpDif(vA[m],vB[m]);
-    h+=`<tr><td>${MESES[m]}${corte(m)?` <span style="font-size:10px;color:var(--muted)">(até dia ${corte(m)})</span>`:""}</td>
+    h+=`<tr style="cursor:pointer;${CMP_MES===m?"background:#eff6ff;font-weight:600":""}" onclick="cmpClicaMes(${m})" title="Clique para ver os grupos deste mês"><td>${MESES[m]}${corte(m)?` <span style="font-size:10px;color:var(--muted)">(até dia ${corte(m)})</span>`:""}</td>
       <td class="r">${fmtM(vA[m])}</td><td class="r">${fmtM(vB[m])}</td>
       <td class="r ${x.cls}">${fmtM(x.d)}</td><td class="r ${x.cls}">${cmpPct(x.p)}</td>
       <td class="r">${qA[m]}</td><td class="r">${qB[m]}</td></tr>`;
@@ -1242,11 +1263,14 @@ function renderComparativo(){
   const pg={};
   linhas.forEach(x=>{
     if(!comp(x.m)||!conta(x)) return;
+    if(CMP_MES!=null&&x.m!==CMP_MES) return;
     pg[x.g]=pg[x.g]||{a:0,b:0};
     if(x.ano===anoA) pg[x.g].a+=x.v; else pg[x.g].b+=x.v;
   });
   const arr=Object.entries(pg).map(([g,o])=>({g,...o,d:o.b-o.a})).sort((p,q)=>p.d-q.d);
-  document.getElementById("th-cmp-grp").innerHTML=`<tr><th>Grupo</th><th class="r">${anoA}</th><th class="r">${anoB}</th><th class="r">Diferença</th><th class="r">%</th></tr>`;
+  document.getElementById("cmp-mes-chip").innerHTML = CMP_MES==null ? "" :
+    `<button class="btn-c" onclick="cmpClicaMes(${CMP_MES})" style="border-color:var(--blue);color:var(--blue);font-weight:600">Mês: ${MESES[CMP_MES]} ✕</button>`;
+  document.getElementById("th-cmp-grp").innerHTML=`<tr><th>Grupo${CMP_MES!=null?" — só "+MESES[CMP_MES]:""}</th><th class="r">${anoA}</th><th class="r">${anoB}</th><th class="r">Diferença</th><th class="r">%</th></tr>`;
   document.getElementById("tb-cmp-grp").innerHTML=arr.map(o=>{
     const x=cmpDif(o.a,o.b);
     const marcado=CMP_SEL.has(o.g)?"background:#fff3eb;":"";
