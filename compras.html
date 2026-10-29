@@ -389,6 +389,13 @@ canvas{max-height:220px}
         </table></div>
       </div>
     </div>
+    <div class="ct" style="margin-top:16px">
+      <div class="ct-head"><span class="ct-title">Por filial (meses comparáveis) — clique para filtrar</span></div>
+      <div class="ct-body" style="max-height:520px"><table>
+        <thead id="th-cmp-fil"></thead>
+        <tbody id="tb-cmp-fil"></tbody>
+      </table></div>
+    </div>
     <div class="cmp-note"><span id="cmp-fonte"></span> Data = emissão do pedido. Esta aba usa só os filtros acima.
       O mês atual é comparado só até o mesmo dia no ano anterior. Em "Só recebidos", os meses mais recentes ficam menores porque parte dos pedidos ainda não chegou. Diferença negativa (verde) = redução.</div>
   </div>
@@ -1195,16 +1202,16 @@ function renderComparativo(){
   // 12 meses × 2 anos, e também por grupo
   const vA=Array(12).fill(0), vB=Array(12).fill(0);
   const pA=[...Array(12)].map(()=>new Set()), pB=[...Array(12)].map(()=>new Set());
-  const linhas=[];
+  const todas=[];   // todas as filiais (a tabela por filial ignora o filtro de filial)
   CMP_BASE.forEach(r=>{
     const d=r.d; if(!d) return;
     const ano=d.slice(0,4); if(ano!==anoA&&ano!==anoB) return;
     const v=r.v[modoSt]; if(!v) return;
-    if(fil&&r.fil!==fil) return;
     if(tipo&&r.tipo!==tipo) return;
     if(mob){ const e=mobSet.has(r.num+"|"+r.fil); if(mob==="so"&&!e) return; if(mob==="sem"&&e) return; }
-    linhas.push({ano, m:+d.slice(5,7)-1, dia:d.slice(8,10), g:r.g, v, ped:r.num+"|"+r.fil});
+    todas.push({ano, m:+d.slice(5,7)-1, dia:d.slice(8,10), g:r.g, fil:r.fil, v, ped:r.num+"|"+r.fil});
   });
+  const linhas=todas.filter(x=>!fil||x.fil===fil);
   // mês atual do ano comparado: o ano base entra só até o mesmo dia
   const corte = m => (anoB+"-"+String(m+1).padStart(2,"0"))===mesAtual ? diaAtual : null;
   const conta = x => !(x.ano===anoA && corte(x.m) && x.dia>corte(x.m));
@@ -1278,7 +1285,29 @@ function renderComparativo(){
       <td class="r">${fmtM(o.a)}</td><td class="r">${fmtM(o.b)}</td>
       <td class="r ${x.cls}">${fmtM(x.d)}</td><td class="r ${x.cls}">${cmpPct(x.p)}</td></tr>`;
   }).join("");
+
+  // por filial: respeita grupo, tipo, status, mobilização e o mês clicado (não o filtro de filial)
+  const pf={};
+  todas.forEach(x=>{
+    if(!comp(x.m)||!conta(x)) return;
+    if(CMP_MES!=null&&x.m!==CMP_MES) return;
+    if(CMP_SEL.size&&!CMP_SEL.has(x.g)) return;
+    const o=pf[x.fil]=pf[x.fil]||{a:0,b:0,pa:new Set(),pb:new Set()};
+    if(x.ano===anoA){o.a+=x.v;o.pa.add(x.ped)} else {o.b+=x.v;o.pb.add(x.ped)}
+  });
+  const af=Object.entries(pf).map(([f,o])=>({f,...o,d:o.b-o.a})).sort((p,q)=>q.b-p.b);
+  const tA=af.reduce((s,o)=>s+o.a,0), tB=af.reduce((s,o)=>s+o.b,0);
+  document.getElementById("th-cmp-fil").innerHTML=`<tr><th>Filial${CMP_MES!=null?" — só "+MESES[CMP_MES]:""}</th><th class="r">${anoA}</th><th class="r">${anoB}</th><th class="r">Diferença</th><th class="r">%</th><th class="r">% do total ${anoB}</th><th class="r">Pedidos ${anoA}</th><th class="r">Pedidos ${anoB}</th></tr>`;
+  document.getElementById("tb-cmp-fil").innerHTML=af.map(o=>{
+    const x=cmpDif(o.a,o.b);
+    const marcado=fil===o.f?"background:#eff6ff;font-weight:600;":"";
+    return `<tr style="cursor:pointer;${marcado}" onclick="cmpClicaFilial('${cmpEsc(o.f)}')" title="Clique para filtrar esta filial"><td>${cmpEsc(nomeFilial(o.f))} <span style="color:var(--muted);font-size:10px">${cmpEsc(o.f)}</span></td>
+      <td class="r">${fmtM(o.a)}</td><td class="r">${fmtM(o.b)}</td>
+      <td class="r ${x.cls}">${fmtM(x.d)}</td><td class="r ${x.cls}">${cmpPct(x.p)}</td>
+      <td class="r">${tB?(o.b/tB*100).toFixed(1)+"%":"–"}</td><td class="r">${o.pa.size}</td><td class="r">${o.pb.size}</td></tr>`;
+  }).join("")+(af.length>1?`<tr class="total-row"><td>Total</td><td class="r">${fmtM(tA)}</td><td class="r">${fmtM(tB)}</td><td class="r">${fmtM(tB-tA)}</td><td class="r">${cmpPct(cmpDif(tA,tB).p)}</td><td class="r">100%</td><td></td><td></td></tr>`:"");
 }
+function cmpClicaFilial(f){ const s=document.getElementById("cmp-filial"); s.value = s.value===f ? "" : f; renderComparativo(); }
 
 function renderAll(){renderSCs();renderPedidos();renderIndicadores();buildDetalhamento();renderDetTable();}
 document.addEventListener("DOMContentLoaded",carregar);
