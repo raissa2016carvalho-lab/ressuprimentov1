@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notas Fiscais</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<link rel="stylesheet" href="/padrao.css"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;min-height:100vh}
+.topo{background:#0f172a;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.topo h1{font-size:15px;font-weight:700}
+.topo span{color:#94a3b8;font-size:12px}
+.tag{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:3px 10px;font-size:11.5px;color:#94a3b8}
+.topo-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn-atualizar{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.filtros-wrap{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.filtros-wrap label{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px}
+.filtros-wrap input,.filtros-wrap select{border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:12.5px;font-family:inherit;outline:none;background:#fff}
+.filtros-wrap input:focus,.filtros-wrap select:focus{border-color:#1e40af}
+.f-group{display:flex;flex-direction:column;min-width:0}
+.f-busca{flex:1;min-width:220px}.f-busca input{width:100%}
+.resumo{display:flex;flex-wrap:wrap;gap:10px;padding:16px 24px}
+.resumo-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;min-width:150px;flex:1}
+.resumo-card .val{font-size:22px;font-weight:800;color:#0f172a;line-height:1}
+.resumo-card .lab{font-size:11.5px;color:#64748b;margin-top:3px}
+.resumo-card .sub{font-size:11px;color:#94a3b8;margin-top:2px}
+.resumo-card.alerta .val{color:#ef4444}.resumo-card.azul .val{color:#1e40af}.resumo-card.verde .val{color:#16a34a}
+.tabela-wrap{padding:0 24px 24px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;font-size:13px}
+th{text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;padding:9px 10px;font-size:11px;font-weight:600;white-space:nowrap;background:#f8fafc;cursor:pointer;user-select:none}
+th:hover{background:#f1f5f9}
+td{border-bottom:1px solid #f1f5f9;padding:8px 10px;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cnpj{font-size:11px;color:#94a3b8;font-family:ui-monospace,monospace}
+.sel-setor{border:1px solid #e2e8f0;border-radius:7px;padding:5px 8px;font-size:12.5px;font-family:inherit;background:#fff;min-width:170px}
+.sel-setor.vazio{border-color:#fcd34d;background:#fffbeb}
+.sel-setor.salvo{border-color:#16a34a;background:#f0fdf4}
+.btn-dia{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;font-family:inherit;white-space:nowrap}.btn-dia:hover{border-color:#1e40af;color:#1e40af}.btn-dia.ativo{background:#1e40af;color:#fff;border-color:#1e40af}
+.aba-btn{background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.aba-btn.ativo{background:#1e40af;color:#fff;border-color:#1e40af}
+.pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.st-1{background:#fef3c7;color:#92400e}.st-2{background:#fef3c7;color:#92400e}.st-3{background:#dcfce7;color:#166534}.st-x{background:#f1f5f9;color:#475569}
+.st-C{background:#fee2e2;color:#991b1b}
+.herdado{color:#94a3b8;font-size:11px}
+tr.sel td{background:#eff6ff!important}
+input.cb{width:16px;height:16px;cursor:pointer;accent-color:#1e40af}
+.lk-nota{color:#1e40af;text-decoration:none;font-family:ui-monospace,monospace;font-weight:700}.lk-nota:hover{text-decoration:underline}
+#pop-corpo table{font-size:12.5px}#pop-corpo td,#pop-corpo th{padding:7px 8px}
+.tag-setor{background:#e0e7ff;color:#3730a3;font-weight:600;margin-left:4px;vertical-align:1px}
+.graf{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px}
+.graf h3{font-size:14px;font-weight:700;margin-bottom:2px}.graf .gsub{font-size:12px;color:#64748b;margin-bottom:14px}
+.gl{display:grid;grid-template-columns:minmax(120px,190px) 1fr minmax(150px,auto);align-items:center;gap:10px;padding:5px 0;cursor:pointer}
+.gl:hover .gtrk{background:#eef2ff}.gl .gnm{font-size:13px;font-weight:600;text-align:right;color:#0f172a}
+.gtrk{background:#f1f5f9;border-radius:4px;height:22px;position:relative}
+.gbar{height:100%;background:#1e40af;border-radius:0 4px 4px 0;min-width:2px}
+.gbar.sem{background:#94a3b8}
+.gval{font-size:12.5px;color:#0f172a;font-variant-numeric:tabular-nums;white-space:nowrap}.gval span{color:#64748b}
+#gtip{position:fixed;pointer-events:none;background:#0f172a;color:#fff;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;z-index:60;display:none;box-shadow:0 6px 18px #0004}
+@media(max-width:600px){.gl{grid-template-columns:1fr;gap:3px}.gl .gnm{text-align:left}}
+.inp-data{border:1px solid #e2e8f0;border-radius:7px;padding:4px 6px;font-size:12px;font-family:inherit;background:#fff}
+.inp-data.atrasada{border-color:#fca5a5;background:#fef2f2}
+.btn-receber{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn-receber:hover{background:#15803d}
+.btn-recusar{background:#fff;color:#b91c1c;border:1px solid #fca5a5;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}.btn-recusar:hover{background:#fef2f2}
+.inp-txt{border:1px solid #e2e8f0;border-radius:7px;padding:5px 7px;font-size:12px;font-family:inherit;background:#fff}.inp-txt:focus{border-color:#1e40af;outline:none}
+.msg-vazio{text-align:center;color:#64748b;padding:40px;background:#fff;border:1px dashed #e2e8f0;border-radius:12px}
+.paginador{display:flex;gap:8px;align-items:center;justify-content:center;padding:0 24px 24px;font-size:12.5px;color:#64748b}
+.paginador button{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;cursor:pointer;font-family:inherit}
+.paginador button:disabled{opacity:.4;cursor:default}
+body.bq-trancado>*:not(#tela-login){display:none!important}
+.lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
+.lg-inp{width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
+.lg-inp:focus{border-color:#1e40af}
+@media(max-width:600px){.topo,.filtros-wrap,.resumo,.tabela-wrap,.paginador{padding-left:16px;padding-right:16px}.topo-right{margin-left:0;width:100%}.f-group{width:100%}.f-group select{width:100%}}
+</style>
+<body class="bq-trancado">
+
+<!-- Login (mesmo usuário e senha do Painel principal) -->
+<div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
+  <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px;box-shadow:0 20px 50px #00000066">
+    <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
+    <h1 id="lg-titulo" style="margin:0 0 4px;font-size:16px">Notas Fiscais</h1>
+    <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
+    <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
+    <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <div id="lg-msg" style="color:#991b1b;background:#fee2e2;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:12px;display:none"></div>
+    <button id="lg-btn" onclick="entrar()" style="width:100%;background:#1e40af;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+    <a class="bq-login-voltar" href="/los.html">← Voltar ao menu de sistemas</a>
+  </div>
+</div>
+
+<div class="topo">
+  <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
+  <div>
+    <h1 id="titulo-pag">Notas Fiscais</h1>
+    <span id="sub-pag">NFe Master · setor das notas</span>
+  </div>
+  <div class="tag" id="tag-sync">Carregando...</div>
+  <div style="display:flex;gap:6px">
+    <button class="aba-btn ativo" id="aba-notas" onclick="setAba('notas')">🧾 Por nota</button>
+    <button class="aba-btn" id="aba-forn" onclick="setAba('forn')">🏢 Por fornecedor</button>
+    <button class="aba-btn" id="aba-setor" onclick="setAba('setor')">📊 Por setor</button>
+  </div>
+  <div style="display:none;gap:6px" id="abas-receb">
+    <button class="aba-btn ativo" id="aba-chegar" onclick="setAbaReceb('chegar')">📦 A chegar</button>
+    <button class="aba-btn" id="aba-recebidas" onclick="setAbaReceb('recebidas')">✓ Recebidas</button>
+    <button class="aba-btn" id="aba-recusadas" onclick="setAbaReceb('recusadas')">✕ Recusadas</button>
+  </div>
+  <div class="topo-right">
+    <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
+    <button class="btn-atualizar" onclick="sair()" title="Sair">Sair</button>
+  </div>
+</div>
+
+<div class="filtros-wrap">
+  <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor ou CNPJ" oninput="pag=0;render()"></div>
+  <div class="f-group so-notas"><label>Filial</label><select id="f-filial" onchange="pag=0;render()"><option value="">Todas</option></select></div>
+  <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
+  <div class="f-group so-notas so-gestao"><label>Lançada no Protheus (SD1)?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já tem na SD1</option><option value="nao">✗ Não — falta lançar</option></select></div>
+  <div class="f-group so-notas so-gestao"><label>Status</label><select id="f-status" onchange="pag=0;render()"></select></div>
+  <div class="f-group so-gestao"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
+  <div class="f-group so-gestao"><label>Emitidas de</label><input type="date" id="f-de" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
+  <div class="f-group so-gestao"><label>até</label><input type="date" id="f-ate" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
+  <div class="f-group so-gestao"><label>&nbsp;</label><div style="display:flex;gap:4px">
+    <button class="btn-dia" onclick="dias(0,0)">Hoje</button><button class="btn-dia" onclick="dias(1,1)">Ontem</button>
+    <button class="btn-dia" onclick="dias(6,0)">7 dias</button><button class="btn-dia" onclick="dias(29,0)">30 dias</button>
+    <button class="btn-dia" onclick="dias(null)">Tudo</button></div></div>
+</div>
+
+<div class="resumo" id="resumo"></div>
+<div id="barra-sel" style="display:none;margin:0 24px 12px;background:#1e40af;color:#fff;border-radius:10px;padding:10px 14px;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:5">
+  <b id="sel-qtd"></b>
+  <span style="font-size:12.5px;opacity:.85">Setor:</span>
+  <select id="sel-setor-lote" class="sel-setor" style="min-width:200px"></select>
+  <button onclick="aplicarLote()" style="background:#fff;color:#1e40af;border:none;border-radius:7px;padding:7px 14px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar às selecionadas</button>
+  <span style="font-size:12.5px;opacity:.85;margin-left:8px">Entrega prevista:</span>
+  <input type="date" id="sel-data-lote" style="border:0;border-radius:7px;padding:6px 8px;font-family:inherit">
+  <button onclick="aplicarDataLote()" style="background:#fff;color:#1e40af;border:none;border-radius:7px;padding:7px 14px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar data</button>
+  <button onclick="limparSel()" style="background:transparent;color:#fff;border:1px solid #93c5fd;border-radius:7px;padding:7px 12px;cursor:pointer;font-family:inherit">Limpar seleção</button>
+  <span id="sel-msg" style="font-size:12.5px"></span>
+</div>
+<div class="tabela-wrap" id="tabela"><div class="msg-vazio">Carregando...</div></div>
+<div class="paginador" id="paginador"></div>
+<div id="gtip"></div>
+
+<div id="pop-itens" onclick="if(event.target===this)fecharItens()" style="display:none;position:fixed;inset:0;background:#0f172a99;z-index:50;padding:24px;overflow:auto">
+  <div style="background:#fff;border-radius:14px;max-width:1100px;margin:0 auto;box-shadow:0 20px 50px #0006">
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid #e2e8f0">
+      <div id="pop-cab" style="flex:1"></div>
+      <button onclick="fecharItens()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:inherit;font-weight:600">✕ Fechar</button>
+    </div>
+    <div id="pop-corpo" style="padding:16px 20px;overflow-x:auto"></div>
+  </div>
+</div>
+
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Facilities/Administrativo','Financeiro','Outros'];
+// códigos do NFe Master (a confirmar com notas de exemplo)
+// 3 = integrado no Protheus (todas têm data de integração). 1 e 2 = ainda não integradas → pendentes
+const ST_INT={'1':'Pendente · sem XML','2':'Pendente','3':'Integrado'};
+const PEND=n=>n.status_nfe!=='C'&&n.status_integracao!=='3';
+const ST_NFE={'A':'Autorizada','C':'Cancelada','D':'Denegada'};
+const POR_PAG=100;
+let notas=[],setForn={},setNota={},lista=[],pag=0,userEmail='',aba='notas',sel=new Set();
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtR0=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
+const fmtCnpj=c=>{c=String(c||'').replace(/\D/g,'');return c.length===14?c.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):c};
+const chaveCnpj=c=>String(c||'').replace(/\D/g,'');
+const fmtData=d=>d?new Date(d).toLocaleDateString('pt-BR'):'—';
+const opcSetor=v=>'<option value="">— escolher —</option>'+SETORES.map(x=>'<option'+(x===v?' selected':'')+'>'+esc(x)+'</option>').join('');
+
+async function buscarTudo(tabela,colunas){
+  let out=[],de=0;
+  for(;;){let{data,error}=await db.from(tabela).select(colunas).order('id',{ascending:true}).range(de,de+999);
+    if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break;de+=1000}
+  return out;
+}
+async function buscarSetores(tabela,chave){
+  let out=[],de=0;
+  for(;;){let{data,error}=await db.from(tabela).select(chave+',setor,atualizado_por').range(de,de+999);
+    if(error)return {erro:error};out=out.concat(data||[]);if(!data||data.length<1000)break;de+=1000}
+  return {dados:out};
+}
+
+async function carregar(){
+  $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
+  try{
+    let [ns,sf,sn,{data:log},sd1r,flr]=await Promise.all([
+      buscarTudo('nfe_master','id,numero,serie,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
+      buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
+      db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
+      buscarSd1(),
+      buscarFluxo()
+    ]);
+    let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
+    if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
+    sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;
+    notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
+    $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
+    montarFiltros();if(MODO_RECEB&&window._filialReceb){$('f-filial').value=window._filialReceb}agrupar();render();
+  }catch(e){$('tabela').innerHTML='<div class="msg-vazio">Não consegui carregar (o banco pode estar ocupado com os syncs). Clique em ↻ Atualizar.<br><small>'+esc(e.message||e)+'</small></div>'}
+}
+
+function montarFiltros(){
+  let v=$('f-setor').value;
+  $('f-setor').innerHTML='<option value="">Todos</option><option value="__sem">⚠ Sem setor</option>'+SETORES.map(x=>'<option>'+esc(x)+'</option>').join('');$('f-setor').value=v;
+  let fil={};notas.forEach(n=>{if(n.filial)fil[n.filial]=n.empresa_nome||n.filial});
+  let vf=$('f-filial').value;
+  $('f-filial').innerHTML='<option value="">Todas</option>'+Object.keys(fil).sort().map(k=>'<option value="'+k+'">'+k+' · '+esc(String(fil[k]).replace(/^B&Q ENERGIA LTDA\s*-?\s*/i,'')||'MATRIZ')+'</option>').join('');$('f-filial').value=vf;
+  let vs=$('f-status').value;
+  $('f-status').innerHTML='<option value="pend">⏳ Só pendentes</option><option value="3">✓ Integradas</option><option value="C">Canceladas</option><option value="">Todas</option>';$('f-status').value=vs||'pend';
+  $('sel-setor-lote').innerHTML=opcSetor('').replace('— escolher —','— escolher setor —')+'<option value="__limpar">(tirar o setor)</option>';
+}
+function setAba(a){aba=a;pag=0;['notas','forn','setor'].forEach(x=>$('aba-'+x).classList.toggle('ativo',a===x));
+  document.querySelectorAll('.so-notas').forEach(e=>e.style.display=a==='forn'?'none':'');$('paginador').innerHTML='';render()}
+
+// setor da nota: o escolhido na nota; se não tiver, o do fornecedor
+function setorDa(n){let s=setNota[n.id];if(s)return {setor:s.setor,origem:'nota'};let f=setForn[chaveCnpj(n.fornecedor_cnpj)];return f?{setor:f.setor,origem:'forn'}:{setor:'',origem:''}}
+
+// período pela data de emissão (dia da nota, sem fuso)
+function noPeriodo(n){let de=$('f-de').value,ate=$('f-ate').value,d=String(n.emissao||'').slice(0,10);if(!de&&!ate)return true;if(!d)return false;return (!de||d>=de)&&(!ate||d<=ate)}
+function _rotPeriodo(){let de=$('f-de').value,ate=$('f-ate').value,f=x=>x.split('-').reverse().join('/');if(!de&&!ate)return 'desde jan/2025';if(de===ate)return 'em '+f(de);return (de?'de '+f(de):'')+(ate?' até '+f(ate):'')}
+function _iso(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0')}
+// atalhos: dias(atrás_início, atrás_fim) — dias(null) = sem limite
+function dias(ini,fim){if(ini===null){$('f-de').value='';$('f-ate').value=''}else{let h=new Date();$('f-de').value=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-ini));$('f-ate').value=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-fim))}
+  document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));if(event&&event.target)event.target.classList.add('ativo');pag=0;render()}
+
+function agrupar(){
+  let m={};
+  notas.forEach(n=>{
+    if(n.status_nfe==='C'||!noPeriodo(n))return;let k=chaveCnpj(n.fornecedor_cnpj);if(!k)return;
+    let t=n.emissao?new Date(n.emissao).getTime():0;
+    let f=m[k]||(m[k]={cnpj:k,nome:n.fornecedor_nome||n.fornecedor_fantasia||'(sem nome)',notas:0,valor:0,ultima:0});
+    f.notas++;f.valor+=Number(n.valor_total)||0;if(t>f.ultima){f.ultima=t;f.nome=n.fornecedor_nome||f.nome}
+  });
+  lista=Object.values(m).sort((a,b)=>b.notas-a.notas||b.valor-a.valor);
+}
+
+const MANIF={'210210':'Ciência da operação','210200':'Confirmação da operação','210220':'Desconhecimento','210240':'Operação não realizada'};
+function passaManif(n,m){if(!m)return true;if(m==='__sem')return !n.manifestacao;return n.manifestacao===m}
+function passaStatus(n,si){if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(n.status_nfe==='C')return false;return !si||n.status_integracao===si}
+function notasFiltradas(ignorarSetor){
+  let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value,fil=$('f-filial').value,si=$('f-status').value;
+  return notas.filter(n=>{
+    if(!noPeriodo(n))return false;
+    if(!passaStatus(n,si)||!passaManif(n,$('f-manif').value))return false;
+    let fs=$('f-sd1').value;if(fs&&sd1){let tem=!!sd1[n.id];if(fs==='sim'&&!tem)return false;if(fs==='nao'&&tem)return false}
+    if(fil&&n.filial!==fil)return false;
+    let s=setorDa(n).setor;if(!ignorarSetor){if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false}
+    if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd))))return false}
+    return true;
+  }).sort((a,b)=>String(b.emissao||'').localeCompare(String(a.emissao||'')));
+}
+function fornFiltrados(){
+  let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value;
+  return lista.filter(f=>{let s=(setForn[f.cnpj]||{}).setor||'';
+    if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
+    if(b&&!f.nome.toLowerCase().includes(b)&&!(bd&&f.cnpj.includes(bd)))return false;return true});
+}
+
+function resumoNotas(){
+  let si=$('f-status').value,fil=$('f-filial').value,ns=notas.filter(n=>noPeriodo(n)&&passaStatus(n,si)&&passaManif(n,$('f-manif').value)&&(!fil||n.filial===fil)),com=ns.filter(n=>setorDa(n).setor).length;
+  let rotSt={pend:'pendentes',3:'integradas',C:'canceladas'}[si]||'';
+  let pend=ns.filter(PEND).length;
+  $('resumo').innerHTML=
+    '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+(rotSt?rotSt+' ':'')+'emitidas '+_rotPeriodo()+'</div><div class="sub" id="sub-periodo">'+(si==='C'?'':'sem as canceladas')+'</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+(ns.length-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
+    '<div class="resumo-card azul"><div class="val">'+(ns.length?Math.round(com/ns.length*100):0)+'%</div><div class="lab">das notas já têm setor</div></div>'+
+    '<div class="resumo-card"><div class="val" style="color:#b45309">'+pend.toLocaleString('pt-BR')+'</div><div class="lab">Pendentes de integração</div></div>'+
+    (sd1?'<div class="resumo-card" style="cursor:pointer" onclick="$(\'f-sd1\').value=\'sim\';pag=0;render()" title="Clique para ver só essas"><div class="val" style="color:#7c3aed">'+ns.filter(n=>PEND(n)&&sd1[n.id]).length.toLocaleString('pt-BR')+'</div><div class="lab">Pendentes no NFe Master mas <b>já lançadas na SD1</b></div><div class="sub">lançamento manual no Protheus</div></div>':'');
+}
+function resumoForn(){
+  let tot=lista.length,com=lista.filter(f=>(setForn[f.cnpj]||{}).setor).length;
+  $('resumo').innerHTML=
+    '<div class="resumo-card"><div class="val">'+tot.toLocaleString('pt-BR')+'</div><div class="lab">Fornecedores com nota no período</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor (padrão do fornecedor)</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+(tot-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div><div class="sub">o setor do fornecedor vale para todas as notas dele que não tiverem setor próprio</div></div>';
+}
+
+function paginar(l){let pags=Math.max(1,Math.ceil(l.length/POR_PAG));if(pag>=pags)pag=pags-1;
+  $('paginador').innerHTML=pags>1?'<button onclick="pag--;render();scrollTo(0,0)" '+(pag?'':'disabled')+'>← Anterior</button> Página '+(pag+1)+' de '+pags+' ('+l.length.toLocaleString('pt-BR')+') <button onclick="pag++;render();scrollTo(0,0)" '+(pag<pags-1?'':'disabled')+'>Próxima →</button>':l.length+' registros';
+  return l.slice(pag*POR_PAG,(pag+1)*POR_PAG)}
+
+function render(){
+  if(MODO_RECEB){renderReceb();return}
+  agrupar();
+  if(aba==='forn'){renderForn();$('barra-sel').style.display='none';return}
+  if(aba==='setor'){renderSetor();$('barra-sel').style.display='none';return}
+  resumoNotas();
+  let l=notasFiltradas(),parte=paginar(l);
+  if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
+  let todasMarcadas=parte.every(n=>sel.has(n.id));
+  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th>Pedido</th><th>Observação</th><th>Status</th></tr></thead><tbody>'+
+    parte.map(n=>{let s=setorDa(n),st=statusUnico(n);
+      return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
+        '<td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
+        '<td class="num" style="text-align:left">'+fmtData(n.emissao)+'</td>'+
+        '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
+        '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
+        (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td>'+
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
+  atualizarBarra();
+}
+function renderForn(){
+  resumoForn();
+  let parte=paginar(fornFiltrados());
+  if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhum fornecedor com esses filtros.</div>';$('paginador').innerHTML='';return}
+  $('tabela').innerHTML='<table><thead><tr><th>Fornecedor</th><th class="num">Notas</th><th class="num">Valor</th><th class="num">Última emissão</th><th>Setor padrão</th></tr></thead><tbody>'+
+    parte.map(f=>{let v=(setForn[f.cnpj]||{}).setor||'';
+      return '<tr><td><div style="font-weight:600">'+esc(f.nome)+'</div><div class="cnpj">'+fmtCnpj(f.cnpj)+'</div></td><td class="num">'+f.notas+'</td><td class="num">'+fmtR0(f.valor)+'</td>'+
+        '<td class="num">'+(f.ultima?new Date(f.ultima).toLocaleDateString('pt-BR'):'—')+'</td>'+
+        '<td><select class="sel-setor'+(v?'':' vazio')+'" data-cnpj="'+f.cnpj+'" data-nome="'+esc(f.nome)+'" onchange="salvarForn(this)">'+opcSetor(v)+'</select></td></tr>'}).join('')+'</tbody></table>';
+}
+
+// Cruzamento com a SD1 (movimentos_entrada): filial + nº da nota + série. View vw_nfe_sd1 (só notas não integradas)
+let sd1=null;
+async function buscarSd1(){
+  let out={},de=0;
+  for(;;){let{data,error}=await db.from('vw_nfe_sd1').select('*').range(de,de+999);
+    if(error)return {ok:false,erro:error};(data||[]).forEach(x=>out[x.nfe_id]=x);if(!data||data.length<1000)break;de+=1000}
+  return {ok:true,mapa:out};
+}
+const fmtD8=d=>d&&d.length===8?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'—';
+// um status só: Cancelada / Integrado / Lançada manual (achou na SD1) / Pendente (· sem XML); detalhes no título
+function statusUnico(n){
+  let extra=[];if(n.em_tratativa)extra.push('Em tratativa'+(n.motivo_tratativa?': '+n.motivo_tratativa:''));if(n.status_nfe&&n.status_nfe!=='A'&&n.status_nfe!=='C')extra.push('NF-e: '+(ST_NFE[n.status_nfe]||n.status_nfe));
+  let t=x=>' title="'+esc([x].concat(extra).join(' · '))+'"';
+  if(n.status_nfe==='C')return '<span class="pill st-C"'+t('Cancelada')+'>Cancelada</span>';
+  if(n.status_integracao==='3')return '<span class="pill st-3"'+t('Integrada pelo NFe Master')+'>Integrado</span>';
+  let x=sd1&&sd1[n.id];
+  if(x){let dif=Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_total)||0))>1&&Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_produtos)||0))>1;
+    return '<span class="pill" style="background:#ede9fe;color:#5b21b6"'+t('Já está na SD1 (lançada no Protheus sem passar pelo NFe Master): '+x.sd1_itens+' itens · '+fmtR(x.sd1_valor)+(dif?' · VALOR DIFERENTE da nota':''))+'>Lançada manual'+(dif?' ⚠':'')+'</span>'}
+  let p=n.status_integracao==='1'?'Pendente · sem XML':'Pendente';
+  return '<span class="pill st-1"'+t(p)+'>'+p+(extra.length?' •':'')+'</span>';
+}
+function htmlSd1(n){
+  if(!sd1)return '<span style="color:#cbd5e1">—</span>';
+  if(n.status_integracao==='3')return '<span class="herdado">pelo NFe Master</span>';
+  let x=sd1[n.id];if(!x)return '<span style="color:#94a3b8;font-size:12px">✗ não lançada</span>';
+  let dif=Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_total)||0))>1&&Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_produtos)||0))>1;
+  return '<span class="pill" style="background:#ede9fe;color:#5b21b6" title="Encontrada na SD1 (entrada de notas): '+x.sd1_itens+' itens · fornecedor '+esc(x.sd1_fornecedor||'')+(x.sd1_tes?' · TES '+esc(x.sd1_tes):'')+'">✓ lançada manual</span>'+
+    '<div class="herdado">emissão '+fmtD8(x.sd1_emissao)+' · '+fmtR(x.sd1_valor)+(dif?' <b style="color:#b45309">valor diferente</b>':'')+'</div>';
+}
+
+// gráfico: valor das notas por setor (usa os filtros da tela, menos o de setor)
+function renderSetor(){
+  let l=notasFiltradas(true),g={},tot=0;
+  l.forEach(n=>{let k=setorDa(n).setor||'Sem setor',x=g[k]||(g[k]={setor:k,valor:0,notas:0,forn:new Set()});x.valor+=Number(n.valor_total)||0;x.notas++;x.forn.add(chaveCnpj(n.fornecedor_cnpj));tot+=Number(n.valor_total)||0});
+  let rows=Object.values(g).sort((a,b)=>(a.setor==='Sem setor')-(b.setor==='Sem setor')||b.valor-a.valor),max=Math.max(1,...rows.map(r=>r.valor));
+  $('resumo').innerHTML='<div class="resumo-card azul"><div class="val">'+fmtR0(tot)+'</div><div class="lab">Valor das notas '+_rotPeriodo()+'</div></div>'+
+    '<div class="resumo-card"><div class="val">'+l.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+rows.filter(r=>r.setor!=='Sem setor').length+'</div><div class="lab">Setores com nota</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+fmtR0((g['Sem setor']||{}).valor||0)+'</div><div class="lab">Valor sem setor</div><div class="sub">'+((g['Sem setor']||{}).notas||0)+' notas para classificar</div></div>';
+  $('paginador').innerHTML='';
+  if(!rows.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';return}
+  _gRows=rows;_gTot=tot;
+  $('tabela').innerHTML='<div class="graf"><h3>Valor das notas por setor</h3><div class="gsub">Mesmos filtros da tela (filial, manifestação, status, período). Clique numa barra para ver as notas do setor.</div>'+
+    rows.map((r,i)=>'<div class="gl" data-i="'+i+'" onclick="irSetor('+i+')" onmousemove="tipSetor(event,'+i+')" onmouseleave="$(\'gtip\').style.display=\'none\'">'+
+      '<div class="gnm">'+esc(r.setor)+'</div><div class="gtrk"><div class="gbar'+(r.setor==='Sem setor'?' sem':'')+'" style="width:'+(r.valor/max*100).toFixed(1)+'%"></div></div>'+
+      '<div class="gval"><b>'+fmtR0(r.valor)+'</b> <span>· '+r.notas+' nota'+(r.notas>1?'s':'')+' · '+(tot?Math.round(r.valor/tot*100):0)+'%</span></div></div>').join('')+'</div>';
+}
+let _gRows=[],_gTot=0;
+function tipSetor(e,i){let r=_gRows[i],t=$('gtip');if(!r)return;
+  t.innerHTML='<b>'+esc(r.setor)+'</b><br>'+fmtR(r.valor)+' ('+(_gTot?(r.valor/_gTot*100).toFixed(1):0)+'% do total)<br>'+r.notas+(r.notas>1?' notas':' nota')+' · '+r.forn.size+(r.forn.size>1?' fornecedores':' fornecedor');
+  t.style.display='block';let x=e.clientX+14,y=e.clientY+14;if(x+240>innerWidth)x=e.clientX-250;t.style.left=x+'px';t.style.top=y+'px'}
+function irSetor(i){let r=_gRows[i];if(!r)return;$('gtip').style.display='none';$('f-setor').value=r.setor==='Sem setor'?'__sem':r.setor;setAba('notas')}
+
+// ===== Fluxo: entrega prevista (Compras) e aceite do recebimento (Almoxarifado) — tabela nfe_fluxo =====
+const MODO_RECEB=/recebimento/.test(location.pathname)||new URLSearchParams(location.search).get('modo')==='recebimento';
+let fluxo=null,abaReceb='chegar';
+async function buscarFluxo(){
+  let out={},de=0;
+  for(;;){let{data,error}=await db.from('nfe_fluxo').select('*').range(de,de+999);
+    if(error)return {ok:false,erro:error};(data||[]).forEach(x=>out[x.nfe_id]=x);if(!data||data.length<1000)break;de+=1000}
+  return {ok:true,mapa:out};
+}
+const hojeIso=()=>_iso(new Date());
+function htmlEntrega(n){
+  if(!fluxo)return '<span class="herdado" title="Falta criar a tabela nfe_fluxo">—</span>';
+  let f=fluxo[n.id]||{};
+  if(f.recebido_em)return '<span class="pill st-3" title="Recebida por '+esc(f.recebido_por||'')+'">✓ Recebida '+fmtData(f.recebido_em)+'</span>';
+  if(f.recusado_em)return '<span class="pill st-C" title="Recusada por '+esc(f.recusado_por||'')+(f.motivo_recusa?': '+esc(f.motivo_recusa):'')+'">✕ Recusada '+fmtData(f.recusado_em)+'</span>'+(f.motivo_recusa?'<div class="herdado" style="max-width:160px">'+esc(f.motivo_recusa)+'</div>':'');
+  let v=f.previsao_entrega||'',atr=v&&v<hojeIso();
+  return '<input type="date" class="inp-data'+(atr?' atrasada':'')+'" value="'+v+'" onchange="salvarEntrega(['+n.id+'],this.value,this)" title="'+(f.previsao_por?'Informada por '+esc(f.previsao_por):'Data que o fornecedor vai entregar')+'">'+(atr?'<div class="herdado" style="color:#dc2626">atrasada</div>':'');
+}
+// campos de texto do Compras (nº do pedido e observação): salvam ao sair do campo
+function htmlCampoFluxo(n,campo,ph,larg){
+  if(!fluxo)return '<span class="herdado">—</span>';
+  let v=(fluxo[n.id]||{})[campo]||'';
+  return '<input class="inp-txt" style="width:'+larg+'px" placeholder="'+ph+'" value="'+esc(v)+'" data-orig="'+esc(v)+'" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarCampoFluxo('+n.id+',\''+campo+'\',this)" title="'+esc(v)+'">';
+}
+function salvarCampoFluxo(id,campo,el){let v=el.value.trim();let c={};c[campo]=v||null;c.atualizado_em=new Date().toISOString();
+  salvarFluxo([id],c,el).then(ok=>{if(!ok)el.value=el.dataset.orig})}
+async function salvarFluxo(ids,campos,el){
+  if(el)el.disabled=true;
+  for(let i=0;i<ids.length;i+=500){let parte=ids.slice(i,i+500);
+    let r=await db.from('nfe_fluxo').upsert(parte.map(id=>Object.assign({nfe_id:id},campos)),{onConflict:'nfe_id'});
+    if(r.error){alert('Não salvou: '+r.error.message);if(el)el.disabled=false;return false}
+    parte.forEach(id=>{fluxo[id]=Object.assign({},fluxo[id]||{nfe_id:id},campos)});
+  }
+  if(el)el.disabled=false;let pos=scrollY;render();scrollTo(0,pos);return true;
+}
+function salvarEntrega(ids,data,el){return salvarFluxo(ids,{previsao_entrega:data||null,previsao_por:userEmail||null,previsao_em:new Date().toISOString()},el)}
+async function aplicarDataLote(){let v=$('sel-data-lote').value;if(!v){$('sel-msg').textContent='Escolha a data.';return}
+  let ids=[...sel].filter(id=>!(fluxo&&fluxo[id]&&fluxo[id].recebido_em));$('sel-msg').textContent='Salvando...';
+  if(await salvarEntrega(ids,v)){$('sel-msg').textContent='✓ data aplicada em '+ids.length+' nota(s)';sel.clear();render()}}
+async function receber(id,btn){let n=notas.find(x=>x.id===id);
+  if(!confirm('Confirmar o recebimento da NF '+(n?n.numero+' de '+(n.fornecedor_nome||''):'')+'?\nA nota passa a ser responsabilidade do almoxarifado.'))return;
+  salvarFluxo([id],{recebido_em:new Date().toISOString(),recebido_por:userEmail||null},btn)}
+async function desfazerReceb(id,btn){if(!confirm('Desfazer o aceite desta nota? Ela volta para "A chegar".'))return;
+  salvarFluxo([id],{recebido_em:null,recebido_por:null},btn)}
+async function recusar(id,btn){let n=notas.find(x=>x.id===id);
+  let m=prompt('Recusar a entrega da NF '+(n?n.numero+' de '+(n.fornecedor_nome||''):'')+'?\nEscreva o motivo (obrigatório):');
+  if(m===null)return;m=m.trim();if(!m){alert('Escreva o motivo da recusa.');return}
+  salvarFluxo([id],{recusado_em:new Date().toISOString(),recusado_por:userEmail||null,motivo_recusa:m},btn)}
+async function desfazerRecusa(id,btn){if(!confirm('Desfazer a recusa? A nota volta para "A chegar".'))return;
+  salvarFluxo([id],{recusado_em:null,recusado_por:null,motivo_recusa:null},btn)}
+
+// tela do almoxarifado: o que vai chegar (pendente, não cancelada, não lançada, sem aceite) e o que já foi recebido
+function setAbaReceb(a){abaReceb=a;pag=0;['chegar','recebidas','recusadas'].forEach(x=>$('aba-'+x).classList.toggle('ativo',a===x));render()}
+function _vaiChegar(n){return n.status_nfe!=='C'&&n.status_integracao!=='3'&&!(sd1&&sd1[n.id])&&n.manifestacao!=='210220'&&n.manifestacao!=='210240'}
+function renderReceb(){
+  if(!fluxo){$('resumo').innerHTML='';$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco a tabela <b>nfe_fluxo</b>.</div>';return}
+  let fil=$('f-filial').value,b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),h=hojeIso(),lim=_iso(new Date(Date.now()-90*864e5));
+  let base=notas.filter(n=>(!fil||n.filial===fil)&&String(n.emissao||'').slice(0,10)>=lim&&(!b||(n.fornecedor_nome||'').toLowerCase().includes(b)||(bd&&String(n.numero||'').includes(bd))));
+  // só aparece para o almoxarifado o que o Compras já colocou data de entrega
+  let semData=base.filter(n=>_vaiChegar(n)&&!(fluxo[n.id]||{}).previsao_entrega&&!(fluxo[n.id]||{}).recebido_em&&!(fluxo[n.id]||{}).recusado_em).length;
+  let chegar=base.filter(n=>{let f=fluxo[n.id]||{};return _vaiChegar(n)&&f.previsao_entrega&&!f.recebido_em&&!f.recusado_em});
+  let receb=base.filter(n=>{let f=fluxo[n.id]||{};return f.recebido_em&&n.status_integracao!=='3'&&n.status_nfe!=='C'});
+  let recus=base.filter(n=>(fluxo[n.id]||{}).recusado_em);
+  let prev=n=>(fluxo[n.id]||{}).previsao_entrega||'';
+  let atras=chegar.filter(n=>prev(n)<h).length,hoje=chegar.filter(n=>prev(n)===h).length;
+  $('resumo').innerHTML='<div class="resumo-card azul"><div class="val">'+chegar.length+'</div><div class="lab">A chegar</div><div class="sub">com data informada pelo Compras</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+atras+'</div><div class="lab">Previsão já passou</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+hoje+'</div><div class="lab">Previstas para hoje</div></div>'+
+    '<div class="resumo-card"><div class="val" style="color:#5b21b6">'+receb.length+'</div><div class="lab">Recebidas, aguardando lançamento</div></div>'+
+    '<div class="resumo-card"><div class="val" style="color:#991b1b">'+recus.length+'</div><div class="lab">Recusadas</div></div>'+
+    '<div class="resumo-card"><div class="val" style="color:#94a3b8">'+semData+'</div><div class="lab">Notas ainda sem data do Compras</div><div class="sub">não aparecem aqui até o Compras informar</div></div>';
+  let l=abaReceb==='chegar'?chegar.sort((a,c)=>prev(a)<prev(c)?-1:prev(a)>prev(c)?1:String(c.emissao).localeCompare(String(a.emissao)))
+       :abaReceb==='recebidas'?receb.sort((a,c)=>String(fluxo[c.id].recebido_em).localeCompare(String(fluxo[a.id].recebido_em)))
+       :recus.sort((a,c)=>String(fluxo[c.id].recusado_em).localeCompare(String(fluxo[a.id].recusado_em)));
+  let parte=paginar(l);
+  if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">'+({chegar:'Nada previsto para chegar com esses filtros.',recebidas:'Nenhuma nota recebida aguardando lançamento.',recusadas:'Nenhuma nota recusada.'}[abaReceb])+'</div>';return}
+  let cab={chegar:'<th>Previsão</th>',recebidas:'<th>Recebida</th>',recusadas:'<th>Recusada</th>'}[abaReceb];
+  $('tabela').innerHTML='<table><thead><tr>'+cab+'<th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Fornecedor</th><th>Setor</th><th>Pedido</th><th>Observação do Compras</th><th class="num">Valor</th><th></th></tr></thead><tbody>'+
+    parte.map(n=>{let f=fluxo[n.id]||{},p=f.previsao_entrega,c1,acao;
+      if(abaReceb==='chegar'){c1='<span class="pill '+(p<h?'st-C':p===h?'st-3':'st-x')+'">'+(p<h?'⚠ ':'')+fmtData(p+'T12:00')+'</span>';
+        acao='<div style="display:flex;gap:6px"><button class="btn-receber" onclick="receber('+n.id+',this)">✓ Recebi</button><button class="btn-recusar" onclick="recusar('+n.id+',this)">✕ Recusar</button></div>'}
+      else if(abaReceb==='recebidas'){c1='<div style="font-weight:600">'+fmtData(f.recebido_em)+'</div><div class="herdado">'+esc(f.recebido_por||'')+'</div>';
+        acao='<button class="btn-atualizar" style="font-size:12px;padding:5px 10px" onclick="desfazerReceb('+n.id+',this)">Desfazer</button>'}
+      else{c1='<div style="font-weight:600;color:#991b1b">'+fmtData(f.recusado_em)+'</div><div class="herdado">'+esc(f.recusado_por||'')+'</div>'+(f.motivo_recusa?'<div style="font-size:12px;color:#7f1d1d;max-width:220px">'+esc(f.motivo_recusa)+'</div>':'');
+        acao='<button class="btn-atualizar" style="font-size:12px;padding:5px 10px" onclick="desfazerRecusa('+n.id+',this)">Desfazer</button>'}
+      return '<tr><td>'+c1+'</td><td style="font-weight:600">'+esc(n.filial||'—')+'</td><td>'+fmtData(n.emissao)+'</td>'+
+        '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
+        '<td>'+(setorDa(n).setor?'<span class="pill tag-setor" style="margin:0">'+esc(setorDa(n).setor)+'</span>':'<span class="herdado">—</span>')+'</td>'+
+        '<td style="font-family:ui-monospace,monospace">'+esc(f.pedido||'—')+'</td><td style="font-size:12px;max-width:220px">'+esc(f.obs_compras||'')+'</td>'+
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+acao+'</td></tr>'}).join('')+'</tbody></table>';
+}
+function iniciarModoReceb(){
+  document.title='Recebimento';$('titulo-pag').textContent='Recebimento';$('sub-pag').textContent='O que vai chegar no almoxarifado';
+  document.querySelector('#aba-notas').parentElement.style.display='none';$('abas-receb').style.display='flex';
+  document.querySelectorAll('.so-gestao').forEach(e=>e.style.display='none');
+  $('f-busca').placeholder='🔍 Nº da nota ou fornecedor';
+  let fil='';try{fil=localStorage.getItem('receb_filial')||''}catch(e){}
+  $('f-filial').addEventListener('change',()=>{try{localStorage.setItem('receb_filial',$('f-filial').value)}catch(e){}});
+  window._filialReceb=fil;
+}
+
+// popup com os itens da nota
+async function abrirItens(id){
+  let n=notas.find(x=>x.id===id);if(!n)return;
+  $('pop-cab').innerHTML='<div style="font-size:16px;font-weight:800">NF '+esc(n.numero)+(n.serie!=null?' / série '+esc(n.serie):'')+' · '+fmtR(n.valor_total)+'</div>'+
+    '<div style="font-size:13px;margin-top:3px"><b>'+esc(n.fornecedor_nome||'')+'</b> <span class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</span></div>'+
+    '<div style="font-size:12px;color:#64748b;margin-top:4px">Emissão '+fmtData(n.emissao)+' · Filial '+esc(n.filial||'—')+' · '+esc(MANIF[n.manifestacao]||'sem manifestação')+(n.pedido?' · Pedido '+esc(n.pedido):'')+(n.em_tratativa?' · <b style="color:#b45309">Em tratativa'+(n.motivo_tratativa?': '+esc(n.motivo_tratativa):'')+'</b>':'')+'</div>'+
+    (n.chave?'<div class="cnpj" style="margin-top:3px">Chave '+esc(n.chave)+'</div>':'')+
+    (sd1&&sd1[n.id]?'<div style="margin-top:6px;font-size:12.5px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:6px 10px;color:#5b21b6"><b>Já lançada no Protheus (SD1)</b> sem passar pelo NFe Master: '+sd1[n.id].sd1_itens+' itens · '+fmtR(sd1[n.id].sd1_valor)+' · fornecedor '+esc(sd1[n.id].sd1_fornecedor||'')+'</div>':'');
+  $('pop-corpo').innerHTML='<div class="msg-vazio">Carregando itens...</div>';$('pop-itens').style.display='block';
+  let{data,error}=await db.from('nfe_master_itens').select('*').eq('nfe_id',id).order('item');
+  if(error){$('pop-corpo').innerHTML='<div class="msg-vazio">'+(/does not exist|schema cache/i.test(error.message)?'A tabela de itens ainda não foi criada no banco.':'Não consegui carregar: '+esc(error.message))+'</div>';return}
+  if(!data||!data.length){$('pop-corpo').innerHTML='<div class="msg-vazio">'+(n.status_integracao==='1'?'📨 Nota recém-chegada: o NFe Master ainda não baixou o XML completo com os itens.<br><small>Os itens aparecem depois do próximo sync, quando o NFe Master baixar o XML.</small>':'Os itens desta nota ainda não foram enviados pelo sync.')+'</div>';return}
+  let temProt=data.some(i=>i.cod_protheus||i.pc);
+  $('pop-corpo').innerHTML='<table><thead><tr><th>#</th><th>Produto (como veio na nota)</th><th>NCM</th><th class="num">Qtd</th><th>Un</th><th class="num">Vl unit</th><th class="num">Vl total</th><th>Pedido no XML</th>'+(temProt?'<th>Produto Protheus</th><th>PC</th><th>CC</th>':'')+'</tr></thead><tbody>'+
+    data.map(i=>'<tr><td>'+esc(i.item)+'</td><td><div style="font-weight:600">'+esc(i.descricao)+'</div><div class="cnpj">'+esc(i.codigo_forn||'')+'</div></td><td class="cnpj">'+esc(i.ncm||'')+'</td>'+
+      '<td class="num">'+(Number(i.quantidade)||0).toLocaleString('pt-BR')+'</td><td>'+esc(i.unidade||'')+'</td><td class="num">'+fmtR(i.valor_unit)+'</td><td class="num">'+fmtR(i.valor_total)+'</td>'+
+      '<td>'+esc(i.pedido_xml||'—')+(i.item_pedido_xml?' / '+esc(i.item_pedido_xml):'')+'</td>'+
+      (temProt?'<td>'+(i.cod_protheus?'<div style="font-weight:600">'+esc(i.desc_protheus||'')+'</div><div class="cnpj">'+esc(i.cod_protheus)+'</div>':'<span style="color:#94a3b8">não associado</span>')+'</td><td>'+esc(i.pc||'')+(i.item_pc?' / '+esc(i.item_pc):'')+'</td><td class="cnpj">'+esc(i.cc||'')+'</td>':'')+'</tr>').join('')+
+    '</tbody></table><div style="font-size:12px;color:#64748b;margin-top:8px">'+data.length+' itens · total '+fmtR(data.reduce((a,i)=>a+(Number(i.valor_total)||0),0))+'</div>';
+}
+function fecharItens(){$('pop-itens').style.display='none'}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharItens()});
+
+// seleção
+function marcar(id,cb){cb.checked?sel.add(id):sel.delete(id);cb.closest('tr').classList.toggle('sel',cb.checked);atualizarBarra()}
+function marcarPagina(v){let parte=notasFiltradas().slice(pag*POR_PAG,(pag+1)*POR_PAG);parte.forEach(n=>v?sel.add(n.id):sel.delete(n.id));render()}
+function limparSel(){sel.clear();$('sel-msg').textContent='';render()}
+function atualizarBarra(){let b=$('barra-sel');b.style.display=sel.size&&aba==='notas'?'flex':'none';$('sel-qtd').textContent=sel.size+' nota'+(sel.size>1?'s':'')+' selecionada'+(sel.size>1?'s':'')}
+async function aplicarLote(){let v=$('sel-setor-lote').value;if(!v){$('sel-msg').textContent='Escolha o setor.';return}
+  let ids=[...sel];$('sel-msg').textContent='Salvando '+ids.length+'...';
+  let ok=await salvarNotas(ids,v==='__limpar'?'':v);if(ok){$('sel-msg').textContent='✓ '+ids.length+' nota(s) salvas';sel.clear();render()}}
+
+async function salvarNotas(ids,setor,el){
+  if(el)el.disabled=true;
+  for(let i=0;i<ids.length;i+=500){let parte=ids.slice(i,i+500),r;
+    if(setor)r=await db.from('nfe_setor').upsert(parte.map(id=>({nfe_id:id,setor,atualizado_em:new Date().toISOString(),atualizado_por:userEmail||null})),{onConflict:'nfe_id'});
+    else r=await db.from('nfe_setor').delete().in('nfe_id',parte);
+    if(r.error){alert('Não salvou: '+r.error.message);if(el)el.disabled=false;render();return false}
+    parte.forEach(id=>{if(setor)setNota[id]={nfe_id:id,setor,atualizado_por:userEmail};else delete setNota[id]});
+  }
+  if(el)el.disabled=false;let pos=scrollY;render();scrollTo(0,pos);return true;
+}
+async function salvarForn(sel_){
+  let cnpj=sel_.dataset.cnpj,setor=sel_.value;sel_.disabled=true;
+  let r=setor?await db.from('fornecedor_setor').upsert({cnpj,nome:sel_.dataset.nome,setor,atualizado_em:new Date().toISOString(),atualizado_por:userEmail||null},{onConflict:'cnpj'})
+             :await db.from('fornecedor_setor').delete().eq('cnpj',cnpj);
+  sel_.disabled=false;
+  if(r.error){alert('Não salvou: '+r.error.message);render();return}
+  if(setor)setForn[cnpj]={cnpj,setor,atualizado_por:userEmail};else delete setForn[cnpj];
+  let pos=scrollY;render();scrollTo(0,pos);
+}
+
+// Login: mesmo usuário do Painel principal
+function liberar(email){userEmail=email||'';if(MODO_RECEB)iniciarModoReceb();{let h=new Date(),i=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-6));$('f-de').value=i;$('f-ate').value=_iso(h)}document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
+async function entrar(){
+  let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
+  if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
+  b.disabled=true;b.textContent='Entrando...';
+  let{data,error}=await db.auth.signInWithPassword({email,password:senha});
+  b.disabled=false;b.textContent='Entrar';
+  if(error){msg.textContent=error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message;msg.style.display='block';return}
+  liberar(data.user&&data.user.email);
+}
+async function sair(){await db.auth.signOut();location.reload()}
+if(MODO_RECEB){$('lg-titulo').textContent='Recebimento';document.title='Recebimento'}
+(async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
+</script>
+</body>
+</html>
