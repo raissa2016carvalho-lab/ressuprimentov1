@@ -69,9 +69,9 @@ select n.id,
        n.dataultimoeventomanifestacao                  as data_manifestacao
 from nfemanager.tb_nfe n
 left join nfemanager.tb_empresanfe e on e.id = n.idempresa
-left join lateral (
-  select * from protheus.tb_integracaoprotheusnfe x where x.idnfe = n.id order by x.id desc limit 1
-) p on true
+left join (
+  select distinct on (idnfe) * from protheus.tb_integracaoprotheusnfe order by idnfe, id desc
+) p on p.idnfe = n.id
 where {filtro}
 order by n.id
 """
@@ -99,9 +99,13 @@ def rodar(desde=None):
         filtro = f"n.dataemissao >= '{d[:4]}-{d[4:6]}-{d[6:8]}'"
 
     inicio = time.time()
-    con = psycopg2.connect(**NFE)
+    print("Conectando no NFe Master...", flush=True)
+    con = psycopg2.connect(connect_timeout=20, **NFE)
     con.set_session(readonly=True)          # só leitura no NFe Master
-    cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    print("Conectado. Buscando as notas (" + ("revisão dos últimos dias" if ultimo else "carga completa") + ")...", flush=True)
+    # cursor com nome = o banco manda as notas aos poucos (não espera juntar tudo)
+    cur = con.cursor(name="nfe_master_sync", cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.itersize = LOTE
     cur.execute(SQL.format(filtro=filtro))
     total = 0
     while True:
@@ -119,7 +123,7 @@ def rodar(desde=None):
         else:
             raise SystemExit("Não consegui gravar no Supabase. Parei para não deixar a tabela pela metade.")
         total += len(dados)
-        print(f"  {total} notas enviadas...")
+        print(f"  {total} notas enviadas ao Supabase...", flush=True)
     con.close()
     sb.table("sync_log").upsert({"chave": "nfe_master", "atualizado_em": datetime.datetime.now().isoformat(),
                                  "total": total}, on_conflict="chave").execute()
