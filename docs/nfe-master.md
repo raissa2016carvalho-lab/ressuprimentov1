@@ -74,6 +74,7 @@ Tela abre com: só pendentes (não integradas) + manifestação "Ciência da ope
 ## Cruzamento com a SD1 (`vw_nfe_sd1`) — double check de lançamento manual
 Liga nota do NFe Master × `movimentos_entrada` por filial + nº da nota (sem zeros à esquerda) + série.
 Validação (2026): 5.309 de 5.312 notas integradas acharam a SD1; 736 "pendentes" já estavam na SD1 (lançamento manual).
+Com a regra da mesma emissão: 1.174 ligações (175 eram de outro fornecedor com o mesmo nº). Ideal: trazer F1_CHVNFE na SD1.
 ```sql
 create index if not exists movimentos_entrada_nota on public.movimentos_entrada (filial, (ltrim(nota_fiscal,'0')));
 create or replace view public.vw_nfe_sd1 with (security_invoker = true) as
@@ -85,6 +86,7 @@ cross join lateral (
   from public.movimentos_entrada m
   where m.filial = n.filial and ltrim(m.nota_fiscal,'0') = n.numero::text
     and coalesce(nullif(ltrim(m.serie,'0'),''),'0') = coalesce(nullif(n.serie::text,'0'),'0')
+    and m.emissao = to_char(n.emissao,'YYYYMMDD')   -- mesma emissão (sem isso, NF de nº baixo casava com outro fornecedor)
 ) x
 where n.status_integracao <> '3' and n.status_nfe <> 'C' and x.sd1_itens > 0;
 grant select on public.vw_nfe_sd1 to anon, authenticated;
