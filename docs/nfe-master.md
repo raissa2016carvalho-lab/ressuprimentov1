@@ -95,7 +95,8 @@ grant select on public.vw_nfe_sd1 to anon, authenticated;
 
 ## Fluxo: entrega prevista (Compras) e aceite do recebimento (Almoxarifado) — `nfe_fluxo`
 - notas.html: coluna "Entrega prevista" (e em lote na barra de seleção). Recebida → mostra "✓ Recebida dd/mm".
-- recebimento.html → notas.html?modo=recebimento: abas "A chegar" (pendente, não cancelada, não está na SD1,
+- Compras também preenche Nº do pedido e Observação (texto livre) na tela de notas.
+- recebimento.html → notas.html?modo=recebimento: só mostra notas COM data do Compras. Abas "A chegar" (botões Recebi / Recusar com motivo), "Recebidas", "Recusadas". Antes: (pendente, não cancelada, não está na SD1,
   sem desconhecimento/não realizada, emitida nos últimos 90 dias, sem aceite) e "Recebidas" (aceite dado,
   ainda não integrada). Botão "✓ Recebi" grava recebido_em/recebido_por; "Desfazer" limpa. Filial fica salva no navegador.
 ```sql
@@ -103,6 +104,8 @@ create table public.nfe_fluxo (
   nfe_id bigint primary key,
   previsao_entrega date, previsao_por text, previsao_em timestamptz,
   recebido_em timestamptz, recebido_por text,
+  pedido text, obs_compras text,
+  recusado_em timestamptz, recusado_por text, motivo_recusa text,
   atualizado_em timestamptz default now()
 );
 alter table public.nfe_fluxo enable row level security;
