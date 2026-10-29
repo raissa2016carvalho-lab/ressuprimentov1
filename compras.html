@@ -428,7 +428,8 @@ async function sbGet(tabela, select, onProgress, filtro="", ordem=""){
     let r, tentativas=0;
     while(tentativas<3){
       try{
-        r=await fetch(url,{headers:offset===0?{...H,"Prefer":"count=exact"}:H});
+        // contagem estimada (instantânea): a exata varria a tabela toda e estourava o tempo do banco
+        r=await fetch(url,{headers:offset===0?{...H,"Prefer":"count=planned"}:H});
         if(r.ok) break;
         if(r.status===500){ await new Promise(res=>setTimeout(res,2000)); tentativas++; continue; }
         throw new Error(r.status+" em "+tabela);
@@ -441,8 +442,9 @@ async function sbGet(tabela, select, onProgress, filtro="", ordem=""){
     if(d.length<lote) break; offset+=lote; if(d.length) ultimo=d[d.length-1];
   }
   // se a tabela mudou durante a carga (sync rodando), avisa em vez de mostrar dado incompleto calado
-  if(esperado!=null&&!isNaN(esperado)&&esperado!==all.length)
-    AVISOS.push(tabela+": carregou "+all.length.toLocaleString("pt-BR")+" de "+esperado.toLocaleString("pt-BR")+" linhas");
+  // a contagem é estimada: só avisa se a diferença for grande (mais de 2%)
+  if(esperado!=null&&!isNaN(esperado)&&esperado>0&&Math.abs(esperado-all.length)/esperado>0.02)
+    AVISOS.push(tabela+": carregou "+all.length.toLocaleString("pt-BR")+" de ~"+esperado.toLocaleString("pt-BR")+" linhas");
   return all;
 }
 
