@@ -36,6 +36,7 @@ tr:hover td{background:#f8fafc}
 .sel-setor{border:1px solid #e2e8f0;border-radius:7px;padding:5px 8px;font-size:12.5px;font-family:inherit;background:#fff;min-width:170px}
 .sel-setor.vazio{border-color:#fcd34d;background:#fffbeb}
 .sel-setor.salvo{border-color:#16a34a;background:#f0fdf4}
+.btn-dia{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;font-family:inherit;white-space:nowrap}.btn-dia:hover{border-color:#1e40af;color:#1e40af}.btn-dia.ativo{background:#1e40af;color:#fff;border-color:#1e40af}
 .aba-btn{background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
 .aba-btn.ativo{background:#1e40af;color:#fff;border-color:#1e40af}
 .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
@@ -92,8 +93,12 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" onchange="pag=0;render()"><option value="">Todas</option></select></div>
   <div class="f-group so-notas"><label>Status integração</label><select id="f-status" onchange="pag=0;render()"><option value="">Todos</option></select></div>
   <div class="f-group"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
-  <div class="f-group"><label>Período das notas</label><select id="f-periodo" onchange="pag=0;render()">
-    <option value="0">Desde jan/2025</option><option value="365">Últimos 12 meses</option><option value="90" selected>Últimos 3 meses</option><option value="30">Últimos 30 dias</option></select></div>
+  <div class="f-group"><label>Emitidas de</label><input type="date" id="f-de" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
+  <div class="f-group"><label>até</label><input type="date" id="f-ate" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
+  <div class="f-group"><label>&nbsp;</label><div style="display:flex;gap:4px">
+    <button class="btn-dia" onclick="dias(0,0)">Hoje</button><button class="btn-dia" onclick="dias(1,1)">Ontem</button>
+    <button class="btn-dia" onclick="dias(6,0)">7 dias</button><button class="btn-dia" onclick="dias(29,0)">30 dias</button>
+    <button class="btn-dia" onclick="dias(null)">Tudo</button></div></div>
 </div>
 
 <div class="resumo" id="resumo"></div>
@@ -170,7 +175,13 @@ function setAba(a){aba=a;pag=0;$('aba-notas').classList.toggle('ativo',a==='nota
 // setor da nota: o escolhido na nota; se não tiver, o do fornecedor
 function setorDa(n){let s=setNota[n.id];if(s)return {setor:s.setor,origem:'nota'};let f=setForn[chaveCnpj(n.fornecedor_cnpj)];return f?{setor:f.setor,origem:'forn'}:{setor:'',origem:''}}
 
-function noPeriodo(n){let dias=Number($('f-periodo').value)||0;return !dias||(n.emissao&&new Date(n.emissao).getTime()>=Date.now()-dias*864e5)}
+// período pela data de emissão (dia da nota, sem fuso)
+function noPeriodo(n){let de=$('f-de').value,ate=$('f-ate').value,d=String(n.emissao||'').slice(0,10);if(!de&&!ate)return true;if(!d)return false;return (!de||d>=de)&&(!ate||d<=ate)}
+function _rotPeriodo(){let de=$('f-de').value,ate=$('f-ate').value,f=x=>x.split('-').reverse().join('/');if(!de&&!ate)return 'desde jan/2025';if(de===ate)return 'em '+f(de);return (de?'de '+f(de):'')+(ate?' até '+f(ate):'')}
+function _iso(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0')}
+// atalhos: dias(atrás_início, atrás_fim) — dias(null) = sem limite
+function dias(ini,fim){if(ini===null){$('f-de').value='';$('f-ate').value=''}else{let h=new Date();$('f-de').value=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-ini));$('f-ate').value=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-fim))}
+  document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));if(event&&event.target)event.target.classList.add('ativo');pag=0;render()}
 
 function agrupar(){
   let m={};
@@ -205,7 +216,7 @@ function resumoNotas(){
   let ns=notas.filter(n=>n.status_nfe!=='C'&&noPeriodo(n)),com=ns.filter(n=>setorDa(n).setor).length;
   let pend=ns.filter(n=>n.status_integracao==='1').length;
   $('resumo').innerHTML=
-    '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas no período</div><div class="sub">sem as canceladas</div></div>'+
+    '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas emitidas '+_rotPeriodo()+'</div><div class="sub" id="sub-periodo">sem as canceladas</div></div>'+
     '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor</div></div>'+
     '<div class="resumo-card alerta"><div class="val">'+(ns.length-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
     '<div class="resumo-card azul"><div class="val">'+(ns.length?Math.round(com/ns.length*100):0)+'%</div><div class="lab">das notas já têm setor</div></div>'+
@@ -284,7 +295,7 @@ async function salvarForn(sel_){
 }
 
 // Login: mesmo usuário do Painel principal
-function liberar(email){userEmail=email||'';document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
+function liberar(email){userEmail=email||'';{let h=new Date(),i=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-6));$('f-de').value=i;$('f-ate').value=_iso(h)}document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
 async function entrar(){
   let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
   if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
