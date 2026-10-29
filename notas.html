@@ -94,6 +94,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
   <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor ou CNPJ" oninput="pag=0;render()"></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" onchange="pag=0;render()"><option value="">Todas</option></select></div>
   <div class="f-group so-notas"><label>Manifestação</label><select id="f-manif" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
+  <div class="f-group so-notas"><label>Lançada no Protheus (SD1)?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já tem na SD1</option><option value="nao">✗ Não — falta lançar</option></select></div>
   <div class="f-group so-notas"><label>Status</label><select id="f-status" onchange="pag=0;render()"></select></div>
   <div class="f-group"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
   <div class="f-group"><label>Emitidas de</label><input type="date" id="f-de" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
@@ -161,13 +162,15 @@ async function buscarSetores(tabela,chave){
 async function carregar(){
   $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
   try{
-    let [ns,sf,sn,{data:log}]=await Promise.all([
-      buscarTudo('nfe_master','id,numero,serie,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,emissao,chegada,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
+    let [ns,sf,sn,{data:log},sd1r]=await Promise.all([
+      buscarTudo('nfe_master','id,numero,serie,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
-      db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle()
+      db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
+      buscarSd1()
     ]);
     let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
     if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
+    sd1=sd1r.ok?sd1r.mapa:null;
     notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
     $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
     montarFiltros();agrupar();render();
@@ -217,6 +220,7 @@ function notasFiltradas(){
   return notas.filter(n=>{
     if(!noPeriodo(n))return false;
     if(!passaStatus(n,si)||!passaManif(n,$('f-manif').value))return false;
+    let fs=$('f-sd1').value;if(fs&&sd1){let tem=!!sd1[n.id];if(fs==='sim'&&!tem)return false;if(fs==='nao'&&tem)return false}
     if(fil&&n.filial!==fil)return false;
     let s=setorDa(n).setor;if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
     if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd))))return false}
@@ -239,7 +243,8 @@ function resumoNotas(){
     '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor</div></div>'+
     '<div class="resumo-card alerta"><div class="val">'+(ns.length-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
     '<div class="resumo-card azul"><div class="val">'+(ns.length?Math.round(com/ns.length*100):0)+'%</div><div class="lab">das notas já têm setor</div></div>'+
-    '<div class="resumo-card"><div class="val" style="color:#b45309">'+pend.toLocaleString('pt-BR')+'</div><div class="lab">Pendentes de integração</div></div>';
+    '<div class="resumo-card"><div class="val" style="color:#b45309">'+pend.toLocaleString('pt-BR')+'</div><div class="lab">Pendentes de integração</div></div>'+
+    (sd1?'<div class="resumo-card" style="cursor:pointer" onclick="$(\'f-sd1\').value=\'sim\';pag=0;render()" title="Clique para ver só essas"><div class="val" style="color:#7c3aed">'+ns.filter(n=>PEND(n)&&sd1[n.id]).length.toLocaleString('pt-BR')+'</div><div class="lab">Pendentes no NFe Master mas <b>já lançadas na SD1</b></div><div class="sub">lançamento manual no Protheus</div></div>':'');
 }
 function resumoForn(){
   let tot=lista.length,com=lista.filter(f=>(setForn[f.cnpj]||{}).setor).length;
@@ -260,7 +265,7 @@ function render(){
   let l=notasFiltradas(),parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
   let todasMarcadas=parte.every(n=>sel.has(n.id));
-  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Emissão</th><th>Nº nota</th><th>Fornecedor</th><th>Filial</th><th class="num">Valor</th><th>Status</th><th>Setor</th></tr></thead><tbody>'+
+  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Emissão</th><th>Nº nota</th><th>Fornecedor</th><th>Filial</th><th class="num">Valor</th><th>Status</th><th>Protheus (SD1)</th><th>Setor</th></tr></thead><tbody>'+
     parte.map(n=>{let s=setorDa(n),st=n.status_nfe==='C'?'<span class="pill st-C">Cancelada</span>':'<span class="pill st-'+(ST_INT[n.status_integracao]?n.status_integracao:'x')+'">'+(ST_INT[n.status_integracao]||('Código '+esc(n.status_integracao||'—')))+'</span>';
       if(n.status_nfe&&n.status_nfe!=='A'&&n.status_nfe!=='C')st+=' <span class="pill st-x" title="Status da NF-e">'+esc(ST_NFE[n.status_nfe]||'NF '+n.status_nfe)+'</span>';
       if(n.em_tratativa)st+=' <span class="pill st-1">Em tratativa</span>';
@@ -268,7 +273,7 @@ function render(){
         '<td class="num" style="text-align:left">'+fmtData(n.emissao)+'</td>'+
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
-        '<td>'+esc(n.filial||'—')+'</td><td class="num">'+fmtR(n.valor_total)+'</td><td>'+st+'</td>'+
+        '<td>'+esc(n.filial||'—')+'</td><td class="num">'+fmtR(n.valor_total)+'</td><td>'+st+'</td><td>'+htmlSd1(n)+'</td>'+
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
         (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
@@ -284,13 +289,32 @@ function renderForn(){
         '<td><select class="sel-setor'+(v?'':' vazio')+'" data-cnpj="'+f.cnpj+'" data-nome="'+esc(f.nome)+'" onchange="salvarForn(this)">'+opcSetor(v)+'</select></td></tr>'}).join('')+'</tbody></table>';
 }
 
+// Cruzamento com a SD1 (movimentos_entrada): filial + nº da nota + série. View vw_nfe_sd1 (só notas não integradas)
+let sd1=null;
+async function buscarSd1(){
+  let out={},de=0;
+  for(;;){let{data,error}=await db.from('vw_nfe_sd1').select('*').range(de,de+999);
+    if(error)return {ok:false,erro:error};(data||[]).forEach(x=>out[x.nfe_id]=x);if(!data||data.length<1000)break;de+=1000}
+  return {ok:true,mapa:out};
+}
+const fmtD8=d=>d&&d.length===8?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'—';
+function htmlSd1(n){
+  if(!sd1)return '<span style="color:#cbd5e1">—</span>';
+  if(n.status_integracao==='3')return '<span class="herdado">pelo NFe Master</span>';
+  let x=sd1[n.id];if(!x)return '<span style="color:#94a3b8;font-size:12px">✗ não lançada</span>';
+  let dif=Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_total)||0))>1&&Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_produtos)||0))>1;
+  return '<span class="pill" style="background:#ede9fe;color:#5b21b6" title="Encontrada na SD1 (entrada de notas): '+x.sd1_itens+' itens · fornecedor '+esc(x.sd1_fornecedor||'')+(x.sd1_tes?' · TES '+esc(x.sd1_tes):'')+'">✓ lançada manual</span>'+
+    '<div class="herdado">emissão '+fmtD8(x.sd1_emissao)+' · '+fmtR(x.sd1_valor)+(dif?' <b style="color:#b45309">valor diferente</b>':'')+'</div>';
+}
+
 // popup com os itens da nota
 async function abrirItens(id){
   let n=notas.find(x=>x.id===id);if(!n)return;
   $('pop-cab').innerHTML='<div style="font-size:16px;font-weight:800">NF '+esc(n.numero)+(n.serie!=null?' / série '+esc(n.serie):'')+' · '+fmtR(n.valor_total)+'</div>'+
     '<div style="font-size:13px;margin-top:3px"><b>'+esc(n.fornecedor_nome||'')+'</b> <span class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</span></div>'+
     '<div style="font-size:12px;color:#64748b;margin-top:4px">Emissão '+fmtData(n.emissao)+' · Filial '+esc(n.filial||'—')+' · '+esc(MANIF[n.manifestacao]||'sem manifestação')+(n.pedido?' · Pedido '+esc(n.pedido):'')+(n.em_tratativa?' · <b style="color:#b45309">Em tratativa'+(n.motivo_tratativa?': '+esc(n.motivo_tratativa):'')+'</b>':'')+'</div>'+
-    (n.chave?'<div class="cnpj" style="margin-top:3px">Chave '+esc(n.chave)+'</div>':'');
+    (n.chave?'<div class="cnpj" style="margin-top:3px">Chave '+esc(n.chave)+'</div>':'')+
+    (sd1&&sd1[n.id]?'<div style="margin-top:6px;font-size:12.5px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:6px 10px;color:#5b21b6"><b>Já lançada no Protheus (SD1)</b> sem passar pelo NFe Master: '+sd1[n.id].sd1_itens+' itens · '+fmtR(sd1[n.id].sd1_valor)+' · fornecedor '+esc(sd1[n.id].sd1_fornecedor||'')+'</div>':'');
   $('pop-corpo').innerHTML='<div class="msg-vazio">Carregando itens...</div>';$('pop-itens').style.display='block';
   let{data,error}=await db.from('nfe_master_itens').select('*').eq('nfe_id',id).order('item');
   if(error){$('pop-corpo').innerHTML='<div class="msg-vazio">'+(/does not exist|schema cache/i.test(error.message)?'A tabela de itens ainda não foi criada no banco.':'Não consegui carregar: '+esc(error.message))+'</div>';return}

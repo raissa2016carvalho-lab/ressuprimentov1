@@ -71,6 +71,26 @@ create policy leitura_publica on public.nfe_master_itens for select to anon, aut
 ```
 Tela abre com: só pendentes (não integradas) + manifestação "Ciência da operação".
 
+## Cruzamento com a SD1 (`vw_nfe_sd1`) — double check de lançamento manual
+Liga nota do NFe Master × `movimentos_entrada` por filial + nº da nota (sem zeros à esquerda) + série.
+Validação (2026): 5.309 de 5.312 notas integradas acharam a SD1; 736 "pendentes" já estavam na SD1 (lançamento manual).
+```sql
+create index if not exists movimentos_entrada_nota on public.movimentos_entrada (filial, (ltrim(nota_fiscal,'0')));
+create or replace view public.vw_nfe_sd1 with (security_invoker = true) as
+select n.id as nfe_id, x.*
+from public.nfe_master n
+cross join lateral (
+  select min(m.emissao) sd1_emissao, count(*) sd1_itens, sum(m.valor_entrada) sd1_valor,
+         min(m.fornecedor) sd1_fornecedor, string_agg(distinct m.tes, ',') sd1_tes
+  from public.movimentos_entrada m
+  where m.filial = n.filial and ltrim(m.nota_fiscal,'0') = n.numero::text
+    and coalesce(nullif(ltrim(m.serie,'0'),''),'0') = coalesce(nullif(n.serie::text,'0'),'0')
+) x
+where n.status_integracao <> '3' and n.status_nfe <> 'C' and x.sd1_itens > 0;
+grant select on public.vw_nfe_sd1 to anon, authenticated;
+-- desfazer: drop view public.vw_nfe_sd1; drop index public.movimentos_entrada_nota;
+```
+
 ## Próximos passos
 2. Setor por fornecedor: tabela `fornecedor_setor` (cnpj → setor: compras, almoxarifado, fiscal, RH,
    frota, oficina…) preenchida pela Raissa no painel.
