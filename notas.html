@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notas Fiscais</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<link rel="stylesheet" href="/padrao.css"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;min-height:100vh}
+.topo{background:#0f172a;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.topo h1{font-size:15px;font-weight:700}
+.topo span{color:#94a3b8;font-size:12px}
+.tag{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:3px 10px;font-size:11.5px;color:#94a3b8}
+.topo-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn-atualizar{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.filtros-wrap{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 24px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.filtros-wrap label{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px}
+.filtros-wrap input,.filtros-wrap select{border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:12.5px;font-family:inherit;outline:none;background:#fff}
+.filtros-wrap input:focus,.filtros-wrap select:focus{border-color:#1e40af}
+.f-group{display:flex;flex-direction:column;min-width:0}
+.f-busca{flex:1;min-width:220px}.f-busca input{width:100%}
+.resumo{display:flex;flex-wrap:wrap;gap:10px;padding:16px 24px}
+.resumo-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;min-width:150px;flex:1}
+.resumo-card .val{font-size:22px;font-weight:800;color:#0f172a;line-height:1}
+.resumo-card .lab{font-size:11.5px;color:#64748b;margin-top:3px}
+.resumo-card .sub{font-size:11px;color:#94a3b8;margin-top:2px}
+.resumo-card.alerta .val{color:#ef4444}.resumo-card.azul .val{color:#1e40af}.resumo-card.verde .val{color:#16a34a}
+.tabela-wrap{padding:0 24px 24px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;font-size:13px}
+th{text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;padding:9px 10px;font-size:11px;font-weight:600;white-space:nowrap;background:#f8fafc;cursor:pointer;user-select:none}
+th:hover{background:#f1f5f9}
+td{border-bottom:1px solid #f1f5f9;padding:8px 10px;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cnpj{font-size:11px;color:#94a3b8;font-family:ui-monospace,monospace}
+.sel-setor{border:1px solid #e2e8f0;border-radius:7px;padding:5px 8px;font-size:12.5px;font-family:inherit;background:#fff;min-width:170px}
+.sel-setor.vazio{border-color:#fcd34d;background:#fffbeb}
+.sel-setor.salvo{border-color:#16a34a;background:#f0fdf4}
+.msg-vazio{text-align:center;color:#64748b;padding:40px;background:#fff;border:1px dashed #e2e8f0;border-radius:12px}
+.paginador{display:flex;gap:8px;align-items:center;justify-content:center;padding:0 24px 24px;font-size:12.5px;color:#64748b}
+.paginador button{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;cursor:pointer;font-family:inherit}
+.paginador button:disabled{opacity:.4;cursor:default}
+body.bq-trancado>*:not(#tela-login){display:none!important}
+.lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
+.lg-inp{width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
+.lg-inp:focus{border-color:#1e40af}
+@media(max-width:600px){.topo,.filtros-wrap,.resumo,.tabela-wrap,.paginador{padding-left:16px;padding-right:16px}.topo-right{margin-left:0;width:100%}.f-group{width:100%}.f-group select{width:100%}}
+</style>
+<body class="bq-trancado">
+
+<!-- Login (mesmo usuário e senha do Painel principal) -->
+<div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
+  <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px;box-shadow:0 20px 50px #00000066">
+    <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
+    <h1 style="margin:0 0 4px;font-size:16px">Notas Fiscais</h1>
+    <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
+    <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
+    <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <div id="lg-msg" style="color:#991b1b;background:#fee2e2;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:12px;display:none"></div>
+    <button id="lg-btn" onclick="entrar()" style="width:100%;background:#1e40af;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+    <a class="bq-login-voltar" href="/los.html">← Voltar ao menu de sistemas</a>
+  </div>
+</div>
+
+<div class="topo">
+  <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
+  <div>
+    <h1>Notas Fiscais</h1>
+    <span>NFe Master · setor de cada fornecedor</span>
+  </div>
+  <div class="tag" id="tag-sync">Carregando...</div>
+  <div class="topo-right">
+    <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
+    <button class="btn-atualizar" onclick="sair()" title="Sair">Sair</button>
+  </div>
+</div>
+
+<div class="filtros-wrap">
+  <div class="f-group f-busca"><label>Buscar fornecedor</label><input id="f-busca" placeholder="🔍 Nome ou CNPJ" oninput="pag=0;render()"></div>
+  <div class="f-group"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
+  <div class="f-group"><label>Período das notas</label><select id="f-periodo" onchange="pag=0;agrupar();render()">
+    <option value="0">Desde jan/2025</option><option value="365">Últimos 12 meses</option><option value="90" selected>Últimos 3 meses</option><option value="30">Últimos 30 dias</option></select></div>
+</div>
+
+<div class="resumo" id="resumo"></div>
+<div class="tabela-wrap" id="tabela"><div class="msg-vazio">Carregando...</div></div>
+<div class="paginador" id="paginador"></div>
+
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Facilities/Administrativo','Financeiro','Outros'];
+const POR_PAG=100;
+let notas=[],setores={},lista=[],pag=0,userEmail='';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtCnpj=c=>{c=String(c||'').replace(/\D/g,'');return c.length===14?c.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):c};
+const chaveCnpj=c=>String(c||'').replace(/\D/g,'');
+
+async function buscarTudo(tabela,colunas,filtro){
+  let out=[],de=0;
+  for(;;){let q=db.from(tabela).select(colunas).order('id',{ascending:true}).range(de,de+999);if(filtro)q=filtro(q);
+    let{data,error}=await q;if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break;de+=1000}
+  return out;
+}
+
+async function carregar(){
+  $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
+  try{
+    let [ns,{data:fs,error:e2},{data:log}]=await Promise.all([
+      buscarTudo('nfe_master','id,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,emissao,status_nfe'),
+      db.from('fornecedor_setor').select('cnpj,setor,atualizado_por,atualizado_em').range(0,9999),
+      db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle()
+    ]);
+    if(e2){$('tabela').innerHTML='<div class="msg-vazio">A tabela de setores ainda não existe no banco. Rode o SQL da tabela <b>fornecedor_setor</b>.<br><small>'+esc(e2.message)+'</small></div>';return}
+    notas=ns.filter(n=>n.status_nfe!=='C');   // canceladas ficam de fora
+    setores={};(fs||[]).forEach(f=>setores[f.cnpj]=f);
+    $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
+    montarFiltroSetor();agrupar();render();
+  }catch(e){$('tabela').innerHTML='<div class="msg-vazio">Não consegui carregar (o banco pode estar ocupado com os syncs). Clique em ↻ Atualizar.<br><small>'+esc(e.message||e)+'</small></div>'}
+}
+
+function montarFiltroSetor(){
+  let v=$('f-setor').value;
+  $('f-setor').innerHTML='<option value="">Todos</option><option value="__sem">⚠ Sem setor</option>'+SETORES.map(s=>'<option>'+esc(s)+'</option>').join('');
+  $('f-setor').value=v;
+}
+
+// junta as notas por fornecedor (CNPJ) no período escolhido
+function agrupar(){
+  let dias=Number($('f-periodo').value)||0,lim=dias?Date.now()-dias*864e5:0,m={};
+  notas.forEach(n=>{
+    let k=chaveCnpj(n.fornecedor_cnpj);if(!k)return;
+    let t=n.emissao?new Date(n.emissao).getTime():0;if(lim&&t<lim)return;
+    let f=m[k]||(m[k]={cnpj:k,nome:n.fornecedor_nome||n.fornecedor_fantasia||'(sem nome)',notas:0,valor:0,ultima:0});
+    f.notas++;f.valor+=Number(n.valor_total)||0;if(t>f.ultima){f.ultima=t;f.nome=n.fornecedor_nome||f.nome}
+  });
+  lista=Object.values(m).sort((a,b)=>b.notas-a.notas||b.valor-a.valor);
+}
+
+function filtrada(){
+  let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value;
+  return lista.filter(f=>{
+    let s=(setores[f.cnpj]||{}).setor||'';
+    if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
+    if(b&&!f.nome.toLowerCase().includes(b)&&!(bd&&f.cnpj.includes(bd)))return false;
+    return true;
+  });
+}
+
+function render(){
+  let tot=lista.length,com=lista.filter(f=>(setores[f.cnpj]||{}).setor).length,nt=lista.reduce((a,f)=>a+f.notas,0),ntc=lista.filter(f=>(setores[f.cnpj]||{}).setor).reduce((a,f)=>a+f.notas,0);
+  $('resumo').innerHTML=
+    '<div class="resumo-card"><div class="val">'+tot.toLocaleString('pt-BR')+'</div><div class="lab">Fornecedores com nota no período</div><div class="sub">'+nt.toLocaleString('pt-BR')+' notas (sem canceladas)</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor definido</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+(tot-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
+    '<div class="resumo-card azul"><div class="val">'+(nt?Math.round(ntc/nt*100):0)+'%</div><div class="lab">das notas já têm setor</div><div class="sub">comece pelos que mandam mais notas</div></div>';
+  let l=filtrada(),pags=Math.max(1,Math.ceil(l.length/POR_PAG));if(pag>=pags)pag=pags-1;
+  let parte=l.slice(pag*POR_PAG,(pag+1)*POR_PAG);
+  if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhum fornecedor com esses filtros.</div>';$('paginador').innerHTML='';return}
+  $('tabela').innerHTML='<table><thead><tr><th>Fornecedor</th><th class="num">Notas</th><th class="num">Valor</th><th class="num">Última emissão</th><th>Setor</th></tr></thead><tbody>'+
+    parte.map(f=>{let s=setores[f.cnpj]||{},v=s.setor||'';
+      return '<tr><td><div style="font-weight:600">'+esc(f.nome)+'</div><div class="cnpj">'+fmtCnpj(f.cnpj)+'</div></td>'+
+        '<td class="num">'+f.notas+'</td><td class="num">'+fmtR(f.valor)+'</td>'+
+        '<td class="num">'+(f.ultima?new Date(f.ultima).toLocaleDateString('pt-BR'):'—')+'</td>'+
+        '<td><select class="sel-setor'+(v?'':' vazio')+'" data-cnpj="'+f.cnpj+'" data-nome="'+esc(f.nome)+'" onchange="salvarSetor(this)" title="'+(s.atualizado_por?'Definido por '+esc(s.atualizado_por):'')+'">'+
+        '<option value="">— escolher —</option>'+SETORES.map(x=>'<option'+(x===v?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select></td></tr>'}).join('')+'</tbody></table>';
+  $('paginador').innerHTML=pags>1?'<button onclick="pag--;render();scrollTo(0,0)" '+(pag?'':'disabled')+'>← Anterior</button> Página '+(pag+1)+' de '+pags+' ('+l.length+' fornecedores) <button onclick="pag++;render();scrollTo(0,0)" '+(pag<pags-1?'':'disabled')+'>Próxima →</button>':l.length+' fornecedores';
+}
+
+async function salvarSetor(sel){
+  let cnpj=sel.dataset.cnpj,setor=sel.value;sel.disabled=true;
+  let r=setor?await db.from('fornecedor_setor').upsert({cnpj,nome:sel.dataset.nome,setor,atualizado_em:new Date().toISOString(),atualizado_por:userEmail||null},{onConflict:'cnpj'})
+             :await db.from('fornecedor_setor').delete().eq('cnpj',cnpj);
+  sel.disabled=false;
+  if(r.error){alert('Não salvou: '+r.error.message);sel.value=(setores[cnpj]||{}).setor||'';return}
+  if(setor)setores[cnpj]={cnpj,setor,atualizado_por:userEmail};else delete setores[cnpj];
+  sel.className='sel-setor salvo';setTimeout(()=>{sel.className='sel-setor'+(sel.value?'':' vazio')},1200);
+  // atualiza só os números do topo (não redesenha a lista para não perder a posição)
+  let pos=scrollY;render();scrollTo(0,pos);
+}
+
+// Login: mesmo usuário do Painel principal
+function liberar(email){userEmail=email||'';document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
+async function entrar(){
+  let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
+  if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
+  b.disabled=true;b.textContent='Entrando...';
+  let{data,error}=await db.auth.signInWithPassword({email,password:senha});
+  b.disabled=false;b.textContent='Entrar';
+  if(error){msg.textContent=error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message;msg.style.display='block';return}
+  liberar(data.user&&data.user.email);
+}
+async function sair(){await db.auth.signOut();location.reload()}
+(async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
+</script>
+</body>
+</html>
