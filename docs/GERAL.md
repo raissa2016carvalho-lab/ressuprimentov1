@@ -1,15 +1,16 @@
 # Ressuprimento B&Q — Visão geral (leia primeiro)
 
-Atualizado em 26/10/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
+Atualizado em 29/10/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
 mudado no banco. Os detalhes de cada tela estão nos outros arquivos desta pasta:
 `index.md`, `gerente.md`, `mobilizacao.md`, `outras-telas.md` (formulário, estoque, compras,
-fechamento, manutenção, menu) e `syncs.md`.
+fechamento, manutenção, menu), `syncs.md` e `nfe-master.md` (Notas Fiscais / Recebimento).
 
 ## Como falar comigo (Raissa)
 - Sou especialista em suprimentos, **não sou programadora**. Explique em português simples.
 - Economize créditos: respostas diretas, sem rodeios.
 - **Nunca** altere ou apague dados sem me mostrar antes e eu dizer "pode".
 - Sempre que mudar algo no banco, me dê também o SQL de **desfazer**.
+- **Sempre me pergunte antes de publicar** (merge no `main`), mesmo que eu já tenha dito "pode" para outra coisa.
 
 ## O sistema
 Páginas HTML + JavaScript puro, hospedadas no **Vercel**, com banco **Supabase**
@@ -23,7 +24,12 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | `formulario.html` | Almoxarife pede material | Não |
 | `estoque.html`, `compras.html` | Painéis de consulta | Não |
 | `fechamento.html` (+ `login_fechamento.html`) | Fechamento de consumo | Sim |
-| `manutencao.html` | Manutenção de veículos — **outro projeto Supabase** | Não |
+| `manutencao.html` | Manutenção de veículos — **outro projeto Supabase** (fora do menu) | Não |
+| `ruptura.html` | Risco de ruptura (EPI/fardamento por filial) | Sim (desde 29/10, mesmo login do Painel principal) |
+| `notas.html` / `recebimento.html` | Notas Fiscais do NFe Master (setor, entrega prevista, cruzamento SD1) e Recebimento do almoxarifado | Sim — **ainda só no Preview (PR #40)** |
+| `los.html` | Menu de sistemas (portal) — inclui link externo "Consulta de bens" (não é nosso, não mexer) | Não |
+
+Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png` em todas as telas.
 
 ## Como trabalhamos (fluxo seguro)
 1. Mudança de código vai no branch de trabalho do chat (ex.: `claude/kind-ptolemy-v4icku`) → abre PR no GitHub.
@@ -63,6 +69,12 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | `incluir_item_ruptura(solicitacao_id, codigo, qtd)` (27/10) | Botão "➕ Incluir/Ajustar no formulário" do ruptura. Só formulário sem SC e status pendente/aguardando_master; inclui (almoxarife **vazio** — com 0 o card do Painel principal esconde o item —, sugestão 0) ou ajusta a final; item fica **aprovado**, `master_alterado_por = 'painel ruptura'`. Testada com transação desfeita | `drop function incluir_item_ruptura(bigint,text,numeric);` |
 | `mobilizacoes.criado_em` | **Ainda sem default** — rodar `alter table public.mobilizacoes alter column criado_em set default now();` | — |
 
+| Mobilização: `mobilizacoes.grupo` (28/10) | Agrupa os cards na tela inicial (ENEL SP, BRUMADO…). Grupo que começa com "OCULTO" fica escondido | `alter table mobilizacoes drop column grupo` |
+| `mobilizacao_scs` RLS (28/10) | Tinha RLS ligado sem regra (SCs "sumiram"). Criadas policies ler/incluir/alterar/remover p/ anon e authenticated | `drop policy mob_scs_*` |
+| Mobilização: ids (28/10) | `mobilizacao_scs/itens/estoque` tinham perdido o default do `id` (linhas novas sem id). Recriadas sequências, ids preenchidos, PKs e unique `(mobilizacao_id, codigo)` no estoque | ver SQL de desfazer no histórico (drop pkey/default) |
+| Mobilização ENEL SP (28/10) | Card #45 "1ª ONDA FARDAMENTOS E BOTAS" (SC 000115); estoque da Construção #39 zerado e passado à LV #41 (backup `bkp_mob_estoque_20261027`); #27/#28 no grupo OCULTO | — |
+| NFe Master (29/10) | Tabelas `nfe_master`, `nfe_master_itens`, `fornecedor_setor`, `nfe_setor`, view `vw_nfe_sd1` + índice `movimentos_entrada_nota`. **Falta criar `nfe_fluxo`**. SQL de tudo em `nfe-master.md` | ver `nfe-master.md` |
+
 ### Backups guardados
 `backup_mobilizacoes_2026_10_22`, `backup_mobilizacao_itens_2026_10_22`, `backup_mobilizacao_scs_2026_10_22`
 (mobilizações #31–35), `backup_mob_36_37_*` (mobilizações de teste #36 e #37) e `backup_mob_40_43_2026_10_27_*`
@@ -74,12 +86,25 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 - `sync_movmult.py` (devoluções `mov_sd3_001`): só regrava mês atual/anterior não congelado — meses em
   `meses_congelados` ficam fixos (igual ao `sync_consumo_scp.py`). Backup: `sync_movmult_BACKUP.py`.
 - Congelamento: `sync_consumo_scp.py` chama `congelar_mes_anterior` no 1º sync dos dias 1–5 do mês.
+- **29/10** `upload_compras.py`: pedido sem grupo (C7_GRPPROD vazio no Protheus) pega o grupo da SC ligada, em `pedidos`
+  e `pedidos_grupo`. Cópia em `scripts/upload_compras.py` (sem senhas). Resultado: 0 pedidos "sem grupo".
+- **29/10** novo `sync_nfe_master.py` (NFe Master → `nfe_master` e `nfe_master_itens`), cópia em `scripts/`.
+  1ª carga desde 01/01/2025; depois revisa 3 dias. `--loop` = a cada 30 min. ⚠ Trocar a senha do usuário `nfe_leitura`
+  (apareceu no chat).
 
 ## Bibliotecas
 - Supabase JS servido pelo próprio site: `vendor/supabase-2.118.0.js` (o jsdelivr falhou em 26/10).
   Não voltar a usar `cdn.jsdelivr.net`.
 
 ## Pendências (em ordem sugerida)
+00. **Estado em 29/10** — publicado hoje: popup de estoque por armazém no Painel principal (PR #41); Compras sem travar
+    (paginação keyset + contagem estimada), clique no mês, filtro de mobilização e tabela por filial no Comparativo Mensal
+    (PR #42, números validados no DBeaver). **No Preview, esperando "pode"**: Notas Fiscais + Recebimento (PR #40, branch
+    `claude/inspiring-brahmagupta-d8c2yf`) — antes, rodar o SQL da `nfe_fluxo`. **Próximos combinados**: tabela por centro
+    de custo ao lado da por filial (Comparativo; `pedidos` tem `C7_CC`, falta pôr na carga, e `centros_custo` p/ nome);
+    decidir se "SERVIÇO DE MOBILIZAÇÃO DE GERADOR" conta como mobilização; tabelas de resumo no Supabase p/ o Compras abrir
+    rápido; Notas: coluna "Etapa" com tempo em cada setor (Compras → Almoxarifado → Fiscal → Lançada), restringir almoxarife
+    à filial, trazer F1_CHVNFE e D1_DTDIGIT na SD1 (cruzamento exato e data do lançamento).
 0. **Painel Risco de Ruptura v2 — publicado em 27/10 (PR #28, que inclui o #27)**. Falta: rodar o SQL da `estoque_seguranca` (ver `outras-telas.md`). **Vida útil e trocas — FEITO em 26/10**: aba "Vida útil e trocas" no `ruptura.html` e trocas previstas
    entrando na meta do ruptura. **Falta**: (a) o recálculo — a vida útil e as próximas trocas ficam paradas na foto de 26/10 até rodar
    `atualizar_vida_util()`. Opção 1: no fim do `sync_entregas.py` acrescentar `supabase.rpc('atualizar_vida_util').execute()`.
