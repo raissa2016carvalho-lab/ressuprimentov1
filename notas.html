@@ -40,7 +40,7 @@ tr:hover td{background:#f8fafc}
 .aba-btn{background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
 .aba-btn.ativo{background:#1e40af;color:#fff;border-color:#1e40af}
 .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
-.st-1{background:#fef3c7;color:#92400e}.st-2{background:#cffafe;color:#155e75}.st-3{background:#dcfce7;color:#166534}.st-x{background:#f1f5f9;color:#475569}
+.st-1{background:#fef3c7;color:#92400e}.st-2{background:#fef3c7;color:#92400e}.st-3{background:#dcfce7;color:#166534}.st-x{background:#f1f5f9;color:#475569}
 .st-C{background:#fee2e2;color:#991b1b}
 .herdado{color:#94a3b8;font-size:11px}
 tr.sel td{background:#eff6ff!important}
@@ -91,7 +91,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 <div class="filtros-wrap">
   <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor ou CNPJ" oninput="pag=0;render()"></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" onchange="pag=0;render()"><option value="">Todas</option></select></div>
-  <div class="f-group so-notas"><label>Status integração</label><select id="f-status" onchange="pag=0;render()"><option value="">Todos</option></select></div>
+  <div class="f-group so-notas"><label>Status</label><select id="f-status" onchange="pag=0;render()"></select></div>
   <div class="f-group"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
   <div class="f-group"><label>Emitidas de</label><input type="date" id="f-de" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
   <div class="f-group"><label>até</label><input type="date" id="f-ate" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
@@ -118,7 +118,9 @@ const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co'
 const $=id=>document.getElementById(id);
 const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Facilities/Administrativo','Financeiro','Outros'];
 // códigos do NFe Master (a confirmar com notas de exemplo)
-const ST_INT={'1':'Pendente','2':'Associado','3':'Integrado'};
+// 3 = integrado no Protheus (todas têm data de integração). 1 e 2 = ainda não integradas → pendentes
+const ST_INT={'1':'Pendente (cód. 1)','2':'Pendente','3':'Integrado'};
+const PEND=n=>n.status_nfe!=='C'&&n.status_integracao!=='3';
 const ST_NFE={'A':'Autorizada','C':'Cancelada','D':'Denegada'};
 const POR_PAG=100;
 let notas=[],setForn={},setNota={},lista=[],pag=0,userEmail='',aba='notas',sel=new Set();
@@ -166,7 +168,7 @@ function montarFiltros(){
   let vf=$('f-filial').value;
   $('f-filial').innerHTML='<option value="">Todas</option>'+Object.keys(fil).sort().map(k=>'<option value="'+k+'">'+k+' · '+esc(String(fil[k]).replace(/^B&Q ENERGIA LTDA\s*-?\s*/i,'')||'MATRIZ')+'</option>').join('');$('f-filial').value=vf;
   let vs=$('f-status').value;
-  $('f-status').innerHTML='<option value="">Todos</option>'+Object.keys(ST_INT).map(k=>'<option value="'+k+'">'+ST_INT[k]+'</option>').join('')+'<option value="C">Canceladas</option>';$('f-status').value=vs;
+  $('f-status').innerHTML='<option value="pend">⏳ Só pendentes</option><option value="3">✓ Integradas</option><option value="C">Canceladas</option><option value="">Todas</option>';$('f-status').value=vs||'pend';
   $('sel-setor-lote').innerHTML=opcSetor('').replace('— escolher —','— escolher setor —')+'<option value="__limpar">(tirar o setor)</option>';
 }
 function setAba(a){aba=a;pag=0;$('aba-notas').classList.toggle('ativo',a==='notas');$('aba-forn').classList.toggle('ativo',a==='forn');
@@ -194,11 +196,12 @@ function agrupar(){
   lista=Object.values(m).sort((a,b)=>b.notas-a.notas||b.valor-a.valor);
 }
 
+function passaStatus(n,si){if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(n.status_nfe==='C')return false;return !si||n.status_integracao===si}
 function notasFiltradas(){
   let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value,fil=$('f-filial').value,si=$('f-status').value;
   return notas.filter(n=>{
     if(!noPeriodo(n))return false;
-    if(si==='C'){if(n.status_nfe!=='C')return false}else{if(n.status_nfe==='C')return false;if(si&&n.status_integracao!==si)return false}
+    if(!passaStatus(n,si))return false;
     if(fil&&n.filial!==fil)return false;
     let s=setorDa(n).setor;if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
     if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd))))return false}
@@ -213,10 +216,11 @@ function fornFiltrados(){
 }
 
 function resumoNotas(){
-  let ns=notas.filter(n=>n.status_nfe!=='C'&&noPeriodo(n)),com=ns.filter(n=>setorDa(n).setor).length;
-  let pend=ns.filter(n=>n.status_integracao==='1').length;
+  let si=$('f-status').value,fil=$('f-filial').value,ns=notas.filter(n=>noPeriodo(n)&&passaStatus(n,si)&&(!fil||n.filial===fil)),com=ns.filter(n=>setorDa(n).setor).length;
+  let rotSt={pend:'pendentes',3:'integradas',C:'canceladas'}[si]||'';
+  let pend=ns.filter(PEND).length;
   $('resumo').innerHTML=
-    '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas emitidas '+_rotPeriodo()+'</div><div class="sub" id="sub-periodo">sem as canceladas</div></div>'+
+    '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+(rotSt?rotSt+' ':'')+'emitidas '+_rotPeriodo()+'</div><div class="sub" id="sub-periodo">'+(si==='C'?'':'sem as canceladas')+'</div></div>'+
     '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor</div></div>'+
     '<div class="resumo-card alerta"><div class="val">'+(ns.length-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
     '<div class="resumo-card azul"><div class="val">'+(ns.length?Math.round(com/ns.length*100):0)+'%</div><div class="lab">das notas já têm setor</div></div>'+
