@@ -93,6 +93,26 @@ grant select on public.vw_nfe_sd1 to anon, authenticated;
 -- desfazer: drop view public.vw_nfe_sd1; drop index public.movimentos_entrada_nota;
 ```
 
+## Fluxo: entrega prevista (Compras) e aceite do recebimento (Almoxarifado) — `nfe_fluxo`
+- notas.html: coluna "Entrega prevista" (e em lote na barra de seleção). Recebida → mostra "✓ Recebida dd/mm".
+- recebimento.html → notas.html?modo=recebimento: abas "A chegar" (pendente, não cancelada, não está na SD1,
+  sem desconhecimento/não realizada, emitida nos últimos 90 dias, sem aceite) e "Recebidas" (aceite dado,
+  ainda não integrada). Botão "✓ Recebi" grava recebido_em/recebido_por; "Desfazer" limpa. Filial fica salva no navegador.
+```sql
+create table public.nfe_fluxo (
+  nfe_id bigint primary key,
+  previsao_entrega date, previsao_por text, previsao_em timestamptz,
+  recebido_em timestamptz, recebido_por text,
+  atualizado_em timestamptz default now()
+);
+alter table public.nfe_fluxo enable row level security;
+create policy nfe_fluxo_ler on public.nfe_fluxo for select to anon, authenticated using (true);
+create policy nfe_fluxo_gravar on public.nfe_fluxo for insert to authenticated with check (true);
+create policy nfe_fluxo_alterar on public.nfe_fluxo for update to authenticated using (true) with check (true);
+create policy nfe_fluxo_apagar on public.nfe_fluxo for delete to authenticated using (true);
+-- desfazer: drop table public.nfe_fluxo;
+```
+
 ## Próximos passos
 2. Setor por fornecedor: tabela `fornecedor_setor` (cnpj → setor: compras, almoxarifado, fiscal, RH,
    frota, oficina…) preenchida pela Raissa no painel.

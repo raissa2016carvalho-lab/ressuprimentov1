@@ -58,6 +58,10 @@ input.cb{width:16px;height:16px;cursor:pointer;accent-color:#1e40af}
 .gval{font-size:12.5px;color:#0f172a;font-variant-numeric:tabular-nums;white-space:nowrap}.gval span{color:#64748b}
 #gtip{position:fixed;pointer-events:none;background:#0f172a;color:#fff;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;z-index:60;display:none;box-shadow:0 6px 18px #0004}
 @media(max-width:600px){.gl{grid-template-columns:1fr;gap:3px}.gl .gnm{text-align:left}}
+.inp-data{border:1px solid #e2e8f0;border-radius:7px;padding:4px 6px;font-size:12px;font-family:inherit;background:#fff}
+.inp-data.atrasada{border-color:#fca5a5;background:#fef2f2}
+.btn-receber{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn-receber:hover{background:#15803d}
 .msg-vazio{text-align:center;color:#64748b;padding:40px;background:#fff;border:1px dashed #e2e8f0;border-radius:12px}
 .paginador{display:flex;gap:8px;align-items:center;justify-content:center;padding:0 24px 24px;font-size:12.5px;color:#64748b}
 .paginador button{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;cursor:pointer;font-family:inherit}
@@ -74,7 +78,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 <div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
   <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px;box-shadow:0 20px 50px #00000066">
     <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
-    <h1 style="margin:0 0 4px;font-size:16px">Notas Fiscais</h1>
+    <h1 id="lg-titulo" style="margin:0 0 4px;font-size:16px">Notas Fiscais</h1>
     <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
     <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
     <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
@@ -87,14 +91,18 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 <div class="topo">
   <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
   <div>
-    <h1>Notas Fiscais</h1>
-    <span>NFe Master · setor das notas</span>
+    <h1 id="titulo-pag">Notas Fiscais</h1>
+    <span id="sub-pag">NFe Master · setor das notas</span>
   </div>
   <div class="tag" id="tag-sync">Carregando...</div>
   <div style="display:flex;gap:6px">
     <button class="aba-btn ativo" id="aba-notas" onclick="setAba('notas')">🧾 Por nota</button>
     <button class="aba-btn" id="aba-forn" onclick="setAba('forn')">🏢 Por fornecedor</button>
     <button class="aba-btn" id="aba-setor" onclick="setAba('setor')">📊 Por setor</button>
+  </div>
+  <div style="display:none;gap:6px" id="abas-receb">
+    <button class="aba-btn ativo" id="aba-chegar" onclick="setAbaReceb('chegar')">📦 A chegar</button>
+    <button class="aba-btn" id="aba-recebidas" onclick="setAbaReceb('recebidas')">✓ Recebidas</button>
   </div>
   <div class="topo-right">
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
@@ -105,13 +113,13 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 <div class="filtros-wrap">
   <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor ou CNPJ" oninput="pag=0;render()"></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" onchange="pag=0;render()"><option value="">Todas</option></select></div>
-  <div class="f-group so-notas"><label>Manifestação</label><select id="f-manif" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
-  <div class="f-group so-notas"><label>Lançada no Protheus (SD1)?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já tem na SD1</option><option value="nao">✗ Não — falta lançar</option></select></div>
-  <div class="f-group so-notas"><label>Status</label><select id="f-status" onchange="pag=0;render()"></select></div>
-  <div class="f-group"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
-  <div class="f-group"><label>Emitidas de</label><input type="date" id="f-de" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
-  <div class="f-group"><label>até</label><input type="date" id="f-ate" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
-  <div class="f-group"><label>&nbsp;</label><div style="display:flex;gap:4px">
+  <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
+  <div class="f-group so-notas so-gestao"><label>Lançada no Protheus (SD1)?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já tem na SD1</option><option value="nao">✗ Não — falta lançar</option></select></div>
+  <div class="f-group so-notas so-gestao"><label>Status</label><select id="f-status" onchange="pag=0;render()"></select></div>
+  <div class="f-group so-gestao"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
+  <div class="f-group so-gestao"><label>Emitidas de</label><input type="date" id="f-de" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
+  <div class="f-group so-gestao"><label>até</label><input type="date" id="f-ate" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
+  <div class="f-group so-gestao"><label>&nbsp;</label><div style="display:flex;gap:4px">
     <button class="btn-dia" onclick="dias(0,0)">Hoje</button><button class="btn-dia" onclick="dias(1,1)">Ontem</button>
     <button class="btn-dia" onclick="dias(6,0)">7 dias</button><button class="btn-dia" onclick="dias(29,0)">30 dias</button>
     <button class="btn-dia" onclick="dias(null)">Tudo</button></div></div>
@@ -123,6 +131,9 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
   <span style="font-size:12.5px;opacity:.85">Setor:</span>
   <select id="sel-setor-lote" class="sel-setor" style="min-width:200px"></select>
   <button onclick="aplicarLote()" style="background:#fff;color:#1e40af;border:none;border-radius:7px;padding:7px 14px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar às selecionadas</button>
+  <span style="font-size:12.5px;opacity:.85;margin-left:8px">Entrega prevista:</span>
+  <input type="date" id="sel-data-lote" style="border:0;border-radius:7px;padding:6px 8px;font-family:inherit">
+  <button onclick="aplicarDataLote()" style="background:#fff;color:#1e40af;border:none;border-radius:7px;padding:7px 14px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar data</button>
   <button onclick="limparSel()" style="background:transparent;color:#fff;border:1px solid #93c5fd;border-radius:7px;padding:7px 12px;cursor:pointer;font-family:inherit">Limpar seleção</button>
   <span id="sel-msg" style="font-size:12.5px"></span>
 </div>
@@ -175,18 +186,19 @@ async function buscarSetores(tabela,chave){
 async function carregar(){
   $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
   try{
-    let [ns,sf,sn,{data:log},sd1r]=await Promise.all([
+    let [ns,sf,sn,{data:log},sd1r,flr]=await Promise.all([
       buscarTudo('nfe_master','id,numero,serie,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
-      buscarSd1()
+      buscarSd1(),
+      buscarFluxo()
     ]);
     let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
     if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
-    sd1=sd1r.ok?sd1r.mapa:null;
+    sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;
     notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
     $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
-    montarFiltros();agrupar();render();
+    montarFiltros();if(MODO_RECEB&&window._filialReceb){$('f-filial').value=window._filialReceb}agrupar();render();
   }catch(e){$('tabela').innerHTML='<div class="msg-vazio">Não consegui carregar (o banco pode estar ocupado com os syncs). Clique em ↻ Atualizar.<br><small>'+esc(e.message||e)+'</small></div>'}
 }
 
@@ -272,6 +284,7 @@ function paginar(l){let pags=Math.max(1,Math.ceil(l.length/POR_PAG));if(pag>=pag
   return l.slice(pag*POR_PAG,(pag+1)*POR_PAG)}
 
 function render(){
+  if(MODO_RECEB){renderReceb();return}
   agrupar();
   if(aba==='forn'){renderForn();$('barra-sel').style.display='none';return}
   if(aba==='setor'){renderSetor();$('barra-sel').style.display='none';return}
@@ -279,7 +292,7 @@ function render(){
   let l=notasFiltradas(),parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
   let todasMarcadas=parte.every(n=>sel.has(n.id));
-  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>'+
+  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th>Status</th></tr></thead><tbody>'+
     parte.map(n=>{let s=setorDa(n),st=statusUnico(n);
       return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
         '<td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
@@ -288,7 +301,7 @@ function render(){
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
         (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
-        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
 }
 function renderForn(){
@@ -355,6 +368,83 @@ function tipSetor(e,i){let r=_gRows[i],t=$('gtip');if(!r)return;
   t.style.display='block';let x=e.clientX+14,y=e.clientY+14;if(x+240>innerWidth)x=e.clientX-250;t.style.left=x+'px';t.style.top=y+'px'}
 function irSetor(i){let r=_gRows[i];if(!r)return;$('gtip').style.display='none';$('f-setor').value=r.setor==='Sem setor'?'__sem':r.setor;setAba('notas')}
 
+// ===== Fluxo: entrega prevista (Compras) e aceite do recebimento (Almoxarifado) — tabela nfe_fluxo =====
+const MODO_RECEB=/recebimento/.test(location.pathname)||new URLSearchParams(location.search).get('modo')==='recebimento';
+let fluxo=null,abaReceb='chegar';
+async function buscarFluxo(){
+  let out={},de=0;
+  for(;;){let{data,error}=await db.from('nfe_fluxo').select('*').range(de,de+999);
+    if(error)return {ok:false,erro:error};(data||[]).forEach(x=>out[x.nfe_id]=x);if(!data||data.length<1000)break;de+=1000}
+  return {ok:true,mapa:out};
+}
+const hojeIso=()=>_iso(new Date());
+function htmlEntrega(n){
+  if(!fluxo)return '<span class="herdado" title="Falta criar a tabela nfe_fluxo">—</span>';
+  let f=fluxo[n.id]||{};
+  if(f.recebido_em)return '<span class="pill st-3" title="Recebida por '+esc(f.recebido_por||'')+'">✓ Recebida '+fmtData(f.recebido_em)+'</span>';
+  let v=f.previsao_entrega||'',atr=v&&v<hojeIso();
+  return '<input type="date" class="inp-data'+(atr?' atrasada':'')+'" value="'+v+'" onchange="salvarEntrega(['+n.id+'],this.value,this)" title="'+(f.previsao_por?'Informada por '+esc(f.previsao_por):'Data que o fornecedor vai entregar')+'">'+(atr?'<div class="herdado" style="color:#dc2626">atrasada</div>':'');
+}
+async function salvarFluxo(ids,campos,el){
+  if(el)el.disabled=true;
+  for(let i=0;i<ids.length;i+=500){let parte=ids.slice(i,i+500);
+    let r=await db.from('nfe_fluxo').upsert(parte.map(id=>Object.assign({nfe_id:id},campos)),{onConflict:'nfe_id'});
+    if(r.error){alert('Não salvou: '+r.error.message);if(el)el.disabled=false;return false}
+    parte.forEach(id=>{fluxo[id]=Object.assign({},fluxo[id]||{nfe_id:id},campos)});
+  }
+  if(el)el.disabled=false;let pos=scrollY;render();scrollTo(0,pos);return true;
+}
+function salvarEntrega(ids,data,el){return salvarFluxo(ids,{previsao_entrega:data||null,previsao_por:userEmail||null,previsao_em:new Date().toISOString()},el)}
+async function aplicarDataLote(){let v=$('sel-data-lote').value;if(!v){$('sel-msg').textContent='Escolha a data.';return}
+  let ids=[...sel].filter(id=>!(fluxo&&fluxo[id]&&fluxo[id].recebido_em));$('sel-msg').textContent='Salvando...';
+  if(await salvarEntrega(ids,v)){$('sel-msg').textContent='✓ data aplicada em '+ids.length+' nota(s)';sel.clear();render()}}
+async function receber(id,btn){let n=notas.find(x=>x.id===id);
+  if(!confirm('Confirmar o recebimento da NF '+(n?n.numero+' de '+(n.fornecedor_nome||''):'')+'?\nA nota passa a ser responsabilidade do almoxarifado.'))return;
+  salvarFluxo([id],{recebido_em:new Date().toISOString(),recebido_por:userEmail||null},btn)}
+async function desfazerReceb(id,btn){if(!confirm('Desfazer o aceite desta nota? Ela volta para "A chegar".'))return;
+  salvarFluxo([id],{recebido_em:null,recebido_por:null},btn)}
+
+// tela do almoxarifado: o que vai chegar (pendente, não cancelada, não lançada, sem aceite) e o que já foi recebido
+function setAbaReceb(a){abaReceb=a;pag=0;['chegar','recebidas'].forEach(x=>$('aba-'+x).classList.toggle('ativo',a===x));render()}
+function _vaiChegar(n){return n.status_nfe!=='C'&&n.status_integracao!=='3'&&!(sd1&&sd1[n.id])&&n.manifestacao!=='210220'&&n.manifestacao!=='210240'}
+function renderReceb(){
+  if(!fluxo){$('resumo').innerHTML='';$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco a tabela <b>nfe_fluxo</b>.</div>';return}
+  let fil=$('f-filial').value,b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),h=hojeIso(),lim=_iso(new Date(Date.now()-90*864e5));
+  let base=notas.filter(n=>(!fil||n.filial===fil)&&String(n.emissao||'').slice(0,10)>=lim&&(!b||(n.fornecedor_nome||'').toLowerCase().includes(b)||(bd&&String(n.numero||'').includes(bd))));
+  let chegar=base.filter(n=>_vaiChegar(n)&&!(fluxo[n.id]||{}).recebido_em),receb=base.filter(n=>(fluxo[n.id]||{}).recebido_em&&n.status_integracao!=='3'&&n.status_nfe!=='C');
+  let prev=n=>(fluxo[n.id]||{}).previsao_entrega||'';
+  let atras=chegar.filter(n=>prev(n)&&prev(n)<h).length,hoje=chegar.filter(n=>prev(n)===h).length,sem=chegar.filter(n=>!prev(n)).length;
+  $('resumo').innerHTML='<div class="resumo-card azul"><div class="val">'+chegar.length+'</div><div class="lab">A chegar</div><div class="sub">últimos 90 dias de emissão</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+atras+'</div><div class="lab">Previsão já passou</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+hoje+'</div><div class="lab">Previstas para hoje</div></div>'+
+    '<div class="resumo-card"><div class="val">'+sem+'</div><div class="lab">Sem previsão de entrega</div></div>'+
+    '<div class="resumo-card"><div class="val" style="color:#5b21b6">'+receb.length+'</div><div class="lab">Recebidas, aguardando lançamento</div></div>';
+  let l=abaReceb==='chegar'?chegar.sort((a,c)=>(prev(a)||'9')<(prev(c)||'9')?-1:(prev(a)||'9')>(prev(c)||'9')?1:String(c.emissao).localeCompare(String(a.emissao)))
+                           :receb.sort((a,c)=>String(fluxo[c.id].recebido_em).localeCompare(String(fluxo[a.id].recebido_em)));
+  let parte=paginar(l);
+  if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">'+(abaReceb==='chegar'?'Nada previsto para chegar com esses filtros.':'Nenhuma nota recebida aguardando lançamento.')+'</div>';return}
+  let cab=abaReceb==='chegar'?'<th>Previsão</th>':'<th>Recebida</th>';
+  $('tabela').innerHTML='<table><thead><tr>'+cab+'<th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Fornecedor</th><th>Setor</th><th class="num">Valor</th><th></th></tr></thead><tbody>'+
+    parte.map(n=>{let f=fluxo[n.id]||{},p=f.previsao_entrega,c1;
+      if(abaReceb==='chegar')c1=p?'<span class="pill '+(p<h?'st-C':p===h?'st-3':'st-x')+'">'+(p<h?'⚠ ':'')+fmtData(p+'T12:00')+'</span>':'<span class="herdado">sem previsão</span>';
+      else c1='<div style="font-weight:600">'+fmtData(f.recebido_em)+'</div><div class="herdado">'+esc(f.recebido_por||'')+'</div>';
+      let acao=abaReceb==='chegar'?'<button class="btn-receber" onclick="receber('+n.id+',this)">✓ Recebi</button>':'<button class="btn-atualizar" style="font-size:12px;padding:5px 10px" onclick="desfazerReceb('+n.id+',this)">Desfazer</button>';
+      return '<tr><td>'+c1+'</td><td style="font-weight:600">'+esc(n.filial||'—')+'</td><td>'+fmtData(n.emissao)+'</td>'+
+        '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
+        '<td>'+(setorDa(n).setor?'<span class="pill tag-setor" style="margin:0">'+esc(setorDa(n).setor)+'</span>':'<span class="herdado">—</span>')+'</td>'+
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+acao+'</td></tr>'}).join('')+'</tbody></table>';
+}
+function iniciarModoReceb(){
+  document.title='Recebimento';$('titulo-pag').textContent='Recebimento';$('sub-pag').textContent='O que vai chegar no almoxarifado';
+  document.querySelector('#aba-notas').parentElement.style.display='none';$('abas-receb').style.display='flex';
+  document.querySelectorAll('.so-gestao').forEach(e=>e.style.display='none');
+  $('f-busca').placeholder='🔍 Nº da nota ou fornecedor';
+  let fil='';try{fil=localStorage.getItem('receb_filial')||''}catch(e){}
+  $('f-filial').addEventListener('change',()=>{try{localStorage.setItem('receb_filial',$('f-filial').value)}catch(e){}});
+  window._filialReceb=fil;
+}
+
 // popup com os itens da nota
 async function abrirItens(id){
   let n=notas.find(x=>x.id===id);if(!n)return;
@@ -408,7 +498,7 @@ async function salvarForn(sel_){
 }
 
 // Login: mesmo usuário do Painel principal
-function liberar(email){userEmail=email||'';{let h=new Date(),i=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-6));$('f-de').value=i;$('f-ate').value=_iso(h)}document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
+function liberar(email){userEmail=email||'';if(MODO_RECEB)iniciarModoReceb();{let h=new Date(),i=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-6));$('f-de').value=i;$('f-ate').value=_iso(h)}document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
 async function entrar(){
   let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
   if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
@@ -419,6 +509,7 @@ async function entrar(){
   liberar(data.user&&data.user.email);
 }
 async function sair(){await db.auth.signOut();location.reload()}
+if(MODO_RECEB){$('lg-titulo').textContent='Recebimento';document.title='Recebimento'}
 (async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
 </script>
 </body>
