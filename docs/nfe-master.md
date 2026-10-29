@@ -55,6 +55,22 @@ create policy nfe_setor_apagar on public.nfe_setor for delete to authenticated u
 -- desfazer: drop table public.nfe_setor;
 ```
 
+## Itens das notas (`nfe_master_itens`) — popup na tela
+O sync manda também os itens (tb_nfeitem) + o que foi associado no Protheus (produto, PC, CC).
+```sql
+create table public.nfe_master_itens (
+  id bigint primary key, nfe_id bigint, item bigint, codigo_forn text, descricao text, ncm text, cfop text,
+  unidade text, quantidade numeric, valor_unit numeric, valor_total numeric, pedido_xml text, item_pedido_xml bigint,
+  cod_protheus text, desc_protheus text, pc text, item_pc text, cc text, qtd_associada numeric,
+  atualizado_em timestamptz default now()
+);
+create index nfe_master_itens_nfe on public.nfe_master_itens (nfe_id);
+alter table public.nfe_master_itens enable row level security;
+create policy leitura_publica on public.nfe_master_itens for select to anon, authenticated using (true);
+-- desfazer: drop table public.nfe_master_itens;
+```
+Tela abre com: só pendentes (não integradas) + manifestação "Ciência da operação".
+
 ## Próximos passos
 2. Setor por fornecedor: tabela `fornecedor_setor` (cnpj → setor: compras, almoxarifado, fiscal, RH,
    frota, oficina…) preenchida pela Raissa no painel.

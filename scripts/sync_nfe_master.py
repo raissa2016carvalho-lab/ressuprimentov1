@@ -76,6 +76,67 @@ where {filtro}
 order by n.id
 """
 
+# Itens das notas (mesmo filtro das notas) + o que o NFe Master associou do Protheus (pedido, produto, CC)
+SQL_ITENS = """
+select i.id,
+       i.idnfe                 as nfe_id,
+       i.numeroitem            as item,
+       i.codigoproduto         as codigo_forn,
+       i.descricaoproduto      as descricao,
+       i.ncm, i.cfop,
+       i.unidadecomercial      as unidade,
+       i.quantidadecomercial   as quantidade,
+       i.valorunitario         as valor_unit,
+       i.valortotal            as valor_total,
+       i.numeropedido          as pedido_xml,
+       i.numeroitempedido      as item_pedido_xml,
+       ip.codprodutoprotheus   as cod_protheus,
+       ip.descprodutoprotheus  as desc_protheus,
+       ip.idpedidocompra       as pc,
+       ip.iditempedidocompra   as item_pc,
+       ip.centrodecusto        as cc,
+       ip.qtdassociada         as qtd_associada
+from nfemanager.tb_nfeitem i
+join nfemanager.tb_nfe n on n.id = i.idnfe
+left join (
+  select distinct on (idnfe) * from protheus.tb_integracaoprotheusnfe order by idnfe, id desc
+) p on p.idnfe = n.id
+left join (
+  select distinct on (idnfeitem) * from protheus.tb_integracaoprotheusnfeitem order by idnfeitem, id desc
+) pi on pi.idnfeitem = i.id
+left join (
+  select distinct on (idintegracaoprotheusnfeitem) * from protheus.tb_integracaoprotheusitempedido
+  order by idintegracaoprotheusnfeitem, id desc
+) ip on ip.idintegracaoprotheusnfeitem = pi.id
+where {filtro}
+order by i.id
+"""
+
+
+def _enviar(sb, con, tabela, sql, nome):
+    cur = con.cursor(name="sync_" + tabela, cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.itersize = LOTE
+    cur.execute(sql)
+    total = 0
+    while True:
+        linhas = cur.fetchmany(LOTE)
+        if not linhas:
+            break
+        dados = [{k: _json(v) for k, v in l.items()} for l in linhas]
+        for tentativa in range(4):
+            try:
+                sb.table(tabela).upsert(dados, on_conflict="id").execute()
+                break
+            except Exception as e:
+                print("  erro no lote, tentando de novo:", e)
+                time.sleep(5 * (tentativa + 1))
+        else:
+            raise SystemExit("Não consegui gravar no Supabase. Parei para não deixar a tabela pela metade.")
+        total += len(dados)
+        print(f"  {total} {nome} enviados ao Supabase...", flush=True)
+    cur.close()
+    return total
+
 
 def _json(v):
     if isinstance(v, (datetime.datetime, datetime.date)):
@@ -103,31 +164,13 @@ def rodar(desde=None):
     con = psycopg2.connect(connect_timeout=20, **NFE)
     con.set_session(readonly=True)          # só leitura no NFe Master
     print("Conectado. Buscando as notas (" + ("revisão dos últimos dias" if ultimo else "carga completa") + ")...", flush=True)
-    # cursor com nome = o banco manda as notas aos poucos (não espera juntar tudo)
-    cur = con.cursor(name="nfe_master_sync", cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.itersize = LOTE
-    cur.execute(SQL.format(filtro=filtro))
-    total = 0
-    while True:
-        linhas = cur.fetchmany(LOTE)
-        if not linhas:
-            break
-        dados = [{k: _json(v) for k, v in l.items()} for l in linhas]
-        for tentativa in range(4):
-            try:
-                sb.table("nfe_master").upsert(dados, on_conflict="id").execute()
-                break
-            except Exception as e:
-                print("  erro no lote, tentando de novo:", e)
-                time.sleep(5 * (tentativa + 1))
-        else:
-            raise SystemExit("Não consegui gravar no Supabase. Parei para não deixar a tabela pela metade.")
-        total += len(dados)
-        print(f"  {total} notas enviadas ao Supabase...", flush=True)
+    total = _enviar(sb, con, "nfe_master", SQL.format(filtro=filtro), "notas")
+    print("Agora os itens das notas...", flush=True)
+    itens = _enviar(sb, con, "nfe_master_itens", SQL_ITENS.format(filtro=filtro), "itens")
     con.close()
     sb.table("sync_log").upsert({"chave": "nfe_master", "atualizado_em": datetime.datetime.now().isoformat(),
                                  "total": total}, on_conflict="chave").execute()
-    print(f"OK: {total} notas em {time.time() - inicio:.0f}s ({'revisão' if ultimo else 'carga completa'})")
+    print(f"OK: {total} notas e {itens} itens em {time.time() - inicio:.0f}s ({'revisão' if ultimo else 'carga completa'})")
 
 
 if __name__ == "__main__":

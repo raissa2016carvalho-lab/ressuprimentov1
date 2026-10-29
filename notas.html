@@ -45,6 +45,8 @@ tr:hover td{background:#f8fafc}
 .herdado{color:#94a3b8;font-size:11px}
 tr.sel td{background:#eff6ff!important}
 input.cb{width:16px;height:16px;cursor:pointer;accent-color:#1e40af}
+.lk-nota{color:#1e40af;text-decoration:none;font-family:ui-monospace,monospace;font-weight:700}.lk-nota:hover{text-decoration:underline}
+#pop-corpo table{font-size:12.5px}#pop-corpo td,#pop-corpo th{padding:7px 8px}
 .msg-vazio{text-align:center;color:#64748b;padding:40px;background:#fff;border:1px dashed #e2e8f0;border-radius:12px}
 .paginador{display:flex;gap:8px;align-items:center;justify-content:center;padding:0 24px 24px;font-size:12.5px;color:#64748b}
 .paginador button{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;cursor:pointer;font-family:inherit}
@@ -91,6 +93,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 <div class="filtros-wrap">
   <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor ou CNPJ" oninput="pag=0;render()"></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" onchange="pag=0;render()"><option value="">Todas</option></select></div>
+  <div class="f-group so-notas"><label>Manifestação</label><select id="f-manif" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
   <div class="f-group so-notas"><label>Status</label><select id="f-status" onchange="pag=0;render()"></select></div>
   <div class="f-group"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
   <div class="f-group"><label>Emitidas de</label><input type="date" id="f-de" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
@@ -112,6 +115,16 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 </div>
 <div class="tabela-wrap" id="tabela"><div class="msg-vazio">Carregando...</div></div>
 <div class="paginador" id="paginador"></div>
+
+<div id="pop-itens" onclick="if(event.target===this)fecharItens()" style="display:none;position:fixed;inset:0;background:#0f172a99;z-index:50;padding:24px;overflow:auto">
+  <div style="background:#fff;border-radius:14px;max-width:1100px;margin:0 auto;box-shadow:0 20px 50px #0006">
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid #e2e8f0">
+      <div id="pop-cab" style="flex:1"></div>
+      <button onclick="fecharItens()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer;font-family:inherit;font-weight:600">✕ Fechar</button>
+    </div>
+    <div id="pop-corpo" style="padding:16px 20px;overflow-x:auto"></div>
+  </div>
+</div>
 
 <script>
 const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
@@ -149,7 +162,7 @@ async function carregar(){
   $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
   try{
     let [ns,sf,sn,{data:log}]=await Promise.all([
-      buscarTudo('nfe_master','id,numero,serie,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,emissao,chegada,status_nfe,status_integracao,pedido,em_tratativa'),
+      buscarTudo('nfe_master','id,numero,serie,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,emissao,chegada,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle()
     ]);
@@ -196,12 +209,14 @@ function agrupar(){
   lista=Object.values(m).sort((a,b)=>b.notas-a.notas||b.valor-a.valor);
 }
 
+const MANIF={'210210':'Ciência da operação','210200':'Confirmação da operação','210220':'Desconhecimento','210240':'Operação não realizada'};
+function passaManif(n,m){if(!m)return true;if(m==='__sem')return !n.manifestacao;return n.manifestacao===m}
 function passaStatus(n,si){if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(n.status_nfe==='C')return false;return !si||n.status_integracao===si}
 function notasFiltradas(){
   let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value,fil=$('f-filial').value,si=$('f-status').value;
   return notas.filter(n=>{
     if(!noPeriodo(n))return false;
-    if(!passaStatus(n,si))return false;
+    if(!passaStatus(n,si)||!passaManif(n,$('f-manif').value))return false;
     if(fil&&n.filial!==fil)return false;
     let s=setorDa(n).setor;if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
     if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd))))return false}
@@ -216,7 +231,7 @@ function fornFiltrados(){
 }
 
 function resumoNotas(){
-  let si=$('f-status').value,fil=$('f-filial').value,ns=notas.filter(n=>noPeriodo(n)&&passaStatus(n,si)&&(!fil||n.filial===fil)),com=ns.filter(n=>setorDa(n).setor).length;
+  let si=$('f-status').value,fil=$('f-filial').value,ns=notas.filter(n=>noPeriodo(n)&&passaStatus(n,si)&&passaManif(n,$('f-manif').value)&&(!fil||n.filial===fil)),com=ns.filter(n=>setorDa(n).setor).length;
   let rotSt={pend:'pendentes',3:'integradas',C:'canceladas'}[si]||'';
   let pend=ns.filter(PEND).length;
   $('resumo').innerHTML=
@@ -251,7 +266,7 @@ function render(){
       if(n.em_tratativa)st+=' <span class="pill st-1">Em tratativa</span>';
       return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
         '<td class="num" style="text-align:left">'+fmtData(n.emissao)+'</td>'+
-        '<td style="font-family:ui-monospace,monospace;white-space:nowrap">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+'</td>'+
+        '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
         '<td>'+esc(n.filial||'—')+'</td><td class="num">'+fmtR(n.valor_total)+'</td><td>'+st+'</td>'+
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
@@ -268,6 +283,28 @@ function renderForn(){
         '<td class="num">'+(f.ultima?new Date(f.ultima).toLocaleDateString('pt-BR'):'—')+'</td>'+
         '<td><select class="sel-setor'+(v?'':' vazio')+'" data-cnpj="'+f.cnpj+'" data-nome="'+esc(f.nome)+'" onchange="salvarForn(this)">'+opcSetor(v)+'</select></td></tr>'}).join('')+'</tbody></table>';
 }
+
+// popup com os itens da nota
+async function abrirItens(id){
+  let n=notas.find(x=>x.id===id);if(!n)return;
+  $('pop-cab').innerHTML='<div style="font-size:16px;font-weight:800">NF '+esc(n.numero)+(n.serie!=null?' / série '+esc(n.serie):'')+' · '+fmtR(n.valor_total)+'</div>'+
+    '<div style="font-size:13px;margin-top:3px"><b>'+esc(n.fornecedor_nome||'')+'</b> <span class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</span></div>'+
+    '<div style="font-size:12px;color:#64748b;margin-top:4px">Emissão '+fmtData(n.emissao)+' · Filial '+esc(n.filial||'—')+' · '+esc(MANIF[n.manifestacao]||'sem manifestação')+(n.pedido?' · Pedido '+esc(n.pedido):'')+(n.em_tratativa?' · <b style="color:#b45309">Em tratativa'+(n.motivo_tratativa?': '+esc(n.motivo_tratativa):'')+'</b>':'')+'</div>'+
+    (n.chave?'<div class="cnpj" style="margin-top:3px">Chave '+esc(n.chave)+'</div>':'');
+  $('pop-corpo').innerHTML='<div class="msg-vazio">Carregando itens...</div>';$('pop-itens').style.display='block';
+  let{data,error}=await db.from('nfe_master_itens').select('*').eq('nfe_id',id).order('item');
+  if(error){$('pop-corpo').innerHTML='<div class="msg-vazio">'+(/does not exist|schema cache/i.test(error.message)?'A tabela de itens ainda não foi criada no banco.':'Não consegui carregar: '+esc(error.message))+'</div>';return}
+  if(!data||!data.length){$('pop-corpo').innerHTML='<div class="msg-vazio">Os itens desta nota ainda não foram enviados pelo sync.</div>';return}
+  let temProt=data.some(i=>i.cod_protheus||i.pc);
+  $('pop-corpo').innerHTML='<table><thead><tr><th>#</th><th>Produto (como veio na nota)</th><th>NCM</th><th class="num">Qtd</th><th>Un</th><th class="num">Vl unit</th><th class="num">Vl total</th><th>Pedido no XML</th>'+(temProt?'<th>Produto Protheus</th><th>PC</th><th>CC</th>':'')+'</tr></thead><tbody>'+
+    data.map(i=>'<tr><td>'+esc(i.item)+'</td><td><div style="font-weight:600">'+esc(i.descricao)+'</div><div class="cnpj">'+esc(i.codigo_forn||'')+'</div></td><td class="cnpj">'+esc(i.ncm||'')+'</td>'+
+      '<td class="num">'+(Number(i.quantidade)||0).toLocaleString('pt-BR')+'</td><td>'+esc(i.unidade||'')+'</td><td class="num">'+fmtR(i.valor_unit)+'</td><td class="num">'+fmtR(i.valor_total)+'</td>'+
+      '<td>'+esc(i.pedido_xml||'—')+(i.item_pedido_xml?' / '+esc(i.item_pedido_xml):'')+'</td>'+
+      (temProt?'<td>'+(i.cod_protheus?'<div style="font-weight:600">'+esc(i.desc_protheus||'')+'</div><div class="cnpj">'+esc(i.cod_protheus)+'</div>':'<span style="color:#94a3b8">não associado</span>')+'</td><td>'+esc(i.pc||'')+(i.item_pc?' / '+esc(i.item_pc):'')+'</td><td class="cnpj">'+esc(i.cc||'')+'</td>':'')+'</tr>').join('')+
+    '</tbody></table><div style="font-size:12px;color:#64748b;margin-top:8px">'+data.length+' itens · total '+fmtR(data.reduce((a,i)=>a+(Number(i.valor_total)||0),0))+'</div>';
+}
+function fecharItens(){$('pop-itens').style.display='none'}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharItens()});
 
 // seleção
 function marcar(id,cb){cb.checked?sel.add(id):sel.delete(id);cb.closest('tr').classList.toggle('sel',cb.checked);atualizarBarra()}
