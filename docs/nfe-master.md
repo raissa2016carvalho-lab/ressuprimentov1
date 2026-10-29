@@ -93,6 +93,20 @@ grant select on public.vw_nfe_sd1 to anon, authenticated;
 -- desfazer: drop view public.vw_nfe_sd1; drop index public.movimentos_entrada_nota;
 ```
 
+## Cruzamento pronto `mv_nfe_sd1` (29/10)
+A view `vw_nfe_sd1` levava ~24 s (limite do site 3 s). A tela lê a visão materializada `mv_nfe_sd1`, atualizada
+pelo `sync_nfe_master.py` no fim de cada rodada (`atualizar_nfe_sd1()`).
+```sql
+create materialized view public.mv_nfe_sd1 as select * from public.vw_nfe_sd1;
+create unique index mv_nfe_sd1_id on public.mv_nfe_sd1 (nfe_id);
+grant select on public.mv_nfe_sd1 to anon, authenticated;
+create or replace function public.atualizar_nfe_sd1() returns void language sql security definer
+  set search_path = public as $$ refresh materialized view concurrently public.mv_nfe_sd1 $$;
+revoke execute on function public.atualizar_nfe_sd1() from public, anon, authenticated;
+grant execute on function public.atualizar_nfe_sd1() to service_role;
+-- desfazer: drop function public.atualizar_nfe_sd1(); drop materialized view public.mv_nfe_sd1;
+```
+
 ## Fluxo: entrega prevista (Compras) e aceite do recebimento (Almoxarifado) — `nfe_fluxo`
 - notas.html: coluna "Entrega prevista" (e em lote na barra de seleção). Recebida → mostra "✓ Recebida dd/mm".
 - Compras também preenche Nº do pedido e Observação (texto livre) na tela de notas.
