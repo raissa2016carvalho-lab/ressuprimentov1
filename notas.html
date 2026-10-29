@@ -47,6 +47,17 @@ tr.sel td{background:#eff6ff!important}
 input.cb{width:16px;height:16px;cursor:pointer;accent-color:#1e40af}
 .lk-nota{color:#1e40af;text-decoration:none;font-family:ui-monospace,monospace;font-weight:700}.lk-nota:hover{text-decoration:underline}
 #pop-corpo table{font-size:12.5px}#pop-corpo td,#pop-corpo th{padding:7px 8px}
+.tag-setor{background:#e0e7ff;color:#3730a3;font-weight:600;margin-left:4px;vertical-align:1px}
+.graf{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px}
+.graf h3{font-size:14px;font-weight:700;margin-bottom:2px}.graf .gsub{font-size:12px;color:#64748b;margin-bottom:14px}
+.gl{display:grid;grid-template-columns:minmax(120px,190px) 1fr minmax(150px,auto);align-items:center;gap:10px;padding:5px 0;cursor:pointer}
+.gl:hover .gtrk{background:#eef2ff}.gl .gnm{font-size:13px;font-weight:600;text-align:right;color:#0f172a}
+.gtrk{background:#f1f5f9;border-radius:4px;height:22px;position:relative}
+.gbar{height:100%;background:#1e40af;border-radius:0 4px 4px 0;min-width:2px}
+.gbar.sem{background:#94a3b8}
+.gval{font-size:12.5px;color:#0f172a;font-variant-numeric:tabular-nums;white-space:nowrap}.gval span{color:#64748b}
+#gtip{position:fixed;pointer-events:none;background:#0f172a;color:#fff;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;z-index:60;display:none;box-shadow:0 6px 18px #0004}
+@media(max-width:600px){.gl{grid-template-columns:1fr;gap:3px}.gl .gnm{text-align:left}}
 .msg-vazio{text-align:center;color:#64748b;padding:40px;background:#fff;border:1px dashed #e2e8f0;border-radius:12px}
 .paginador{display:flex;gap:8px;align-items:center;justify-content:center;padding:0 24px 24px;font-size:12.5px;color:#64748b}
 .paginador button{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;cursor:pointer;font-family:inherit}
@@ -83,6 +94,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
   <div style="display:flex;gap:6px">
     <button class="aba-btn ativo" id="aba-notas" onclick="setAba('notas')">🧾 Por nota</button>
     <button class="aba-btn" id="aba-forn" onclick="setAba('forn')">🏢 Por fornecedor</button>
+    <button class="aba-btn" id="aba-setor" onclick="setAba('setor')">📊 Por setor</button>
   </div>
   <div class="topo-right">
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
@@ -116,6 +128,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 </div>
 <div class="tabela-wrap" id="tabela"><div class="msg-vazio">Carregando...</div></div>
 <div class="paginador" id="paginador"></div>
+<div id="gtip"></div>
 
 <div id="pop-itens" onclick="if(event.target===this)fecharItens()" style="display:none;position:fixed;inset:0;background:#0f172a99;z-index:50;padding:24px;overflow:auto">
   <div style="background:#fff;border-radius:14px;max-width:1100px;margin:0 auto;box-shadow:0 20px 50px #0006">
@@ -187,8 +200,8 @@ function montarFiltros(){
   $('f-status').innerHTML='<option value="pend">⏳ Só pendentes</option><option value="3">✓ Integradas</option><option value="C">Canceladas</option><option value="">Todas</option>';$('f-status').value=vs||'pend';
   $('sel-setor-lote').innerHTML=opcSetor('').replace('— escolher —','— escolher setor —')+'<option value="__limpar">(tirar o setor)</option>';
 }
-function setAba(a){aba=a;pag=0;$('aba-notas').classList.toggle('ativo',a==='notas');$('aba-forn').classList.toggle('ativo',a==='forn');
-  document.querySelectorAll('.so-notas').forEach(e=>e.style.display=a==='notas'?'':'none');render()}
+function setAba(a){aba=a;pag=0;['notas','forn','setor'].forEach(x=>$('aba-'+x).classList.toggle('ativo',a===x));
+  document.querySelectorAll('.so-notas').forEach(e=>e.style.display=a==='forn'?'none':'');$('paginador').innerHTML='';render()}
 
 // setor da nota: o escolhido na nota; se não tiver, o do fornecedor
 function setorDa(n){let s=setNota[n.id];if(s)return {setor:s.setor,origem:'nota'};let f=setForn[chaveCnpj(n.fornecedor_cnpj)];return f?{setor:f.setor,origem:'forn'}:{setor:'',origem:''}}
@@ -215,14 +228,14 @@ function agrupar(){
 const MANIF={'210210':'Ciência da operação','210200':'Confirmação da operação','210220':'Desconhecimento','210240':'Operação não realizada'};
 function passaManif(n,m){if(!m)return true;if(m==='__sem')return !n.manifestacao;return n.manifestacao===m}
 function passaStatus(n,si){if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(n.status_nfe==='C')return false;return !si||n.status_integracao===si}
-function notasFiltradas(){
+function notasFiltradas(ignorarSetor){
   let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value,fil=$('f-filial').value,si=$('f-status').value;
   return notas.filter(n=>{
     if(!noPeriodo(n))return false;
     if(!passaStatus(n,si)||!passaManif(n,$('f-manif').value))return false;
     let fs=$('f-sd1').value;if(fs&&sd1){let tem=!!sd1[n.id];if(fs==='sim'&&!tem)return false;if(fs==='nao'&&tem)return false}
     if(fil&&n.filial!==fil)return false;
-    let s=setorDa(n).setor;if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
+    let s=setorDa(n).setor;if(!ignorarSetor){if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false}
     if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd))))return false}
     return true;
   }).sort((a,b)=>String(b.emissao||'').localeCompare(String(a.emissao||'')));
@@ -261,6 +274,7 @@ function paginar(l){let pags=Math.max(1,Math.ceil(l.length/POR_PAG));if(pag>=pag
 function render(){
   agrupar();
   if(aba==='forn'){renderForn();$('barra-sel').style.display='none';return}
+  if(aba==='setor'){renderSetor();$('barra-sel').style.display='none';return}
   resumoNotas();
   let l=notasFiltradas(),parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
@@ -272,7 +286,7 @@ function render(){
       return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
         '<td class="num" style="text-align:left">'+fmtData(n.emissao)+'</td>'+
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
-        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
         '<td>'+esc(n.filial||'—')+'</td><td class="num">'+fmtR(n.valor_total)+'</td><td>'+st+'</td><td>'+htmlSd1(n)+'</td>'+
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
         (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td></tr>'}).join('')+'</tbody></table>';
@@ -306,6 +320,29 @@ function htmlSd1(n){
   return '<span class="pill" style="background:#ede9fe;color:#5b21b6" title="Encontrada na SD1 (entrada de notas): '+x.sd1_itens+' itens · fornecedor '+esc(x.sd1_fornecedor||'')+(x.sd1_tes?' · TES '+esc(x.sd1_tes):'')+'">✓ lançada manual</span>'+
     '<div class="herdado">emissão '+fmtD8(x.sd1_emissao)+' · '+fmtR(x.sd1_valor)+(dif?' <b style="color:#b45309">valor diferente</b>':'')+'</div>';
 }
+
+// gráfico: valor das notas por setor (usa os filtros da tela, menos o de setor)
+function renderSetor(){
+  let l=notasFiltradas(true),g={},tot=0;
+  l.forEach(n=>{let k=setorDa(n).setor||'Sem setor',x=g[k]||(g[k]={setor:k,valor:0,notas:0,forn:new Set()});x.valor+=Number(n.valor_total)||0;x.notas++;x.forn.add(chaveCnpj(n.fornecedor_cnpj));tot+=Number(n.valor_total)||0});
+  let rows=Object.values(g).sort((a,b)=>(a.setor==='Sem setor')-(b.setor==='Sem setor')||b.valor-a.valor),max=Math.max(1,...rows.map(r=>r.valor));
+  $('resumo').innerHTML='<div class="resumo-card azul"><div class="val">'+fmtR0(tot)+'</div><div class="lab">Valor das notas '+_rotPeriodo()+'</div></div>'+
+    '<div class="resumo-card"><div class="val">'+l.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+rows.filter(r=>r.setor!=='Sem setor').length+'</div><div class="lab">Setores com nota</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+fmtR0((g['Sem setor']||{}).valor||0)+'</div><div class="lab">Valor sem setor</div><div class="sub">'+((g['Sem setor']||{}).notas||0)+' notas para classificar</div></div>';
+  $('paginador').innerHTML='';
+  if(!rows.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';return}
+  _gRows=rows;_gTot=tot;
+  $('tabela').innerHTML='<div class="graf"><h3>Valor das notas por setor</h3><div class="gsub">Mesmos filtros da tela (filial, manifestação, status, período). Clique numa barra para ver as notas do setor.</div>'+
+    rows.map((r,i)=>'<div class="gl" data-i="'+i+'" onclick="irSetor('+i+')" onmousemove="tipSetor(event,'+i+')" onmouseleave="$(\'gtip\').style.display=\'none\'">'+
+      '<div class="gnm">'+esc(r.setor)+'</div><div class="gtrk"><div class="gbar'+(r.setor==='Sem setor'?' sem':'')+'" style="width:'+(r.valor/max*100).toFixed(1)+'%"></div></div>'+
+      '<div class="gval"><b>'+fmtR0(r.valor)+'</b> <span>· '+r.notas+' nota'+(r.notas>1?'s':'')+' · '+(tot?Math.round(r.valor/tot*100):0)+'%</span></div></div>').join('')+'</div>';
+}
+let _gRows=[],_gTot=0;
+function tipSetor(e,i){let r=_gRows[i],t=$('gtip');if(!r)return;
+  t.innerHTML='<b>'+esc(r.setor)+'</b><br>'+fmtR(r.valor)+' ('+(_gTot?(r.valor/_gTot*100).toFixed(1):0)+'% do total)<br>'+r.notas+(r.notas>1?' notas':' nota')+' · '+r.forn.size+(r.forn.size>1?' fornecedores':' fornecedor');
+  t.style.display='block';let x=e.clientX+14,y=e.clientY+14;if(x+240>innerWidth)x=e.clientX-250;t.style.left=x+'px';t.style.top=y+'px'}
+function irSetor(i){let r=_gRows[i];if(!r)return;$('gtip').style.display='none';$('f-setor').value=r.setor==='Sem setor'?'__sem':r.setor;setAba('notas')}
 
 // popup com os itens da nota
 async function abrirItens(id){
