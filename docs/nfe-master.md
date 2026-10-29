@@ -42,6 +42,19 @@ create policy leitura_publica on public.nfe_master for select to anon, authentic
 `scripts/sync_nfe_master.py` (copiar para `C:\painel-protheus`, preencher usuário/senha/chave).
 1ª vez carrega desde 01/01/2025; depois revisa só o que mudou nos últimos 3 dias (upsert, não apaga).
 
+## Passo 2 — setor (tela notas.html)
+- `fornecedor_setor` (cnpj → setor padrão) e `nfe_setor` (nfe_id → setor da nota). O setor da nota vale mais que o
+  do fornecedor. Tela abre por nota, com seleção de várias notas para aplicar o setor de uma vez.
+```sql
+create table public.nfe_setor (nfe_id bigint primary key, setor text, atualizado_em timestamptz default now(), atualizado_por text);
+alter table public.nfe_setor enable row level security;
+create policy nfe_setor_ler on public.nfe_setor for select to anon, authenticated using (true);
+create policy nfe_setor_gravar on public.nfe_setor for insert to authenticated with check (true);
+create policy nfe_setor_alterar on public.nfe_setor for update to authenticated using (true) with check (true);
+create policy nfe_setor_apagar on public.nfe_setor for delete to authenticated using (true);
+-- desfazer: drop table public.nfe_setor;
+```
+
 ## Próximos passos
 2. Setor por fornecedor: tabela `fornecedor_setor` (cnpj → setor: compras, almoxarifado, fiscal, RH,
    frota, oficina…) preenchida pela Raissa no painel.

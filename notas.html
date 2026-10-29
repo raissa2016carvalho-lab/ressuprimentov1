@@ -36,6 +36,14 @@ tr:hover td{background:#f8fafc}
 .sel-setor{border:1px solid #e2e8f0;border-radius:7px;padding:5px 8px;font-size:12.5px;font-family:inherit;background:#fff;min-width:170px}
 .sel-setor.vazio{border-color:#fcd34d;background:#fffbeb}
 .sel-setor.salvo{border-color:#16a34a;background:#f0fdf4}
+.aba-btn{background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.aba-btn.ativo{background:#1e40af;color:#fff;border-color:#1e40af}
+.pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.st-1{background:#fef3c7;color:#92400e}.st-2{background:#cffafe;color:#155e75}.st-3{background:#dcfce7;color:#166534}.st-x{background:#f1f5f9;color:#475569}
+.st-C{background:#fee2e2;color:#991b1b}
+.herdado{color:#94a3b8;font-size:11px}
+tr.sel td{background:#eff6ff!important}
+input.cb{width:16px;height:16px;cursor:pointer;accent-color:#1e40af}
 .msg-vazio{text-align:center;color:#64748b;padding:40px;background:#fff;border:1px dashed #e2e8f0;border-radius:12px}
 .paginador{display:flex;gap:8px;align-items:center;justify-content:center;padding:0 24px 24px;font-size:12.5px;color:#64748b}
 .paginador button{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;cursor:pointer;font-family:inherit}
@@ -66,9 +74,13 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
   <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
   <div>
     <h1>Notas Fiscais</h1>
-    <span>NFe Master · setor de cada fornecedor</span>
+    <span>NFe Master · setor das notas</span>
   </div>
   <div class="tag" id="tag-sync">Carregando...</div>
+  <div style="display:flex;gap:6px">
+    <button class="aba-btn ativo" id="aba-notas" onclick="setAba('notas')">🧾 Por nota</button>
+    <button class="aba-btn" id="aba-forn" onclick="setAba('forn')">🏢 Por fornecedor</button>
+  </div>
   <div class="topo-right">
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
     <button class="btn-atualizar" onclick="sair()" title="Sair">Sair</button>
@@ -76,13 +88,23 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 </div>
 
 <div class="filtros-wrap">
-  <div class="f-group f-busca"><label>Buscar fornecedor</label><input id="f-busca" placeholder="🔍 Nome ou CNPJ" oninput="pag=0;render()"></div>
+  <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor ou CNPJ" oninput="pag=0;render()"></div>
+  <div class="f-group so-notas"><label>Filial</label><select id="f-filial" onchange="pag=0;render()"><option value="">Todas</option></select></div>
+  <div class="f-group so-notas"><label>Status integração</label><select id="f-status" onchange="pag=0;render()"><option value="">Todos</option></select></div>
   <div class="f-group"><label>Setor</label><select id="f-setor" onchange="pag=0;render()"></select></div>
-  <div class="f-group"><label>Período das notas</label><select id="f-periodo" onchange="pag=0;agrupar();render()">
+  <div class="f-group"><label>Período das notas</label><select id="f-periodo" onchange="pag=0;render()">
     <option value="0">Desde jan/2025</option><option value="365">Últimos 12 meses</option><option value="90" selected>Últimos 3 meses</option><option value="30">Últimos 30 dias</option></select></div>
 </div>
 
 <div class="resumo" id="resumo"></div>
+<div id="barra-sel" style="display:none;margin:0 24px 12px;background:#1e40af;color:#fff;border-radius:10px;padding:10px 14px;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:5">
+  <b id="sel-qtd"></b>
+  <span style="font-size:12.5px;opacity:.85">Setor:</span>
+  <select id="sel-setor-lote" class="sel-setor" style="min-width:200px"></select>
+  <button onclick="aplicarLote()" style="background:#fff;color:#1e40af;border:none;border-radius:7px;padding:7px 14px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar às selecionadas</button>
+  <button onclick="limparSel()" style="background:transparent;color:#fff;border:1px solid #93c5fd;border-radius:7px;padding:7px 12px;cursor:pointer;font-family:inherit">Limpar seleção</button>
+  <span id="sel-msg" style="font-size:12.5px"></span>
+</div>
 <div class="tabela-wrap" id="tabela"><div class="msg-vazio">Carregando...</div></div>
 <div class="paginador" id="paginador"></div>
 
@@ -90,93 +112,174 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
 const $=id=>document.getElementById(id);
 const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Facilities/Administrativo','Financeiro','Outros'];
+// códigos do NFe Master (a confirmar com notas de exemplo)
+const ST_INT={'1':'Pendente','2':'Associado','3':'Integrado'};
+const ST_NFE={'A':'Autorizada','C':'Cancelada','D':'Denegada'};
 const POR_PAG=100;
-let notas=[],setores={},lista=[],pag=0,userEmail='';
+let notas=[],setForn={},setNota={},lista=[],pag=0,userEmail='',aba='notas',sel=new Set();
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmtR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtR0=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
 const fmtCnpj=c=>{c=String(c||'').replace(/\D/g,'');return c.length===14?c.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):c};
 const chaveCnpj=c=>String(c||'').replace(/\D/g,'');
+const fmtData=d=>d?new Date(d).toLocaleDateString('pt-BR'):'—';
+const opcSetor=v=>'<option value="">— escolher —</option>'+SETORES.map(x=>'<option'+(x===v?' selected':'')+'>'+esc(x)+'</option>').join('');
 
-async function buscarTudo(tabela,colunas,filtro){
+async function buscarTudo(tabela,colunas){
   let out=[],de=0;
-  for(;;){let q=db.from(tabela).select(colunas).order('id',{ascending:true}).range(de,de+999);if(filtro)q=filtro(q);
-    let{data,error}=await q;if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break;de+=1000}
+  for(;;){let{data,error}=await db.from(tabela).select(colunas).order('id',{ascending:true}).range(de,de+999);
+    if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break;de+=1000}
   return out;
+}
+async function buscarSetores(tabela,chave){
+  let out=[],de=0;
+  for(;;){let{data,error}=await db.from(tabela).select(chave+',setor,atualizado_por').range(de,de+999);
+    if(error)return {erro:error};out=out.concat(data||[]);if(!data||data.length<1000)break;de+=1000}
+  return {dados:out};
 }
 
 async function carregar(){
   $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
   try{
-    let [ns,{data:fs,error:e2},{data:log}]=await Promise.all([
-      buscarTudo('nfe_master','id,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,emissao,status_nfe'),
-      db.from('fornecedor_setor').select('cnpj,setor,atualizado_por,atualizado_em').range(0,9999),
+    let [ns,sf,sn,{data:log}]=await Promise.all([
+      buscarTudo('nfe_master','id,numero,serie,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,emissao,chegada,status_nfe,status_integracao,pedido,em_tratativa'),
+      buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle()
     ]);
-    if(e2){$('tabela').innerHTML='<div class="msg-vazio">A tabela de setores ainda não existe no banco. Rode o SQL da tabela <b>fornecedor_setor</b>.<br><small>'+esc(e2.message)+'</small></div>';return}
-    notas=ns.filter(n=>n.status_nfe!=='C');   // canceladas ficam de fora
-    setores={};(fs||[]).forEach(f=>setores[f.cnpj]=f);
+    let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
+    if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
+    notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
     $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
-    montarFiltroSetor();agrupar();render();
+    montarFiltros();agrupar();render();
   }catch(e){$('tabela').innerHTML='<div class="msg-vazio">Não consegui carregar (o banco pode estar ocupado com os syncs). Clique em ↻ Atualizar.<br><small>'+esc(e.message||e)+'</small></div>'}
 }
 
-function montarFiltroSetor(){
+function montarFiltros(){
   let v=$('f-setor').value;
-  $('f-setor').innerHTML='<option value="">Todos</option><option value="__sem">⚠ Sem setor</option>'+SETORES.map(s=>'<option>'+esc(s)+'</option>').join('');
-  $('f-setor').value=v;
+  $('f-setor').innerHTML='<option value="">Todos</option><option value="__sem">⚠ Sem setor</option>'+SETORES.map(x=>'<option>'+esc(x)+'</option>').join('');$('f-setor').value=v;
+  let fil={};notas.forEach(n=>{if(n.filial)fil[n.filial]=n.empresa_nome||n.filial});
+  let vf=$('f-filial').value;
+  $('f-filial').innerHTML='<option value="">Todas</option>'+Object.keys(fil).sort().map(k=>'<option value="'+k+'">'+k+' · '+esc(String(fil[k]).replace(/^B&Q ENERGIA LTDA\s*-?\s*/i,'')||'MATRIZ')+'</option>').join('');$('f-filial').value=vf;
+  let vs=$('f-status').value;
+  $('f-status').innerHTML='<option value="">Todos</option>'+Object.keys(ST_INT).map(k=>'<option value="'+k+'">'+ST_INT[k]+'</option>').join('')+'<option value="C">Canceladas</option>';$('f-status').value=vs;
+  $('sel-setor-lote').innerHTML=opcSetor('').replace('— escolher —','— escolher setor —')+'<option value="__limpar">(tirar o setor)</option>';
 }
+function setAba(a){aba=a;pag=0;$('aba-notas').classList.toggle('ativo',a==='notas');$('aba-forn').classList.toggle('ativo',a==='forn');
+  document.querySelectorAll('.so-notas').forEach(e=>e.style.display=a==='notas'?'':'none');render()}
 
-// junta as notas por fornecedor (CNPJ) no período escolhido
+// setor da nota: o escolhido na nota; se não tiver, o do fornecedor
+function setorDa(n){let s=setNota[n.id];if(s)return {setor:s.setor,origem:'nota'};let f=setForn[chaveCnpj(n.fornecedor_cnpj)];return f?{setor:f.setor,origem:'forn'}:{setor:'',origem:''}}
+
+function noPeriodo(n){let dias=Number($('f-periodo').value)||0;return !dias||(n.emissao&&new Date(n.emissao).getTime()>=Date.now()-dias*864e5)}
+
 function agrupar(){
-  let dias=Number($('f-periodo').value)||0,lim=dias?Date.now()-dias*864e5:0,m={};
+  let m={};
   notas.forEach(n=>{
-    let k=chaveCnpj(n.fornecedor_cnpj);if(!k)return;
-    let t=n.emissao?new Date(n.emissao).getTime():0;if(lim&&t<lim)return;
+    if(n.status_nfe==='C'||!noPeriodo(n))return;let k=chaveCnpj(n.fornecedor_cnpj);if(!k)return;
+    let t=n.emissao?new Date(n.emissao).getTime():0;
     let f=m[k]||(m[k]={cnpj:k,nome:n.fornecedor_nome||n.fornecedor_fantasia||'(sem nome)',notas:0,valor:0,ultima:0});
     f.notas++;f.valor+=Number(n.valor_total)||0;if(t>f.ultima){f.ultima=t;f.nome=n.fornecedor_nome||f.nome}
   });
   lista=Object.values(m).sort((a,b)=>b.notas-a.notas||b.valor-a.valor);
 }
 
-function filtrada(){
-  let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value;
-  return lista.filter(f=>{
-    let s=(setores[f.cnpj]||{}).setor||'';
-    if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
-    if(b&&!f.nome.toLowerCase().includes(b)&&!(bd&&f.cnpj.includes(bd)))return false;
+function notasFiltradas(){
+  let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value,fil=$('f-filial').value,si=$('f-status').value;
+  return notas.filter(n=>{
+    if(!noPeriodo(n))return false;
+    if(si==='C'){if(n.status_nfe!=='C')return false}else{if(n.status_nfe==='C')return false;if(si&&n.status_integracao!==si)return false}
+    if(fil&&n.filial!==fil)return false;
+    let s=setorDa(n).setor;if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
+    if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd))))return false}
     return true;
-  });
+  }).sort((a,b)=>String(b.emissao||'').localeCompare(String(a.emissao||'')));
 }
+function fornFiltrados(){
+  let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=$('f-setor').value;
+  return lista.filter(f=>{let s=(setForn[f.cnpj]||{}).setor||'';
+    if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false;
+    if(b&&!f.nome.toLowerCase().includes(b)&&!(bd&&f.cnpj.includes(bd)))return false;return true});
+}
+
+function resumoNotas(){
+  let ns=notas.filter(n=>n.status_nfe!=='C'&&noPeriodo(n)),com=ns.filter(n=>setorDa(n).setor).length;
+  let pend=ns.filter(n=>n.status_integracao==='1').length;
+  $('resumo').innerHTML=
+    '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas no período</div><div class="sub">sem as canceladas</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+(ns.length-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
+    '<div class="resumo-card azul"><div class="val">'+(ns.length?Math.round(com/ns.length*100):0)+'%</div><div class="lab">das notas já têm setor</div></div>'+
+    '<div class="resumo-card"><div class="val" style="color:#b45309">'+pend.toLocaleString('pt-BR')+'</div><div class="lab">Pendentes de integração</div></div>';
+}
+function resumoForn(){
+  let tot=lista.length,com=lista.filter(f=>(setForn[f.cnpj]||{}).setor).length;
+  $('resumo').innerHTML=
+    '<div class="resumo-card"><div class="val">'+tot.toLocaleString('pt-BR')+'</div><div class="lab">Fornecedores com nota no período</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor (padrão do fornecedor)</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+(tot-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div><div class="sub">o setor do fornecedor vale para todas as notas dele que não tiverem setor próprio</div></div>';
+}
+
+function paginar(l){let pags=Math.max(1,Math.ceil(l.length/POR_PAG));if(pag>=pags)pag=pags-1;
+  $('paginador').innerHTML=pags>1?'<button onclick="pag--;render();scrollTo(0,0)" '+(pag?'':'disabled')+'>← Anterior</button> Página '+(pag+1)+' de '+pags+' ('+l.length.toLocaleString('pt-BR')+') <button onclick="pag++;render();scrollTo(0,0)" '+(pag<pags-1?'':'disabled')+'>Próxima →</button>':l.length+' registros';
+  return l.slice(pag*POR_PAG,(pag+1)*POR_PAG)}
 
 function render(){
-  let tot=lista.length,com=lista.filter(f=>(setores[f.cnpj]||{}).setor).length,nt=lista.reduce((a,f)=>a+f.notas,0),ntc=lista.filter(f=>(setores[f.cnpj]||{}).setor).reduce((a,f)=>a+f.notas,0);
-  $('resumo').innerHTML=
-    '<div class="resumo-card"><div class="val">'+tot.toLocaleString('pt-BR')+'</div><div class="lab">Fornecedores com nota no período</div><div class="sub">'+nt.toLocaleString('pt-BR')+' notas (sem canceladas)</div></div>'+
-    '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor definido</div></div>'+
-    '<div class="resumo-card alerta"><div class="val">'+(tot-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
-    '<div class="resumo-card azul"><div class="val">'+(nt?Math.round(ntc/nt*100):0)+'%</div><div class="lab">das notas já têm setor</div><div class="sub">comece pelos que mandam mais notas</div></div>';
-  let l=filtrada(),pags=Math.max(1,Math.ceil(l.length/POR_PAG));if(pag>=pags)pag=pags-1;
-  let parte=l.slice(pag*POR_PAG,(pag+1)*POR_PAG);
+  agrupar();
+  if(aba==='forn'){renderForn();$('barra-sel').style.display='none';return}
+  resumoNotas();
+  let l=notasFiltradas(),parte=paginar(l);
+  if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
+  let todasMarcadas=parte.every(n=>sel.has(n.id));
+  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Emissão</th><th>Nº nota</th><th>Fornecedor</th><th>Filial</th><th class="num">Valor</th><th>Status</th><th>Setor</th></tr></thead><tbody>'+
+    parte.map(n=>{let s=setorDa(n),st=n.status_nfe==='C'?'<span class="pill st-C">Cancelada</span>':'<span class="pill st-'+(ST_INT[n.status_integracao]?n.status_integracao:'x')+'">'+(ST_INT[n.status_integracao]||('Código '+esc(n.status_integracao||'—')))+'</span>';
+      if(n.status_nfe&&n.status_nfe!=='A'&&n.status_nfe!=='C')st+=' <span class="pill st-x" title="Status da NF-e">'+esc(ST_NFE[n.status_nfe]||'NF '+n.status_nfe)+'</span>';
+      if(n.em_tratativa)st+=' <span class="pill st-1">Em tratativa</span>';
+      return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
+        '<td class="num" style="text-align:left">'+fmtData(n.emissao)+'</td>'+
+        '<td style="font-family:ui-monospace,monospace;white-space:nowrap">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+'</td>'+
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
+        '<td>'+esc(n.filial||'—')+'</td><td class="num">'+fmtR(n.valor_total)+'</td><td>'+st+'</td>'+
+        '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
+        (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td></tr>'}).join('')+'</tbody></table>';
+  atualizarBarra();
+}
+function renderForn(){
+  resumoForn();
+  let parte=paginar(fornFiltrados());
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhum fornecedor com esses filtros.</div>';$('paginador').innerHTML='';return}
-  $('tabela').innerHTML='<table><thead><tr><th>Fornecedor</th><th class="num">Notas</th><th class="num">Valor</th><th class="num">Última emissão</th><th>Setor</th></tr></thead><tbody>'+
-    parte.map(f=>{let s=setores[f.cnpj]||{},v=s.setor||'';
-      return '<tr><td><div style="font-weight:600">'+esc(f.nome)+'</div><div class="cnpj">'+fmtCnpj(f.cnpj)+'</div></td>'+
-        '<td class="num">'+f.notas+'</td><td class="num">'+fmtR(f.valor)+'</td>'+
+  $('tabela').innerHTML='<table><thead><tr><th>Fornecedor</th><th class="num">Notas</th><th class="num">Valor</th><th class="num">Última emissão</th><th>Setor padrão</th></tr></thead><tbody>'+
+    parte.map(f=>{let v=(setForn[f.cnpj]||{}).setor||'';
+      return '<tr><td><div style="font-weight:600">'+esc(f.nome)+'</div><div class="cnpj">'+fmtCnpj(f.cnpj)+'</div></td><td class="num">'+f.notas+'</td><td class="num">'+fmtR0(f.valor)+'</td>'+
         '<td class="num">'+(f.ultima?new Date(f.ultima).toLocaleDateString('pt-BR'):'—')+'</td>'+
-        '<td><select class="sel-setor'+(v?'':' vazio')+'" data-cnpj="'+f.cnpj+'" data-nome="'+esc(f.nome)+'" onchange="salvarSetor(this)" title="'+(s.atualizado_por?'Definido por '+esc(s.atualizado_por):'')+'">'+
-        '<option value="">— escolher —</option>'+SETORES.map(x=>'<option'+(x===v?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select></td></tr>'}).join('')+'</tbody></table>';
-  $('paginador').innerHTML=pags>1?'<button onclick="pag--;render();scrollTo(0,0)" '+(pag?'':'disabled')+'>← Anterior</button> Página '+(pag+1)+' de '+pags+' ('+l.length+' fornecedores) <button onclick="pag++;render();scrollTo(0,0)" '+(pag<pags-1?'':'disabled')+'>Próxima →</button>':l.length+' fornecedores';
+        '<td><select class="sel-setor'+(v?'':' vazio')+'" data-cnpj="'+f.cnpj+'" data-nome="'+esc(f.nome)+'" onchange="salvarForn(this)">'+opcSetor(v)+'</select></td></tr>'}).join('')+'</tbody></table>';
 }
 
-async function salvarSetor(sel){
-  let cnpj=sel.dataset.cnpj,setor=sel.value;sel.disabled=true;
-  let r=setor?await db.from('fornecedor_setor').upsert({cnpj,nome:sel.dataset.nome,setor,atualizado_em:new Date().toISOString(),atualizado_por:userEmail||null},{onConflict:'cnpj'})
+// seleção
+function marcar(id,cb){cb.checked?sel.add(id):sel.delete(id);cb.closest('tr').classList.toggle('sel',cb.checked);atualizarBarra()}
+function marcarPagina(v){let parte=notasFiltradas().slice(pag*POR_PAG,(pag+1)*POR_PAG);parte.forEach(n=>v?sel.add(n.id):sel.delete(n.id));render()}
+function limparSel(){sel.clear();$('sel-msg').textContent='';render()}
+function atualizarBarra(){let b=$('barra-sel');b.style.display=sel.size&&aba==='notas'?'flex':'none';$('sel-qtd').textContent=sel.size+' nota'+(sel.size>1?'s':'')+' selecionada'+(sel.size>1?'s':'')}
+async function aplicarLote(){let v=$('sel-setor-lote').value;if(!v){$('sel-msg').textContent='Escolha o setor.';return}
+  let ids=[...sel];$('sel-msg').textContent='Salvando '+ids.length+'...';
+  let ok=await salvarNotas(ids,v==='__limpar'?'':v);if(ok){$('sel-msg').textContent='✓ '+ids.length+' nota(s) salvas';sel.clear();render()}}
+
+async function salvarNotas(ids,setor,el){
+  if(el)el.disabled=true;
+  for(let i=0;i<ids.length;i+=500){let parte=ids.slice(i,i+500),r;
+    if(setor)r=await db.from('nfe_setor').upsert(parte.map(id=>({nfe_id:id,setor,atualizado_em:new Date().toISOString(),atualizado_por:userEmail||null})),{onConflict:'nfe_id'});
+    else r=await db.from('nfe_setor').delete().in('nfe_id',parte);
+    if(r.error){alert('Não salvou: '+r.error.message);if(el)el.disabled=false;render();return false}
+    parte.forEach(id=>{if(setor)setNota[id]={nfe_id:id,setor,atualizado_por:userEmail};else delete setNota[id]});
+  }
+  if(el)el.disabled=false;let pos=scrollY;render();scrollTo(0,pos);return true;
+}
+async function salvarForn(sel_){
+  let cnpj=sel_.dataset.cnpj,setor=sel_.value;sel_.disabled=true;
+  let r=setor?await db.from('fornecedor_setor').upsert({cnpj,nome:sel_.dataset.nome,setor,atualizado_em:new Date().toISOString(),atualizado_por:userEmail||null},{onConflict:'cnpj'})
              :await db.from('fornecedor_setor').delete().eq('cnpj',cnpj);
-  sel.disabled=false;
-  if(r.error){alert('Não salvou: '+r.error.message);sel.value=(setores[cnpj]||{}).setor||'';return}
-  if(setor)setores[cnpj]={cnpj,setor,atualizado_por:userEmail};else delete setores[cnpj];
-  sel.className='sel-setor salvo';setTimeout(()=>{sel.className='sel-setor'+(sel.value?'':' vazio')},1200);
-  // atualiza só os números do topo (não redesenha a lista para não perder a posição)
+  sel_.disabled=false;
+  if(r.error){alert('Não salvou: '+r.error.message);render();return}
+  if(setor)setForn[cnpj]={cnpj,setor,atualizado_por:userEmail};else delete setForn[cnpj];
   let pos=scrollY;render();scrollTo(0,pos);
 }
 
