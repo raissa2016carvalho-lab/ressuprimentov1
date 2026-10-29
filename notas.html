@@ -279,17 +279,16 @@ function render(){
   let l=notasFiltradas(),parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
   let todasMarcadas=parte.every(n=>sel.has(n.id));
-  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Emissão</th><th>Nº nota</th><th>Fornecedor</th><th>Filial</th><th class="num">Valor</th><th>Status</th><th>Protheus (SD1)</th><th>Setor</th></tr></thead><tbody>'+
-    parte.map(n=>{let s=setorDa(n),st=n.status_nfe==='C'?'<span class="pill st-C">Cancelada</span>':'<span class="pill st-'+(ST_INT[n.status_integracao]?n.status_integracao:'x')+'">'+(ST_INT[n.status_integracao]||('Código '+esc(n.status_integracao||'—')))+'</span>';
-      if(n.status_nfe&&n.status_nfe!=='A'&&n.status_nfe!=='C')st+=' <span class="pill st-x" title="Status da NF-e">'+esc(ST_NFE[n.status_nfe]||'NF '+n.status_nfe)+'</span>';
-      if(n.em_tratativa)st+=' <span class="pill st-1">Em tratativa</span>';
+  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Status</th></tr></thead><tbody>'+
+    parte.map(n=>{let s=setorDa(n),st=statusUnico(n);
       return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
+        '<td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
         '<td class="num" style="text-align:left">'+fmtData(n.emissao)+'</td>'+
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
-        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
-        '<td>'+esc(n.filial||'—')+'</td><td class="num">'+fmtR(n.valor_total)+'</td><td>'+st+'</td><td>'+htmlSd1(n)+'</td>'+
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
-        (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td></tr>'}).join('')+'</tbody></table>';
+        (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td>'+
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
 }
 function renderForn(){
@@ -312,6 +311,18 @@ async function buscarSd1(){
   return {ok:true,mapa:out};
 }
 const fmtD8=d=>d&&d.length===8?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'—';
+// um status só: Cancelada / Integrado / Lançada manual (achou na SD1) / Pendente (· sem XML); detalhes no título
+function statusUnico(n){
+  let extra=[];if(n.em_tratativa)extra.push('Em tratativa'+(n.motivo_tratativa?': '+n.motivo_tratativa:''));if(n.status_nfe&&n.status_nfe!=='A'&&n.status_nfe!=='C')extra.push('NF-e: '+(ST_NFE[n.status_nfe]||n.status_nfe));
+  let t=x=>' title="'+esc([x].concat(extra).join(' · '))+'"';
+  if(n.status_nfe==='C')return '<span class="pill st-C"'+t('Cancelada')+'>Cancelada</span>';
+  if(n.status_integracao==='3')return '<span class="pill st-3"'+t('Integrada pelo NFe Master')+'>Integrado</span>';
+  let x=sd1&&sd1[n.id];
+  if(x){let dif=Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_total)||0))>1&&Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_produtos)||0))>1;
+    return '<span class="pill" style="background:#ede9fe;color:#5b21b6"'+t('Já está na SD1 (lançada no Protheus sem passar pelo NFe Master): '+x.sd1_itens+' itens · '+fmtR(x.sd1_valor)+(dif?' · VALOR DIFERENTE da nota':''))+'>Lançada manual'+(dif?' ⚠':'')+'</span>'}
+  let p=n.status_integracao==='1'?'Pendente · sem XML':'Pendente';
+  return '<span class="pill st-1"'+t(p)+'>'+p+(extra.length?' •':'')+'</span>';
+}
 function htmlSd1(n){
   if(!sd1)return '<span style="color:#cbd5e1">—</span>';
   if(n.status_integracao==='3')return '<span class="herdado">pelo NFe Master</span>';
