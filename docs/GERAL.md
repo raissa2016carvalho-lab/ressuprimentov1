@@ -89,8 +89,8 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
 - **29/10** `upload_compras.py`: pedido sem grupo (C7_GRPPROD vazio no Protheus) pega o grupo da SC ligada, em `pedidos`
   e `pedidos_grupo`. Cópia em `scripts/upload_compras.py` (sem senhas). Resultado: 0 pedidos "sem grupo".
 - **29/10** novo `sync_nfe_master.py` (NFe Master → `nfe_master` e `nfe_master_itens`), cópia em `scripts/`.
-  1ª carga desde 01/01/2025; depois revisa 3 dias. `--loop` = a cada 30 min. ⚠ Trocar a senha do usuário `nfe_leitura`
-  (apareceu no chat).
+  1ª carga desde 01/01/2025; depois revisa 3 dias. `--loop` = a cada 30 min. Senha do usuário `nfe_leitura`
+  trocada pela Raissa em 29/10.
 
 ## Bibliotecas
 - Supabase JS servido pelo próprio site: `vendor/supabase-2.118.0.js` (o jsdelivr falhou em 26/10).
