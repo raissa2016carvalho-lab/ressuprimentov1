@@ -168,6 +168,12 @@ def rodar(desde=None):
     print("Agora os itens das notas...", flush=True)
     itens = _enviar(sb, con, "nfe_master_itens", SQL_ITENS.format(filtro=filtro), "itens")
     con.close()
+    # atualiza o cruzamento NF × SD1 usado pela tela (tabela pronta, para a tela abrir rápido)
+    try:
+        sb.rpc("atualizar_nfe_sd1").execute()
+        print("Cruzamento com a SD1 atualizado.", flush=True)
+    except Exception as e:
+        print("  (não consegui atualizar o cruzamento com a SD1:", e, ")", flush=True)
     sb.table("sync_log").upsert({"chave": "nfe_master", "atualizado_em": datetime.datetime.now().isoformat(),
                                  "total": total}, on_conflict="chave").execute()
     print(f"OK: {total} notas e {itens} itens em {time.time() - inicio:.0f}s ({'revisão' if ultimo else 'carga completa'})")
