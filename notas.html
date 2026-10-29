@@ -132,7 +132,7 @@ const $=id=>document.getElementById(id);
 const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Facilities/Administrativo','Financeiro','Outros'];
 // códigos do NFe Master (a confirmar com notas de exemplo)
 // 3 = integrado no Protheus (todas têm data de integração). 1 e 2 = ainda não integradas → pendentes
-const ST_INT={'1':'Pendente (cód. 1)','2':'Pendente','3':'Integrado'};
+const ST_INT={'1':'Pendente · sem XML','2':'Pendente','3':'Integrado'};
 const PEND=n=>n.status_nfe!=='C'&&n.status_integracao!=='3';
 const ST_NFE={'A':'Autorizada','C':'Cancelada','D':'Denegada'};
 const POR_PAG=100;
@@ -294,7 +294,7 @@ async function abrirItens(id){
   $('pop-corpo').innerHTML='<div class="msg-vazio">Carregando itens...</div>';$('pop-itens').style.display='block';
   let{data,error}=await db.from('nfe_master_itens').select('*').eq('nfe_id',id).order('item');
   if(error){$('pop-corpo').innerHTML='<div class="msg-vazio">'+(/does not exist|schema cache/i.test(error.message)?'A tabela de itens ainda não foi criada no banco.':'Não consegui carregar: '+esc(error.message))+'</div>';return}
-  if(!data||!data.length){$('pop-corpo').innerHTML='<div class="msg-vazio">Os itens desta nota ainda não foram enviados pelo sync.</div>';return}
+  if(!data||!data.length){$('pop-corpo').innerHTML='<div class="msg-vazio">'+(n.status_integracao==='1'?'📨 Nota recém-chegada: o NFe Master ainda não baixou o XML completo com os itens.<br><small>Os itens aparecem depois do próximo sync, quando o NFe Master baixar o XML.</small>':'Os itens desta nota ainda não foram enviados pelo sync.')+'</div>';return}
   let temProt=data.some(i=>i.cod_protheus||i.pc);
   $('pop-corpo').innerHTML='<table><thead><tr><th>#</th><th>Produto (como veio na nota)</th><th>NCM</th><th class="num">Qtd</th><th>Un</th><th class="num">Vl unit</th><th class="num">Vl total</th><th>Pedido no XML</th>'+(temProt?'<th>Produto Protheus</th><th>PC</th><th>CC</th>':'')+'</tr></thead><tbody>'+
     data.map(i=>'<tr><td>'+esc(i.item)+'</td><td><div style="font-weight:600">'+esc(i.descricao)+'</div><div class="cnpj">'+esc(i.codigo_forn||'')+'</div></td><td class="cnpj">'+esc(i.ncm||'')+'</td>'+
