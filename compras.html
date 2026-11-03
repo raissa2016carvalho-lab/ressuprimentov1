@@ -101,7 +101,8 @@ canvas{max-height:220px}
 .cmp-dd-list label:hover{background:#fff8f5}
 .cmp-red{color:var(--green);font-weight:600} .cmp-up{color:var(--red);font-weight:600}
 .cmp-note{font-size:11px;color:var(--muted);padding:0 24px 0}
-@media(max-width:750px){.cmp-dd-panel{width:calc(100vw - 32px)}}
+.cmp-barra{position:relative}
+@media(max-width:750px){.cmp-dd{position:static}.cmp-dd-panel{width:auto;left:16px;right:16px;top:auto;margin-top:4px}}
 </style>
 <link rel="stylesheet" href="/padrao.css"></head>
 <body>
@@ -333,7 +334,7 @@ canvas{max-height:220px}
 
 <!-- TELA COMPARATIVO MENSAL -->
 <div id="screen-comparativo" class="screen">
-  <div style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <div class="cmp-barra" style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <span class="fl">Grupo</span>
     <div class="cmp-dd">
       <button class="btn-c" id="cmp-grp-btn" onclick="cmpToggleGrp(event)">Todos os grupos ▾</button>
@@ -347,7 +348,29 @@ canvas{max-height:220px}
       </div>
     </div>
     <span class="fl">Filial</span>
-    <select id="cmp-filial" onchange="renderComparativo()"><option value="">Todas</option></select>
+    <div class="cmp-dd">
+      <button class="btn-c" id="cmp-fil-btn" onclick="cmpToggleDd(event,'fil')">Todas as filiais ▾</button>
+      <div class="cmp-dd-panel" id="cmp-fil-panel" onclick="event.stopPropagation()">
+        <input class="sbox" id="cmp-fil-busca" placeholder="Buscar filial..." oninput="cmpListaDd('fil')" style="width:100%">
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn-c" onclick="cmpMarcarDd('fil')">Marcar os encontrados</button>
+          <button class="btn-c" onclick="cmpLimparDd('fil')">Limpar (todas)</button>
+        </div>
+        <div class="cmp-dd-list" id="cmp-fil-list"></div>
+      </div>
+    </div>
+    <span class="fl">Centro de custo</span>
+    <div class="cmp-dd">
+      <button class="btn-c" id="cmp-cc-btn" onclick="cmpToggleDd(event,'cc')">Todos os CCs ▾</button>
+      <div class="cmp-dd-panel" id="cmp-cc-panel" onclick="event.stopPropagation()">
+        <input class="sbox" id="cmp-cc-busca" placeholder="Buscar CC (código ou nome)..." oninput="cmpListaDd('cc')" style="width:100%">
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn-c" onclick="cmpMarcarDd('cc')">Marcar os encontrados</button>
+          <button class="btn-c" onclick="cmpLimparDd('cc')">Limpar (todos)</button>
+        </div>
+        <div class="cmp-dd-list" id="cmp-cc-list"></div>
+      </div>
+    </div>
     <span class="fl">Tipo pedido</span>
     <select id="cmp-tipo" onchange="renderComparativo()"><option value="">Todos</option></select>
     <span class="fl">Comparar</span>
@@ -478,7 +501,7 @@ async function carregar(){
 
     ALL_PED = await sbGet(
       "pedidos",
-      "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
+      "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_CC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
       (n)=>setProgresso(30+Math.min(n/30000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR")),
       "", "C7_NUM,C7_FILIAL"
     );
@@ -1079,6 +1102,12 @@ function renderDetTable(){
 // ── COMPARATIVO MENSAL ────────────────────────────────────────────────────────
 const MESES=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const STATUS_FORA=["Rejeitado pelo aprovador","PC Eliminado por Resíduo"];
+// filtros de seleção múltipla do comparativo (filial e centro de custo)
+const CMP_DD={
+  fil:{itens:[], sel:new Set(), todos:"Todas as filiais", plural:" filiais"},
+  cc: {itens:[], sel:new Set(), todos:"Todos os CCs",     plural:" CCs"}
+};
+let CMP_CC_PED={}, CMP_CC_NOME={};
 let CMP_GRUPOS=[], CMP_SEL=new Set(), CMP_BASE=null, CMP_FONTE="", CMP_CARREGANDO=false, CMP_MES=null, CMP_MOB=null;
 // Pedido de mobilização = a observação da SC ligada tem "MOBILIZAÇÃO" (não conta "desmobilização", "Mobi" de carro nem "mobile")
 function ehMob(obs){ const t=String(obs||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase(); return /(^|[^S])MOBILIZ|MOBIZAC/.test(t); }
@@ -1100,6 +1129,8 @@ async function cmpCarregarBase(){
   CMP_CARREGANDO=true;
   const tipoPed={};
   ALL_PED.forEach(r=>{ tipoPed[String(r.C7_NUM||"").trim()+"|"+String(r.C7_FILIAL||"").trim()]=r.TIPO_PEDIDO; });
+  try{ (await sbGet("centros_custo","cc,nome",null,"","cc")).forEach(r=>{ CMP_CC_NOME[String(r.cc||"").trim()]=String(r.nome||"").trim(); }); }catch(e){}
+  cmpItensCC();
   let itens=[];
   try{
     itens=await sbGet("pedidos_grupo","c7_num,c7_filial,c7_grpprod,emissao,valor_total,valor_valido,valor_recebido,valor_rec_parc",null,"","c7_num,c7_filial,c7_grpprod");
@@ -1108,14 +1139,14 @@ async function cmpCarregarBase(){
     CMP_FONTE="itens";
     CMP_BASE=itens.map(r=>{
       const num=String(r.c7_num||"").trim(), fil=String(r.c7_filial||"").trim();
-      return {num, fil, g:String(r.c7_grpprod||"").trim(), d:normDate(r.emissao), tipo:tipoPed[num+"|"+fil]||"",
+      return {num, fil, cc:CMP_CC_PED[num+"|"+fil]||"", g:String(r.c7_grpprod||"").trim(), d:normDate(r.emissao), tipo:tipoPed[num+"|"+fil]||"",
         v:{rec:+r.valor_recebido||0, recparc:+r.valor_rec_parc||0, valid:+r.valor_valido||0, todos:+r.valor_total||0}};
     });
   }else{
     CMP_FONTE="pedidos";
     CMP_BASE=ALL_PED.map(r=>{
       const st=r.STATUS_PEDIDO, t=Number(r.C7_TOTAL||0);
-      return {num:String(r.C7_NUM||"").trim(), fil:String(r.C7_FILIAL||"").trim(), g:cmpGrp(r), d:normDate(r.EMISSAO_PEDIDO), tipo:r.TIPO_PEDIDO||"",
+      return {num:String(r.C7_NUM||"").trim(), fil:String(r.C7_FILIAL||"").trim(), cc:String(r.C7_CC||"").trim(), g:cmpGrp(r), d:normDate(r.EMISSAO_PEDIDO), tipo:r.TIPO_PEDIDO||"",
         v:{rec:st==="Recebido"?t:0, recparc:(st==="Recebido"||st==="Recebido parcialmente")?t:0, valid:STATUS_FORA.includes(st)?0:t, todos:t}};
     });
   }
@@ -1143,10 +1174,11 @@ function popularComparativo(){
     const top=Object.entries(desc[c]).sort((a,b)=>b[1]-a[1])[0];
     return {cod:c, label:(c||"(sem grupo)")+(top?" — "+top[0]:"")};
   });
-  const fil=document.getElementById("cmp-filial");
-  [...new Set(ALL_PED.map(r=>String(r.C7_FILIAL||"").trim()))].filter(Boolean).sort().forEach(v=>{
-    const o=document.createElement("option"); o.value=v; o.textContent=nomeFilial(v)+" ("+v+")"; fil.appendChild(o);
-  });
+  CMP_DD.fil.itens=[...new Set(ALL_PED.map(r=>String(r.C7_FILIAL||"").trim()))].filter(Boolean).sort()
+    .map(v=>({cod:v, label:nomeFilial(v)+" ("+v+")"}));
+  CMP_CC_PED={};
+  ALL_PED.forEach(r=>{ CMP_CC_PED[String(r.C7_NUM||"").trim()+"|"+String(r.C7_FILIAL||"").trim()]=String(r.C7_CC||"").trim(); });
+  cmpItensCC(); cmpListaDd("fil");
   const tip=document.getElementById("cmp-tipo");
   [...new Set(ALL_PED.map(r=>r.TIPO_PEDIDO))].filter(Boolean).sort().forEach(v=>{
     const o=document.createElement("option"); o.value=v; o.textContent=v; tip.appendChild(o);
@@ -1156,10 +1188,34 @@ function popularComparativo(){
   anos.forEach(a=>{ sa.add(new Option(a,a)); sb.add(new Option(a,a)); });
   sb.value=anos[anos.length-1]||""; sa.value=anos[anos.length-2]||anos[0]||"";
   cmpListaGrupos();
-  document.addEventListener("click",()=>document.getElementById("cmp-grp-panel").classList.remove("open"));
+  document.addEventListener("click",()=>["grp","fil","cc"].forEach(k=>document.getElementById("cmp-"+k+"-panel").classList.remove("open")));
 }
+function cmpItensCC(){
+  CMP_DD.cc.itens=[...new Set(Object.values(CMP_CC_PED))].sort()
+    .map(v=>({cod:v, label:v ? v+(CMP_CC_NOME[v]?" — "+CMP_CC_NOME[v]:"") : "(sem CC)"}));
+  cmpListaDd("cc");
+}
+function cmpToggleDd(e,k){
+  e.stopPropagation();
+  ["grp","fil","cc"].filter(x=>x!==k).forEach(x=>document.getElementById("cmp-"+x+"-panel").classList.remove("open"));
+  document.getElementById("cmp-"+k+"-panel").classList.toggle("open");
+}
+function cmpEncontradosDd(k){
+  const q=document.getElementById("cmp-"+k+"-busca").value.trim().toLowerCase();
+  return CMP_DD[k].itens.filter(o=>!q||o.label.toLowerCase().includes(q));
+}
+function cmpListaDd(k){
+  document.getElementById("cmp-"+k+"-list").innerHTML=cmpEncontradosDd(k).map(o=>
+    `<label><input type="checkbox" ${CMP_DD[k].sel.has(o.cod)?"checked":""} onchange="cmpMarcaDd('${k}','${cmpEsc(o.cod)}',this.checked)"> ${cmpEsc(o.label)}</label>`).join("");
+  const d=CMP_DD[k], b=document.getElementById("cmp-"+k+"-btn");
+  b.textContent = d.sel.size===0 ? d.todos+" ▾" : d.sel.size===1 ? (d.itens.find(o=>o.cod===[...d.sel][0])||{label:[...d.sel][0]}).label+" ▾" : d.sel.size+d.plural+" ▾";
+  b.style.borderColor=b.style.color = d.sel.size ? "var(--blue)" : "";
+}
+function cmpMarcaDd(k,cod,on){ if(on)CMP_DD[k].sel.add(cod); else CMP_DD[k].sel.delete(cod); cmpListaDd(k); renderComparativo(); }
+function cmpMarcarDd(k){ cmpEncontradosDd(k).forEach(o=>CMP_DD[k].sel.add(o.cod)); cmpListaDd(k); renderComparativo(); }
+function cmpLimparDd(k){ CMP_DD[k].sel.clear(); document.getElementById("cmp-"+k+"-busca").value=""; cmpListaDd(k); renderComparativo(); }
 
-function cmpToggleGrp(e){ e.stopPropagation(); document.getElementById("cmp-grp-panel").classList.toggle("open"); }
+function cmpToggleGrp(e){ cmpToggleDd(e,"grp"); }
 
 function cmpEncontrados(){
   const q=document.getElementById("cmp-grp-busca").value.trim().toLowerCase();
@@ -1192,7 +1248,7 @@ function renderComparativo(){
     cmpCarregarBase(); return;
   }
   const anoA=document.getElementById("cmp-ano-a").value, anoB=document.getElementById("cmp-ano-b").value;
-  const fil=document.getElementById("cmp-filial").value, tipo=document.getElementById("cmp-tipo").value;
+  const filSel=CMP_DD.fil.sel, ccSel=CMP_DD.cc.sel, tipo=document.getElementById("cmp-tipo").value;
   const modoSt=document.getElementById("cmp-status").value;
   const mob=document.getElementById("cmp-mob").value, mobSet=mob?cmpMobSet():null;
   const hoje=new Date();
@@ -1208,10 +1264,11 @@ function renderComparativo(){
     const ano=d.slice(0,4); if(ano!==anoA&&ano!==anoB) return;
     const v=r.v[modoSt]; if(!v) return;
     if(tipo&&r.tipo!==tipo) return;
+    if(ccSel.size&&!ccSel.has(r.cc)) return;
     if(mob){ const e=mobSet.has(r.num+"|"+r.fil); if(mob==="so"&&!e) return; if(mob==="sem"&&e) return; }
     todas.push({ano, m:+d.slice(5,7)-1, dia:d.slice(8,10), g:r.g, fil:r.fil, v, ped:r.num+"|"+r.fil});
   });
-  const linhas=todas.filter(x=>!fil||x.fil===fil);
+  const linhas=todas.filter(x=>!filSel.size||filSel.has(x.fil));
   // mês atual do ano comparado: o ano base entra só até o mesmo dia
   const corte = m => (anoB+"-"+String(m+1).padStart(2,"0"))===mesAtual ? diaAtual : null;
   const conta = x => !(x.ano===anoA && corte(x.m) && x.dia>corte(x.m));
@@ -1286,7 +1343,7 @@ function renderComparativo(){
       <td class="r ${x.cls}">${fmtM(x.d)}</td><td class="r ${x.cls}">${cmpPct(x.p)}</td></tr>`;
   }).join("");
 
-  // por filial: respeita grupo, tipo, status, mobilização e o mês clicado (não o filtro de filial)
+  // por filial: respeita grupo, CC, tipo, status, mobilização e o mês clicado (não o filtro de filial)
   const pf={};
   todas.forEach(x=>{
     if(!comp(x.m)||!conta(x)) return;
@@ -1300,14 +1357,14 @@ function renderComparativo(){
   document.getElementById("th-cmp-fil").innerHTML=`<tr><th>Filial${CMP_MES!=null?" — só "+MESES[CMP_MES]:""}</th><th class="r">${anoA}</th><th class="r">${anoB}</th><th class="r">Diferença</th><th class="r">%</th><th class="r">% do total ${anoB}</th><th class="r">Pedidos ${anoA}</th><th class="r">Pedidos ${anoB}</th></tr>`;
   document.getElementById("tb-cmp-fil").innerHTML=af.map(o=>{
     const x=cmpDif(o.a,o.b);
-    const marcado=fil===o.f?"background:#eff6ff;font-weight:600;":"";
-    return `<tr style="cursor:pointer;${marcado}" onclick="cmpClicaFilial('${cmpEsc(o.f)}')" title="Clique para filtrar esta filial"><td>${cmpEsc(nomeFilial(o.f))} <span style="color:var(--muted);font-size:10px">${cmpEsc(o.f)}</span></td>
+    const marcado=filSel.has(o.f)?"background:#eff6ff;font-weight:600;":"";
+    return `<tr style="cursor:pointer;${marcado}" onclick="cmpClicaFilial('${cmpEsc(o.f)}')" title="Clique para marcar/desmarcar esta filial no filtro"><td>${cmpEsc(nomeFilial(o.f))} <span style="color:var(--muted);font-size:10px">${cmpEsc(o.f)}</span></td>
       <td class="r">${fmtM(o.a)}</td><td class="r">${fmtM(o.b)}</td>
       <td class="r ${x.cls}">${fmtM(x.d)}</td><td class="r ${x.cls}">${cmpPct(x.p)}</td>
       <td class="r">${tB?(o.b/tB*100).toFixed(1)+"%":"–"}</td><td class="r">${o.pa.size}</td><td class="r">${o.pb.size}</td></tr>`;
   }).join("")+(af.length>1?`<tr class="total-row"><td>Total</td><td class="r">${fmtM(tA)}</td><td class="r">${fmtM(tB)}</td><td class="r">${fmtM(tB-tA)}</td><td class="r">${cmpPct(cmpDif(tA,tB).p)}</td><td class="r">100%</td><td></td><td></td></tr>`:"");
 }
-function cmpClicaFilial(f){ const s=document.getElementById("cmp-filial"); s.value = s.value===f ? "" : f; renderComparativo(); }
+function cmpClicaFilial(f){ cmpMarcaDd("fil",f,!CMP_DD.fil.sel.has(f)); }
 
 function renderAll(){renderSCs();renderPedidos();renderIndicadores();buildDetalhamento();renderDetTable();}
 document.addEventListener("DOMContentLoaded",carregar);
