@@ -322,7 +322,9 @@ function renderForn(){
 let sd1=null;
 async function buscarSd1(){
   let out={},de=0;
-  for(;;){let{data,error}=await db.from('vw_nfe_sd1').select('*').range(de,de+999);
+  let fonte='mv_nfe_sd1';   // cruzamento pronto (atualizado pelo sync); a view direta é lenta demais
+  for(;;){let{data,error}=await db.from(fonte).select('*').range(de,de+999);
+    if(error&&fonte==='mv_nfe_sd1'&&de===0&&/does not exist|schema cache/i.test(error.message)){fonte='vw_nfe_sd1';continue}
     if(error)return {ok:false,erro:error};(data||[]).forEach(x=>out[x.nfe_id]=x);if(!data||data.length<1000)break;de+=1000}
   return {ok:true,mapa:out};
 }

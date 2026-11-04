@@ -74,6 +74,9 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
 | Mobilização: ids (28/10) | `mobilizacao_scs/itens/estoque` tinham perdido o default do `id` (linhas novas sem id). Recriadas sequências, ids preenchidos, PKs e unique `(mobilizacao_id, codigo)` no estoque | ver SQL de desfazer no histórico (drop pkey/default) |
 | Mobilização ENEL SP (28/10) | Card #45 "1ª ONDA FARDAMENTOS E BOTAS" (SC 000115); estoque da Construção #39 zerado e passado à LV #41 (backup `bkp_mob_estoque_20261027`); #27/#28 no grupo OCULTO | — |
 | NFe Master (29/10) | Tabelas `nfe_master`, `nfe_master_itens`, `fornecedor_setor`, `nfe_setor`, view `vw_nfe_sd1` + índice `movimentos_entrada_nota`. **Falta criar `nfe_fluxo`**. SQL de tudo em `nfe-master.md` | ver `nfe-master.md` |
+| Estoque: armazém 02 fora (04/11) | `criar_solicitacao` não soma o armazém 02 nas filiais 13/14/15. Telas (formulário, popup de estoque, ruptura) usam `ARM_FORA_CALC`. Solicitações #620/#622/#623 recalculadas (backup `backup_estoque_ribeira_2026_11_04`) | recriar a função sem a linha `and not (...)`; `update ... from backup_estoque_ribeira_2026_11_04` |
+| Estoque Livramento/Brumado/Garanhuns (04/11) | #641/#642/#646/#648 estavam sem posição de estoque; preenchidas com o estoque de 04/11 | `update solicitacao_itens set estoque_filial=null, estoque_filial_data=null where solicitacao_id in (641,642,646,648)` |
+| Master × almoxarife (04/11) | Correção: o master guarda a qtd do almoxarife em `qtd_almoxarife` antes de alterar. Antes disso, 15 solicitações pendentes perderam o original (609/610/612, 627–634, 644, 648, 655, 656) | — |
 
 ### Backups guardados
 `backup_mobilizacoes_2026_10_22`, `backup_mobilizacao_itens_2026_10_22`, `backup_mobilizacao_scs_2026_10_22`
