@@ -518,7 +518,7 @@ let grupos={};
 visiveis.forEach(s=>{// Agrupar por matrícula + janela de 5 minutos
 let ch=_chaveGrupo(s);
 if(!grupos[ch])grupos[ch]=[];grupos[ch].push(s)});
-$(`lista`).innerHTML=Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
+$(`lista`).innerHTML=_htmlTotaisGeral(visiveis)+Object.values(grupos).map(g=>g.length>1?renderCardMatricial(g):renderCard(g[0])).join(``)
 }
 
 function renderCardMatricial(grupo,readonly){
@@ -1220,9 +1220,17 @@ function _htmlTotais3(sols,soCorpo){var t=_calcTotais3(sols);
   var corpo=lin('Almoxarife',_fmtR$(t.a),'#1e40af')+lin('Gerente',t.temG?_fmtR$(t.g):'—','#166534')+lin('Master',_fmtR$(t.m),'#0f172a',1);
   if(soCorpo)return corpo;
   return '<div data-totais-sols=" '+(sols||[]).map(function(x){return x.id}).join(' ')+' " style="margin-bottom:4px" title="Valor estimado (custo médio × quantidade)">'+corpo+'</div>'}
+// Totalizador do topo da aba Solicitações: soma dos cards visíveis
+function _htmlTotaisGeral(sols,soCorpo){var t=_calcTotais3(sols);
+  var box=function(rot,v,cor,sub){return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px"><div style="font-size:11px;color:#64748b;font-weight:600">'+rot+'</div><div style="font-size:19px;font-weight:800;color:'+cor+';font-family:ui-monospace,monospace;margin-top:2px">'+v+'</div>'+(sub?'<div style="font-size:10.5px;color:#94a3b8;margin-top:1px">'+sub+'</div>':'')+'</div>'};
+  var pct=function(v){if(!(t.a>0))return '';var d=Math.round((v/t.a-1)*100);return (d>0?'+':'')+d+'% vs. almoxarife'};
+  var corpo=box('Total almoxarife',_fmtR$(t.a),'#1e40af',(sols||[]).length+' solicitação(ões)')+box('Total gerente',t.temG?_fmtR$(t.g):'—','#166534',t.temG?'só itens já avaliados pelo gerente':'')+box('Total master',_fmtR$(t.m),'#0f172a',pct(t.m));
+  if(soCorpo)return corpo;
+  return '<div id="totais-geral" data-sols=" '+(sols||[]).map(function(x){return x.id}).join(' ')+' " style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px" title="Valor estimado (custo médio × quantidade)">'+corpo+'</div>'}
 // atualiza os totais do card enquanto o master digita
 document.addEventListener('input',function(e){var card=e.target&&e.target.type==='number'&&e.target.closest&&e.target.closest('.card');if(!card)return;
-  setTimeout(function(){card.querySelectorAll('[data-totais-sols]').forEach(function(el){var ids=el.getAttribute('data-totais-sols').trim().split(/\s+/).map(Number);
+  setTimeout(function(){var tg=document.getElementById('totais-geral');if(tg){var ig=tg.getAttribute('data-sols').trim().split(/\s+/).map(Number);tg.innerHTML=_htmlTotaisGeral(solicitacoes.filter(function(x){return ig.indexOf(x.id)>=0}),1)}
+  card.querySelectorAll('[data-totais-sols]').forEach(function(el){var ids=el.getAttribute('data-totais-sols').trim().split(/\s+/).map(Number);
     el.innerHTML=_htmlTotais3(solicitacoes.filter(function(x){return ids.indexOf(x.id)>=0}),1)})},0)});
 function _qtdGer(it){return it.qtd_gerente!=null?Number(it.qtd_gerente):(it.quantidade||0)}
 // Valor de referência do botão ↺: gerente, senão almoxarife
