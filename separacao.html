@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Separação de mobilização</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<link rel="stylesheet" href="/padrao.css"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--bq-fonte);background:var(--bq-fundo);color:var(--bq-texto);min-height:100vh}
+body.bq-trancado>*:not(#tela-login){display:none!important}
+.lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
+.lg-inp{width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
+.lg-inp:focus{border-color:#1e40af}
+.topo-dir{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:12px;color:#94a3b8}
+.btn{background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn:hover{border-color:#1e40af;color:#1e40af}
+.btn.azul{background:#1e40af;color:#fff;border-color:#1e40af}.btn.azul:hover{background:#1d3a9e;color:#fff}
+.btn.verde{background:#16a34a;color:#fff;border-color:#16a34a}.btn.verde:hover{background:#15803d;color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-sair{background:transparent;border:1px solid #334155;color:#cbd5e1;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+.corpo{max-width:1100px;margin:0 auto;padding:20px 24px 40px}
+.filtros{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.chip{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;color:#64748b;cursor:pointer;font-family:inherit}
+.chip.ativo{background:#1e40af;border-color:#1e40af;color:#fff}
+.busca{flex:1;min-width:200px;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;outline:none}
+.grupo-tit{font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin:18px 0 8px}
+.mob{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;gap:14px;align-items:center;cursor:pointer}
+.mob:hover{border-color:#1e40af}
+.mob .nome{font-weight:700;font-size:14px}
+.mob .sub{font-size:12px;color:#64748b;margin-top:3px}
+.barra{height:6px;background:#f1f5f9;border-radius:99px;overflow:hidden;width:140px;margin-top:6px}
+.barra i{display:block;height:100%;background:#16a34a}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+.p-pendente{background:#fef3c7;color:#92400e}.p-em_separacao{background:#dbeafe;color:#1e40af}.p-concluida{background:#dcfce7;color:#166534}
+.vazio{text-align:center;color:#64748b;padding:40px;background:#fff;border:1px dashed #e2e8f0;border-radius:12px;font-size:13.5px}
+.cab{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.cab h2{font-size:17px}
+.resumo{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.resumo div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:12px;color:#64748b;text-align:center}
+.resumo b{display:block;font-size:17px;color:#0f172a}
+.item{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:minmax(200px,1.6fr) 90px 170px 110px minmax(140px,1fr);gap:12px;align-items:center}
+.item.tem{border-left:4px solid #16a34a}.item.naotem{border-left:4px solid #dc2626;background:#fffafa}
+.item .desc{font-weight:600;font-size:13px}.item .cod{font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin-top:2px}
+.item .lbl{font-size:10.5px;color:#94a3b8;font-weight:600;display:block;margin-bottom:3px}
+.item .sol{font-family:ui-monospace,monospace;font-weight:700;font-size:15px}
+.tn{display:flex;gap:4px}
+.tn button{flex:1;border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:7px 6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:#64748b}
+.tn button.on-tem{background:#16a34a;border-color:#16a34a;color:#fff}
+.tn button.on-nao{background:#dc2626;border-color:#dc2626;color:#fff}
+.inp{width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:7px 8px;font-size:13px;font-family:inherit;outline:none;background:#fff}
+.inp:focus{border-color:#1e40af}.inp.num{text-align:right;font-family:ui-monospace,monospace;font-weight:700}
+.inp:disabled{background:#f8fafc;color:#94a3b8}
+.extra{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.salvo{font-size:10.5px;color:#16a34a;height:12px}
+.rodape{position:sticky;bottom:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:0 -4px 16px #0f172a0d}
+.aviso{background:#fef3c7;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:12px}
+.ok{background:#dcfce7;color:#166534;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+@media(max-width:800px){.corpo{padding:14px 16px 40px}.item{grid-template-columns:1fr 1fr}.item>div:first-child{grid-column:1/-1}.extra{grid-template-columns:1fr}.resumo{margin-left:0}.mob{flex-wrap:wrap}}
+</style>
+<body class="bq-trancado">
+
+<div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
+  <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px">
+    <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
+    <h1 style="margin:0 0 4px;font-size:16px">Separação de mobilização</h1>
+    <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
+    <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
+    <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <div id="lg-msg" style="color:#991b1b;background:#fee2e2;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:12px;display:none"></div>
+    <button id="lg-btn" onclick="entrar()" style="width:100%;background:#1e40af;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+    <a class="bq-login-voltar" href="/los.html">← Voltar ao menu de sistemas</a>
+  </div>
+</div>
+
+<div class="bq-topo">
+  <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
+  <div><h1>Separação de mobilização</h1><div class="bq-sub">Conferir o estoque e separar o material de cada mobilização</div></div>
+  <div class="topo-dir"><span id="user-email"></span><button class="btn-sair" onclick="sair()">Sair</button></div>
+</div>
+
+<div class="corpo" id="corpo"></div>
+
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtN=v=>(Math.round((Number(v)||0)*100)/100).toLocaleString('pt-BR');
+const fmtDH=iso=>iso?new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+const STATUS={pendente:'Pendente',em_separacao:'Em separação',concluida:'Concluída'};
+let userEmail='',isAdmin=false,FILTRO='abertas',MOBS=[],ATUAL=null;
+
+// ── Lista de mobilizações ──────────────────────────────────────────────────
+async function carregarLista(){
+  $('corpo').innerHTML='<div class="vazio">Carregando mobilizações...</div>';
+  let[{data:mobs,error},{data:itens},{data:est}]=await Promise.all([
+    db.from('mobilizacoes').select('*').order('criado_em',{ascending:false}),
+    db.from('mobilizacao_itens').select('mobilizacao_id,codigo'),
+    db.from('mobilizacao_estoque').select('mobilizacao_id,codigo,disponivel')
+  ]);
+  if(error){$('corpo').innerHTML='<div class="vazio">Não consegui carregar: '+esc(error.message)+'</div>';return}
+  let nItens={},nConf={};
+  (itens||[]).forEach(i=>{if(i.codigo==null)return;(nItens[i.mobilizacao_id]=nItens[i.mobilizacao_id]||new Set()).add(String(i.codigo))});
+  (est||[]).forEach(e=>{if(e.disponivel!=null)(nConf[e.mobilizacao_id]=nConf[e.mobilizacao_id]||new Set()).add(String(e.codigo))});
+  MOBS=(mobs||[]).filter(m=>!String(m.grupo||'').toUpperCase().startsWith('OCULTO')).map(m=>{
+    let tot=nItens[m.id]?nItens[m.id].size:0,conf=nConf[m.id]?[...nConf[m.id]].filter(c=>nItens[m.id]&&nItens[m.id].has(c)).length:0;
+    return {...m,_tot:tot,_conf:conf,_st:m.sep_status||'pendente'}});
+  desenharLista();
+}
+function desenharLista(){
+  ATUAL=null;history.replaceState(null,'',location.pathname);
+  let q=($('busca')?.value||'').toLowerCase().trim();
+  let lista=MOBS.filter(m=>FILTRO==='todas'||(FILTRO==='concluidas'?m._st==='concluida':m._st!=='concluida'))
+    .filter(m=>!q||(m.nome||'').toLowerCase().includes(q)||(m.grupo||'').toLowerCase().includes(q));
+  let chips=[['abertas','Para separar'],['concluidas','Concluídas'],['todas','Todas']].map(([k,t])=>
+    `<button class="chip${FILTRO===k?' ativo':''}" onclick="FILTRO='${k}';desenharLista()">${t} (${MOBS.filter(m=>k==='todas'||(k==='concluidas'?m._st==='concluida':m._st!=='concluida')).length})</button>`).join('');
+  let grupos={};lista.forEach(m=>{(grupos[m.grupo||'Sem grupo']=grupos[m.grupo||'Sem grupo']||[]).push(m)});
+  let html=Object.keys(grupos).sort((a,b)=>a==='Sem grupo'?1:b==='Sem grupo'?-1:a.localeCompare(b)).map(g=>'<div class="grupo-tit">'+esc(g)+'</div>'+grupos[g].map(m=>{
+    let pct=m._tot?Math.round(m._conf/m._tot*100):0;
+    return `<div class="mob" onclick="abrir(${m.id})">
+      <div style="flex:1;min-width:0"><div class="nome">${esc(m.nome)} <span class="pill p-${m._st}">${STATUS[m._st]||m._st}</span></div>
+        <div class="sub">${m.num_equipes?m.num_equipes+' equipe(s) · ':''}${m._tot} item(ns) · criada em ${fmtDH(m.criado_em)}${m._st==='concluida'&&m.sep_operador?' · separada por '+esc(m.sep_operador)+' em '+fmtDH(m.sep_concluida_em):''}</div></div>
+      <div style="text-align:right"><div style="font-size:12px;color:#64748b">${m._conf}/${m._tot} conferidos</div><div class="barra"><i style="width:${pct}%"></i></div></div>
+      <span style="color:#1e40af;font-weight:700">→</span></div>`}).join('')).join('');
+  $('corpo').innerHTML=`<div class="filtros">${chips}<input class="busca" id="busca" placeholder="Buscar mobilização ou grupo..." value="${esc(q)}" oninput="desenharLista();this.focus();this.setSelectionRange(this.value.length,this.value.length)"></div>`+
+    (html||'<div class="vazio">Nenhuma mobilização '+(FILTRO==='concluidas'?'concluída':'para separar')+'.</div>');
+}
+
+// ── Separação de uma mobilização ───────────────────────────────────────────
+async function abrir(id){
+  $('corpo').innerHTML='<div class="vazio">Carregando itens...</div>';
+  history.replaceState(null,'','?id='+id);
+  let[{data:mob},{data:itens},{data:est}]=await Promise.all([
+    db.from('mobilizacoes').select('*').eq('id',id).maybeSingle(),
+    db.from('mobilizacao_itens').select('codigo,descricao,total_mob').eq('mobilizacao_id',id),
+    db.from('mobilizacao_estoque').select('*').eq('mobilizacao_id',id)
+  ]);
+  if(!mob){$('corpo').innerHTML='<div class="vazio">Mobilização não encontrada. <a href="#" onclick="carregarLista();return false">Voltar</a></div>';return}
+  // mesmo agrupamento do card: um item por código, somando as funções
+  let por={};(itens||[]).forEach(i=>{if(i.codigo==null)return;let k=String(i.codigo);por[k]=por[k]||{codigo:k,descricao:i.descricao,sol:0};por[k].sol+=Number(i.total_mob)||0});
+  let semCod=(itens||[]).filter(i=>i.codigo==null).length;
+  let e={};(est||[]).forEach(r=>{e[String(r.codigo)]=r});
+  ATUAL={mob,itens:Object.values(por).sort((a,b)=>(a.descricao||'').localeCompare(b.descricao||'')),est:e,semCod};
+  desenharSeparacao();
+}
+function travada(){return ATUAL.mob.sep_status==='concluida'}
+function desenharSeparacao(){
+  let {mob,itens,est,semCod}=ATUAL,trav=travada(),dis=trav?' disabled':'';
+  let conf=itens.filter(i=>est[i.codigo]&&est[i.codigo].disponivel!=null).length,
+      tem=itens.filter(i=>est[i.codigo]&&est[i.codigo].disponivel===true).length,
+      nao=itens.filter(i=>est[i.codigo]&&est[i.codigo].disponivel===false).length;
+  let linhas=itens.map(i=>{let r=est[i.codigo]||{},d=r.disponivel,c=esc(i.codigo);
+    return `<div class="item ${d===true?'tem':d===false?'naotem':''}" id="it-${c}">
+      <div><div class="desc">${esc(i.descricao)}</div><div class="cod">${c}</div></div>
+      <div><span class="lbl">Solicitado</span><span class="sol">${fmtN(i.sol)}</span></div>
+      <div><span class="lbl">Tem no estoque?</span><div class="tn"><button class="${d===true?'on-tem':''}" onclick="marcar('${c}',true)"${dis}>✓ Tem</button><button class="${d===false?'on-nao':''}" onclick="marcar('${c}',false)"${dis}>✕ Não tem</button></div></div>
+      <div><span class="lbl">Qtd separada</span><input class="inp num" type="number" min="0" step="1" id="q-${c}" value="${r.qtd_estoque!=null?r.qtd_estoque:''}" placeholder="0" onchange="salvarItem('${c}')"${trav||d===false?' disabled':''}><div class="salvo" id="ok-${c}"></div></div>
+      <div><span class="lbl">Patrimônios (separe por vírgula)</span><input class="inp" id="p-${c}" value="${esc(r.patrimonios||'')}" placeholder="Ex.: 12345, 12346" onchange="salvarItem('${c}')"${dis}></div>
+      ${r.observacao||!trav?`<div class="extra"><div><input class="inp" id="o-${c}" value="${esc(r.observacao||'')}" placeholder="Observação do item (opcional)" onchange="salvarItem('${c}')"${dis}></div><div style="font-size:11px;color:#94a3b8;align-self:center">${r.separado_por?'Último registro: '+esc(r.separado_por)+' · '+fmtDH(r.separado_em):''}</div></div>`:''}
+    </div>`}).join('');
+  $('corpo').innerHTML=`
+    <button class="btn" onclick="carregarLista()" style="margin-bottom:12px">← Voltar às mobilizações</button>
+    <div class="cab"><div><h2>${esc(mob.nome)} <span class="pill p-${mob.sep_status||'pendente'}">${STATUS[mob.sep_status||'pendente']}</span></h2>
+      <div style="font-size:12.5px;color:#64748b;margin-top:4px">${mob.grupo?esc(mob.grupo)+' · ':''}${mob.num_equipes?mob.num_equipes+' equipe(s) · ':''}${itens.length} item(ns)</div></div>
+      <div class="resumo"><div><b>${conf}/${itens.length}</b>conferidos</div><div><b style="color:#16a34a">${tem}</b>tem</div><div><b style="color:#dc2626">${nao}</b>não tem</div></div></div>
+    ${trav?`<div class="ok">✓ Separação concluída por <b>${esc(mob.sep_operador||'')}</b> em ${fmtDH(mob.sep_concluida_em)}. As quantidades já estão na coluna Estoque do card da mobilização.</div>`:''}
+    ${semCod?`<div class="aviso">${semCod} item(ns) desta mobilização estão sem código e não aparecem aqui.</div>`:''}
+    ${linhas||'<div class="vazio">Esta mobilização não tem itens com código.</div>'}
+    <div class="rodape">
+      <div style="font-size:12.5px;color:#64748b;flex:1;min-width:200px" id="msg-rodape">${trav?'':'Tudo é salvo automaticamente. Ao terminar de conferir todos os itens, conclua a separação.'}</div>
+      ${trav?(isAdmin?'<button class="btn" onclick="reabrir()">↺ Reabrir separação</button>':''):`<button class="btn verde" onclick="concluir()"${conf<itens.length||!itens.length?' disabled title="Confira todos os itens primeiro"':''}>✓ Concluir separação</button>`}
+    </div>`;
+}
+async function marcarEmSeparacao(){
+  if(ATUAL.mob.sep_status&&ATUAL.mob.sep_status!=='pendente')return;
+  let{error}=await db.from('mobilizacoes').update({sep_status:'em_separacao'}).eq('id',ATUAL.mob.id);
+  if(!error)ATUAL.mob.sep_status='em_separacao';
+}
+async function gravar(cod,campos){
+  let reg=Object.assign({mobilizacao_id:Number(ATUAL.mob.id),codigo:Number(cod),separado_por:userEmail,separado_em:new Date().toISOString()},campos);
+  let{data,error}=await db.from('mobilizacao_estoque').upsert(reg,{onConflict:'mobilizacao_id,codigo'}).select().maybeSingle();
+  if(error){alert('Não consegui salvar: '+error.message);return false}
+  ATUAL.est[cod]=Object.assign(ATUAL.est[cod]||{},data||reg);
+  await marcarEmSeparacao();
+  return true;
+}
+async function marcar(cod,tem){
+  if(travada())return;
+  let it=ATUAL.itens.find(i=>i.codigo===cod),atual=ATUAL.est[cod]||{};
+  let qtd=tem?(atual.disponivel===true&&atual.qtd_estoque!=null?atual.qtd_estoque:Math.round(it.sol)):0;
+  if(await gravar(cod,{disponivel:tem,qtd_estoque:qtd}))desenharSeparacao();
+}
+async function salvarItem(cod){
+  if(travada())return;
+  let atual=ATUAL.est[cod]||{},q=$('q-'+cod).value,campos={
+    qtd_estoque:q===''?null:Math.max(0,Math.round(Number(q)||0)),
+    patrimonios:$('p-'+cod).value.trim()||null,
+    observacao:($('o-'+cod)?$('o-'+cod).value.trim():atual.observacao)||null};
+  // digitar a quantidade já conta como "tem" (se ainda não foi conferido)
+  if(atual.disponivel==null&&campos.qtd_estoque>0)campos.disponivel=true;
+  if(await gravar(cod,campos)){
+    if(campos.disponivel===true&&atual.disponivel==null){desenharSeparacao();return}
+    let ok=$('ok-'+cod);if(ok){ok.textContent='✓ salvo';setTimeout(()=>{ok.textContent=''},1500)}
+  }
+}
+async function concluir(){
+  let falta=ATUAL.itens.filter(i=>!ATUAL.est[i.codigo]||ATUAL.est[i.codigo].disponivel==null);
+  if(falta.length){alert('Faltam '+falta.length+' item(ns) para conferir.');return}
+  let semQtd=ATUAL.itens.filter(i=>ATUAL.est[i.codigo].disponivel===true&&!(Number(ATUAL.est[i.codigo].qtd_estoque)>0));
+  if(semQtd.length&&!confirm(semQtd.length+' item(ns) marcados como "Tem" estão com quantidade 0. Concluir mesmo assim?'))return;
+  if(!confirm('Concluir a separação de "'+ATUAL.mob.nome+'"? Depois disso ela fica travada.'))return;
+  let upd={sep_status:'concluida',sep_operador:userEmail,sep_concluida_em:new Date().toISOString()};
+  let{error}=await db.from('mobilizacoes').update(upd).eq('id',ATUAL.mob.id);
+  if(error){alert('Não consegui concluir: '+error.message);return}
+  Object.assign(ATUAL.mob,upd);desenharSeparacao();window.scrollTo({top:0});
+}
+async function reabrir(){
+  if(!isAdmin||!confirm('Reabrir a separação para edição?'))return;
+  let upd={sep_status:'em_separacao',sep_operador:null,sep_concluida_em:null};
+  let{error}=await db.from('mobilizacoes').update(upd).eq('id',ATUAL.mob.id);
+  if(error){alert('Não consegui reabrir: '+error.message);return}
+  Object.assign(ATUAL.mob,upd);desenharSeparacao();
+}
+
+// ── Login: mesmo usuário do Painel principal ───────────────────────────────
+async function liberar(email){
+  userEmail=email||'';$('user-email').textContent=userEmail;
+  try{let{data}=await db.from('perfis_usuario').select('role').eq('email',userEmail.toLowerCase().trim()).maybeSingle();isAdmin=data&&data.role==='admin'}catch(e){}
+  document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';
+  let id=new URLSearchParams(location.search).get('id');
+  if(id){await carregarLista();abrir(Number(id))}else carregarLista();
+}
+async function entrar(){
+  let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
+  if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
+  b.disabled=true;b.textContent='Entrando...';
+  let{data,error}=await db.auth.signInWithPassword({email,password:senha});
+  b.disabled=false;b.textContent='Entrar';
+  if(error){msg.textContent=error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message;msg.style.display='block';return}
+  liberar(data.user&&data.user.email);
+}
+async function sair(){await db.auth.signOut();location.reload()}
+(async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
+</script>
+</body>
+</html>
