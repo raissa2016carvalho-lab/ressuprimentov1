@@ -88,6 +88,8 @@ const fmtN=v=>(Math.round((Number(v)||0)*100)/100).toLocaleString('pt-BR');
 const fmtDH=iso=>iso?new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 const STATUS={pendente:'Pendente',em_separacao:'Em separação',concluida:'Concluída'};
 let userEmail='',isAdmin=false,FILTRO='abertas',MOBS=[],ATUAL=null;
+// Item já conferido? Estoque lançado antes desta tela (quantidade > 0, sem marcação) conta como "Tem"
+const dispo=r=>!r?null:r.disponivel!=null?r.disponivel:(Number(r.qtd_estoque)>0?true:null);
 
 // ── Lista de mobilizações ──────────────────────────────────────────────────
 async function carregarLista(){
@@ -95,12 +97,12 @@ async function carregarLista(){
   let[{data:mobs,error},{data:itens},{data:est}]=await Promise.all([
     db.from('mobilizacoes').select('*').order('criado_em',{ascending:false}),
     db.from('mobilizacao_itens').select('mobilizacao_id,codigo'),
-    db.from('mobilizacao_estoque').select('mobilizacao_id,codigo,disponivel')
+    db.from('mobilizacao_estoque').select('mobilizacao_id,codigo,disponivel,qtd_estoque')
   ]);
   if(error){$('corpo').innerHTML='<div class="vazio">Não consegui carregar: '+esc(error.message)+'</div>';return}
   let nItens={},nConf={};
   (itens||[]).forEach(i=>{if(i.codigo==null)return;(nItens[i.mobilizacao_id]=nItens[i.mobilizacao_id]||new Set()).add(String(i.codigo))});
-  (est||[]).forEach(e=>{if(e.disponivel!=null)(nConf[e.mobilizacao_id]=nConf[e.mobilizacao_id]||new Set()).add(String(e.codigo))});
+  (est||[]).forEach(e=>{if(dispo(e)!=null)(nConf[e.mobilizacao_id]=nConf[e.mobilizacao_id]||new Set()).add(String(e.codigo))});
   MOBS=(mobs||[]).filter(m=>!String(m.grupo||'').toUpperCase().startsWith('OCULTO')).map(m=>{
     let tot=nItens[m.id]?nItens[m.id].size:0,conf=nConf[m.id]?[...nConf[m.id]].filter(c=>nItens[m.id]&&nItens[m.id].has(c)).length:0;
     return {...m,_tot:tot,_conf:conf,_st:m.sep_status||'pendente'}});
@@ -145,12 +147,12 @@ async function abrir(id){
 function travada(){return ATUAL.mob.sep_status==='concluida'}
 function desenharSeparacao(){
   let {mob,itens,est,semCod}=ATUAL,trav=travada(),dis=trav?' disabled':'';
-  let conf=itens.filter(i=>est[i.codigo]&&est[i.codigo].disponivel!=null).length,
-      tem=itens.filter(i=>est[i.codigo]&&est[i.codigo].disponivel===true).length,
-      nao=itens.filter(i=>est[i.codigo]&&est[i.codigo].disponivel===false).length;
-  let linhas=itens.map(i=>{let r=est[i.codigo]||{},d=r.disponivel,c=esc(i.codigo);
+  let conf=itens.filter(i=>dispo(est[i.codigo])!=null).length,
+      tem=itens.filter(i=>dispo(est[i.codigo])===true).length,
+      nao=itens.filter(i=>dispo(est[i.codigo])===false).length;
+  let linhas=itens.map(i=>{let r=est[i.codigo]||{},d=dispo(r),c=esc(i.codigo);
     return `<div class="item ${d===true?'tem':d===false?'naotem':''}" id="it-${c}">
-      <div><div class="desc">${esc(i.descricao)}</div><div class="cod">${c}</div></div>
+      <div><div class="desc">${esc(i.descricao)}</div><div class="cod">${c}${r.disponivel==null&&d===true?' · <span style="color:#16a34a;font-family:var(--bq-fonte)">já lançado no card</span>':''}</div></div>
       <div><span class="lbl">Solicitado</span><span class="sol">${fmtN(i.sol)}</span></div>
       <div><span class="lbl">Tem no estoque?</span><div class="tn"><button class="${d===true?'on-tem':''}" onclick="marcar('${c}',true)"${dis}>✓ Tem</button><button class="${d===false?'on-nao':''}" onclick="marcar('${c}',false)"${dis}>✕ Não tem</button></div></div>
       <div><span class="lbl">Qtd separada</span><input class="inp num" type="number" min="0" step="1" id="q-${c}" value="${r.qtd_estoque!=null?r.qtd_estoque:''}" placeholder="0" onchange="salvarItem('${c}')"${trav||d===false?' disabled':''}><div class="salvo" id="ok-${c}"></div></div>
@@ -186,7 +188,7 @@ async function gravar(cod,campos){
 async function marcar(cod,tem){
   if(travada())return;
   let it=ATUAL.itens.find(i=>i.codigo===cod),atual=ATUAL.est[cod]||{};
-  let qtd=tem?(atual.disponivel===true&&atual.qtd_estoque!=null?atual.qtd_estoque:Math.round(it.sol)):0;
+  let qtd=tem?(dispo(atual)===true&&atual.qtd_estoque!=null?atual.qtd_estoque:Math.round(it.sol)):0;
   if(await gravar(cod,{disponivel:tem,qtd_estoque:qtd}))desenharSeparacao();
 }
 async function salvarItem(cod){
@@ -196,16 +198,16 @@ async function salvarItem(cod){
     patrimonios:$('p-'+cod).value.trim()||null,
     observacao:($('o-'+cod)?$('o-'+cod).value.trim():atual.observacao)||null};
   // digitar a quantidade já conta como "tem" (se ainda não foi conferido)
-  if(atual.disponivel==null&&campos.qtd_estoque>0)campos.disponivel=true;
+  if(dispo(atual)==null&&campos.qtd_estoque>0)campos.disponivel=true;
   if(await gravar(cod,campos)){
-    if(campos.disponivel===true&&atual.disponivel==null){desenharSeparacao();return}
+    if(campos.disponivel===true&&dispo(atual)==null){desenharSeparacao();return}
     let ok=$('ok-'+cod);if(ok){ok.textContent='✓ salvo';setTimeout(()=>{ok.textContent=''},1500)}
   }
 }
 async function concluir(){
-  let falta=ATUAL.itens.filter(i=>!ATUAL.est[i.codigo]||ATUAL.est[i.codigo].disponivel==null);
+  let falta=ATUAL.itens.filter(i=>dispo(ATUAL.est[i.codigo])==null);
   if(falta.length){alert('Faltam '+falta.length+' item(ns) para conferir.');return}
-  let semQtd=ATUAL.itens.filter(i=>ATUAL.est[i.codigo].disponivel===true&&!(Number(ATUAL.est[i.codigo].qtd_estoque)>0));
+  let semQtd=ATUAL.itens.filter(i=>dispo(ATUAL.est[i.codigo])===true&&!(Number(ATUAL.est[i.codigo].qtd_estoque)>0));
   if(semQtd.length&&!confirm(semQtd.length+' item(ns) marcados como "Tem" estão com quantidade 0. Concluir mesmo assim?'))return;
   if(!confirm('Concluir a separação de "'+ATUAL.mob.nome+'"? Depois disso ela fica travada.'))return;
   let upd={sep_status:'concluida',sep_operador:userEmail,sep_concluida_em:new Date().toISOString()};
