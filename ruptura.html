@@ -160,6 +160,9 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 <div id="popup-consumo"></div>
 
 <script>
+// Armazéns que não entram no cálculo de necessidade (ex.: 02 em Alagoinhas, Ribeira e Paulo Afonso)
+const ARM_FORA_CALC={'13':['02'],'14':['02'],'15':['02']};
+function _armForaCalc(fil,arm){fil=String(fil||'').trim();arm=String(arm||'').trim().replace(/^0+/,'').padStart(2,'0');return (ARM_FORA_CALC[fil]||[]).indexOf(arm)>=0}
 const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
 const $=id=>document.getElementById(id);
 
@@ -305,10 +308,11 @@ function calcular(){
     estoque.forEach(e=>{
       const k=String(e.filial).trim()+'|'+String(e.codigo).trim();
       const o=EST[k]||(EST[k]={est:0,cam:0,custo:0,ult:'',arm:{},em:''});
-      o.est+=Number(e.qtd_atual)||0;
-      const ar=String(e.armazem||'').trim().replace(/^0+(?=\d\d)/,'')||'—';if(Number(e.qtd_atual))o.arm[ar]=(o.arm[ar]||0)+Number(e.qtd_atual);
+      const fora=_armForaCalc(e.filial,e.armazem);
+      if(!fora)o.est+=Number(e.qtd_atual)||0;
+      const ar=(String(e.armazem||'').trim().replace(/^0+(?=\d\d)/,'')||'—')+(fora?' (fora do cálculo)':'');if(Number(e.qtd_atual))o.arm[ar]=(o.arm[ar]||0)+Number(e.qtd_atual);
       if(e.atualizado_em&&e.atualizado_em>o.em)o.em=e.atualizado_em;
-      o.cam+=Math.max(0,Number(e.saldo_pedido)||0); // saldo negativo no Protheus = 0
+      if(!fora)o.cam+=Math.max(0,Number(e.saldo_pedido)||0); // saldo negativo no Protheus = 0
       if(Number(e.custo_medio)>0)o.custo=Number(e.custo_medio);
       if(e.dt_ult_movimento&&ymd8(e.dt_ult_movimento)>o.ult)o.ult=ymd8(e.dt_ult_movimento);
     });
