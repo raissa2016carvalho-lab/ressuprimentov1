@@ -230,6 +230,9 @@ let debPontual=null;async function buscarItemPontual(){clearTimeout(debPontual),
         style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:18px;padding:0">✕</button>
     </div>`).join(``)}
 // ── ENVIAR ───────────────────────────────────────────────────────────────────
+// Armazéns que não entram no cálculo de necessidade (ex.: 02 em Alagoinhas, Ribeira e Paulo Afonso)
+const ARM_FORA_CALC={'13':['02'],'14':['02'],'15':['02']};
+function _armForaCalc(fil,arm){fil=String(fil||'').trim();arm=String(arm||'').trim().replace(/^0+/,'').padStart(2,'0');return (ARM_FORA_CALC[fil]||[]).indexOf(arm)>=0}
 async function enviarSolicitacao(){let nome=$(`nome`).value.trim(),matricula=$(`matricula`).value.trim(),justificativa=$(`justificativa`).value.trim(),filial=$(`filial`).value,msgEl=$(`form-msg`);if(!nome||!matricula){msgEl.innerHTML=`<div class="msg erro">Preencha nome e matrícula.</div>`;return}if(!filial){msgEl.innerHTML=`<div class="msg erro">Selecione a filial.</div>`;return}if(!ccsSelecionados.length){msgEl.innerHTML=`<div class="msg erro">Selecione pelo menos um centro de custo.</div>`;return}
 // Montar lista de itens selecionados
 let itensSelecionados=[...Object.values(qtdMap).filter(it=>it.qtd>0),...itensPontuais.filter(it=>it.qtd>0)];if(!itensSelecionados.length){msgEl.innerHTML=`<div class="msg erro">Selecione pelo menos um item com quantidade.</div>`;return}$(`btn-enviar`).disabled=!0,$(`btn-enviar`).textContent=`Enviando...`,msgEl.innerHTML=``;
@@ -239,8 +242,9 @@ try{
   let codigos=itensSelecionados.map(it=>it.codigo);
   for(let oi=0;oi<codigos.length;oi+=50){
     let lote=codigos.slice(oi,oi+50);
-    let{data:estRows}=await db.from('estoque_sb2').select('codigo,qtd_atual').eq('filial',filial).in('codigo',lote);
+    let{data:estRows}=await db.from('estoque_sb2').select('codigo,armazem,qtd_atual').eq('filial',filial).in('codigo',lote);
     (estRows||[]).forEach(r=>{
+      if(_armForaCalc(filial,r.armazem))return;
       let k=String(r.codigo||'').trim();
       _estoqueSnap[k]=(_estoqueSnap[k]||0)+Number(r.qtd_atual||0);
     });
