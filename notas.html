@@ -326,13 +326,16 @@ const _dias=(a,b)=>a&&b?Math.round((b-a)/864e5):null;
 const _fd=d=>d?d.toLocaleDateString('pt-BR'):'—';
 function slaDa(n){let x=sd1&&sd1[n.id],emi=_dt(n.emissao),integ=n.status_integracao==='3'?_dt(n.integracao):null,dig=x?_d8(x.sd1_dtdigit):null;
   let lanc=dig||integ;return {emi,integ,dig,lanc,dias:lanc?_dias(emi,lanc):null,aberto:lanc?null:(n.emissao?Math.floor((Date.now()-new Date(n.emissao).getTime())/864e5):null),amarr:x?(x.amarracao||'filial+nota+série+emissão'):''}}
+// No SLA ficam de fora as notas que nunca vão ser lançadas: canceladas, denegadas,
+// manifestação de desconhecimento (210220) ou de operação não realizada (210240)
+const slaConta=n=>n.status_nfe!=='C'&&n.status_nfe!=='D'&&n.manifestacao!=='210220'&&n.manifestacao!=='210240';
 function renderSla(){
-  let l=notasFiltradas(),ss=l.map(slaDa),lanc=ss.filter(x=>x.lanc&&x.dias!=null),ab=ss.filter(x=>!x.lanc);
+  let l=notasFiltradas().filter(slaConta),ss=l.map(slaDa),lanc=ss.filter(x=>x.lanc&&x.dias!=null),ab=ss.filter(x=>!x.lanc);
   let med=lanc.length?lanc.reduce((a,x)=>a+Math.max(0,x.dias),0)/lanc.length:0,noPrazo=lanc.filter(x=>x.dias<=SLA_META).length;
   let medAb=ab.length?ab.reduce((a,x)=>a+(x.aberto||0),0)/ab.length:0;
   let il=ss.filter(x=>x.integ&&x.dig),ilPos=il.filter(x=>_dias(x.integ,x.dig)>=0),medIL=ilPos.length?ilPos.reduce((a,x)=>a+_dias(x.integ,x.dig),0)/ilPos.length:0,poster=il.length-ilPos.length;
   $('resumo').innerHTML=
-    '<div class="resumo-card"><div class="val">'+l.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+_rotPeriodo()+'</div><div class="sub">todas, menos canceladas (use os filtros acima)</div></div>'+
+    '<div class="resumo-card"><div class="val">'+l.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+_rotPeriodo()+'</div><div class="sub">sem canceladas, denegadas, desconhecidas e operação não realizada</div></div>'+
     '<div class="resumo-card azul"><div class="val">'+med.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias</div><div class="lab">SLA emissão → lançamento (média)</div><div class="sub">'+lanc.length.toLocaleString('pt-BR')+' notas lançadas</div></div>'+
     '<div class="resumo-card verde"><div class="val">'+(lanc.length?Math.round(noPrazo/lanc.length*100):0)+'%</div><div class="lab">Lançadas em até '+SLA_META+' dias</div><div class="sub">'+noPrazo.toLocaleString('pt-BR')+' de '+lanc.length.toLocaleString('pt-BR')+'</div></div>'+
     '<div class="resumo-card"><div class="val" style="color:#0f766e">'+medIL.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias</div><div class="lab">SLA integração → lançamento (média)</div><div class="sub">'+ilPos.length.toLocaleString('pt-BR')+' notas · '+poster.toLocaleString('pt-BR')+' com integração posterior</div></div>'+
@@ -347,10 +350,10 @@ function renderSla(){
         '<td class="num">'+fmtR(n.valor_total)+'</td>'+
         '<td>'+_fd(x.emi)+'</td>'+
         '<td>'+(x.integ&&x.dig&&_dias(x.dig,x.integ)>1?'<span title="A nota foi lançada direto no Protheus em '+_fd(x.dig)+' e só depois marcada como integrada no NFe Master. O SLA usa a data da SD1.">'+_fd(x.integ)+'<div style="font-size:10.5px;color:#b45309">integração posterior</div></span>':x.integ?_fd(x.integ):'<span style="color:#94a3b8;font-size:11.5px">'+(n.status_integracao==='3'?'sem data':'não integrada')+'</span>')+'</td>'+
-        '<td>'+(x.dig?_fd(x.dig):'<span style="color:#94a3b8;font-size:11.5px">não está na SD1</span>')+(x.amarr?'<div class="cnpj" title="Como a nota foi ligada à SD1">por '+esc(x.amarr)+'</div>':'')+'</td>'+
+        '<td>'+(x.dig?_fd(x.dig):'<span style="color:#94a3b8;font-size:11.5px">não está na SD1</span>')+'</td>'+
         '<td class="num" style="font-weight:700;color:'+cor+'">'+(x.dias!=null?x.dias:'<span style="color:#dc2626;font-weight:600">em aberto há '+x.aberto+'</span>')+'</td>'+
         '<td class="num">'+(x.integ&&x.dig?(()=>{let d=_dias(x.integ,x.dig);return d<0?'<span style="color:#b45309;font-size:11.5px;white-space:nowrap" title="Já estava na SD1 '+(-d)+' dia(s) antes de ser marcada como integrada no NFe Master">integração posterior</span>':'<b>'+d+'</b>'})():'<span style="color:#cbd5e1">—</span>')+'</td>'+
-        '<td>'+statusUnico(n)+'</td></tr>'}).join('')+'</tbody></table>';
+        '<td>'+(x.dig?'<span class="pill st-3" title="Já está na SD1 (digitada em '+_fd(x.dig)+')">Lançada</span>':statusUnico(n))+'</td></tr>'}).join('')+'</tbody></table>';
 }
 function renderForn(){
   resumoForn();
