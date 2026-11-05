@@ -91,17 +91,19 @@ let userEmail='',isAdmin=false,FILTRO='abertas',MOBS=[],ATUAL=null;
 // Item já conferido? Estoque lançado antes desta tela (quantidade > 0, sem marcação) conta como "Tem"
 const dispo=r=>!r?null:r.disponivel!=null?r.disponivel:(Number(r.qtd_estoque)>0?true:null);
 
+// lê a tabela inteira de 1000 em 1000 (o Supabase devolve no máximo 1000 por vez)
+async function todas(tab,cols){let out=[];for(let o=0;;o+=1000){let{data,error}=await db.from(tab).select(cols).order('id').range(o,o+999);if(error||!data||!data.length)break;out=out.concat(data);if(data.length<1000)break}return out}
 // ── Lista de mobilizações ──────────────────────────────────────────────────
 async function carregarLista(){
   $('corpo').innerHTML='<div class="vazio">Carregando mobilizações...</div>';
-  let[{data:mobs,error},{data:itens},{data:est}]=await Promise.all([
+  let[{data:mobs,error},itens,est]=await Promise.all([
     db.from('mobilizacoes').select('*').order('criado_em',{ascending:false}),
-    db.from('mobilizacao_itens').select('mobilizacao_id,codigo'),
-    db.from('mobilizacao_estoque').select('mobilizacao_id,codigo,disponivel,qtd_estoque')
+    todas('mobilizacao_itens','mobilizacao_id,codigo,excluido'),
+    todas('mobilizacao_estoque','mobilizacao_id,codigo,disponivel,qtd_estoque')
   ]);
   if(error){$('corpo').innerHTML='<div class="vazio">Não consegui carregar: '+esc(error.message)+'</div>';return}
   let nItens={},nConf={};
-  (itens||[]).forEach(i=>{if(i.codigo==null)return;(nItens[i.mobilizacao_id]=nItens[i.mobilizacao_id]||new Set()).add(String(i.codigo))});
+  (itens||[]).forEach(i=>{if(i.codigo==null||i.excluido)return;(nItens[i.mobilizacao_id]=nItens[i.mobilizacao_id]||new Set()).add(String(i.codigo))});
   (est||[]).forEach(e=>{if(dispo(e)!=null)(nConf[e.mobilizacao_id]=nConf[e.mobilizacao_id]||new Set()).add(String(e.codigo))});
   MOBS=(mobs||[]).filter(m=>!String(m.grupo||'').toUpperCase().startsWith('OCULTO')).map(m=>{
     let tot=nItens[m.id]?nItens[m.id].size:0,conf=nConf[m.id]?[...nConf[m.id]].filter(c=>nItens[m.id]&&nItens[m.id].has(c)).length:0;
@@ -133,12 +135,12 @@ async function abrir(id){
   history.replaceState(null,'','?id='+id);
   let[{data:mob},{data:itens},{data:est}]=await Promise.all([
     db.from('mobilizacoes').select('*').eq('id',id).maybeSingle(),
-    db.from('mobilizacao_itens').select('codigo,descricao,total_mob').eq('mobilizacao_id',id),
+    db.from('mobilizacao_itens').select('*').eq('mobilizacao_id',id),
     db.from('mobilizacao_estoque').select('*').eq('mobilizacao_id',id)
   ]);
   if(!mob){$('corpo').innerHTML='<div class="vazio">Mobilização não encontrada. <a href="#" onclick="carregarLista();return false">Voltar</a></div>';return}
   // mesmo agrupamento do card: um item por código, somando as funções
-  let por={};(itens||[]).forEach(i=>{if(i.codigo==null)return;let k=String(i.codigo);por[k]=por[k]||{codigo:k,descricao:i.descricao,sol:0};por[k].sol+=Number(i.total_mob)||0});
+  itens=(itens||[]).filter(i=>!i.excluido);let por={};itens.forEach(i=>{if(i.codigo==null)return;let k=String(i.codigo);por[k]=por[k]||{codigo:k,descricao:i.descricao,sol:0};por[k].sol+=Number(i.total_mob)||0});
   let semCod=(itens||[]).filter(i=>i.codigo==null).length;
   let e={};(est||[]).forEach(r=>{e[String(r.codigo)]=r});
   ATUAL={mob,itens:Object.values(por).sort((a,b)=>(a.descricao||'').localeCompare(b.descricao||'')),est:e,semCod};
