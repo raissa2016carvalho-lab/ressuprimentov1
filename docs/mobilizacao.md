@@ -40,3 +40,11 @@ Backup: `backup_mob_40_43_2026_10_27_mob`, `_itens`, `_estoque` (desfazer = volt
 
 ## Mobilizações antigas (não mexer)
 #3, 4, 6, 9, 11, 13, 14, 15, 20, 24, 26, 27, 28, 29, 30. As #31–35 foram apagadas (backup guardado).
+
+## Tela de Separação (`separacao.html`, 04/11 — no Preview)
+Ideia trazida por um amigo da Raissa (repositório `eemanyu/separacao-epi-epc`, servidor Node próprio + webhook); foi refeita **dentro
+do nosso sistema**, sem servidor novo. Login do Painel principal. Lista as mobilizações (sem grupo "OCULTO") com X/Y itens conferidos;
+na mobilização, item por código (soma das funções): ✓ Tem / ✕ Não tem, qtd separada (vem o solicitado), patrimônios, observação.
+Cada mudança grava na hora em `mobilizacao_estoque` (upsert `mobilizacao_id,codigo`) com `separado_por/separado_em` → aparece na
+coluna Estoque do card. "Concluir" exige todos conferidos e trava (`mobilizacoes.sep_status = 'concluida'`); só admin reabre.
+Estoque lançado antes da tela (qtd > 0 sem marcação) conta como "Tem" ("já lançado no card"). Itens sem código não aparecem.
