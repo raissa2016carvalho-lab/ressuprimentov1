@@ -162,6 +162,9 @@ const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Fa
 // 3 = integrado no Protheus (todas têm data de integração). 1 e 2 = ainda não integradas → pendentes
 const ST_INT={'1':'Pendente · sem XML','2':'Pendente','3':'Integrado'};
 const PEND=n=>n.status_nfe!=='C'&&n.status_integracao!=='3';
+// Nota parada: pendente no NFe Master, não lançada na SD1 e emitida há PARADA_DIAS dias ou mais
+const PARADA_DIAS=5;let SO_PARADAS=false;
+function diasParada(n){if(!PEND(n)||(sd1&&sd1[n.id])||!n.emissao)return 0;let d=Math.floor((Date.now()-new Date(n.emissao).getTime())/864e5);return d>=PARADA_DIAS?d:0}
 const ST_NFE={'A':'Autorizada','C':'Cancelada','D':'Denegada'};
 const POR_PAG=100;
 let notas=[],setForn={},setNota={},lista=[],pag=0,userEmail='',aba='notas',sel=new Set();
@@ -201,7 +204,7 @@ async function carregar(){
     sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;
     notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
     $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
-    montarFiltros();if(MODO_RECEB&&window._filialReceb){$('f-filial').value=window._filialReceb}agrupar();render();
+    montarFiltros();if(MODO_RECEB&&window._filialReceb&&(!FILIAIS_USUARIO||!FILIAIS_USUARIO.length||FILIAIS_USUARIO.includes(window._filialReceb))){$('f-filial').value=window._filialReceb}agrupar();render();
   }catch(e){$('tabela').innerHTML='<div class="msg-vazio">Não consegui carregar (o banco pode estar ocupado com os syncs). Clique em ↻ Atualizar.<br><small>'+esc(e.message||e)+'</small></div>'}
 }
 
@@ -209,8 +212,9 @@ function montarFiltros(){
   let v=$('f-setor').value;
   $('f-setor').innerHTML='<option value="">Todos</option><option value="__sem">⚠ Sem setor</option>'+SETORES.map(x=>'<option>'+esc(x)+'</option>').join('');$('f-setor').value=v;
   let fil={};notas.forEach(n=>{if(n.filial)fil[n.filial]=n.empresa_nome||n.filial});
-  let vf=$('f-filial').value;
-  $('f-filial').innerHTML='<option value="">Todas</option>'+Object.keys(fil).sort().map(k=>'<option value="'+k+'">'+k+' · '+esc(String(fil[k]).replace(/^B&Q ENERGIA LTDA\s*-?\s*/i,'')||'MATRIZ')+'</option>').join('');$('f-filial').value=vf;
+  let vf=$('f-filial').value,ks=Object.keys(fil).sort(),restr=MODO_RECEB&&FILIAIS_USUARIO&&FILIAIS_USUARIO.length;
+  if(restr){ks=FILIAIS_USUARIO.slice();ks.forEach(k=>{if(!fil[k])fil[k]=k});if(!ks.includes(vf))vf=ks[0]}
+  $('f-filial').innerHTML=(restr?'':'<option value="">Todas</option>')+ks.map(k=>'<option value="'+k+'">'+k+' · '+esc(String(fil[k]).replace(/^B&Q ENERGIA LTDA\s*-?\s*/i,'')||'MATRIZ')+'</option>').join('');$('f-filial').value=vf;
   let vs=$('f-status').value;
   $('f-status').innerHTML='<option value="pend">⏳ Só pendentes</option><option value="3">✓ Integradas</option><option value="C">Canceladas</option><option value="">Todas</option>';$('f-status').value=vs||'pend';
   $('sel-setor-lote').innerHTML=opcSetor('').replace('— escolher —','— escolher setor —')+'<option value="__limpar">(tirar o setor)</option>';
@@ -248,6 +252,7 @@ function notasFiltradas(ignorarSetor){
   return notas.filter(n=>{
     if(!noPeriodo(n))return false;
     if(!passaStatus(n,si)||!passaManif(n,$('f-manif').value))return false;
+    if(SO_PARADAS&&!diasParada(n))return false;
     let fs=$('f-sd1').value;if(fs&&sd1){let tem=!!sd1[n.id];if(fs==='sim'&&!tem)return false;if(fs==='nao'&&tem)return false}
     if(fil&&n.filial!==fil)return false;
     let s=setorDa(n).setor;if(!ignorarSetor){if(st==='__sem'&&s)return false;if(st&&st!=='__sem'&&s!==st)return false}
@@ -265,13 +270,14 @@ function fornFiltrados(){
 function resumoNotas(){
   let si=$('f-status').value,fil=$('f-filial').value,ns=notas.filter(n=>noPeriodo(n)&&passaStatus(n,si)&&passaManif(n,$('f-manif').value)&&(!fil||n.filial===fil)),com=ns.filter(n=>setorDa(n).setor).length;
   let rotSt={pend:'pendentes',3:'integradas',C:'canceladas'}[si]||'';
-  let pend=ns.filter(PEND).length;
+  let pend=ns.filter(PEND).length,paradas=ns.filter(diasParada).length;
   $('resumo').innerHTML=
     '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+(rotSt?rotSt+' ':'')+'emitidas '+_rotPeriodo()+'</div><div class="sub" id="sub-periodo">'+(si==='C'?'':'sem as canceladas')+'</div></div>'+
     '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor</div></div>'+
     '<div class="resumo-card alerta"><div class="val">'+(ns.length-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
     '<div class="resumo-card azul"><div class="val">'+(ns.length?Math.round(com/ns.length*100):0)+'%</div><div class="lab">das notas já têm setor</div></div>'+
     '<div class="resumo-card"><div class="val" style="color:#b45309">'+pend.toLocaleString('pt-BR')+'</div><div class="lab">Pendentes de integração</div></div>'+
+    '<div class="resumo-card" style="cursor:pointer;'+(SO_PARADAS?'border-color:#dc2626;background:#fef2f2':'')+'" onclick="SO_PARADAS=!SO_PARADAS;pag=0;render()" title="Pendentes, não lançadas na SD1 e emitidas há '+PARADA_DIAS+' dias ou mais. Clique para '+(SO_PARADAS?'ver todas':'ver só essas')+'"><div class="val" style="color:#dc2626">'+paradas.toLocaleString('pt-BR')+'</div><div class="lab">Paradas há '+PARADA_DIAS+'+ dias</div><div class="sub">'+(SO_PARADAS?'✕ mostrando só as paradas':'clique para filtrar')+'</div></div>'+
     (sd1?'<div class="resumo-card" style="cursor:pointer" onclick="$(\'f-sd1\').value=\'sim\';pag=0;render()" title="Clique para ver só essas"><div class="val" style="color:#7c3aed">'+ns.filter(n=>PEND(n)&&sd1[n.id]).length.toLocaleString('pt-BR')+'</div><div class="lab">Pendentes no NFe Master mas <b>já lançadas na SD1</b></div><div class="sub">lançamento manual no Protheus</div></div>':'');
 }
 function resumoForn(){
@@ -338,8 +344,8 @@ function statusUnico(n){
   let x=sd1&&sd1[n.id];
   if(x){let dif=Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_total)||0))>1&&Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_produtos)||0))>1;
     return '<span class="pill" style="background:#ede9fe;color:#5b21b6"'+t('Já está na SD1 (lançada no Protheus sem passar pelo NFe Master): '+x.sd1_itens+' itens · '+fmtR(x.sd1_valor)+(dif?' · VALOR DIFERENTE da nota':''))+'>Lançada manual'+(dif?' ⚠':'')+'</span>'}
-  let p=n.status_integracao==='1'?'Pendente · sem XML':'Pendente';
-  return '<span class="pill st-1"'+t(p)+'>'+p+(extra.length?' •':'')+'</span>';
+  let p=n.status_integracao==='1'?'Pendente · sem XML':'Pendente',dp=diasParada(n);
+  return '<span class="pill st-1"'+t(p+(dp?' · parada há '+dp+' dias':''))+'>'+p+(extra.length?' •':'')+'</span>'+(dp?'<div style="font-size:10.5px;color:#dc2626;margin-top:2px;white-space:nowrap">parada há '+dp+' dias</div>':'');
 }
 function htmlSd1(n){
   if(!sd1)return '<span style="color:#cbd5e1">—</span>';
@@ -430,7 +436,7 @@ function _vaiChegar(n){return n.status_nfe!=='C'&&n.status_integracao!=='3'&&!(s
 function renderReceb(){
   if(!fluxo){$('resumo').innerHTML='';$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco a tabela <b>nfe_fluxo</b>.</div>';return}
   let fil=$('f-filial').value,b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),h=hojeIso(),lim=_iso(new Date(Date.now()-90*864e5));
-  let base=notas.filter(n=>(!fil||n.filial===fil)&&String(n.emissao||'').slice(0,10)>=lim&&(!b||(n.fornecedor_nome||'').toLowerCase().includes(b)||(bd&&String(n.numero||'').includes(bd))));
+  let base=notas.filter(n=>(!fil||n.filial===fil)&&(!FILIAIS_USUARIO||!FILIAIS_USUARIO.length||FILIAIS_USUARIO.includes(n.filial))&&String(n.emissao||'').slice(0,10)>=lim&&(!b||(n.fornecedor_nome||'').toLowerCase().includes(b)||(bd&&String(n.numero||'').includes(bd))));
   // só aparece para o almoxarifado o que o Compras já colocou data de entrega
   let semData=base.filter(n=>_vaiChegar(n)&&!(fluxo[n.id]||{}).previsao_entrega&&!(fluxo[n.id]||{}).recebido_em&&!(fluxo[n.id]||{}).recusado_em).length;
   let chegar=base.filter(n=>{let f=fluxo[n.id]||{};return _vaiChegar(n)&&f.previsao_entrega&&!f.recebido_em&&!f.recusado_em});
@@ -528,7 +534,9 @@ async function salvarForn(sel_){
 }
 
 // Login: mesmo usuário do Painel principal
-function liberar(email){userEmail=email||'';if(MODO_RECEB)iniciarModoReceb();{let h=new Date(),i=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-6));$('f-de').value=i;$('f-ate').value=_iso(h)}document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
+// Filiais do usuário (perfis_usuario.filiais, ex.: "42,44"). Vazio ou admin = vê todas
+let FILIAIS_USUARIO=null;
+async function liberar(email){userEmail=email||'';try{let{data}=await db.from('perfis_usuario').select('*').eq('email',userEmail.toLowerCase().trim()).maybeSingle();if(data&&data.role!=='admin'&&data.filiais)FILIAIS_USUARIO=String(data.filiais).split(/[,;\s]+/).map(x=>x.trim().padStart(2,'0')).filter(x=>x&&x!=='00')}catch(e){}if(MODO_RECEB)iniciarModoReceb();{let h=new Date(),i=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-6));$('f-de').value=i;$('f-ate').value=_iso(h)}document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
 async function entrar(){
   let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
   if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
