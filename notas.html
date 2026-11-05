@@ -325,7 +325,7 @@ const _dt=v=>{if(!v)return null;let d=new Date(String(v).slice(0,10)+'T00:00:00'
 const _dias=(a,b)=>a&&b?Math.round((b-a)/864e5):null;
 const _fd=d=>d?d.toLocaleDateString('pt-BR'):'—';
 function slaDa(n){let x=sd1&&sd1[n.id],emi=_dt(n.emissao),integ=n.status_integracao==='3'?_dt(n.integracao):null,dig=x?_d8(x.sd1_dtdigit):null;
-  let lanc=dig||integ;return {emi,integ,dig,lanc,dias:lanc?_dias(emi,lanc):null,aberto:lanc?null:_dias(emi,new Date()),amarr:x?(x.amarracao||'filial+nota+série+emissão'):''}}
+  let lanc=dig||integ;return {emi,integ,dig,lanc,dias:lanc?_dias(emi,lanc):null,aberto:lanc?null:(n.emissao?Math.floor((Date.now()-new Date(n.emissao).getTime())/864e5):null),amarr:x?(x.amarracao||'filial+nota+série+emissão'):''}}
 function renderSla(){
   let l=notasFiltradas(),ss=l.map(slaDa),lanc=ss.filter(x=>x.lanc&&x.dias!=null),ab=ss.filter(x=>!x.lanc);
   let med=lanc.length?lanc.reduce((a,x)=>a+Math.max(0,x.dias),0)/lanc.length:0,noPrazo=lanc.filter(x=>x.dias<=SLA_META).length;
