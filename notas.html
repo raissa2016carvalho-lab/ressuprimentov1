@@ -344,7 +344,7 @@ function renderSla(){
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+'</div><div class="cnpj">'+fmtCnpj(chaveCnpj(n.fornecedor_cnpj))+'</div></td>'+
         '<td class="num">'+fmtR(n.valor_total)+'</td>'+
         '<td>'+_fd(x.emi)+'</td>'+
-        '<td>'+(x.integ?_fd(x.integ):'<span style="color:#94a3b8;font-size:11.5px">'+(n.status_integracao==='3'?'sem data':'não integrada')+'</span>')+'</td>'+
+        '<td>'+(x.integ&&x.dig&&_dias(x.dig,x.integ)>1?'<span title="A nota foi lançada direto no Protheus em '+_fd(x.dig)+' e só depois marcada como integrada no NFe Master. O SLA usa a data da SD1.">'+_fd(x.integ)+'<div style="font-size:10.5px;color:#b45309">marcada depois do lançamento</div></span>':x.integ?_fd(x.integ):'<span style="color:#94a3b8;font-size:11.5px">'+(n.status_integracao==='3'?'sem data':'não integrada')+'</span>')+'</td>'+
         '<td>'+(x.dig?_fd(x.dig):'<span style="color:#94a3b8;font-size:11.5px">não está na SD1</span>')+(x.amarr?'<div class="cnpj" title="Como a nota foi ligada à SD1">por '+esc(x.amarr)+'</div>':'')+'</td>'+
         '<td class="num" style="font-weight:700;color:'+cor+'">'+(x.dias!=null?x.dias:'<span style="color:#dc2626;font-weight:600">em aberto há '+x.aberto+'</span>')+'</td>'+
         '<td>'+statusUnico(n)+'</td></tr>'}).join('')+'</tbody></table>';
