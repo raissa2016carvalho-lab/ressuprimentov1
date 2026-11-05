@@ -2525,7 +2525,7 @@ if(elResumo){
   elResumo.innerHTML=`
     <span style="font-weight:800;font-size:16px;color:${corPct}">${pctAtend}%</span>
     <span style="color:#94a3b8;font-size:11px">atendimento</span>
-    <span style="background:#f1f5f9;border-radius:6px;padding:2px 8px;font-size:11px;color:#475569">${totalAtend}/${total} SKUs${cats.eliminado.length>0?` · ${cats.eliminado.length} eliminado(s) por resíduo`:''}</span>
+    <span style="background:#f1f5f9;border-radius:6px;padding:2px 8px;font-size:11px;color:#475569">${totalAtend}/${total} SKUs</span>
     ${cats.recebido.length>0?`<span style="background:#dcfce7;color:#16a34a;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">✅ ${cats.recebido.length} recebido(s)</span>`:''}
     ${cats.estoque.length>0?`<span style="background:#dbeafe;color:#1e40af;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">📦 ${cats.estoque.length} estoque</span>`:''}
   `;
@@ -2659,11 +2659,11 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
         </div>`}).join(``)}function pizzaCats(){let r=cats.recebido.length,e=cats.estoque.length,pe=cats.pendente.length,a=cats.aprovacao.length,s=cats.semPedido.length,el=cats.eliminado.length,t=total,graus=n=>Math.round(n/t*360),g1=graus(r),g2=graus(e),g3=graus(a),g4=graus(pe),g5=graus(s);return`
         <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#fff;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
           <div style="flex-shrink:0">
-            <div style="width:96px;height:96px;border-radius:50%;background:${`conic-gradient(#22c55e 0deg ${g1}deg, #6366f1 ${g1}deg ${g1+g2}deg, #f59e0b ${g1+g2}deg ${g1+g2+g3}deg, #ef4444 ${g1+g2+g3}deg ${g1+g2+g3+g4}deg, #94a3b8 ${g1+g2+g3+g4}deg ${g1+g2+g3+g4+g5}deg, #78716c ${g1+g2+g3+g4+g5}deg 360deg)`}"></div>
+            <div style="width:96px;height:96px;border-radius:50%;background:${`conic-gradient(#22c55e 0deg ${g1}deg, #6366f1 ${g1}deg ${g1+g2}deg, #f59e0b ${g1+g2}deg ${g1+g2+g3}deg, #ef4444 ${g1+g2+g3}deg ${g1+g2+g3+g4}deg, #94a3b8 ${g1+g2+g3+g4}deg 360deg)`}"></div>
           </div>
           <div>
             <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:10px">Atendimento da mobilização</div>
-            <div style="display:flex;flex-direction:column;gap:6px">${[{cor:`#22c55e`,label:`Recebidos (PC)`,n:r},{cor:`#6366f1`,label:`Via estoque`,n:e},{cor:`#f59e0b`,label:`Em aprovação`,n:a},{cor:`#ef4444`,label:`Pendentes`,n:pe},{cor:`#94a3b8`,label:`Sem pedido`,n:s},{cor:`#78716c`,label:`Elim. por resíduo`,n:el}].map(l=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569">
+            <div style="display:flex;flex-direction:column;gap:6px">${[{cor:`#22c55e`,label:`Recebidos (PC)`,n:r},{cor:`#6366f1`,label:`Via estoque`,n:e},{cor:`#f59e0b`,label:`Em aprovação`,n:a},{cor:`#ef4444`,label:`Pendentes`,n:pe},{cor:`#94a3b8`,label:`Sem pedido`,n:s}].map(l=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569">
         <span style="width:10px;height:10px;border-radius:50%;background:${l.cor};flex-shrink:0"></span>
         ${l.label}: <strong>${l.n}</strong> (${Math.round(l.n/t*100)}%)
       </div>`).join(``)}</div>
@@ -2691,13 +2691,12 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px">
         ${renderCardCat(`recebido`,`Recebidos`,`#22c55e`,`✅`,cats.recebido)}
         ${renderCardCat(`estoque`,`Via estoque`,`#6366f1`,`📦`,cats.estoque)}
         ${renderCardCat(`aprovacao`,`Em aprovação`,`#f59e0b`,`⏳`,cats.aprovacao)}
         ${renderCardCat(`pendente`,`Pendentes`,`#ef4444`,`🔴`,cats.pendente)}
         ${renderCardCat(`semPedido`,`Sem pedido`,`#94a3b8`,`⚪`,cats.semPedido)}
-        ${renderCardCat(`eliminado`,`Elim. Resíduo`,`#78716c`,`🗑️`,cats.eliminado)}
       </div>
       <div style="margin-bottom:10px">${renderPaineisCat()}</div>
       <div style="margin-bottom:20px">${pizzaCats()}</div>
