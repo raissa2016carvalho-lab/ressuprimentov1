@@ -337,7 +337,7 @@ function renderSla(){
     '<div class="resumo-card alerta"><div class="val">'+ab.length.toLocaleString('pt-BR')+'</div><div class="lab">Ainda não lançadas</div><div class="sub">em aberto há '+medAb.toLocaleString('pt-BR',{maximumFractionDigits:0})+' dias, em média</div></div>';
   let parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';return}
-  $('tabela').innerHTML='<table><thead><tr><th>Filial</th><th>Nº nota</th><th>Fornecedor</th><th class="num">Valor</th><th>Emissão</th><th>Integração NFe Master</th><th>Digitação SD1</th><th class="num">Dias até lançar</th><th>Status</th></tr></thead><tbody>'+
+  $('tabela').innerHTML='<table><thead><tr><th>Filial</th><th>Nº nota</th><th>Fornecedor</th><th class="num">Valor</th><th>Emissão</th><th>Integração NFe Master</th><th>Digitação SD1</th><th class="num" title="Dias da emissão até a digitação na SD1 (ou até a integração, se não estiver na SD1)">Emissão → lançamento</th><th class="num" title="Dias da integração no NFe Master até a digitação na SD1. Negativo = a nota já estava na SD1 antes de ser marcada como integrada">Integração → lançamento</th><th>Status</th></tr></thead><tbody>'+
     parte.map(n=>{let x=slaDa(n),cor=x.dias==null?'':x.dias<=SLA_META?'#16a34a':x.dias<=SLA_META*2?'#b45309':'#dc2626';
       return '<tr><td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
@@ -347,6 +347,7 @@ function renderSla(){
         '<td>'+(x.integ&&x.dig&&_dias(x.dig,x.integ)>1?'<span title="A nota foi lançada direto no Protheus em '+_fd(x.dig)+' e só depois marcada como integrada no NFe Master. O SLA usa a data da SD1.">'+_fd(x.integ)+'<div style="font-size:10.5px;color:#b45309">marcada depois do lançamento</div></span>':x.integ?_fd(x.integ):'<span style="color:#94a3b8;font-size:11.5px">'+(n.status_integracao==='3'?'sem data':'não integrada')+'</span>')+'</td>'+
         '<td>'+(x.dig?_fd(x.dig):'<span style="color:#94a3b8;font-size:11.5px">não está na SD1</span>')+(x.amarr?'<div class="cnpj" title="Como a nota foi ligada à SD1">por '+esc(x.amarr)+'</div>':'')+'</td>'+
         '<td class="num" style="font-weight:700;color:'+cor+'">'+(x.dias!=null?x.dias:'<span style="color:#dc2626;font-weight:600">em aberto há '+x.aberto+'</span>')+'</td>'+
+        '<td class="num">'+(x.integ&&x.dig?(()=>{let d=_dias(x.integ,x.dig);return d<0?'<span style="color:#b45309" title="Já estava na SD1 '+(-d)+' dia(s) antes de ser marcada como integrada">'+d+'</span>':'<b>'+d+'</b>'})():'<span style="color:#cbd5e1">—</span>')+'</td>'+
         '<td>'+statusUnico(n)+'</td></tr>'}).join('')+'</tbody></table>';
 }
 function renderForn(){
