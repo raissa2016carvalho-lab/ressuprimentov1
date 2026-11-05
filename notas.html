@@ -536,7 +536,9 @@ async function salvarForn(sel_){
 // Login: mesmo usuário do Painel principal
 // Filiais do usuário (perfis_usuario.filiais, ex.: "42,44"). Vazio ou admin = vê todas
 let FILIAIS_USUARIO=null;
-async function liberar(email){userEmail=email||'';try{let{data}=await db.from('perfis_usuario').select('*').eq('email',userEmail.toLowerCase().trim()).maybeSingle();if(data&&data.role!=='admin'&&data.filiais)FILIAIS_USUARIO=String(data.filiais).split(/[,;\s]+/).map(x=>x.trim().padStart(2,'0')).filter(x=>x&&x!=='00')}catch(e){}if(MODO_RECEB)iniciarModoReceb();{let h=new Date(),i=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-6));$('f-de').value=i;$('f-ate').value=_iso(h)}document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
+async function liberar(email){userEmail=email||'';try{let{data}=await db.from('perfis_usuario').select('*').eq('email',userEmail.toLowerCase().trim()).maybeSingle();if(data&&data.role!=='admin'&&data.filiais)FILIAIS_USUARIO=String(data.filiais).split(/[,;\s]+/).map(x=>x.trim().padStart(2,'0')).filter(x=>x&&x!=='00')}catch(e){}
+  // link com filial (ex.: /recebimento.html?filial=42 ou ?filial=42,44): mostra só essa(s) filial(is)
+  {let qf=new URLSearchParams(location.search).get('filial');if(qf&&MODO_RECEB)FILIAIS_USUARIO=qf.split(/[,;\s]+/).map(x=>x.trim().padStart(2,'0')).filter(x=>x&&x!=='00')}if(MODO_RECEB)iniciarModoReceb();{let h=new Date(),i=_iso(new Date(h.getFullYear(),h.getMonth(),h.getDate()-6));$('f-de').value=i;$('f-ate').value=_iso(h)}document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';carregar()}
 async function entrar(){
   let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
   if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
