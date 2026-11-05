@@ -7,7 +7,8 @@ Salvar em: C:\\painel-protheus\\sync_movimentos_entrada.py
 Rodar com: py C:\\painel-protheus\\sync_movimentos_entrada.py
 
 05/11/2026: + D1_LOJA, D1_DTDIGIT (SLA de lançamento), F1_CHVNFE (amarração exata com o NFe Master),
-            A2_CGC (CNPJ do fornecedor) e filtro D_E_L_E_T_ (não traz linhas apagadas no Protheus).
+            A2_CGC (CNPJ do fornecedor) e filtro D_E_L_E_T_ quando a tabela tiver essa coluna.
+            O script confere quais colunas existem em LWHSD1010 / LWHSF1010 / LWHSA2010 antes de montar a consulta.
             No fim chama atualizar_nfe_sd1() para o painel de Notas ficar em dia.
 """
 
@@ -66,46 +67,61 @@ def limpar_num(val):
         return None
 
 
-# Colunas da SD1 (sempre) + chave da NF-e (SF1) + CNPJ do fornecedor (SA2).
-# Se a SF1 ou a SA2 não existirem com esse nome, o script tenta de novo sem elas.
-COLS_SD1 = """
-                RTRIM(D.D1_FILIAL)   AS filial,
-                RTRIM(D.D1_COD)      AS produto,
-                RTRIM(D.D1_NOME)     AS descricao,
-                LEFT(D.D1_EMISSAO,6) AS mes,
-                D.D1_EMISSAO         AS emissao,
-                D.D1_DTDIGIT         AS dtdigit,
-                RTRIM(D.D1_DOC)      AS nota_fiscal,
-                RTRIM(D.D1_SERIE)    AS serie,
-                RTRIM(D.D1_FORNECE)  AS fornecedor,
-                RTRIM(D.D1_LOJA)     AS loja,
-                RTRIM(D.D1_TES)      AS tes,
-                D.D1_QUANT           AS qtd_entrada,
-                D.D1_VUNIT           AS preco_unit,
-                D.D1_TOTAL           AS valor_entrada"""
-FILTRO = """
-            WHERE D.D_E_L_E_T_ = ' '
-              AND D.D1_EMISSAO >= '20250101'
-              AND D.D1_QUANT > 0"""
-JOIN_SF1 = """
-            LEFT JOIN BEQ_LWH.dbo.LWHSF1010 F
-                   ON F.F1_FILIAL = D.D1_FILIAL AND F.F1_DOC = D.D1_DOC AND F.F1_SERIE = D.D1_SERIE
-                  AND F.F1_FORNECE = D.D1_FORNECE AND F.F1_LOJA = D.D1_LOJA AND F.D_E_L_E_T_ = ' '"""
-JOIN_SA2 = """
-            LEFT JOIN BEQ_LWH.dbo.LWHSA2010 A
-                   ON A.A2_COD = D.D1_FORNECE AND A.A2_LOJA = D.D1_LOJA AND A.D_E_L_E_T_ = ' '"""
+# As tabelas LWH* do BEQ_LWH são cópias do Protheus e nem todas têm as mesmas colunas
+# (ex.: sem D_E_L_E_T_, sem F1_CHVNFE). Por isso o script olha quais colunas existem e monta a consulta.
+def colunas(conn, tabela):
+    try:
+        df = pd.read_sql(
+            "SELECT COLUMN_NAME FROM BEQ_LWH.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?", conn, params=[tabela])
+        return set(c.strip().upper() for c in df["COLUMN_NAME"])
+    except Exception as e:
+        print(f"  ⚠ Não consegui ler as colunas de {tabela}: {e}")
+        return set()
 
-TENTATIVAS = [
-    ("SD1 + chave (SF1) + CNPJ (SA2)",
-     "SELECT" + COLS_SD1 + ", RTRIM(F.F1_CHVNFE) AS chave_nfe, RTRIM(A.A2_CGC) AS fornecedor_cnpj"
-     "\n            FROM BEQ_LWH.dbo.LWHSD1010 D" + JOIN_SF1 + JOIN_SA2 + FILTRO),
-    ("SD1 + chave (SF1)",
-     "SELECT" + COLS_SD1 + ", RTRIM(F.F1_CHVNFE) AS chave_nfe, NULL AS fornecedor_cnpj"
-     "\n            FROM BEQ_LWH.dbo.LWHSD1010 D" + JOIN_SF1 + FILTRO),
-    ("só SD1",
-     "SELECT" + COLS_SD1 + ", NULL AS chave_nfe, NULL AS fornecedor_cnpj"
-     "\n            FROM BEQ_LWH.dbo.LWHSD1010 D" + FILTRO),
-]
+
+def montar_sql(conn):
+    sd1 = colunas(conn, "LWHSD1010")
+    sf1 = colunas(conn, "LWHSF1010")
+    sa2 = colunas(conn, "LWHSA2010")
+    tem = lambda cols, c: c in cols
+    sel = [
+        "RTRIM(D.D1_FILIAL) AS filial", "RTRIM(D.D1_COD) AS produto", "RTRIM(D.D1_NOME) AS descricao",
+        "LEFT(D.D1_EMISSAO,6) AS mes", "D.D1_EMISSAO AS emissao",
+        ("D.D1_DTDIGIT" if tem(sd1, "D1_DTDIGIT") else "NULL") + " AS dtdigit",
+        "RTRIM(D.D1_DOC) AS nota_fiscal", "RTRIM(D.D1_SERIE) AS serie", "RTRIM(D.D1_FORNECE) AS fornecedor",
+        ("RTRIM(D.D1_LOJA)" if tem(sd1, "D1_LOJA") else "NULL") + " AS loja",
+        "RTRIM(D.D1_TES) AS tes", "D.D1_QUANT AS qtd_entrada", "D.D1_VUNIT AS preco_unit", "D.D1_TOTAL AS valor_entrada",
+    ]
+    joins = ""
+    usa_loja = tem(sd1, "D1_LOJA")
+    # chave da NF-e: na SD1 (se tiver) ou no cabeçalho SF1
+    if tem(sd1, "D1_CHVNFE"):
+        sel.append("RTRIM(D.D1_CHVNFE) AS chave_nfe")
+    elif tem(sf1, "F1_CHVNFE"):
+        joins += ("\n LEFT JOIN BEQ_LWH.dbo.LWHSF1010 F ON F.F1_FILIAL = D.D1_FILIAL AND F.F1_DOC = D.D1_DOC"
+                  " AND F.F1_SERIE = D.D1_SERIE AND F.F1_FORNECE = D.D1_FORNECE"
+                  + (" AND F.F1_LOJA = D.D1_LOJA" if usa_loja and tem(sf1, "F1_LOJA") else "")
+                  + (" AND F.D_E_L_E_T_ = ' '" if tem(sf1, "D_E_L_E_T_") else ""))
+        sel.append("RTRIM(F.F1_CHVNFE) AS chave_nfe")
+    else:
+        sel.append("NULL AS chave_nfe")
+    # CNPJ do fornecedor
+    if tem(sa2, "A2_CGC") and tem(sa2, "A2_COD"):
+        joins += ("\n LEFT JOIN BEQ_LWH.dbo.LWHSA2010 A ON A.A2_COD = D.D1_FORNECE"
+                  + (" AND A.A2_LOJA = D.D1_LOJA" if usa_loja and tem(sa2, "A2_LOJA") else "")
+                  + (" AND A.D_E_L_E_T_ = ' '" if tem(sa2, "D_E_L_E_T_") else ""))
+        sel.append("RTRIM(A.A2_CGC) AS fornecedor_cnpj")
+    else:
+        sel.append("NULL AS fornecedor_cnpj")
+    where = "WHERE D.D1_EMISSAO >= '20250101' AND D.D1_QUANT > 0"
+    if tem(sd1, "D_E_L_E_T_"):
+        where += " AND D.D_E_L_E_T_ = ' '"
+    print("  Colunas usadas: data de digitação " + ("✔" if tem(sd1, "D1_DTDIGIT") else "✘")
+          + " · chave NF-e " + ("✔" if "chave_nfe" in sel[-2] and "NULL" not in sel[-2] else "✘")
+          + " · CNPJ " + ("✔" if "NULL" not in sel[-1] else "✘"))
+    if not sd1:
+        print("  ⚠ Não li as colunas da SD1; usando a consulta básica.")
+    return "SELECT " + ",\n ".join(sel) + "\n FROM BEQ_LWH.dbo.LWHSD1010 D" + joins + "\n " + where
 
 
 def sincronizar():
@@ -114,18 +130,15 @@ def sincronizar():
         conn = conectar()
         print("✅ Conectado ao Protheus.")
 
-        df = None
-        for nome, sql in TENTATIVAS:
-            try:
-                print(f"📥 Buscando SD1 do Protheus ({nome})...")
-                df = pd.read_sql(sql, conn)
-                break
-            except Exception as e:
-                print(f"  ⚠ Não deu com {nome}: {e}")
-        conn.close()
-        if df is None:
-            print("❌ Nenhuma consulta funcionou.\n")
+        sql = montar_sql(conn)
+        print("📥 Buscando SD1 do Protheus...")
+        try:
+            df = pd.read_sql(sql, conn)
+        except Exception as e:
+            print(f"❌ A consulta deu erro: {e}\n{sql}\n")
+            conn.close()
             return
+        conn.close()
         print(f"  {len(df)} registros lidos.")
 
         registros = []
