@@ -101,6 +101,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
     <button class="aba-btn ativo" id="aba-notas" onclick="setAba('notas')">🧾 Por nota</button>
     <button class="aba-btn" id="aba-forn" onclick="setAba('forn')">🏢 Por fornecedor</button>
     <button class="aba-btn" id="aba-setor" onclick="setAba('setor')">📊 Por setor</button>
+    <button class="aba-btn" id="aba-sla" onclick="setAba('sla')">⏱ SLA de lançamento</button>
   </div>
   <div style="display:none;gap:6px" id="abas-receb">
     <button class="aba-btn ativo" id="aba-chegar" onclick="setAbaReceb('chegar')">📦 A chegar</button>
@@ -193,7 +194,7 @@ async function carregar(){
   $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
   try{
     let [ns,sf,sn,{data:log},sd1r,flr]=await Promise.all([
-      buscarTudo('nfe_master','id,numero,serie,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
+      buscarTudo('nfe_master','id,numero,serie,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
       buscarSd1(),
@@ -219,7 +220,9 @@ function montarFiltros(){
   $('f-status').innerHTML='<option value="pend">⏳ Só pendentes</option><option value="3">✓ Integradas</option><option value="C">Canceladas</option><option value="">Todas</option>';$('f-status').value=vs||'pend';
   $('sel-setor-lote').innerHTML=opcSetor('').replace('— escolher —','— escolher setor —')+'<option value="__limpar">(tirar o setor)</option>';
 }
-function setAba(a){aba=a;pag=0;['notas','forn','setor'].forEach(x=>$('aba-'+x).classList.toggle('ativo',a===x));
+function setAba(a){aba=a;pag=0;['notas','forn','setor','sla'].forEach(x=>$('aba-'+x).classList.toggle('ativo',a===x));
+  // SLA: começa com todas as notas (todos os status e manifestações, menos canceladas)
+  if(a==='sla'&&!window._slaIni){window._slaIni=1;$('f-status').value='';$('f-manif').value=''}
   document.querySelectorAll('.so-notas').forEach(e=>e.style.display=a==='forn'?'none':'');$('paginador').innerHTML='';render()}
 
 // setor da nota: o escolhido na nota; se não tiver, o do fornecedor
@@ -297,6 +300,7 @@ function render(){
   agrupar();
   if(aba==='forn'){renderForn();$('barra-sel').style.display='none';return}
   if(aba==='setor'){renderSetor();$('barra-sel').style.display='none';return}
+  if(aba==='sla'){renderSla();$('barra-sel').style.display='none';return}
   resumoNotas();
   let l=notasFiltradas(),parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
@@ -312,6 +316,41 @@ function render(){
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
         '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
+}
+// ── SLA de lançamento: emissão → integração no NFe Master → digitação na SD1 ──
+// Amarração com a SD1 (mv_nfe_sd1): 1º pela chave da NF-e; senão filial + nota + série + emissão (+ CNPJ quando houver)
+const SLA_META=5;
+const _d8=d=>d&&/^\d{8}$/.test(d)?new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8)):null;
+const _dt=v=>{if(!v)return null;let d=new Date(String(v).slice(0,10)+'T00:00:00');return isNaN(d)?null:d};
+const _dias=(a,b)=>a&&b?Math.round((b-a)/864e5):null;
+const _fd=d=>d?d.toLocaleDateString('pt-BR'):'—';
+function slaDa(n){let x=sd1&&sd1[n.id],emi=_dt(n.emissao),integ=n.status_integracao==='3'?_dt(n.integracao):null,dig=x?_d8(x.sd1_dtdigit):null;
+  let lanc=dig||integ;return {emi,integ,dig,lanc,dias:lanc?_dias(emi,lanc):null,aberto:lanc?null:(n.emissao?Math.floor((Date.now()-new Date(n.emissao).getTime())/864e5):null),amarr:x?(x.amarracao||'filial+nota+série+emissão'):''}}
+function renderSla(){
+  let l=notasFiltradas(),ss=l.map(slaDa),lanc=ss.filter(x=>x.lanc&&x.dias!=null),ab=ss.filter(x=>!x.lanc);
+  let med=lanc.length?lanc.reduce((a,x)=>a+Math.max(0,x.dias),0)/lanc.length:0,noPrazo=lanc.filter(x=>x.dias<=SLA_META).length;
+  let medAb=ab.length?ab.reduce((a,x)=>a+(x.aberto||0),0)/ab.length:0;
+  let il=ss.filter(x=>x.integ&&x.dig),ilPos=il.filter(x=>_dias(x.integ,x.dig)>=0),medIL=ilPos.length?ilPos.reduce((a,x)=>a+_dias(x.integ,x.dig),0)/ilPos.length:0,poster=il.length-ilPos.length;
+  $('resumo').innerHTML=
+    '<div class="resumo-card"><div class="val">'+l.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+_rotPeriodo()+'</div><div class="sub">todas, menos canceladas (use os filtros acima)</div></div>'+
+    '<div class="resumo-card azul"><div class="val">'+med.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias</div><div class="lab">SLA emissão → lançamento (média)</div><div class="sub">'+lanc.length.toLocaleString('pt-BR')+' notas lançadas</div></div>'+
+    '<div class="resumo-card verde"><div class="val">'+(lanc.length?Math.round(noPrazo/lanc.length*100):0)+'%</div><div class="lab">Lançadas em até '+SLA_META+' dias</div><div class="sub">'+noPrazo.toLocaleString('pt-BR')+' de '+lanc.length.toLocaleString('pt-BR')+'</div></div>'+
+    '<div class="resumo-card"><div class="val" style="color:#0f766e">'+medIL.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias</div><div class="lab">SLA integração → lançamento (média)</div><div class="sub">'+ilPos.length.toLocaleString('pt-BR')+' notas · '+poster.toLocaleString('pt-BR')+' com integração posterior</div></div>'+
+    '<div class="resumo-card alerta"><div class="val">'+ab.length.toLocaleString('pt-BR')+'</div><div class="lab">Ainda não lançadas</div><div class="sub">em aberto há '+medAb.toLocaleString('pt-BR',{maximumFractionDigits:0})+' dias, em média</div></div>';
+  let parte=paginar(l);
+  if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';return}
+  $('tabela').innerHTML='<table><thead><tr><th>Filial</th><th>Nº nota</th><th>Fornecedor</th><th class="num">Valor</th><th>Emissão</th><th>Integração NFe Master</th><th>Digitação SD1</th><th class="num" title="Dias da emissão até a digitação na SD1 (ou até a integração, se não estiver na SD1)">SLA emissão → lançamento</th><th class="num" title="Dias da integração no NFe Master até a digitação na SD1. Negativo = a nota já estava na SD1 antes de ser marcada como integrada">SLA integração → lançamento</th><th>Status</th></tr></thead><tbody>'+
+    parte.map(n=>{let x=slaDa(n),cor=x.dias==null?'':x.dias<=SLA_META?'#16a34a':x.dias<=SLA_META*2?'#b45309':'#dc2626';
+      return '<tr><td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
+        '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+'</div><div class="cnpj">'+fmtCnpj(chaveCnpj(n.fornecedor_cnpj))+'</div></td>'+
+        '<td class="num">'+fmtR(n.valor_total)+'</td>'+
+        '<td>'+_fd(x.emi)+'</td>'+
+        '<td>'+(x.integ&&x.dig&&_dias(x.dig,x.integ)>1?'<span title="A nota foi lançada direto no Protheus em '+_fd(x.dig)+' e só depois marcada como integrada no NFe Master. O SLA usa a data da SD1.">'+_fd(x.integ)+'<div style="font-size:10.5px;color:#b45309">integração posterior</div></span>':x.integ?_fd(x.integ):'<span style="color:#94a3b8;font-size:11.5px">'+(n.status_integracao==='3'?'sem data':'não integrada')+'</span>')+'</td>'+
+        '<td>'+(x.dig?_fd(x.dig):'<span style="color:#94a3b8;font-size:11.5px">não está na SD1</span>')+(x.amarr?'<div class="cnpj" title="Como a nota foi ligada à SD1">por '+esc(x.amarr)+'</div>':'')+'</td>'+
+        '<td class="num" style="font-weight:700;color:'+cor+'">'+(x.dias!=null?x.dias:'<span style="color:#dc2626;font-weight:600">em aberto há '+x.aberto+'</span>')+'</td>'+
+        '<td class="num">'+(x.integ&&x.dig?(()=>{let d=_dias(x.integ,x.dig);return d<0?'<span style="color:#b45309;font-size:11.5px;white-space:nowrap" title="Já estava na SD1 '+(-d)+' dia(s) antes de ser marcada como integrada no NFe Master">integração posterior</span>':'<b>'+d+'</b>'})():'<span style="color:#cbd5e1">—</span>')+'</td>'+
+        '<td>'+statusUnico(n)+'</td></tr>'}).join('')+'</tbody></table>';
 }
 function renderForn(){
   resumoForn();
