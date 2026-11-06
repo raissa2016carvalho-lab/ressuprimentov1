@@ -66,13 +66,22 @@ select n.id,
        n.dataemtratativa                               as data_tratativa,
        n.logerrointegracaoerp                          as erro_integracao,
        n.ultimoeventomanifestacao                      as manifestacao,
-       n.dataultimoeventomanifestacao                  as data_manifestacao
+       n.dataultimoeventomanifestacao                  as data_manifestacao,
+       pr.prenota                                      as prenota
 from nfemanager.tb_nfe n
 left join nfemanager.tb_empresanfe e on e.id = n.idempresa
 left join (
   select distinct on (idnfe) * from protheus.tb_integracaoprotheusnfe order by idnfe, id desc
 ) p on p.idnfe = n.id
-where {filtro}
+-- pré-nota: 1ª vez que o NFe Master criou a pré-nota no Protheus com sucesso (log INCLUIPRENOTA)
+left join lateral (
+  select min(m.datainclusao) as prenota
+  from protheus.tb_integracaoprotheusnfe i
+  join protheus.tb_retornointegracaoprotheusnfe r on r.idintegracaoprotheusnfe = i.id
+  join protheus.tb_mensagemretornointegracaoprotheusnfe m on m.idretornointegracaoprotheusnfe = r.id
+  where i.idnfe = n.id and m.mensagem ilike 'Integração realizada com sucesso%'
+) pr on true
+where ({filtro}){extra}
 order by n.id
 """
 
@@ -152,9 +161,12 @@ def rodar(desde=None):
     if not desde:
         r = sb.table("sync_log").select("atualizado_em").eq("chave", "nfe_master").execute()
         ultimo = r.data[0]["atualizado_em"] if r.data else None
+    extra = ""
     if ultimo:
         filtro = ("greatest(n.dataalteracao, n.datainclusao, p.dataalteracao, p.datainclusao) "
                   f">= now() - interval '{DIAS_REVISAO} days'")
+        # nota que ganhou pré-nota nos últimos dias também volta (a pré-nota não muda a data de alteração)
+        extra = f" or pr.prenota >= now() - interval '{DIAS_REVISAO} days'"
     else:
         d = desde or DESDE
         filtro = f"n.dataemissao >= '{d[:4]}-{d[4:6]}-{d[6:8]}'"
@@ -164,7 +176,7 @@ def rodar(desde=None):
     con = psycopg2.connect(connect_timeout=20, **NFE)
     con.set_session(readonly=True)          # só leitura no NFe Master
     print("Conectado. Buscando as notas (" + ("revisão dos últimos dias" if ultimo else "carga completa") + ")...", flush=True)
-    total = _enviar(sb, con, "nfe_master", SQL.format(filtro=filtro), "notas")
+    total = _enviar(sb, con, "nfe_master", SQL.format(filtro=filtro, extra=extra), "notas")
     print("Agora os itens das notas...", flush=True)
     itens = _enviar(sb, con, "nfe_master_itens", SQL_ITENS.format(filtro=filtro), "itens")
     con.close()
