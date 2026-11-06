@@ -73,7 +73,7 @@ input.cb{width:16px;height:16px;cursor:pointer;accent-color:#1e40af}
 .ms-pan{display:none;position:absolute;z-index:40;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px #0f172a22;padding:8px;min-width:220px;max-height:320px;overflow:auto}
 .ms-pan.aberto{display:block}.ms-pan label{display:flex;gap:8px;align-items:center;font-size:12.5px;padding:4px 4px;cursor:pointer;white-space:nowrap;margin:0;font-weight:400;color:#0f172a}.ms-pan label:hover{background:#f8fafc}
 .ms-pan .ms-limpa{width:100%;margin-bottom:6px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px;font-size:12px;cursor:pointer;font-family:inherit}
-@keyframes pisca{0%,100%{opacity:1}50%{opacity:.15}}.pisca{color:#dc2626!important;font-weight:800;animation:pisca 1s ease-in-out infinite}
+@keyframes pisca{0%,100%{opacity:1}50%{opacity:.15}}@keyframes piscaLinha{0%,100%{background:#fecaca}50%{background:#fff1f2}}tr.linha-alerta td{animation:piscaLinha 1.2s ease-in-out infinite}.pisca{color:#dc2626!important;font-weight:800;animation:pisca 1s ease-in-out infinite}
 body.bq-trancado>*:not(#tela-login){display:none!important}
 .lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
 .lg-inp{width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
@@ -380,8 +380,8 @@ function renderSla(){
   let num=(d,extra)=>d==null?'<span style="color:#cbd5e1">—</span>':d<0?'<span style="color:#b45309;font-size:11.5px;white-space:nowrap">'+extra+'</span>':'<b style="color:'+_corSla(d)+'">'+d+'</b>';
   $('tabela').innerHTML='<table><thead><tr><th>Filial</th><th>Nº nota</th><th>Fornecedor</th><th class="num">Valor</th><th>Emissão</th><th title="Quando o NFe Master criou a pré-nota no Protheus (almoxarifado)">Pré-nota</th><th title="Digitação/classificação na SD1 (fiscal)">Lançamento SD1</th>'+
     '<th class="num" title="Dias da emissão até a pré-nota">SLA emissão → pré-nota</th><th class="num" title="Dias da pré-nota até o lançamento na SD1">SLA pré-nota → lançamento</th><th class="num" title="Dias da emissão até o lançamento">SLA total</th><th>Status</th></tr></thead><tbody>'+
-    parte.map(n=>{let x=slaDa(n);
-      return '<tr><td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
+    parte.map(n=>{let x=slaDa(n),alerta=(x.fiscal!=null&&x.fiscal>=SLA_FISCAL_ALERTA)||(x.aguardaFiscal!=null&&x.aguardaFiscal>=SLA_FISCAL_ALERTA);
+      return '<tr'+(alerta?' class="linha-alerta" title="'+SLA_FISCAL_ALERTA+' dias ou mais entre a pré-nota e o lançamento"':'')+'><td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+'</div><div class="cnpj">'+fmtCnpj(chaveCnpj(n.fornecedor_cnpj))+'</div></td>'+
         '<td class="num">'+fmtR(n.valor_total)+'</td>'+
