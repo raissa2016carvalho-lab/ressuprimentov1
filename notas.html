@@ -354,34 +354,47 @@ function slaDa(n){let x=sd1&&sd1[n.id],emi=_dt(n.emissao),pre=_dt(n.prenota),dig
   let lanc=dig||(n.status_integracao==='3'?_dt(n.integracao):null);
   return {emi,pre,dig,lanc,
     almox:pre?_dias(emi,pre):null,                 // emissão → pré-nota
-    fiscal:pre&&lanc?_dias(pre,lanc):null,         // pré-nota → lançamento
+    fiscal:pre&&lanc?diasUteis(pre,lanc):null,     // pré-nota → lançamento (dias úteis)
+    direto:!pre&&!!lanc,                           // lançada direto no Protheus (conta como na meta)
     total:lanc?_dias(emi,lanc):null,               // emissão → lançamento
-    aberto:lanc?null:_dias(emi,_hoje0()),aguardaFiscal:pre&&!lanc?_dias(pre,_hoje0()):null}}
+    aberto:lanc?null:_dias(emi,_hoje0()),aguardaFiscal:pre&&!lanc?diasUteis(pre,_hoje0()):null}}
 // No SLA ficam de fora as notas que nunca vão ser lançadas: canceladas, denegadas,
 // manifestação de desconhecimento (210220) ou de operação não realizada (210240)
 const slaConta=n=>n.status_nfe!=='C'&&n.status_nfe!=='D'&&n.manifestacao!=='210220'&&n.manifestacao!=='210240';
 const _med=a=>a.length?a.reduce((t,v)=>t+v,0)/a.length:0;
 const _fmd=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias';
-// SLA fiscal (pré-nota → lançamento): 3 dias ou mais fica vermelho piscando
-const SLA_FISCAL_ALERTA=3;
+// SLA fiscal (pré-nota → lançamento): meta de 2 dias úteis (48 h sem sábado e domingo).
+// Passou da meta = linha vermelha piscando. Nota lançada direto no Protheus (sem pré-nota) conta como dentro da meta.
+const META_FISCAL=2;
+// dias úteis entre duas datas: conta os dias de seg a sex depois de "a" até "b" (a mesma data = 0)
+function diasUteis(a,b){if(!a||!b)return null;let d=new Date(a),f=new Date(b),n=0,sinal=1;if(f<d){[d,f]=[f,d];sinal=-1}
+  while(d<f){d.setDate(d.getDate()+1);let w=d.getDay();if(w!==0&&w!==6)n++}return n*sinal}
 const _corSla=d=>d==null?'':d<=SLA_META?'#16a34a':d<=SLA_META*2?'#b45309':'#dc2626';
 function renderSla(){
   let l=notasFiltradas().filter(slaConta),ss=l.map(slaDa);
   let al=ss.filter(x=>x.almox!=null).map(x=>Math.max(0,x.almox)),fi=ss.filter(x=>x.fiscal!=null).map(x=>Math.max(0,x.fiscal)),to=ss.filter(x=>x.total!=null).map(x=>Math.max(0,x.total));
   let aguarda=ss.filter(x=>x.aguardaFiscal!=null).length,semPre=ss.filter(x=>!x.pre).length,ab=ss.filter(x=>!x.lanc).length,noPrazo=to.filter(d=>d<=SLA_META).length;
+  // meta do fiscal: lançadas com pré-nota até 2 dias úteis + lançadas direto no Protheus
+  let lancadas=ss.filter(x=>x.lanc),naMeta=lancadas.filter(x=>x.direto||(x.fiscal!=null&&x.fiscal<=META_FISCAL)).length,foraMeta=lancadas.filter(x=>x.fiscal!=null&&x.fiscal>META_FISCAL).length,
+      diretas=lancadas.filter(x=>x.direto).length,aguardaFora=ss.filter(x=>x.aguardaFiscal!=null&&x.aguardaFiscal>META_FISCAL).length;
   $('resumo').innerHTML=
     '<div class="resumo-card"><div class="val">'+l.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+_rotPeriodo()+'</div><div class="sub">sem canceladas, denegadas, desconhecidas e operação não realizada</div></div>'+
     '<div class="resumo-card azul"><div class="val">'+_fmd(_med(al))+'</div><div class="lab">SLA almoxarifado: emissão → pré-nota</div><div class="sub">'+al.length.toLocaleString('pt-BR')+' notas com pré-nota · '+semPre.toLocaleString('pt-BR')+' sem</div></div>'+
-    '<div class="resumo-card"><div class="val" style="color:#0f766e">'+_fmd(_med(fi))+'</div><div class="lab">SLA fiscal: pré-nota → lançamento</div><div class="sub">'+fi.length.toLocaleString('pt-BR')+' notas · '+aguarda.toLocaleString('pt-BR')+' aguardando classificação</div></div>'+
+    '<div class="resumo-card" style="flex:1.6;min-width:280px"><div class="lab" style="margin:0 0 6px;font-weight:700;color:#0f172a">Meta do fiscal: lançar em até '+META_FISCAL+' dias úteis após a pré-nota</div>'+
+      '<div style="display:flex;gap:16px;flex-wrap:wrap">'+
+      '<div><div class="val">'+lancadas.length.toLocaleString('pt-BR')+'</div><div class="sub">notas lançadas</div></div>'+
+      '<div><div class="val" style="color:#16a34a">'+naMeta.toLocaleString('pt-BR')+'</div><div class="sub">na meta ('+(lancadas.length?Math.round(naMeta/lancadas.length*100):0)+'%)</div></div>'+
+      '<div><div class="val" style="color:#dc2626">'+foraMeta.toLocaleString('pt-BR')+'</div><div class="sub">acima de 48 h úteis</div></div></div>'+
+      '<div class="sub" style="margin-top:6px">'+diretas.toLocaleString('pt-BR')+' lançadas direto no Protheus contam como na meta · média '+_fmd(_med(fi))+' úteis · '+aguarda.toLocaleString('pt-BR')+' aguardando classificação'+(aguardaFora?' (<b style="color:#dc2626">'+aguardaFora+' já fora da meta</b>)':'')+'</div></div>'+
     '<div class="resumo-card verde"><div class="val">'+_fmd(_med(to))+'</div><div class="lab">SLA total: emissão → lançamento</div><div class="sub">'+(to.length?Math.round(noPrazo/to.length*100):0)+'% em até '+SLA_META+' dias ('+noPrazo.toLocaleString('pt-BR')+' de '+to.length.toLocaleString('pt-BR')+')</div></div>'+
     '<div class="resumo-card alerta"><div class="val">'+ab.toLocaleString('pt-BR')+'</div><div class="lab">Ainda não lançadas</div><div class="sub">'+aguarda.toLocaleString('pt-BR')+' já com pré-nota</div></div>';
   let parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';return}
   let num=(d,extra)=>d==null?'<span style="color:#cbd5e1">—</span>':d<0?'<span style="color:#b45309;font-size:11.5px;white-space:nowrap">'+extra+'</span>':'<b style="color:'+_corSla(d)+'">'+d+'</b>';
   $('tabela').innerHTML='<table><thead><tr><th>Filial</th><th>Nº nota</th><th>Fornecedor</th><th class="num">Valor</th><th>Emissão</th><th title="Quando o NFe Master criou a pré-nota no Protheus (almoxarifado)">Pré-nota</th><th title="Digitação/classificação na SD1 (fiscal)">Lançamento SD1</th>'+
-    '<th class="num" title="Dias da emissão até a pré-nota">SLA emissão → pré-nota</th><th class="num" title="Dias da pré-nota até o lançamento na SD1">SLA pré-nota → lançamento</th><th class="num" title="Dias da emissão até o lançamento">SLA total</th><th>Status</th></tr></thead><tbody>'+
-    parte.map(n=>{let x=slaDa(n),alerta=(x.fiscal!=null&&x.fiscal>=SLA_FISCAL_ALERTA)||(x.aguardaFiscal!=null&&x.aguardaFiscal>=SLA_FISCAL_ALERTA);
-      return '<tr'+(alerta?' class="linha-alerta" title="'+SLA_FISCAL_ALERTA+' dias ou mais entre a pré-nota e o lançamento"':'')+'><td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
+    '<th class="num" title="Dias da emissão até a pré-nota">SLA emissão → pré-nota</th><th class="num" title="Dias úteis (sem sábado e domingo) da pré-nota até o lançamento na SD1. Meta: até 2">SLA pré-nota → lançamento (dias úteis)</th><th class="num" title="Dias da emissão até o lançamento">SLA total</th><th>Status</th></tr></thead><tbody>'+
+    parte.map(n=>{let x=slaDa(n),alerta=(x.fiscal!=null&&x.fiscal>META_FISCAL)||(x.aguardaFiscal!=null&&x.aguardaFiscal>META_FISCAL);
+      return '<tr'+(alerta?' class="linha-alerta" title="Mais de '+META_FISCAL+' dias úteis entre a pré-nota e o lançamento"':'')+'><td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false">'+esc(n.numero)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+'</div><div class="cnpj">'+fmtCnpj(chaveCnpj(n.fornecedor_cnpj))+'</div></td>'+
         '<td class="num">'+fmtR(n.valor_total)+'</td>'+
@@ -389,7 +402,7 @@ function renderSla(){
         '<td>'+(x.pre?_fd(x.pre):'<span style="color:#94a3b8;font-size:11.5px">'+(x.lanc?'sem pré-nota (lançada direto)':'ainda não criada')+'</span>')+'</td>'+
         '<td>'+(x.dig?_fd(x.dig):x.lanc?_fd(x.lanc):'<span style="color:#94a3b8;font-size:11.5px">não está na SD1</span>')+'</td>'+
         '<td class="num">'+(x.almox!=null?num(x.almox,'—'):x.lanc?'<span style="color:#cbd5e1">—</span>':'<span style="color:#dc2626;font-size:11.5px;white-space:nowrap">há '+x.aberto+' dias</span>')+'</td>'+
-        '<td class="num">'+(x.fiscal!=null?(x.fiscal>=SLA_FISCAL_ALERTA?'<b class="pisca" title="'+SLA_FISCAL_ALERTA+' dias ou mais entre a pré-nota e o lançamento">'+x.fiscal+'</b>':num(x.fiscal,'pré-nota posterior')):x.aguardaFiscal!=null?'<span class="'+(x.aguardaFiscal>=SLA_FISCAL_ALERTA?'pisca':'')+'" style="color:#dc2626;font-size:11.5px;white-space:nowrap">aguardando há '+x.aguardaFiscal+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>'+
+        '<td class="num">'+(x.fiscal!=null?(x.fiscal>META_FISCAL?'<b class="pisca" title="Acima da meta de '+META_FISCAL+' dias úteis">'+x.fiscal+'</b>':'<b style="color:#16a34a">'+x.fiscal+'</b>'):x.aguardaFiscal!=null?'<span class="'+(x.aguardaFiscal>META_FISCAL?'pisca':'')+'" style="color:#dc2626;font-size:11.5px;white-space:nowrap">aguardando há '+x.aguardaFiscal+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>'+
         '<td class="num">'+(x.total!=null?num(x.total,'—'):'<span style="color:#dc2626;font-size:11.5px;white-space:nowrap">em aberto há '+x.aberto+'</span>')+'</td>'+
         '<td>'+(x.dig?'<span class="pill st-3" title="Já está na SD1 (lançada em '+_fd(x.dig)+')">Lançada</span>':x.pre?'<span class="pill" style="background:#e0f2fe;color:#075985" title="Pré-nota criada em '+_fd(x.pre)+', aguardando classificação no Protheus">Pré-nota</span>':statusUnico(n))+'</td></tr>'}).join('')+'</tbody></table>';
 }
