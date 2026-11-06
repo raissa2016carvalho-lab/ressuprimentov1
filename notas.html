@@ -73,6 +73,7 @@ input.cb{width:16px;height:16px;cursor:pointer;accent-color:#1e40af}
 .ms-pan{display:none;position:absolute;z-index:40;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px #0f172a22;padding:8px;min-width:220px;max-height:320px;overflow:auto}
 .ms-pan.aberto{display:block}.ms-pan label{display:flex;gap:8px;align-items:center;font-size:12.5px;padding:4px 4px;cursor:pointer;white-space:nowrap;margin:0;font-weight:400;color:#0f172a}.ms-pan label:hover{background:#f8fafc}
 .ms-pan .ms-limpa{width:100%;margin-bottom:6px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px;font-size:12px;cursor:pointer;font-family:inherit}
+@keyframes pisca{0%,100%{opacity:1}50%{opacity:.15}}.pisca{color:#dc2626!important;font-weight:800;animation:pisca 1s ease-in-out infinite}
 body.bq-trancado>*:not(#tela-login){display:none!important}
 .lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
 .lg-inp{width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
@@ -361,6 +362,8 @@ function slaDa(n){let x=sd1&&sd1[n.id],emi=_dt(n.emissao),pre=_dt(n.prenota),dig
 const slaConta=n=>n.status_nfe!=='C'&&n.status_nfe!=='D'&&n.manifestacao!=='210220'&&n.manifestacao!=='210240';
 const _med=a=>a.length?a.reduce((t,v)=>t+v,0)/a.length:0;
 const _fmd=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias';
+// SLA fiscal (pré-nota → lançamento): 3 dias ou mais fica vermelho piscando
+const SLA_FISCAL_ALERTA=3;
 const _corSla=d=>d==null?'':d<=SLA_META?'#16a34a':d<=SLA_META*2?'#b45309':'#dc2626';
 function renderSla(){
   let l=notasFiltradas().filter(slaConta),ss=l.map(slaDa);
@@ -386,7 +389,7 @@ function renderSla(){
         '<td>'+(x.pre?_fd(x.pre):'<span style="color:#94a3b8;font-size:11.5px">'+(x.lanc?'sem pré-nota (lançada direto)':'ainda não criada')+'</span>')+'</td>'+
         '<td>'+(x.dig?_fd(x.dig):x.lanc?_fd(x.lanc):'<span style="color:#94a3b8;font-size:11.5px">não está na SD1</span>')+'</td>'+
         '<td class="num">'+(x.almox!=null?num(x.almox,'—'):x.lanc?'<span style="color:#cbd5e1">—</span>':'<span style="color:#dc2626;font-size:11.5px;white-space:nowrap">há '+x.aberto+' dias</span>')+'</td>'+
-        '<td class="num">'+(x.fiscal!=null?num(x.fiscal,'pré-nota posterior'):x.aguardaFiscal!=null?'<span style="color:#dc2626;font-size:11.5px;white-space:nowrap">aguardando há '+x.aguardaFiscal+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>'+
+        '<td class="num">'+(x.fiscal!=null?(x.fiscal>=SLA_FISCAL_ALERTA?'<b class="pisca" title="'+SLA_FISCAL_ALERTA+' dias ou mais entre a pré-nota e o lançamento">'+x.fiscal+'</b>':num(x.fiscal,'pré-nota posterior')):x.aguardaFiscal!=null?'<span class="'+(x.aguardaFiscal>=SLA_FISCAL_ALERTA?'pisca':'')+'" style="color:#dc2626;font-size:11.5px;white-space:nowrap">aguardando há '+x.aguardaFiscal+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>'+
         '<td class="num">'+(x.total!=null?num(x.total,'—'):'<span style="color:#dc2626;font-size:11.5px;white-space:nowrap">em aberto há '+x.aberto+'</span>')+'</td>'+
         '<td>'+(x.dig?'<span class="pill st-3" title="Já está na SD1 (lançada em '+_fd(x.dig)+')">Lançada</span>':x.pre?'<span class="pill" style="background:#e0f2fe;color:#075985" title="Pré-nota criada em '+_fd(x.pre)+', aguardando classificação no Protheus">Pré-nota</span>':statusUnico(n))+'</td></tr>'}).join('')+'</tbody></table>';
 }
