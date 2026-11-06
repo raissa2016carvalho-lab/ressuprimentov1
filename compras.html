@@ -169,7 +169,7 @@ canvas{max-height:220px}
     <div class="ct">
       <div class="ct-head" style="justify-content:space-between">
         <span class="ct-title">Solicitações de Compras — Base</span>
-        <input class="sbox" id="s-sc" placeholder="Buscar SC, solicitante, filial..." oninput="renderSCTable()" style="width:220px">
+        <input class="sbox" id="s-sc" placeholder="Buscar SC, solicitante, filial..." oninput="scPg=1;_debounce('sc',renderSCTable)" style="width:220px">
       </div>
       <div class="ct-body"><table>
         <thead><tr><th>Nº SC</th><th>Emissão</th><th>Aprovação</th><th>Tipo</th><th>Grupo</th><th>Filial</th><th>Solicitante</th><th>Centro Custo</th><th>Comprador</th><th class="r">Tempo</th></tr></thead>
@@ -191,12 +191,12 @@ canvas{max-height:220px}
     </div>
     <div class="g2">
       <div class="ct"><div class="ct-head"><span class="ct-title">Por Fornecedor (Top 15)</span></div><div class="ct-body"><table><thead><tr><th>Fornecedor</th><th class="r">Qtd</th><th class="r">Valor Total</th><th class="r">%</th></tr></thead><tbody id="t-forn"></tbody></table></div></div>
-      <div class="ct"><div class="ct-head"><span class="ct-title">Por Descrição Item (Top 15)</span></div><div class="ct-body"><table><thead><tr><th>Descrição</th><th class="r">Qtd</th><th class="r">Valor Total</th><th class="r">%</th></tr></thead><tbody id="t-desc"></tbody></table></div></div>
+      <div class="ct"><div class="ct-head"><span class="ct-title">Por Grupo de Produto (Top 15)</span></div><div class="ct-body"><table><thead><tr><th>Grupo</th><th class="r">Qtd</th><th class="r">Valor Total</th><th class="r">%</th></tr></thead><tbody id="t-desc"></tbody></table></div></div>
     </div>
     <div class="ct">
       <div class="ct-head" style="justify-content:space-between">
         <span class="ct-title">Pedidos — Base</span>
-        <input class="sbox" id="s-ped" placeholder="Buscar pedido, fornecedor..." oninput="renderPedTable()" style="width:220px">
+        <input class="sbox" id="s-ped" placeholder="Buscar pedido, fornecedor..." oninput="pedPg=1;_debounce('ped',renderPedTable)" style="width:220px">
       </div>
       <div class="ct-body"><table>
         <thead><tr><th>Nº Pedido</th><th>Emissão</th><th>Filial</th><th>Fornecedor</th><th>Comprador</th><th class="r">Valor Total</th><th>Cond. Pag.</th><th>Tipo</th><th>SC</th><th class="r">Lead Time</th></tr></thead>
@@ -483,38 +483,55 @@ async function sbGet(tabela, select, onProgress, filtro="", ordem=""){
   return all;
 }
 
+// Carga rápida: o banco faz as contas (compras_resumo) e devolve só o resultado; as listas vêm 20 por página.
+// As abas Detalhamento e Comparativo ainda precisam da base inteira: ela só é baixada quando a aba é aberta.
+async function rpc(fn, args){
+  for(let t=0;t<3;t++){
+    try{
+      const r=await fetch(SUPA_URL+"/rest/v1/rpc/"+fn,{method:"POST",headers:{...H,"Content-Type":"application/json"},body:JSON.stringify(args||{})});
+      if(r.ok) return await r.json();
+      if(r.status!==500&&r.status!==503) throw new Error(r.status+" em "+fn+": "+(await r.text()).slice(0,200));
+    }catch(e){ if(t===2) throw e; }
+    await new Promise(res=>setTimeout(res,1500*(t+1)));
+  }
+  throw new Error("banco ocupado em "+fn);
+}
+let RES=null, BRUTO=false, OPC=null;
 async function carregar(){
-  setProgresso(0,"Carregando filiais...");
+  setProgresso(10,"Carregando filiais...");
   try{
-    // filiais
     const fils = await sbGet("filiais","filial,nome_filial",null,"","filial");
     fils.forEach(f=>{ FILIAIS[String(f.filial).trim().replace(/^0+/,"")] = f.nome_filial; });
-    setProgresso(5,"Carregando SCs...");
-
-    ALL_SC = await sbGet(
-      "scs",
-      "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
-      (n)=>setProgresso(5+Math.min(n/110000*25,25),"Carregando SCs... "+n.toLocaleString("pt-BR")),
-      "", "C1_NUM,C1_ITEM,C1_FILIAL"
-    );
-    setProgresso(30,"Carregando Pedidos...");
-
-    ALL_PED = await sbGet(
-      "pedidos",
-      "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_CC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
-      (n)=>setProgresso(30+Math.min(n/30000*65,65),"Carregando Pedidos... "+n.toLocaleString("pt-BR")),
-      "", "C7_NUM,C7_FILIAL"
-    );
+    setProgresso(40,"Carregando filtros...");
+    OPC = await rpc("compras_opcoes");
+    popularFiltros();
+    setProgresso(70,"Calculando indicadores...");
+    await applyFilters();
     setProgresso(100,"Pronto!");
-
     document.getElementById("last-update").textContent="Atualizado: "+new Date().toLocaleString("pt-BR");
-    if(AVISOS.length) document.getElementById("last-update").innerHTML+=
-      '<br><span style="color:#fca5a5">⚠ Dados incompletos ('+AVISOS.join("; ")+'). Recarregue a página.</span>';
-    popularFiltros(); popularComparativo(); clearFilters();
-    setTimeout(()=>{document.getElementById("loading-overlay").style.display="none";},400);
+    setTimeout(()=>{document.getElementById("loading-overlay").style.display="none";},300);
   }catch(e){
     document.getElementById("loading-msg").textContent="Erro: "+e.message;
   }
+}
+// Base inteira (SCs + pedidos): só para Detalhamento e Comparativo, na 1ª vez que uma dessas abas é aberta
+async function carregarBruto(){
+  if(BRUTO) return;
+  const ov=document.getElementById("loading-overlay");ov.style.display="";
+  try{
+    setProgresso(5,"Carregando SCs (Detalhamento/Comparativo)...");
+    ALL_SC = await sbGet("scs",
+      "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
+      (n)=>setProgresso(5+Math.min(n/110000*45,45),"Carregando SCs... "+n.toLocaleString("pt-BR")), "", "C1_NUM,C1_ITEM,C1_FILIAL");
+    setProgresso(50,"Carregando Pedidos...");
+    ALL_PED = await sbGet("pedidos",
+      "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_CC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
+      (n)=>setProgresso(50+Math.min(n/30000*48,48),"Carregando Pedidos... "+n.toLocaleString("pt-BR")), "", "C7_NUM,C7_FILIAL");
+    BRUTO=true;
+    popularComparativo(); buildDetalhamento();
+    if(AVISOS.length) document.getElementById("last-update").innerHTML+='<br><span style="color:#fca5a5">⚠ Dados incompletos ('+AVISOS.join("; ")+'). Recarregue a página.</span>';
+    setProgresso(100,"Pronto!");
+  }finally{ setTimeout(()=>{ov.style.display="none";},300); }
 }
 
 function nomeFilial(cod, desc){
@@ -525,17 +542,13 @@ function nomeFilial(cod, desc){
 }
 
 function popularFiltros(){
-  const comps=[...new Set([...ALL_SC.map(r=>r.comprador),...ALL_PED.map(r=>r.Comp)])].filter(Boolean).sort();
-  const grps=[...new Set([...ALL_SC.map(r=>r.C1_GRPRD),...ALL_PED.map(r=>r.C7_GRPPROD)])].filter(Boolean).sort();
-  const tipos=[...new Set(ALL_SC.map(r=>r.tipo_sc))].filter(Boolean).sort();
-  const filiais=[...new Set([...ALL_SC.map(r=>r.C1_FILIAL),...ALL_PED.map(r=>r.C7_FILIAL)])].filter(Boolean).sort();
   const fill=(id,arr,lblFn)=>{
     const s=document.getElementById(id);
     s.innerHTML='<option value="">Todos</option>';
-    arr.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=lblFn?lblFn(v):v;s.appendChild(o);});
+    (arr||[]).forEach(v=>{const o=document.createElement("option");o.value=Array.isArray(v)?v[0]:v;o.textContent=lblFn?lblFn(v):v;s.appendChild(o);});
   };
-  fill("f-comp",comps); fill("f-grp",grps); fill("f-tipo",tipos);
-  fill("f-filial",filiais,v=>nomeFilial(v)+" ("+v.trim()+")");
+  fill("f-comp",OPC.comps); fill("f-grp",OPC.grps); fill("f-tipo",OPC.tipos);
+  fill("f-filial",OPC.filiais,v=>nomeFilial(v[0],v[1])+" ("+String(v[0]).trim()+")");
   const now=new Date(), past=new Date(); past.setFullYear(past.getFullYear()-1);
   document.getElementById("f-ini").value=past.toISOString().slice(0,10);
   document.getElementById("f-fim").value=now.toISOString().slice(0,10);
@@ -549,31 +562,17 @@ function normDate(s){
   return null;
 }
 
-function applyFilters(){
-  const ini=document.getElementById("f-ini").value, fim=document.getElementById("f-fim").value;
-  const comp=document.getElementById("f-comp").value, grp=document.getElementById("f-grp").value;
-  const tipo=document.getElementById("f-tipo").value, fil=document.getElementById("f-filial").value;
-  fSC=ALL_SC.filter(r=>{
-    const d=normDate(r.C1_EMISSAO);
-    if(ini&&d&&d<ini)return false;
-    if(fim&&d&&d>fim)return false;
-    if(comp&&r.comprador!==comp)return false;
-    if(grp&&r.C1_GRPRD!==grp)return false;
-    if(tipo&&r.tipo_sc!==tipo)return false;
-    if(fil&&String(r.C1_FILIAL||"").trim()!==String(fil).trim())return false;
-    return true;
-  });
-  fPed=ALL_PED.filter(r=>{
-    const d=normDate(r.EMISSAO_PEDIDO);
-    if(ini&&d&&d<ini)return false;
-    if(fim&&d&&d>fim)return false;
-    if(comp&&r.Comp!==comp)return false;
-    if(grp&&r.C7_GRPPROD!==grp)return false;
-    if(fil&&String(r.C7_FILIAL||"").trim()!==String(fil).trim())return false;
-    return true;
-  });
+function filtrosAtuais(){
+  const v=id=>document.getElementById(id).value||null;
+  return {p_ini:v("f-ini"),p_fim:v("f-fim"),p_comp:v("f-comp"),p_grp:v("f-grp"),p_tipo:v("f-tipo"),p_fil:v("f-filial")};
+}
+async function applyFilters(){
+  const fc=document.getElementById("fcount");fc.textContent="Calculando...";
+  try{
+    RES=await rpc("compras_resumo",filtrosAtuais());
+  }catch(e){ fc.textContent="Erro: "+e.message; return; }
   scPg=1; pedPg=1; detPg=1;
-  document.getElementById("fcount").textContent=fSC.length+" SCs · "+fPed.length+" Pedidos";
+  fc.textContent=(RES.sc.total||0).toLocaleString("pt-BR")+" SCs · "+(RES.ped.total||0).toLocaleString("pt-BR")+" Pedidos";
   renderAll();
 }
 
@@ -582,22 +581,22 @@ function clearFilters(){
   document.getElementById("f-ini").value=past.toISOString().slice(0,10);
   document.getElementById("f-fim").value=now.toISOString().slice(0,10);
   ["f-comp","f-grp","f-tipo","f-filial"].forEach(id=>document.getElementById(id).value="");
-  fSC=[...ALL_SC]; fPed=[...ALL_PED];
-  detPg=1;
-  document.getElementById("fcount").textContent="";
-  renderAll();
+  applyFilters();
 }
 
-function showScreen(n,btn,title){
+async function showScreen(n,btn,title){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
   document.getElementById("screen-"+n).classList.add("active");
   btn.classList.add("active");
   document.getElementById("tela-title").textContent=title;
   document.querySelector(".filters").style.display = n==="comparativo" ? "none" : "";
+  if((n==="comparativo"||n==="detalhamento")&&!BRUTO){
+    try{ await carregarBruto(); }catch(e){ alert("Não consegui carregar a base: "+e.message); return; }
+  }
   if(n==="comparativo") renderComparativo();
+  if(n==="detalhamento") renderDetTable();
 }
-
 function fmtD(s){
   if(!s) return"–";
   const n=normDate(String(s)); if(!n) return String(s);
@@ -660,26 +659,12 @@ function mkChart(id,type,labels,datasets,opts={}){
 
 // ── RENDER SCs ────────────────────────────────────────────────────────────────
 function renderSCs(){
-  const total=fSC.length;
-  const urg=fSC.filter(r=>r.tipo_sc==="URGENCIA").length;
-  const semAp=fSC.filter(r=>!r.C1_YDTAPRO).length;
-  const ct=fSC.filter(r=>r.temp_atendimento!=null);
-  const mT=ct.length?ct.reduce((a,r)=>a+r.temp_atendimento,0)/ct.length:0;
-
-  // status de atendimento
-  const atendida   = fSC.filter(r=>(r.STATUS_DESC||"").includes("Totalmente Atendida")).length;
-  const parcial    = fSC.filter(r=>(r.STATUS_DESC||"").includes("Parcialmente")).length;
-  const pendente   = fSC.filter(r=>(r.STATUS_DESC||"").includes("Pendente")).length;
-  const bloqueada  = fSC.filter(r=>(r.STATUS_DESC||"").includes("Bloqueada")).length;
-  const rejeitada  = fSC.filter(r=>(r.STATUS_DESC||"").toLowerCase().includes("rejeitada")||(r.STATUS_DESC||"").includes("Rejeitada pelo Compras")).length;
-  const eliminada  = fSC.filter(r=>(r.STATUS_DESC||"").includes("Resíduo")).length;
-  const cotacao    = fSC.filter(r=>(r.STATUS_DESC||"").includes("Cotação")).length;
+  const S=RES.sc, total=S.total||0, urg=S.urg||0, mT=Number(S.tempo_medio||0);
+  const atendida=S.atendida||0, parcial=S.parcial||0, pendente=S.pendente||0, bloqueada=S.bloqueada||0, rejeitada=S.rejeitada||0, eliminada=S.eliminada||0;
 
   // base de calculo: exclui rejeitadas e eliminadas
   const baseCalc = total - rejeitada - eliminada;
   const pctAtend = baseCalc > 0 ? ((atendida/baseCalc)*100) : 0;
-  const pctParcial = baseCalc > 0 ? ((parcial/baseCalc)*100) : 0;
-  const pctPend  = baseCalc > 0 ? ((pendente/baseCalc)*100) : 0;
 
   // cor do % de atendimento
   const corPct = pctAtend >= 80 ? "var(--green)" : pctAtend >= 60 ? "var(--orange)" : "var(--red)";
@@ -697,51 +682,39 @@ function renderSCs(){
     <div class="kpi"><div class="kpi-val green">${mT.toFixed(1)}d</div><div class="kpi-lbl">Tempo Médio</div></div>
     <div class="kpi" style="border:none"><div style="font-size:9px;color:var(--muted);line-height:1.4">*excl. rejeitadas<br>e eliminadas</div></div>`;
 
-  const sol=agg(fSC,"C1_SOLICIT");
-  renderTbl("t-solic",sol.slice(0,20),([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`,
+  renderTbl("t-solic",RES.sc_solicit||[],([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${total}</td></tr>`);
-
-  const apv=agg(fSC,"C1_NOMAPRO");
-  renderTbl("t-aprov",apv.slice(0,20),([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`,
+  renderTbl("t-aprov",RES.sc_aprov||[],([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${total}</td></tr>`);
-
-  const comp=agg(fSC,"comprador");
-  renderTbl("t-comp-sc",comp,([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td><td class="r">${pct(v,total)}</td></tr>`,
+  renderTbl("t-comp-sc",RES.sc_comp||[],([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td><td class="r">${pct(v,total)}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">100,00%</td></tr>`);
-
   const bmap={"NORMAL":"bn","URGENCIA":"bu","REGULARIZACAO":"br","FUNDO FIXO":"bf","RESSUPRIMENTO":"brs","ESTOQUE":"be"};
-  const tipos=agg(fSC,"tipo_sc");
-  renderTbl("t-tipo-sc",tipos,([k,v])=>`<tr><td><span class="bdg ${bmap[k]||"br"}">${k}</span></td><td class="r">${v}</td><td class="r">${pct(v,total)}</td></tr>`,
+  renderTbl("t-tipo-sc",RES.sc_tipo||[],([k,v])=>`<tr><td><span class="bdg ${bmap[k]||"br"}">${k}</span></td><td class="r">${v}</td><td class="r">${pct(v,total)}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">100,00%</td></tr>`);
-
-  const cc=agg(fSC,"C1_CC");
-  renderTbl("t-cc",cc.slice(0,20),([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`,
+  renderTbl("t-cc",RES.sc_cc||[],([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${total}</td></tr>`);
-
-  const st=agg(fSC,"STATUS_DESC");
-  renderTbl("t-status-sc",st,([k,v])=>`<tr><td>${k||"–"}</td><td class="r">${v}</td><td class="r">${pct(v,total)}</td></tr>`,
+  renderTbl("t-status-sc",RES.sc_status||[],([k,v])=>`<tr><td>${k||"–"}</td><td class="r">${v}</td><td class="r">${pct(v,total)}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">100,00%</td></tr>`);
 
   renderSCTable();
 }
 
-function renderSCTable(){
-  const q=(document.getElementById("s-sc").value||"").toLowerCase();
-  const rows=fSC.filter(r=>!q||
-    (r.C1_NUM||"").includes(q)||(r.C1_SOLICIT||"").toLowerCase().includes(q)||
-    (r.C1_CC||"").toLowerCase().includes(q)||(r.comprador||"").toLowerCase().includes(q)||
-    nomeFilial(r.C1_FILIAL).toLowerCase().includes(q)
-  );
-  const pages=Math.ceil(rows.length/PER); if(scPg>pages)scPg=1;
-  const slice=rows.slice((scPg-1)*PER,scPg*PER);
+let _tBusca={};
+function _debounce(k,fn){clearTimeout(_tBusca[k]);_tBusca[k]=setTimeout(fn,300)}
+async function renderSCTable(){
+  const q=(document.getElementById("s-sc").value||"").trim(), tb=document.getElementById("tb-sc");
+  let d;
+  try{ d=await rpc("compras_lista_sc",{...filtrosAtuais(),p_q:q||null,p_pag:scPg,p_por:PER}); }
+  catch(e){ tb.innerHTML='<tr><td colspan="10" style="color:var(--red)">Erro: '+e.message+'</td></tr>'; return; }
+  const pages=Math.ceil((d.total||0)/PER);
   const bmap={"NORMAL":"bn","URGENCIA":"bu","REGULARIZACAO":"br","FUNDO FIXO":"bf","RESSUPRIMENTO":"brs","ESTOQUE":"be"};
-  document.getElementById("tb-sc").innerHTML=slice.map(r=>`<tr>
-    <td style="font-weight:600;color:var(--orange)">${r.C1_NUM||"–"}</td>
-    <td>${fmtD(r.C1_EMISSAO)}</td><td>${fmtD(r.C1_YDTAPRO)}</td>
+  tb.innerHTML=(d.rows||[]).map(r=>`<tr>
+    <td style="font-weight:600;color:var(--orange)">${r.num||"–"}</td>
+    <td>${fmtD(r.emissao)}</td><td>${fmtD(r.aprov)}</td>
     <td><span class="bdg ${bmap[r.tipo_sc]||"br"}">${r.tipo_sc||"–"}</span></td>
-    <td>${r.C1_GRPRD||"–"}</td>
-    <td title="${nomeFilial(r.C1_FILIAL)}">${nomeFilial(r.C1_FILIAL)}</td>
-    <td>${r.C1_SOLICIT||"–"}</td><td>${r.C1_CC||"–"}</td>
+    <td>${r.grp||"–"}</td>
+    <td title="${r.filial_nome||""}">${r.filial_nome||"–"}</td>
+    <td>${r.solicit||"–"}</td><td>${r.cc||"–"}</td>
     <td>${r.comprador||"–"}</td>
     <td class="r">${r.temp_atendimento!=null?r.temp_atendimento+" d":"–"}</td></tr>`).join("");
   renderPag("pg-sc",pages,scPg,p=>{scPg=p;renderSCTable();});
@@ -749,78 +722,44 @@ function renderSCTable(){
 
 // ── RENDER PEDIDOS ────────────────────────────────────────────────────────────
 function renderPedidos(){
-  const total=fPed.length;
-  const totalV=fPed.reduce((a,r)=>a+(r.C7_TOTAL||0),0);
-  const norm=fPed.filter(r=>r.TIPO_PEDIDO==="NORMAL").reduce((a,r)=>a+(r.C7_TOTAL||0),0);
-  const urg=fPed.filter(r=>["URGENCIA","URGÊNCIA"].includes(r.TIPO_PEDIDO)).reduce((a,r)=>a+(r.C7_TOTAL||0),0);
-  const reg=fPed.filter(r=>["REGULARIZACAO","REGULARIZAÇÃO"].includes(r.TIPO_PEDIDO)).reduce((a,r)=>a+(r.C7_TOTAL||0),0);
-
+  const P=RES.ped, total=P.total||0, totalV=Number(P.valor||0);
   document.getElementById("kpi-ped").innerHTML=`
     <div class="kpi"><div class="kpi-val orange">${fmtM(totalV)}</div><div class="kpi-lbl">Valor Total Pedidos</div></div>
-    <div class="kpi"><div class="kpi-val blue">${fmtM(norm)}</div><div class="kpi-lbl">Normal</div></div>
-    <div class="kpi"><div class="kpi-val red">${fmtM(urg)}</div><div class="kpi-lbl">Urgente</div></div>
-    <div class="kpi"><div class="kpi-val green">${fmtM(reg)}</div><div class="kpi-lbl">Regularização</div></div>
+    <div class="kpi"><div class="kpi-val blue">${fmtM(P.normal)}</div><div class="kpi-lbl">Normal</div></div>
+    <div class="kpi"><div class="kpi-val red">${fmtM(P.urgente)}</div><div class="kpi-lbl">Urgente</div></div>
+    <div class="kpi"><div class="kpi-val green">${fmtM(P.regular)}</div><div class="kpi-lbl">Regularização</div></div>
     <div class="kpi"><div class="kpi-val">${total.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Total Pedidos</div></div>`;
-
-  const compArr=aggVal(fPed,"Comp","C7_TOTAL");
-  renderTbl("t-comp-ped",compArr,([k,v,q])=>`<tr><td>${k}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
-    `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">${fmtM(totalV)}</td><td class="r">100,00%</td></tr>`);
-
-  // agrupa por filial usando DESC_FILIAL quando disponivel
-  const filMap={};
-  fPed.forEach(r=>{
-    const k=r.C7_FILIAL||"N/A";
-    if(!filMap[k]) filMap[k]={v:0,q:0,desc:r.DESC_FILIAL||""};
-    filMap[k].v+=Number(r.C7_TOTAL||0); filMap[k].q++;
-  });
-  const filArr=Object.entries(filMap).map(([k,o])=>[k,o.v,o.q,o.desc]).sort((a,b)=>b[1]-a[1]);
-  renderTbl("t-filial",filArr,([k,v,q,desc])=>`<tr><td>${nomeFilial(k,desc)}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
-    `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">${fmtM(totalV)}</td><td class="r">100,00%</td></tr>`);
-
-  const tipArr=aggVal(fPed,"TIPO_PEDIDO","C7_TOTAL");
-  renderTbl("t-tipo-ped",tipArr,([k,v])=>`<tr><td>${k}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
+  const tot4=`<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">${fmtM(totalV)}</td><td class="r">100,00%</td></tr>`;
+  renderTbl("t-comp-ped",RES.ped_comp||[],([k,v,q])=>`<tr><td>${k}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,tot4);
+  renderTbl("t-filial",RES.ped_filial||[],([k,v,q])=>`<tr><td>${k}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,tot4);
+  renderTbl("t-tipo-ped",RES.ped_tipo||[],([k,v])=>`<tr><td>${k}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
     `<tr class="total-row"><td>Total</td><td class="r">${fmtM(totalV)}</td><td class="r">100,00%</td></tr>`);
-
-  const fornArr=aggVal(fPed,"FORNECEDOR","C7_TOTAL").slice(0,15);
-  renderTbl("t-forn",fornArr,([k,v,q])=>`<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${k||"–"}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
-    `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">${fmtM(totalV)}</td><td class="r">100,00%</td></tr>`);
-
-  const descArr=aggVal(fPed,"C7_DESCRI","C7_TOTAL").slice(0,15);
-  renderTbl("t-desc",descArr,([k,v,q])=>`<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${k||"–"}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,
-    `<tr class="total-row"><td>Total</td><td class="r">${total}</td><td class="r">${fmtM(totalV)}</td><td class="r">100,00%</td></tr>`);
-
+  renderTbl("t-forn",RES.ped_forn||[],([k,v,q])=>`<tr><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${k||"–"}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,tot4);
+  renderTbl("t-desc",RES.ped_grupo||[],([k,v,q])=>`<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${k||"–"}</td><td class="r">${q}</td><td class="r">${fmtM(v)}</td><td class="r">${pct(v,totalV)}</td></tr>`,tot4);
   renderPedTable();
 }
-
-function renderPedTable(){
-  const q=(document.getElementById("s-ped").value||"").toLowerCase();
-  const rows=fPed.filter(r=>!q||
-    (r.C7_NUM||"").includes(q)||(r.FORNECEDOR||"").toLowerCase().includes(q)||
-    (r.Comp||"").toLowerCase().includes(q)||nomeFilial(r.C7_FILIAL).toLowerCase().includes(q)
-  );
-  const pages=Math.ceil(rows.length/PER); if(pedPg>pages)pedPg=1;
-  const slice=rows.slice((pedPg-1)*PER,pedPg*PER);
-  document.getElementById("tb-ped").innerHTML=slice.map(r=>`<tr>
-    <td style="font-weight:600;color:var(--orange)">${r.C7_NUM||"–"}</td>
-    <td>${fmtD(r.EMISSAO_PEDIDO)}</td>
-    <td>${nomeFilial(r.C7_FILIAL,r.DESC_FILIAL)}</td>
-    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${r.FORNECEDOR||"–"}</td>
-    <td>${r.Comp||"–"}</td>
-    <td class="r">${fmtM(r.C7_TOTAL)}</td>
-    <td style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.COND_PAG||"–"}</td>
-    <td>${r.TIPO_PEDIDO||"–"}</td>
-    <td><span class="bdg ${r.SEM_SC==="COM SC"?"bc":"bs"}">${r.SEM_SC||"–"}</span></td>
+async function renderPedTable(){
+  const q=(document.getElementById("s-ped").value||"").trim(), tb=document.getElementById("tb-ped"), f=filtrosAtuais();
+  let d;
+  try{ d=await rpc("compras_lista_ped",{p_ini:f.p_ini,p_fim:f.p_fim,p_comp:f.p_comp,p_grp:f.p_grp,p_fil:f.p_fil,p_q:q||null,p_pag:pedPg,p_por:PER}); }
+  catch(e){ tb.innerHTML='<tr><td colspan="10" style="color:var(--red)">Erro: '+e.message+'</td></tr>'; return; }
+  const pages=Math.ceil((d.total||0)/PER);
+  tb.innerHTML=(d.rows||[]).map(r=>`<tr>
+    <td style="font-weight:600;color:var(--orange)">${r.num||"–"}</td>
+    <td>${fmtD(r.emissao)}</td>
+    <td>${r.filial_nome||"–"}</td>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${r.fornecedor||"–"}</td>
+    <td>${r.comp||"–"}</td>
+    <td class="r">${fmtM(r.total)}</td>
+    <td style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.cond_pag||"–"}</td>
+    <td>${r.tipo_pedido||"–"}</td>
+    <td><span class="bdg ${r.sem_sc==="COM SC"?"bc":"bs"}">${r.sem_sc||"–"}</span></td>
     <td class="r">${r.leadtime_dias!=null?r.leadtime_dias+" d":"–"}</td></tr>`).join("");
   renderPag("pg-ped",pages,pedPg,p=>{pedPg=p;renderPedTable();});
 }
-
 // ── RENDER INDICADORES ────────────────────────────────────────────────────────
 function renderIndicadores(){
-  const total=fPed.length, totalSC=fSC.length;
-  const semSC=fPed.filter(r=>r.SEM_SC==="SEM SC").length;
-  const totalV=fPed.reduce((a,r)=>a+(r.C7_TOTAL||0),0);
-  const cl=fPed.filter(r=>r.leadtime_dias!=null&&r.leadtime_dias>=0);
-  const avgL=cl.length?cl.reduce((a,r)=>a+r.leadtime_dias,0)/cl.length:0;
+  const P=RES.ped, total=P.total||0, totalSC=RES.sc.total||0, semSC=P.sem_sc||0, totalV=Number(P.valor||0), avgL=Number(P.lead_medio||0);
 
   document.getElementById("kpi-ind").innerHTML=`
     <div class="kpi"><div class="kpi-val orange">${totalSC.toLocaleString("pt-BR")}</div><div class="kpi-lbl">SCs Emitidas</div></div>
@@ -830,7 +769,7 @@ function renderIndicadores(){
     <div class="kpi"><div class="kpi-val green">${avgL.toFixed(1)}d</div><div class="kpi-lbl">Lead Time Médio</div></div>`;
 
   // ── SC por Tipo (doughnut + legenda) ──────────────────────────────────────
-  const tipos=agg(fSC,"tipo_sc");
+  const tipos=RES.sc_tipo||[];
   const tipoTotal=tipos.reduce((a,e)=>a+e[1],0);
   mkChart("ch-tipo","doughnut",tipos.map(e=>e[0]),[{data:tipos.map(e=>e[1]),backgroundColor:PAL,borderWidth:2,borderColor:"#fff"}],
     {plugins:{legend:{display:false}}});
@@ -844,7 +783,7 @@ function renderIndicadores(){
     </div>`).join("");
 
   // ── SC por Comprador (barra horizontal) ───────────────────────────────────
-  const compSC=agg(fSC,"comprador");
+  const compSC=RES.sc_comp||[];
   mkChart("ch-comp-sc","bar",compSC.map(e=>e[0]),[{label:"Qtd SC",data:compSC.map(e=>e[1]),backgroundColor:PAL[0]+"cc",borderRadius:4}],
     {labelFmt:fmtQtd,indexAxis:"y",plugins:{legend:{display:false}},scales:{
       x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
@@ -852,7 +791,7 @@ function renderIndicadores(){
     }});
 
   // ── Valor por Comprador (barra horizontal) ────────────────────────────────
-  const compV=aggVal(fPed,"Comp","C7_TOTAL");
+  const compV=RES.ped_comp||[];
   mkChart("ch-val-comp","bar",compV.map(e=>e[0]),[{label:"Valor",data:compV.map(e=>e[1]),backgroundColor:PAL[1]+"cc",borderRadius:4}],
     {labelFmt:fmtCurto,indexAxis:"y",plugins:{legend:{display:false}},scales:{
       x:{ticks:{color:"#6b7280",font:{size:9},callback:v=>"R$"+Number(v/1000000).toFixed(1)+"M"},grid:{color:"#f3f4f6"}},
@@ -860,10 +799,7 @@ function renderIndicadores(){
     }});
 
   // ── Lead Time por Comprador ───────────────────────────────────────────────
-  const lc={};
-  fPed.filter(r=>r.leadtime_dias!=null&&r.leadtime_dias>=0&&r.leadtime_dias<365)
-      .forEach(r=>{if(!lc[r.Comp])lc[r.Comp]=[];lc[r.Comp].push(r.leadtime_dias);});
-  const la=Object.entries(lc).map(([c,a])=>[c,a.reduce((x,v)=>x+v,0)/a.length]).sort((a,b)=>b[1]-a[1]);
+  const la=(RES.ped_lead||[]).map(([c,v])=>[c,Number(v)]);
   mkChart("ch-lead","bar",la.map(e=>e[0]),[{label:"Dias",data:la.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[2]+"cc",borderRadius:4}],
     {labelFmt:fmtDias,indexAxis:"y",plugins:{legend:{display:false}},scales:{
       x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
@@ -871,20 +807,17 @@ function renderIndicadores(){
     }});
 
   // ── SCs por Mês ───────────────────────────────────────────────────────────
-  const sm={};fSC.forEach(r=>{const k=(normDate(r.C1_EMISSAO)||"").slice(0,7);if(k)sm[k]=(sm[k]||0)+1;});
-  const sa=Object.entries(sm).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
+  const sa=RES.sc_mes||[];
   mkChart("ch-sc-mes","bar",sa.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"SCs",data:sa.map(e=>e[1]),backgroundColor:PAL[0]+"cc",borderRadius:4}],
     {labelFmt:fmtQtd,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
 
   // ── Valor por Mês ─────────────────────────────────────────────────────────
-  const pmV={};fPed.forEach(r=>{const k=(normDate(r.EMISSAO_PEDIDO)||"").slice(0,7);if(k)pmV[k]=(pmV[k]||0)+(r.C7_TOTAL||0);});
-  const paV=Object.entries(pmV).sort((a,b)=>a[0].localeCompare(b[0])).slice(-12);
+  const paV=(RES.ped_mes||[]).map(([k,v])=>[k,Number(v)]);
   mkChart("ch-ped-mes-val","bar",paV.map(e=>e[0].slice(5)+"/"+e[0].slice(2,4)),[{label:"Valor",data:paV.map(e=>e[1]),backgroundColor:PAL[1]+"cc",borderRadius:4}],
     {labelFmt:fmtCurto,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280",callback:v=>"R$"+Number(v/1000000).toFixed(1)+"M"}}}});
 
   // ── COM SC vs SEM SC ──────────────────────────────────────────────────────
-  const comSCq=fPed.filter(r=>r.SEM_SC==="COM SC").length;
-  const semSCq=fPed.filter(r=>r.SEM_SC==="SEM SC").length;
+  const comSCq=P.com_sc||0, semSCq=P.sem_sc||0;
   mkChart("ch-comsc-qtd","doughnut",["COM SC","SEM SC"],[{data:[comSCq,semSCq],backgroundColor:[PAL[2],PAL[3]],borderWidth:2,borderColor:"#fff"}],
     {plugins:{legend:{display:false}}});
   const lCQ=document.getElementById("leg-comsc-qtd");
@@ -904,8 +837,7 @@ function renderIndicadores(){
       </div>
     </div>`;
 
-  const comSCv=fPed.filter(r=>r.SEM_SC==="COM SC").reduce((a,r)=>a+(r.C7_TOTAL||0),0);
-  const semSCv=fPed.filter(r=>r.SEM_SC==="SEM SC").reduce((a,r)=>a+(r.C7_TOTAL||0),0);
+  const comSCv=Number(P.valor_com_sc||0), semSCv=Number(P.valor_sem_sc||0);
   mkChart("ch-comsc-val","doughnut",["COM SC","SEM SC"],[{data:[comSCv,semSCv],backgroundColor:[PAL[2],PAL[3]],borderWidth:2,borderColor:"#fff"}],
     {plugins:{legend:{display:false}}});
   const lCV=document.getElementById("leg-comsc-val");
@@ -926,15 +858,12 @@ function renderIndicadores(){
     </div>`;
 
   // ── Tempo médio pagamento por comprador ───────────────────────────────────
-  const pc={};
-  fPed.filter(r=>r.tempo_pagamento!=null&&r.tempo_pagamento>=0&&r.tempo_pagamento<365)
-      .forEach(r=>{if(!pc[r.Comp])pc[r.Comp]=[];pc[r.Comp].push(r.tempo_pagamento);});
-  const pa2=Object.entries(pc).map(([c,a])=>[c,a.reduce((x,v)=>x+v,0)/a.length]).sort((a,b)=>b[1]-a[1]);
+  const pa2=(RES.ped_pag||[]).map(([c,v])=>[c,Number(v)]);
   mkChart("ch-tmp-pag","bar",pa2.map(e=>e[0]),[{label:"Dias",data:pa2.map(e=>+e[1].toFixed(1)),backgroundColor:PAL[4]+"cc",borderRadius:4}],
     {labelFmt:fmtDias,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#6b7280",font:{size:9}}},y:{ticks:{color:"#6b7280"}}}});
 
   // ── Status dos Pedidos ────────────────────────────────────────────────────
-  const stPed=agg(fPed,"STATUS_PEDIDO");
+  const stPed=RES.ped_status||[];
   mkChart("ch-status-ped","bar",stPed.map(e=>e[0]),[{label:"Qtd",data:stPed.map(e=>e[1]),backgroundColor:PAL[5]+"cc",borderRadius:4}],
     {labelFmt:fmtQtd,indexAxis:"y",plugins:{legend:{display:false}},scales:{
       x:{ticks:{color:"#6b7280",font:{size:9}},grid:{color:"#f3f4f6"}},
@@ -955,15 +884,16 @@ function renderPag(id,pages,current,cb){
 // ── DETALHAMENTO SC × PEDIDO ─────────────────────────────────────────────────
 function buildDetalhamento(){
   // Mapa de pedidos por C7_NUMSC
+  // amarração SC × pedido: nº da SC + filial (o mesmo nº de SC existe em filiais diferentes)
   const pedMap={};
   ALL_PED.forEach(r=>{
     const k=(r.C7_NUMSC||"").trim();
-    if(k) pedMap[k]=r;
+    if(k) pedMap[k+"|"+String(r.C7_FILIAL||"").trim()]=r;
   });
 
   // Junta SCs com pedido vinculado
   ALL_DET = ALL_SC.map(sc=>{
-    const ped = pedMap[(sc.C1_NUM||"").trim()] || null;
+    const ped = pedMap[(sc.C1_NUM||"").trim()+"|"+String(sc.C1_FILIAL||"").trim()] || null;
     return {
       filial:     nomeFilial(sc.C1_FILIAL),
       filial_cod: sc.C1_FILIAL,
@@ -1366,7 +1296,7 @@ function renderComparativo(){
 }
 function cmpClicaFilial(f){ cmpMarcaDd("fil",f,!CMP_DD.fil.sel.has(f)); }
 
-function renderAll(){renderSCs();renderPedidos();renderIndicadores();buildDetalhamento();renderDetTable();}
+function renderAll(){renderSCs();renderPedidos();renderIndicadores();}
 document.addEventListener("DOMContentLoaded",carregar);
 </script>
 </body>

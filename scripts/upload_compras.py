@@ -359,6 +359,12 @@ def main():
     sync_pedidos(conn)
     sync_pedidos_grupo(conn)
     conn.close()
+    # atualiza as tabelas prontas da tela de Compras (mv_compras_sc / mv_compras_ped)
+    try:
+        sb.rpc("atualizar_compras").execute()
+        print("\nTabelas prontas da tela de Compras atualizadas.")
+    except Exception as e:
+        print("\n(não consegui atualizar as tabelas prontas da tela de Compras: " + str(e) + ")")
     print("\n" + "=" * 50)
     print("Finalizado!")
     print("=" * 50)
