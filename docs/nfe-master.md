@@ -130,6 +130,21 @@ create policy nfe_fluxo_apagar on public.nfe_fluxo for delete to authenticated u
 -- desfazer: drop table public.nfe_fluxo;
 ```
 
+## SLA de lançamento (05–07/11) — aba ⏱ da `notas.html` (`?aba=sla`)
+- **Datas**: emissão (`nfe_master.emissao`); **pré-nota** (`nfe_master.prenota` = 1ª mensagem "Integração realizada com sucesso"
+  do log `INCLUIPRENOTA`: `protheus.tb_integracaoprotheusnfe` → `tb_retornointegracaoprotheusnfe` → `tb_mensagemretornointegracaoprotheusnfe`);
+  **lançamento** = `D1_DTDIGIT` (SD1, via `mv_nfe_sd1.sd1_dtdigit`). O campo `dataintegracao` do NFe Master é quando ele *percebe* a
+  nota classificada ("Nota localizada no PROTHEUS. Alterando status para INTEGRADO") — não é etapa. Conferido em 3 notas
+  (HBR 69798/69853, JR 25552): o "integrada dia X" do almoxarife = pré-nota.
+- **Meta do fiscal**: pré-nota → lançamento em até **2 dias úteis** (seg–sex). Lançada direto no Protheus (sem pré-nota) conta
+  como na meta. Passou da meta = linha vermelha piscando. Fora do SLA: canceladas, denegadas, manifestação 210220 e 210240.
+- **Sync**: `sync_movimentos_entrada.py` (D1_DTDIGIT, D1_LOJA; monta a consulta pelas colunas que existem — as tabelas LWH não têm
+  `D_E_L_E_T_` nem `F1_CHVNFE`; `LWHSA2010` não existe, o certo é `LWHSA2001`), chama `atualizar_nfe_sd1()` no fim.
+  `sync_nfe_master.py` traz `prenota` e revisa notas com pré-nota recente. Carga completa: `py sync_nfe_master.py --desde 20250101`.
+- **Auditoria no DBeaver (NFe Master)**: consulta por nota (log com usuário) e por período (pré-nota × classificação) — no chat de 06/11.
+- Primeira leitura 2026: almoxarifado (emissão → pré-nota) média 7,7 d / mediana 3 d; fiscal média 1,1 d / mediana 0 d.
+  Outubro/2026: 531 lançadas, 433 na meta (82%), 98 acima de 48 h úteis.
+
 ## Próximos passos
 2. Setor por fornecedor: tabela `fornecedor_setor` (cnpj → setor: compras, almoxarifado, fiscal, RH,
    frota, oficina…) preenchida pela Raissa no painel.

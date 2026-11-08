@@ -115,6 +115,12 @@ seções Ressuprimento (formulário, gerente, painel principal), Estoque (risco 
 - **Pendência**: otimizar (ordem fixa na paginação, não baixar `itens` inteiro, cache).
 
 ## compras.html — Painel de compras (sem login)
+
+**Compras rápido (06/11, no Preview)**: abertura não baixa mais 106 mil SCs + 27 mil pedidos. Solicitações/Pedidos/Indicadores vêm
+do banco (`compras_resumo` com os filtros; listas `compras_lista_sc/ped` 20 por página; `compras_opcoes`), sobre as tabelas prontas
+`mv_compras_sc`/`mv_compras_ped` (atualizadas no fim do `upload_compras.py` por `atualizar_compras()`). Detalhamento e Comparativo
+ainda baixam a base inteira, só ao abrir a aba (2ª entrega: `vw_compras_detalhe` paginada + `mv_compras_mensal`). Detalhamento
+agora amarra SC × pedido por **nº SC + filial**. "Top descrições" (campo inexistente) virou "Por Grupo de Produto".
 - Baixa as tabelas `scs` (~105 mil linhas) e `pedidos` (~27 mil) **inteiras** a cada abertura, via REST
   (`sbGet`), e monta gráficos (Chart.js).
 - Filtro de data padrão = últimos 12 meses, mas tudo é baixado.
