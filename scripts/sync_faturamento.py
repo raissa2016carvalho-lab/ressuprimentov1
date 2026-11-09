@@ -73,7 +73,14 @@ def colunas(conn):
 
 def main():
     global sb
-    sb = create_client(RESSUP_URL, RESSUP_KEY)
+    # aceita os nomes usados nos outros scripts (RESSUP_URL/RESSUP_KEY ou SUPABASE_URL/SUPABASE_KEY...)
+    g = globals()
+    url = next((g[n] for n in ("RESSUP_URL", "SUPABASE_URL", "SB_URL", "URL") if n in g and str(g[n]) != "XXXX"), None)
+    key = next((g[n] for n in ("RESSUP_KEY", "SUPABASE_KEY", "SUPABASE_SERVICE_KEY", "SERVICE_KEY", "SB_KEY", "KEY") if n in g and str(g[n]) != "XXXX"), None)
+    if not url or not key:
+        print("❌ Não achei o endereço/chave do Supabase. Cole suas linhas de configuração no lugar dos XXXX.")
+        return
+    sb = create_client(url, key)
     desde = None
     if "--desde" in sys.argv:
         desde = sys.argv[sys.argv.index("--desde") + 1]
