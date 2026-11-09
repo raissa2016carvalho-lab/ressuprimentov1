@@ -1227,7 +1227,7 @@ function _calcTotais3(sols){var t={a:0,g:0,m:0,temG:false,e:0,eu:0,ei:0};(sols||
 function _fmtR$(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function _htmlTotais3(sols,soCorpo){var t=_calcTotais3(sols);
   var lin=function(rot,v,cor,peso){return '<div style="display:flex;justify-content:flex-end;gap:8px;align-items:baseline;white-space:nowrap"><span style="font-size:10px;color:#94a3b8">'+rot+'</span><span style="font-size:'+(peso?'15px':'12.5px')+';font-weight:'+(peso?800:700)+';color:'+cor+';font-family:ui-monospace,monospace">'+v+'</span></div>'};
-  var corpo=lin('Almoxarife',_fmtR$(t.a),'#1e40af')+lin('Gerente',t.temG?_fmtR$(t.g):'—','#166534')+lin('Master',_fmtR$(t.m),'#0f172a',1);
+  var corpo=lin('Almoxarife',_fmtR$(t.a),'#1e40af')+lin('Gerente',t.temG?_fmtR$(t.g):'—','#166534')+lin('Master',_fmtR$(t.m),'#0f172a',1)+(t.eu>0?lin('📦 Estoque central · '+t.eu.toLocaleString('pt-BR')+' un.',_fmtR$(t.e),'#0e7490'):'');
   if(soCorpo)return corpo;
   return '<div data-totais-sols=" '+(sols||[]).map(function(x){return x.id}).join(' ')+' " style="margin-bottom:4px" title="Valor estimado (custo médio × quantidade)">'+corpo+'</div>'}
 // Excel da aba Solicitações: um item por linha, com estoque no envio e estoque atual (SB2)
@@ -1262,7 +1262,7 @@ window.exportarSolicitacoesExcel=exportarSolicitacoesExcel;
 function _htmlTotaisGeral(sols,soCorpo){var t=_calcTotais3(sols);
   var box=function(rot,v,cor,sub){return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px"><div style="font-size:11px;color:#64748b;font-weight:600">'+rot+'</div><div style="font-size:19px;font-weight:800;color:'+cor+';font-family:ui-monospace,monospace;margin-top:2px">'+v+'</div>'+(sub?'<div style="font-size:10.5px;color:#94a3b8;margin-top:1px">'+sub+'</div>':'')+'</div>'};
   var pct=function(v){if(!(t.a>0))return '';var d=Math.round((v/t.a-1)*100);return (d>0?'+':'')+d+'% vs. almoxarife'};
-  var corpo=box('Total almoxarife',_fmtR$(t.a),'#1e40af',(sols||[]).length+' solicitação(ões)')+box('Total gerente',t.temG?_fmtR$(t.g):'—','#166534',t.temG?'só itens já avaliados pelo gerente':'')+box('Total master',_fmtR$(t.m),'#0f172a',pct(t.m))+box('📦 Via estoque central',t.eu>0?_fmtR$(t.e):'—','#0e7490',t.eu>0?t.eu.toLocaleString('pt-BR')+' un. em '+t.ei+' item(ns) · já fora da compra':'nada atendido pelo estoque');
+  var corpo=box('Total almoxarife',_fmtR$(t.a),'#1e40af',(sols||[]).length+' solicitação(ões)')+box('Total gerente',t.temG?_fmtR$(t.g):'—','#166534',t.temG?'só itens já avaliados pelo gerente':'')+box('Total master',_fmtR$(t.m),'#0f172a',pct(t.m))+(function(){var u=_ultGerente(sols);return box('👤 Última avaliação de gerente',u?String(u.gerente_por||'').split('@')[0].replace(/[<>&"']/g,''):'—','#166534',u?_fmtDH(u.gerente_em)+' · #'+u.id:'ainda sem registro')})()+box('📦 Via estoque central',t.eu>0?_fmtR$(t.e):'—','#0e7490',t.eu>0?t.eu.toLocaleString('pt-BR')+' un. em '+t.ei+' item(ns) · já fora da compra':'nada atendido pelo estoque');
   if(soCorpo)return corpo;
   return '<div id="totais-geral" data-sols=" '+(sols||[]).map(function(x){return x.id}).join(' ')+' " style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px" title="Valor estimado (custo médio × quantidade)">'+corpo+'</div>'}
 // atualiza os totais do card enquanto o master digita
@@ -1296,8 +1296,12 @@ function _ultimaAtualizacaoHtml(sols){
   var d=new Date(ult.dt);if(isNaN(d))return'';
   var dt=d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
   var quem=String(ult.quem||'').split('@')[0].replace(/[<>&"']/g,'');
-  return'<div style="font-size:10px;color:#94a3b8;margin-top:3px" title="Última atualização">↻ atualizado '+dt+(quem?' · '+quem:'')+'</div>';
+  return'<div style="font-size:10px;color:#94a3b8;margin-top:3px" title="Última atualização">↻ atualizado '+dt+(quem?' · '+quem:'')+'</div>'+_gerenteAvaliouHtml(sols);
 }
+// Quem avaliou como gerente e quando (colunas gerente_por / gerente_em, gravadas pela tela do gerente)
+function _ultGerente(sols){var u=null;(sols||[]).forEach(function(s){if(s&&s.gerente_em&&(!u||s.gerente_em>u.gerente_em))u=s});return u}
+function _fmtDH(iso){var d=new Date(iso);return isNaN(d)?'':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
+function _gerenteAvaliouHtml(sols){var u=_ultGerente(sols);if(!u)return'';var n=String(u.gerente_por||'').split('@')[0].replace(/[<>&"']/g,'');return'<div style="font-size:10.5px;color:#166534;margin-top:2px;font-weight:600" title="Avaliação do gerente">👤 Gerente '+(n||'—')+' · '+_fmtDH(u.gerente_em)+'</div>'}
 function _infoAlteracaoHtml(its){var ult=null;(its||[]).forEach(function(it){if(it&&it.master_alterado_em&&(!ult||it.master_alterado_em>ult.master_alterado_em))ult=it});if(!ult)return'';var nome=String(ult.master_alterado_por||'').split('@')[0].replace(/[<>&"']/g,'');var d=new Date(ult.master_alterado_em);var dt=d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});return'<div style="font-size:9.5px;color:#7c3aed;margin-top:2px;white-space:nowrap" title="Última alteração no master">✎ '+nome+' · '+dt+'</div>'}
 var _btnReset='border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;border-radius:6px;font-size:12px;padding:3px 6px;margin-left:4px;vertical-align:middle';
 // ↺ item individual
