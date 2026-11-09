@@ -202,4 +202,11 @@ if __name__ == "__main__":
             desde = None
             time.sleep(30 * 60)
     else:
-        rodar(desde)
+        # rodando com dois cliques: a janela espera o Enter para dar tempo de ler o resultado ou o erro
+        try:
+            rodar(desde)
+        except BaseException as e:
+            import traceback
+            print("\n❌ ERRO:", e)
+            traceback.print_exc()
+        input("\nPressione Enter para fechar...")
