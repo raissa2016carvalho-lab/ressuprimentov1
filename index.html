@@ -1109,7 +1109,7 @@ let qtdAlmox=_qAlm(it),qtdGerente=_qtdGer(it),justGer=it.justificativa_gerente||
                 `+((()=>{
   // Custo unitário para estimar valores
   let _ck=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
-  let _cu=custoMap[_ck]||0;
+  let _cu=_custoItem(s.filial,it.codigo);
   let _fv=function(q){if(!_cu||!q)return '';let v=_cu*q;return '<div style="font-size:9px;color:#94a3b8;font-weight:400;margin-top:1px">R$ '+v.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'};
   // Almoxarife cell
   let almoxCell='<td style="text-align:center;font-family:ui-monospace,monospace;font-size:12px;background:#eff6ff;color:#1e40af;font-weight:600">'+qtdAlmox+_fv(qtdAlmox)+'</td>';
@@ -1151,7 +1151,7 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
                 let totSol=0,totGer=0,valSol=0,valGer=0;
                 itensVis.forEach(it=>{
                   let _ck3=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
-                  let _c3=custoMap[_ck3]||0;
+                  let _c3=_custoItem(s.filial,it.codigo);
                   let qS=_qAlm(it);
                   let qG=it.quantidade;
                   totSol+=qS;valSol+=_c3*qS;
