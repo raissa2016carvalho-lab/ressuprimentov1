@@ -79,12 +79,13 @@ details table{border-top:1px solid #f1f5f9}
     <div class="dica">Copie do Excel as colunas <b>Descrição</b> e <b>Quantidade</b> (pode ter o <b>Código</b> antes). Linha de título é ignorada.</div>
     <textarea id="txt" placeholder="BALDE DE LONA P/ ICAR MATERIAIS ...&#9;1&#10;CAPACETE ABA TOTAL BRANCO&#9;5"></textarea>
     <div class="linha">
-      <label>Ordem dos estados <input id="ordem" class="inp" value="CE, RN, BA" style="width:150px"></label>
-      <label><input type="checkbox" id="outros"> Depois, atender os outros estados</label>
+      <label><input type="checkbox" id="outros"> Por último, atender os outros estados (PE, GO...)</label>
       <button class="btn azul" onclick="simular()" id="btn-sim">Simular distribuição</button>
       <span id="carregando" class="dica" style="margin:0"></span>
     </div>
-    <div class="dica" style="margin:10px 0 0">Entram as solicitações <b>pendentes</b> e <b>aguardando Almoxarifado Matriz</b> (ainda sem SC), itens não recusados. Dentro de cada estado, a solicitação mais antiga é atendida primeiro.</div>
+    <div class="dica" style="margin:10px 0 4px"><b>Ordem de atendimento:</b></div>
+    <ol class="dica" id="lista-grupos" style="margin:0 0 6px 20px"></ol>
+    <div class="dica" style="margin:6px 0 0">Entram as solicitações <b>pendentes</b> e <b>aguardando Almoxarifado Matriz</b> (ainda sem SC), itens não recusados. Dentro de cada estado, a solicitação mais antiga é atendida primeiro.</div>
   </div>
   <div id="res"></div>
 </div>
@@ -100,6 +101,13 @@ const norm=s=>String(s||'').trim().replace(/\s+/g,' ').toUpperCase();
 const FILIAIS={'01':['CE','MATRIZ'],'03':['RN','PAU DOS FERROS'],'04':['CE','ITAPIPOCA'],'06':['RN','CURRAIS NOVOS'],'07':['CE','SOBRAL'],'08':['GO','APARECIDA DE GOIANIA'],'09':['CE','MARACANAU'],'10':['RN','MOSSORO'],'11':['GO','ANAPOLIS'],'13':['BA','ALAGOINHAS'],'14':['BA','RIBEIRA DO POMBAL'],'15':['BA','PAULO AFONSO'],'22':['GO','GOIANIA'],'23':['CE','BATURITE'],'24':['GO','MORRINHOS'],'25':['CE','CASCAVEL'],'27':['CE','CAUCAIA'],'29':['CE','HORIZONTE'],'34':['BA','SENHOR DO BONFIM'],'36':['GO','LUZIANIA'],'37':['MG','DIVINOPOLIS'],'39':['SP','SÃO PAULO'],'40':['PE','GARANHUNS'],'41':['PI','FLORIANO'],'42':['BA','LIVRAMENTO DE NOSSA SENHORA'],'43':['SP','HORTOLANDIA'],'44':['BA','BRUMADO'],'45':['RJ','NITEROI']};
 const ufDe=f=>(FILIAIS[String(f||'').trim()]||['?'])[0];
 const nomeFil=f=>{f=String(f||'').trim();return f+(FILIAIS[f]?' — '+FILIAIS[f][1]:'')};
+// Ordem de atendimento (combinada em 09/11): bases do CE, depois Oeste/Alto Oeste no RN, depois Bahia, depois o restante do CE e RN
+const GRUPOS=[
+  {nome:'CE — Metrô Baturité, Maracanaú, Caucaia, Cascavel, Horizonte + Obras Atlântico e Obras Norte',cc:['141080101','141080103','141080104','141080105','141080102','141060102','141060101']},
+  {nome:'RN — TEC Oeste e TEC Alto Oeste',cc:['145040101','145030102']},
+  {nome:'Bahia — todas as bases',uf:['BA']},
+  {nome:'Demais bases do CE e RN (Sobral, Itapipoca, Eusébio, Obras Metropolitana, Seridó...)',uf:['CE','RN']}
+];
 let userEmail='',isAdmin=false,SIM=null,ABA='filial';
 
 // ── 1. Ler a lista colada ──────────────────────────────────────────────────
@@ -131,12 +139,12 @@ async function carregarAbertas(){
 async function simular(){
   let lista=lerLista($('txt').value);
   if(!lista.length){$('res').innerHTML='<div class="erro">Não achei nenhuma linha com descrição e quantidade. Cole as colunas do Excel (descrição e quantidade).</div>';return}
-  let ufs=$('ordem').value.toUpperCase().split(/[^A-Z]+/).filter(Boolean),comOutros=$('outros').checked;
+  let comOutros=$('outros').checked;
   $('btn-sim').disabled=true;$('carregando').textContent='Carregando solicitações em aberto...';
   let itens;
   try{itens=await carregarAbertas()}catch(e){$('res').innerHTML='<div class="erro">Erro ao carregar: '+esc(e.message||e)+'</div>';$('btn-sim').disabled=false;$('carregando').textContent='';return}
   $('btn-sim').disabled=false;$('carregando').textContent='';
-  let prio=it=>{let u=ufDe(it.sol.filial),p=ufs.indexOf(u);return p>=0?p:(comOutros?ufs.length:-1)};
+  let prio=it=>{let cc=String(it.sol.cc||'').trim(),u=ufDe(it.sol.filial);for(let i=0;i<GRUPOS.length;i++){let g=GRUPOS[i];if((g.cc&&g.cc.includes(cc))||(g.uf&&g.uf.includes(u)))return i}return comOutros?GRUPOS.length:-1};
   let porDesc={},porCod={};
   itens.forEach(it=>{let p=prio(it);if(p<0)return;it.prio=p;(porDesc[norm(it.descricao)]=porDesc[norm(it.descricao)]||[]).push(it);(porCod[norm(it.codigo)]=porCod[norm(it.codigo)]||[]).push(it)});
   let ord=(a,b)=>a.prio-b.prio||String(a.sol.criado_em).localeCompare(String(b.sol.criado_em))||a.sol.id-b.sol.id||a.id-b.id;
@@ -148,7 +156,7 @@ async function simular(){
     cands.forEach(it=>{usados.add(it.id);let need=Number(it.quantidade)||0;pedido+=need;let a=Math.min(need,resta);if(a>0){resta-=a;dist+=a;aloc.push({it,lista:l,antes:need,aloc:a,fica:need-a})}});
     porItem.push({...l,pedido,dist,sobra:l.qtd-dist,achou:cands.length>0});
   });
-  SIM={aloc,porItem,ufs,comOutros,quando:new Date()};
+  SIM={aloc,porItem,comOutros,quando:new Date()};
   desenhar();
 }
 
@@ -174,8 +182,8 @@ function desenhar(){
   if(ABA==='filial'){
     let g={};aloc.forEach(a=>{let f=String(a.it.sol.filial||'').trim(),k=a.it.prio+'|'+f;(g[k]=g[k]||{uf:ufDe(f),f,prio:a.it.prio,sols:new Set(),itens:0,un:0,zeram:0});g[k].sols.add(a.it.sol.id);g[k].itens++;g[k].un+=a.aloc;if(!a.fica)g[k].zeram++});
     let rows=Object.values(g).sort((a,b)=>a.prio-b.prio||a.f.localeCompare(b.f)),porUf={};rows.forEach(r=>porUf[r.uf]=(porUf[r.uf]||0)+r.un);
-    h+=`<div class="scroll"><table><tr><th>Estado</th><th>Filial</th><th class="n">Solicitações</th><th class="n">Itens</th><th class="n">Unidades</th><th class="n">Itens que zeram</th></tr>`+
-      rows.map(r=>`<tr><td><span class="pill uf-${r.uf}">${r.uf}</span></td><td>${esc(nomeFil(r.f))}</td><td class="n">${r.sols.size}</td><td class="n">${r.itens}</td><td class="n b">${fmtN(r.un)}</td><td class="n">${r.zeram}</td></tr>`).join('')+
+    h+=`<div class="scroll"><table><tr><th>Ordem</th><th>Estado</th><th>Filial</th><th class="n">Solicitações</th><th class="n">Itens</th><th class="n">Unidades</th><th class="n">Itens que zeram</th></tr>`+
+      rows.map(r=>`<tr><td class="cinza">${r.prio+1}º</td><td><span class="pill uf-${r.uf}">${r.uf}</span></td><td>${esc(nomeFil(r.f))}</td><td class="n">${r.sols.size}</td><td class="n">${r.itens}</td><td class="n b">${fmtN(r.un)}</td><td class="n">${r.zeram}</td></tr>`).join('')+
       `</table></div><div class="dica" style="margin:10px 0 0">Total por estado: ${Object.keys(porUf).map(u=>`<b>${u}</b> ${fmtN(porUf[u])}`).join(' · ')}</div>`;
   }else if(ABA==='item'){
     h+=`<div class="scroll"><table><tr><th>Item</th><th class="n">Estoque</th><th class="n">Pedido em aberto</th><th class="n">Distribuído</th><th class="n">Sobra</th></tr>`+
@@ -231,6 +239,7 @@ async function gravar(){
 
 // ── Login: mesmo usuário do Painel principal ───────────────────────────────
 async function liberar(email){
+  $('lista-grupos').innerHTML=GRUPOS.map(g=>'<li>'+esc(g.nome)+'</li>').join('');
   userEmail=email||'';$('user-email').textContent=userEmail;
   try{let{data}=await db.from('perfis_usuario').select('role').eq('email',userEmail.toLowerCase().trim()).maybeSingle();isAdmin=data&&data.role==='admin'}catch(e){}
   document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';
