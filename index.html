@@ -492,6 +492,7 @@ try{
 try{
   let _cods=[...new Set(solicitacoes.flatMap(s=>(s.itens||[]).map(it=>String(it.codigo||'').trim())).filter(c=>c&&c!=='MANUAL'))],_preco={};
   for(let i=0;i<_cods.length;i+=500){let{data:pr}=await db.from('itens').select('codigo,preco').in('codigo',_cods.slice(i,i+500));(pr||[]).forEach(r=>{if(Number(r.preco)>0)_preco[String(r.codigo).trim()]=Number(r.preco)})}
+  window._precoCad=_preco;
   Object.keys(custoMap).forEach(k=>{let p=_preco[k.split('|')[1]];if(p&&(custoMap[k]<p/5||custoMap[k]>p*5))custoMap[k]=p});
   // itens sem custo em nenhuma filial: usa o preço do cadastro (achado pelo fallback '...|codigo')
   let _comCusto=new Set(Object.keys(custoMap).map(k=>k.split('|')[1]));
@@ -1085,8 +1086,7 @@ let _cl=_classConsumo(_histAll);if(Object.keys(_histAll).length)cons=_cl.media;
 let hist=Object.keys(_histAll).length?encodeURIComponent(JSON.stringify(_histAll)):'';let consDisplay=cons===-1?'<1':_fmtCons(cons);consHtml=cons!==0?('<span class="cons-clicavel" data-codigo="'+it.codigo+'" data-desc="'+(it.descricao||it.codigo||'').replace(/"/g,'')+'" data-nome="'+nomeCC+'" data-hist="'+hist+'" style="font-size:12px;font-family:ui-monospace,monospace;color:#1e40af;font-weight:600">'+consDisplay+'</span>'+_badgeTipoCons(_cl)):'<span style="font-size:11px;color:#cbd5e1">—</span>';
 // Custo unitário para estimar valores (acessível em todo o template)
 let _custoKey2=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
-let _cu=custoMap[_custoKey2]||0;
-if(!_cu){let _cod=String(it.codigo||'').trim();for(let _ck in custoMap){if(_ck.endsWith('|'+_cod)){_cu=custoMap[_ck];break;}}}
+let _cu=_custoItem(s.filial,it.codigo);
 let qtdAlmox=_qAlm(it),qtdGerente=_qtdGer(it),justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=_gerenteAvaliou(it,s),alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(_qAlm(it))>0;
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
@@ -1215,7 +1215,8 @@ function _gerenteAvaliou(it,sol){return it.qtd_gerente!=null||!!(sol&&sol.status
 function _chaveGrupo(s){if(s.grupo_envio)return 'G|'+s.grupo_envio;let dt=new Date(s.criado_em),mb=Math.floor(dt.getMinutes()/3)*3;return s.solicitante_matricula+'|'+dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate()+'-'+dt.getHours()+'-'+mb}
 // Qtd real do gerente (coluna própria); fallback p/ registros antigos
 // Totais em R$ do card: o que o almoxarife pediu, o que o gerente aprovou e o que o master deixou
-function _custoItem(fil,cod){fil=String(fil||'').trim();cod=String(cod||'').trim();var c=custoMap[fil+'|'+cod]||0;if(!c){for(var k in custoMap){if(k.endsWith('|'+cod)){c=custoMap[k];break}}}return c}
+// Custo do item: custo médio da filial; sem custo na filial → preço do cadastro (itens.preco); sem cadastro → mediana das outras filiais
+function _custoItem(fil,cod){fil=String(fil||'').trim();cod=String(cod||'').trim();var c=custoMap[fil+'|'+cod]||0;if(c)return c;var pc=(window._precoCad||{})[cod];if(pc)return pc;var vs=[];for(var k in custoMap){if(k.endsWith('|'+cod)&&custoMap[k]>0)vs.push(custoMap[k])}if(!vs.length)return 0;vs.sort(function(a,b){return a-b});var m=vs.length>>1;return vs.length%2?vs[m]:(vs[m-1]+vs[m])/2}
 function _calcTotais3(sols){var t={a:0,g:0,m:0,temG:false,e:0,eu:0,ei:0};(sols||[]).forEach(function(sol){(sol.itens||[]).forEach(function(it){
   if(!((_qAlm(it))>0||it.situacao==='recusado'))return;
   var c=_custoItem(sol.filial,it.codigo),rec=it.situacao==='recusado';
