@@ -528,7 +528,7 @@ async function carregarBruto(){
       "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_CC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
       (n)=>setProgresso(50+Math.min(n/30000*48,48),"Carregando Pedidos... "+n.toLocaleString("pt-BR")), "", "C7_NUM,C7_FILIAL");
     BRUTO=true;
-    popularComparativo(); buildDetalhamento();
+    buildDetalhamento();
     if(AVISOS.length) document.getElementById("last-update").innerHTML+='<br><span style="color:#fca5a5">⚠ Dados incompletos ('+AVISOS.join("; ")+'). Recarregue a página.</span>';
     setProgresso(100,"Pronto!");
   }finally{ setTimeout(()=>{ov.style.display="none";},300); }
@@ -591,7 +591,7 @@ async function showScreen(n,btn,title){
   btn.classList.add("active");
   document.getElementById("tela-title").textContent=title;
   document.querySelector(".filters").style.display = n==="comparativo" ? "none" : "";
-  if((n==="comparativo"||n==="detalhamento")&&!BRUTO){
+  if(n==="detalhamento"&&!BRUTO){
     try{ await carregarBruto(); }catch(e){ alert("Não consegui carregar a base: "+e.message); return; }
   }
   if(n==="comparativo") renderComparativo();
@@ -1037,94 +1037,55 @@ const CMP_DD={
   fil:{itens:[], sel:new Set(), todos:"Todas as filiais", plural:" filiais"},
   cc: {itens:[], sel:new Set(), todos:"Todos os CCs",     plural:" CCs"}
 };
-let CMP_CC_PED={}, CMP_CC_NOME={};
-let CMP_GRUPOS=[], CMP_SEL=new Set(), CMP_BASE=null, CMP_FONTE="", CMP_CARREGANDO=false, CMP_MES=null, CMP_MOB=null;
+let CMP_CC_NOME={};
+let CMP_GRUPOS=[], CMP_SEL=new Set(), CMP_BASE=null, CMP_FONTE="", CMP_CARREGANDO=false, CMP_MES=null;
 // Pedido de mobilização = a observação da SC ligada tem "MOBILIZAÇÃO" (não conta "desmobilização", "Mobi" de carro nem "mobile")
 function ehMob(obs){ const t=String(obs||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase(); return /(^|[^S])MOBILIZ|MOBIZAC/.test(t); }
-function cmpMobSet(){
-  if(CMP_MOB) return CMP_MOB;
-  const scMob=new Set(); CMP_MOB=new Set();
-  ALL_SC.forEach(r=>{ if(ehMob(r.C1_OBS)){ const fil=String(r.C1_FILIAL||"").trim();
-    scMob.add(String(r.C1_NUM||"").trim()+"|"+fil); if(r.pedido_num) CMP_MOB.add(String(r.pedido_num).trim()+"|"+fil); } });
-  ALL_PED.forEach(r=>{ const fil=String(r.C7_FILIAL||"").trim(); if(scMob.has(String(r.C7_NUMSC||"").trim()+"|"+fil)) CMP_MOB.add(String(r.C7_NUM||"").trim()+"|"+fil); });
-  return CMP_MOB;
-}
 function cmpClicaMes(m){ CMP_MES = CMP_MES===m ? null : m; renderComparativo(); }
 
-// Base do comparativo: valores por pedido × grupo, já separados pelo status de cada ITEM
-// (tabela pedidos_grupo, alimentada pelo upload_compras.py). Sem ela, usa a tabela pedidos
-// (status e grupo do pedido inteiro — menos exato).
+// Base do comparativo: vem pronta do banco (mv_compras_cmp, 1 linha por pedido × grupo), só dos 2 anos comparados.
+let CMP_OPC=null, CMP_ANOS="";
+function cmpAnosSel(){ const a=document.getElementById("cmp-ano-a").value, b=document.getElementById("cmp-ano-b").value; return [a,b]; }
 async function cmpCarregarBase(){
-  if(CMP_BASE||CMP_CARREGANDO) return;
+  if(CMP_CARREGANDO) return;
   CMP_CARREGANDO=true;
-  const tipoPed={};
-  ALL_PED.forEach(r=>{ tipoPed[String(r.C7_NUM||"").trim()+"|"+String(r.C7_FILIAL||"").trim()]=r.TIPO_PEDIDO; });
-  try{ (await sbGet("centros_custo","cc,nome",null,"","cc")).forEach(r=>{ CMP_CC_NOME[String(r.cc||"").trim()]=String(r.nome||"").trim(); }); }catch(e){}
-  cmpItensCC();
-  let itens=[];
   try{
-    itens=await sbGet("pedidos_grupo","c7_num,c7_filial,c7_grpprod,emissao,valor_total,valor_valido,valor_recebido,valor_rec_parc",null,"","c7_num,c7_filial,c7_grpprod");
-  }catch(e){ itens=[]; }
-  if(itens.length){
-    CMP_FONTE="itens";
-    CMP_BASE=itens.map(r=>{
-      const num=String(r.c7_num||"").trim(), fil=String(r.c7_filial||"").trim();
-      return {num, fil, cc:CMP_CC_PED[num+"|"+fil]||"", g:String(r.c7_grpprod||"").trim(), d:normDate(r.emissao), tipo:tipoPed[num+"|"+fil]||"",
-        v:{rec:+r.valor_recebido||0, recparc:+r.valor_rec_parc||0, valid:+r.valor_valido||0, todos:+r.valor_total||0}};
-    });
-  }else{
-    CMP_FONTE="pedidos";
-    CMP_BASE=ALL_PED.map(r=>{
-      const st=r.STATUS_PEDIDO, t=Number(r.C7_TOTAL||0);
-      return {num:String(r.C7_NUM||"").trim(), fil:String(r.C7_FILIAL||"").trim(), cc:String(r.C7_CC||"").trim(), g:cmpGrp(r), d:normDate(r.EMISSAO_PEDIDO), tipo:r.TIPO_PEDIDO||"",
-        v:{rec:st==="Recebido"?t:0, recparc:(st==="Recebido"||st==="Recebido parcialmente")?t:0, valid:STATUS_FORA.includes(st)?0:t, todos:t}};
-    });
+    if(!CMP_OPC){ CMP_OPC=await rpc("compras_cmp_opcoes",{}); cmpPopularOpcoes(CMP_OPC); }
+    const anos=cmpAnosSel(), k=anos.join(",");
+    const rows=await rpc("compras_cmp_base",{p_anos:[...new Set(anos.filter(Boolean).map(Number))]})||[];
+    CMP_BASE=rows.map(r=>({num:r[0], fil:r[1], cc:r[2], g:r[3], d:r[4], tipo:r[5], mob:!!r[6],
+      v:{rec:+r[7]||0, recparc:+r[8]||0, valid:+r[9]||0, todos:+r[10]||0}}));
+    CMP_ANOS=k; CMP_FONTE="itens";
+  }catch(e){
+    CMP_CARREGANDO=false;
+    document.getElementById("kpi-cmp").innerHTML='<div class="kpi"><div class="kpi-lbl" style="color:var(--red)">Não consegui carregar o comparativo: '+cmpEsc(e.message||e)+'</div></div>';
+    return;
   }
-  // grupos que só existem nos itens também entram na lista
-  const conhecidos=new Set(CMP_GRUPOS.map(g=>g.cod));
-  [...new Set(CMP_BASE.map(x=>x.g))].filter(c=>!conhecidos.has(c)).forEach(c=>CMP_GRUPOS.push({cod:c,label:c||"(sem grupo)"}));
-  CMP_GRUPOS.sort((a,b)=>a.cod.localeCompare(b.cod));
-  cmpListaGrupos();
   CMP_CARREGANDO=false;
   renderComparativo();
 }
-
-function cmpGrp(r){ return String(r.C7_GRPPROD||"").trim(); }
-function cmpEsc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-function cmpGrpNome(cod){ const g=CMP_GRUPOS.find(x=>x.cod===cod); return g?g.label:(cod||"(sem grupo)"); }
-
-function popularComparativo(){
-  // nome do grupo = descrição mais frequente daquele código
-  const desc={};
-  ALL_PED.forEach(r=>{
-    const c=cmpGrp(r), d=String(r.DESC_GRPPROD||"").trim();
-    desc[c]=desc[c]||{}; if(d) desc[c][d]=(desc[c][d]||0)+1;
-  });
-  CMP_GRUPOS=Object.keys(desc).sort().map(c=>{
-    const top=Object.entries(desc[c]).sort((a,b)=>b[1]-a[1])[0];
-    return {cod:c, label:(c||"(sem grupo)")+(top?" — "+top[0]:"")};
-  });
-  CMP_DD.fil.itens=[...new Set(ALL_PED.map(r=>String(r.C7_FILIAL||"").trim()))].filter(Boolean).sort()
-    .map(v=>({cod:v, label:nomeFilial(v)+" ("+v+")"}));
-  CMP_CC_PED={};
-  ALL_PED.forEach(r=>{ CMP_CC_PED[String(r.C7_NUM||"").trim()+"|"+String(r.C7_FILIAL||"").trim()]=String(r.C7_CC||"").trim(); });
-  cmpItensCC(); cmpListaDd("fil");
+// listas dos filtros (grupos, filiais, CCs, tipos, anos) vindas do banco
+function cmpPopularOpcoes(o){
+  o=o||{};
+  CMP_GRUPOS=(o.grupos||[]).map(([c,d])=>({cod:c||"", label:(c||"(sem grupo)")+(d?" — "+String(d).trim():"")}));
+  CMP_DD.fil.itens=(o.filiais||[]).map(v=>({cod:v, label:nomeFilial(v)+" ("+v+")"}));
+  CMP_CC_NOME={}; (o.ccs||[]).forEach(([c,n])=>{ CMP_CC_NOME[c||""]=String(n||"").trim(); });
+  CMP_DD.cc.itens=(o.ccs||[]).map(([c])=>({cod:c||"", label:c ? c+(CMP_CC_NOME[c]?" — "+CMP_CC_NOME[c]:"") : "(sem CC)"}));
+  cmpListaDd("fil"); cmpListaDd("cc");
   const tip=document.getElementById("cmp-tipo");
-  [...new Set(ALL_PED.map(r=>r.TIPO_PEDIDO))].filter(Boolean).sort().forEach(v=>{
-    const o=document.createElement("option"); o.value=v; o.textContent=v; tip.appendChild(o);
-  });
-  const anos=[...new Set(ALL_PED.map(r=>(normDate(r.EMISSAO_PEDIDO)||"").slice(0,4)))].filter(Boolean).sort();
+  (o.tipos||[]).forEach(v=>{ const op=document.createElement("option"); op.value=v; op.textContent=v; tip.appendChild(op); });
+  const anos=(o.anos||[]).map(String);
   const sa=document.getElementById("cmp-ano-a"), sb=document.getElementById("cmp-ano-b");
   anos.forEach(a=>{ sa.add(new Option(a,a)); sb.add(new Option(a,a)); });
   sb.value=anos[anos.length-1]||""; sa.value=anos[anos.length-2]||anos[0]||"";
   cmpListaGrupos();
   document.addEventListener("click",()=>["grp","fil","cc"].forEach(k=>document.getElementById("cmp-"+k+"-panel").classList.remove("open")));
 }
-function cmpItensCC(){
-  CMP_DD.cc.itens=[...new Set(Object.values(CMP_CC_PED))].sort()
-    .map(v=>({cod:v, label:v ? v+(CMP_CC_NOME[v]?" — "+CMP_CC_NOME[v]:"") : "(sem CC)"}));
-  cmpListaDd("cc");
-}
+
+function cmpGrp(r){ return String(r.C7_GRPPROD||"").trim(); }
+function cmpEsc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function cmpGrpNome(cod){ const g=CMP_GRUPOS.find(x=>x.cod===cod); return g?g.label:(cod||"(sem grupo)"); }
+
 function cmpToggleDd(e,k){
   e.stopPropagation();
   ["grp","fil","cc"].filter(x=>x!==k).forEach(x=>document.getElementById("cmp-"+x+"-panel").classList.remove("open"));
@@ -1181,14 +1142,14 @@ async function cmpCarregarFat(anos){
 }
 function renderComparativo(){
   if(!document.getElementById("screen-comparativo").classList.contains("active")) return;
-  if(!CMP_BASE){
-    document.getElementById("kpi-cmp").innerHTML='<div class="kpi"><div class="kpi-lbl">Carregando itens dos pedidos...</div></div>';
+  if(!CMP_OPC||!CMP_BASE||CMP_ANOS!==cmpAnosSel().join(",")){
+    document.getElementById("kpi-cmp").innerHTML='<div class="kpi"><div class="kpi-lbl">Carregando o comparativo...</div></div>';
     cmpCarregarBase(); return;
   }
   const anoA=document.getElementById("cmp-ano-a").value, anoB=document.getElementById("cmp-ano-b").value;
   const filSel=CMP_DD.fil.sel, ccSel=CMP_DD.cc.sel, tipo=document.getElementById("cmp-tipo").value;
   const modoSt=document.getElementById("cmp-status").value;
-  const mob=document.getElementById("cmp-mob").value, mobSet=mob?cmpMobSet():null;
+  const mob=document.getElementById("cmp-mob").value;
   const hoje=new Date();
   const mesAtual=hoje.getFullYear()+"-"+String(hoje.getMonth()+1).padStart(2,"0");
   const diaAtual=String(hoje.getDate()).padStart(2,"0");
@@ -1203,7 +1164,7 @@ function renderComparativo(){
     const v=r.v[modoSt]; if(!v) return;
     if(tipo&&r.tipo!==tipo) return;
     if(ccSel.size&&!ccSel.has(r.cc)) return;
-    if(mob){ const e=mobSet.has(r.num+"|"+r.fil); if(mob==="so"&&!e) return; if(mob==="sem"&&e) return; }
+    if(mob){ const e=r.mob; if(mob==="so"&&!e) return; if(mob==="sem"&&e) return; }
     todas.push({ano, m:+d.slice(5,7)-1, dia:d.slice(8,10), g:r.g, fil:r.fil, v, ped:r.num+"|"+r.fil});
   });
   const linhas=todas.filter(x=>!filSel.size||filSel.has(x.fil));
