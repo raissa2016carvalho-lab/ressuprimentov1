@@ -84,7 +84,7 @@ details table{border-top:1px solid #f1f5f9}
       <button class="btn azul" onclick="simular()" id="btn-sim">Simular distribuição</button>
       <span id="carregando" class="dica" style="margin:0"></span>
     </div>
-    <div class="dica" style="margin:10px 0 0">Entram as solicitações <b>pendentes</b> e <b>aguardando master</b> (ainda sem SC), itens não recusados. Dentro de cada estado, a solicitação mais antiga é atendida primeiro.</div>
+    <div class="dica" style="margin:10px 0 0">Entram as solicitações <b>pendentes</b> e <b>aguardando Almoxarifado Matriz</b> (ainda sem SC), itens não recusados. Dentro de cada estado, a solicitação mais antiga é atendida primeiro.</div>
   </div>
   <div id="res"></div>
 </div>
@@ -207,7 +207,7 @@ function exportar(){
 async function gravar(){
   if(!SIM||!isAdmin)return;
   let{aloc}=SIM,dist=aloc.reduce((s,a)=>s+a.aloc,0);
-  if(!confirm(`Gravar o desconto do estoque central?\n\n${aloc.length} itens · ${fmtN(dist)} unidades.\nA quantidade do master diminui e o valor fica guardado em "estoque central".`))return;
+  if(!confirm(`Gravar o desconto do estoque central?\n\n${aloc.length} itens · ${fmtN(dist)} unidades.\nA quantidade do Almoxarifado Matriz diminui e o valor fica guardado em "estoque central".`))return;
   let b=$('btn-gravar');b.disabled=true;b.textContent='Conferindo...';
   // confere se ninguém mexeu nas quantidades desde a simulação
   let ids=aloc.map(a=>a.it.id),atual={};
