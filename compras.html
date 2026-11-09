@@ -1171,6 +1171,14 @@ function cmpDif(a,b){
 }
 function cmpPct(p){ return p==null?"–":(p>0?"+":"")+p.toFixed(1)+"%"; }
 
+// Faturamento (SF2) por mês e filial, para a barra verde atrás de cada mês. Carrega uma vez por par de anos.
+let FAT=null, FAT_ANOS="";
+async function cmpCarregarFat(anos){
+  const k=anos.join(","); if(FAT_ANOS===k) return; FAT_ANOS=k; FAT={};
+  try{ (await rpc("faturamento_mensal",{p_anos:anos.map(Number)})||[]).forEach(r=>{ FAT[r.mes+"|"+String(r.filial||"").trim()]=Number(r.valor)||0; }); }
+  catch(e){ console.warn("[faturamento]",e); }
+  renderComparativo();
+}
 function renderComparativo(){
   if(!document.getElementById("screen-comparativo").classList.contains("active")) return;
   if(!CMP_BASE){
@@ -1209,6 +1217,12 @@ function renderComparativo(){
     if(x.ano===anoA){ vA[x.m]+=x.v; pA[x.m].add(x.ped); }
   });
   const qA=pA.map(p=>p.size), qB=pB.map(p=>p.size);
+  // faturamento do mês (respeita o filtro de filial; o ano base também só até o mesmo dia não se aplica — faturamento é do mês inteiro)
+  if(FAT_ANOS!==[anoA,anoB].join(",")) cmpCarregarFat([anoA,anoB]);
+  const fA=Array(12).fill(0), fB=Array(12).fill(0);
+  Object.entries(FAT||{}).forEach(([k,v])=>{ const [mes,fil]=k.split("|"); if(filSel.size&&!filSel.has(fil)) return;
+    const ano=mes.slice(0,4), m=+mes.slice(5,7)-1; if(ano===anoA) fA[m]+=v; if(ano===anoB) fB[m]+=v; });
+  const temFat=fA.some(v=>v>0)||fB.some(v=>v>0);
   // meses comparáveis = meses que já começaram no ano comparado
   const fimB = anoB+"-12" < mesAtual ? 11 : (anoB===mesAtual.slice(0,4) ? hoje.getMonth() : -1);
   const comp = m => m<=fimB;
@@ -1225,29 +1239,36 @@ function renderComparativo(){
 
   document.getElementById("cmp-ch-title").textContent="Valor de pedidos mês a mês (R$) — "+anoA+" × "+anoB+
     (CMP_SEL.size?" — "+(CMP_SEL.size===1?cmpGrpNome([...CMP_SEL][0]):CMP_SEL.size+" grupos"):"");
-  mkChart("ch-cmp","bar",MESES,[
-    {label:anoA,data:vA.map(v=>Math.round(v)),backgroundColor:MESES.map((x,m)=>CMP_MES==null||CMP_MES===m?"#94a3b8":"#e2e8f0"),borderRadius:4},
-    {label:anoB,data:vB.map((v,m)=>comp(m)?Math.round(v):null),backgroundColor:MESES.map((x,m)=>CMP_MES==null||CMP_MES===m?PAL[0]:"#c7d2fe"),borderRadius:4}
-  ],{labelFmt:fmtCurto,labelRot:-90,
+  const dsCmp=[
+    {label:anoA,data:vA.map(v=>Math.round(v)),backgroundColor:MESES.map((x,m)=>CMP_MES==null||CMP_MES===m?"#94a3b8":"#e2e8f0"),borderRadius:4,order:1},
+    {label:anoB,data:vB.map((v,m)=>comp(m)?Math.round(v):null),backgroundColor:MESES.map((x,m)=>CMP_MES==null||CMP_MES===m?PAL[0]:"#c7d2fe"),borderRadius:4,order:1}
+  ];
+  // barra verde discreta atrás de cada mês: faturamento do ano comparado (eixo da direita)
+  if(temFat) dsCmp.push({label:"Faturamento "+anoB,data:fB.map(v=>v?Math.round(v):null),backgroundColor:"rgba(22,163,74,.13)",borderColor:"rgba(22,163,74,.35)",borderWidth:{top:1},
+    borderRadius:4,grouped:false,order:10,yAxisID:"y2",barPercentage:1,categoryPercentage:.92,datalabels:{display:false}});
+  mkChart("ch-cmp","bar",MESES,dsCmp,{labelFmt:fmtCurto,labelRot:-90,
      onClick:(ev,els)=>{ if(els&&els.length) cmpClicaMes(els[0].index); },
      onHover:(ev,els)=>{ ev.native&&ev.native.target&&(ev.native.target.style.cursor=els&&els.length?"pointer":"default"); },
      plugins:{legend:{display:true,labels:{color:"#374151",font:{size:11}}},
-     tooltip:{callbacks:{label:c=>c.dataset.label+": "+fmtM(c.raw)}}},
-     scales:{x:{ticks:{color:"#6b7280"}},y:{ticks:{color:"#6b7280",callback:v=>Math.abs(v)>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":"R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil"}}}});
+     tooltip:{callbacks:{label:c=>c.dataset.label+": "+fmtM(c.raw),afterBody:its=>{ const m=its&&its.length?its[0].dataIndex:null; if(m==null||!temFat) return ""; return ["Faturamento "+anoA+": "+fmtM(fA[m]),"Faturamento "+anoB+": "+fmtM(fB[m])]; }}}},
+     scales:{x:{ticks:{color:"#6b7280"}},y:{ticks:{color:"#6b7280",callback:v=>Math.abs(v)>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":"R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil"}},
+       y2:{display:temFat,position:"right",beginAtZero:true,grace:"12%",grid:{drawOnChartArea:false},title:{display:true,text:"Faturamento",color:"#16a34a",font:{size:10}},
+           ticks:{color:"#16a34a",font:{size:9},callback:v=>Math.abs(v)>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":"R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil"}}}});
 
-  document.getElementById("th-cmp-mes").innerHTML=`<tr><th>Mês</th><th class="r">${anoA}</th><th class="r">${anoB}</th><th class="r">Diferença</th><th class="r">%</th><th class="r">Pedidos ${anoA}</th><th class="r">Pedidos ${anoB}</th></tr>`;
+  document.getElementById("th-cmp-mes").innerHTML=`<tr><th>Mês</th><th class="r">${anoA}</th><th class="r">${anoB}</th><th class="r">Diferença</th><th class="r">%</th><th class="r">Pedidos ${anoA}</th><th class="r">Pedidos ${anoB}</th>${temFat?`<th class="r" style="color:#16a34a">Faturamento ${anoA}</th><th class="r" style="color:#16a34a">Faturamento ${anoB}</th><th class="r" style="color:#16a34a" title="Valor de pedidos ÷ faturamento do mês">Compras ÷ fat. ${anoB}</th>`:""}</tr>`;
+  const tdF=m=>temFat?`<td class="r" style="background:#f0fdf4">${fmtM(fA[m])}</td><td class="r" style="background:#f0fdf4">${comp(m)?fmtM(fB[m]):"–"}</td><td class="r" style="background:#f0fdf4">${comp(m)&&fB[m]?(vB[m]/fB[m]*100).toFixed(1)+"%":"–"}</td>`:"";
   let h="";
   for(let m=0;m<12;m++){
-    if(!comp(m)){ h+=`<tr style="color:var(--muted)"><td>${MESES[m]}</td><td class="r">${fmtM(vA[m])}</td><td class="r">–</td><td class="r">–</td><td class="r">–</td><td class="r">${qA[m]}</td><td class="r">–</td></tr>`; continue; }
+    if(!comp(m)){ h+=`<tr style="color:var(--muted)"><td>${MESES[m]}</td><td class="r">${fmtM(vA[m])}</td><td class="r">–</td><td class="r">–</td><td class="r">–</td><td class="r">${qA[m]}</td><td class="r">–</td>${tdF(m)}</tr>`; continue; }
     const x=cmpDif(vA[m],vB[m]);
     h+=`<tr style="cursor:pointer;${CMP_MES===m?"background:#eff6ff;font-weight:600":""}" onclick="cmpClicaMes(${m})" title="Clique para ver os grupos deste mês"><td>${MESES[m]}${corte(m)?` <span style="font-size:10px;color:var(--muted)">(até dia ${corte(m)})</span>`:""}</td>
       <td class="r">${fmtM(vA[m])}</td><td class="r">${fmtM(vB[m])}</td>
       <td class="r ${x.cls}">${fmtM(x.d)}</td><td class="r ${x.cls}">${cmpPct(x.p)}</td>
-      <td class="r">${qA[m]}</td><td class="r">${qB[m]}</td></tr>`;
+      <td class="r">${qA[m]}</td><td class="r">${qB[m]}</td>${tdF(m)}</tr>`;
   }
   h+=`<tr class="total-row"><td>Total (meses comparáveis)</td><td class="r">${fmtM(totA)}</td><td class="r">${fmtM(totB)}</td>
     <td class="r">${fmtM(dt.d)}</td><td class="r">${cmpPct(dt.p)}</td>
-    <td class="r">${qA.reduce((s,v,m)=>s+(comp(m)?v:0),0)}</td><td class="r">${qB.reduce((s,v,m)=>s+(comp(m)?v:0),0)}</td></tr>`;
+    <td class="r">${qA.reduce((s,v,m)=>s+(comp(m)?v:0),0)}</td><td class="r">${qB.reduce((s,v,m)=>s+(comp(m)?v:0),0)}</td>${temFat?(()=>{const a=fA.reduce((s,v,m)=>s+(comp(m)?v:0),0),b=fB.reduce((s,v,m)=>s+(comp(m)?v:0),0);return `<td class="r">${fmtM(a)}</td><td class="r">${fmtM(b)}</td><td class="r">${b?(totB/b*100).toFixed(1)+"%":"–"}</td>`})():""}</tr>`;
   document.getElementById("tb-cmp-mes").innerHTML=h;
   document.getElementById("cmp-fonte").innerHTML = CMP_FONTE==="itens"
     ? "Valores somados item a item, pelo status e grupo de cada item."
