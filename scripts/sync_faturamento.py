@@ -10,6 +10,8 @@ Depois (dia a dia):       py sync_faturamento.py          → refaz do 1º dia d
 Antes de rodar a 1ª vez: rodar docs/sql/faturamento.sql no Supabase (cria a tabela).
 """
 
+TABELA = "LWHSF2001"   # tabela de faturamento (SF2) no BEQ_LWH
+
 import sys
 import math
 import traceback
@@ -34,7 +36,6 @@ RESSUP_URL = "XXXX"
 RESSUP_KEY = "XXXX"
 # ─────────────────────────────────────────────────────────────────────────────
 
-TABELA = "LWHSF2001"
 sb = None
 
 
