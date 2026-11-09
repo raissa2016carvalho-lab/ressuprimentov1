@@ -246,7 +246,7 @@ async function carregarFormularios(){
   for(let i=0;i<solIds.length;i+=50){
     let lote=solIds.slice(i,i+50),off2=0;
     for(;;){
-      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em`).in(`solicitacao_id`,lote).order(`id`).range(off2,off2+999);
+      let{data:its}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em,qtd_estoque_central`).in(`solicitacao_id`,lote).order(`id`).range(off2,off2+999);
       if(!its||!its.length)break;
       its.forEach(it=>{if(!itensMap[it.solicitacao_id])itensMap[it.solicitacao_id]=[];itensMap[it.solicitacao_id].push(it);});
       if(its.length<1000)break;
@@ -349,7 +349,7 @@ window.irPara=irPara;function irSubSettings(sub){$(`sub-bases`).style.display=su
 // ---------- ABA SOLICITAÇÕES ----------
 let gerentesMapCC={};async function carregarSolicitacoes(){$(`lista`).innerHTML=`<div class="vazio">Carregando...</div>`;let[{data:ccs},{data:sols,error:e2},{data:gc}]=await Promise.all([db.from(`centros_custo`).select(`*`),db.from(`solicitacoes`).select(`*`).in(`status`,[`pendente`,`aguardando_master`]).order(`criado_em`,{ascending:!1}).limit(5e3),db.from(`gerentes_cc`).select(`cc,email`)]);if(e2){$(`lista`).innerHTML=`<div class="vazio">Erro ao carregar: `+e2.message+`</div>`;return}
 // buscar itens paginando para não cortar no limite de 1000
-let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em`).in(`solicitacao_id`,lote).order(`id`).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c}),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
+let solIds=(sols||[]).map(s=>s.id),itens=[];for(let i=0;i<solIds.length;i+=100){let lote=solIds.slice(i,i+100),off=0;for(;;){let{data:loteItens}=await db.from(`solicitacao_itens`).select(`id,solicitacao_id,codigo,descricao,quantidade,qtd_sugerida,qtd_almoxarife,justificativa,situacao,justificativa_gerente,consumo_medio,consumo_historico,estoque_filial,estoque_filial_data,qtd_gerente,master_alterado_por,master_alterado_em,qtd_estoque_central`).in(`solicitacao_id`,lote).order(`id`).range(off,off+999);if(!loteItens||!loteItens.length||(itens=itens.concat(loteItens),loteItens.length<1e3))break;off+=1e3}}ccMap={},(ccs||[]).forEach(c=>{c.nome=(c.nome||'').replace(/\s+/g,' ').trim();ccMap[c.cc]=c}),gerentesMapCC={},(gc||[]).forEach(g=>{(gerentesMapCC[g.cc]=gerentesMapCC[g.cc]||[]).push(g.email)});let porSol={};itens.forEach(i=>{(porSol[i.solicitacao_id]=porSol[i.solicitacao_id]||[]).push(i)}),solicitacoes=(sols||[]).map(s=>({...s,itens:porSol[s.id]||[]}));
 // carrega consumo 3m e pessoas por cargo para os CCs visíveis
 let ccsSols=[...new Set(solicitacoes.map(s=>s.cc).filter(Boolean))];
 // Expandir homônimos: buscar todos os CCs com mesmo nome (igual ao consumo)
@@ -767,9 +767,9 @@ function renderCardMatricial(grupo,readonly){
           var temAprov=Object.values(item.porCC).some(function(it){return it.situacao==='aprovado';});
           var hasSC=grupo.some(function(s){return s.sc_numero;});
           var display=temAprov||hasSC?qtdSalva:'—';
-          return '<td style="text-align:center;background:#f0fdf4;padding:6px;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+display+'</td>'+_tdAcao(_estoqueItemMat(grupo,item),cons,typeof display==='number'?display:0,periodo,_cl);
+          return _tdCentral(Object.values(item.porCC))+'<td style="text-align:center;background:#f0fdf4;padding:6px;font-family:ui-monospace,monospace;font-weight:700;color:#166534">'+display+'</td>'+_tdAcao(_estoqueItemMat(grupo,item),cons,typeof display==='number'?display:0,periodo,_cl);
         }
-        return '<td style="text-align:center;background:#f0fdf4;padding:6px">'
+        return _tdCentral(Object.values(item.porCC))+'<td style="text-align:center;background:#f0fdf4;padding:6px">'
           +'<input type="number" min="0" id="'+inputId+'" value="'+(algumRecusado?0:Object.values(item.porCC).reduce(function(s,it){return s+(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0))},0))+'"'
           +' data-ids="'+idsRateio+'" data-qtds="'+qtdsRateio+'" data-ccs="'+ccsRateio+'" data-codigo="'+item.codigo+'"'
           +' style="width:72px;text-align:right;padding:4px 6px;border:1px solid #d1fae5;border-radius:6px;font-family:ui-monospace,monospace;font-size:13px;font-weight:700"'
@@ -832,6 +832,7 @@ function renderCardMatricial(grupo,readonly){
     +'<th style="text-align:center;width:80px;padding:7px 10px;background:#eff6ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#1e40af;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"ger\" title="Ordenar por qtd gerente">Qtd<br>gerente<span id="sort-'+cardId+'-ger"></span></th>'
     +'<th style="text-align:left;width:160px;padding:7px 10px;background:#eff6ff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#1e40af">Just.<br>gerente</th>'
     +'<th style="text-align:left;width:210px;padding:7px 10px;background:#fefce8;border-bottom:2px solid #e2e8f0;font-size:11px;color:#854d0e">Último pedido<br><span style="font-weight:400">SC · PC · status · obs</span></th>'
+    +'<th style="text-align:center;width:70px;padding:7px 10px;background:#ecfeff;border-bottom:2px solid #e2e8f0;font-size:11px;color:#0e7490" title="Quantidade atendida pelo estoque central — já descontada da Qtd master">Estoque<br>central</th>'
     +'<th style="text-align:center;width:80px;padding:7px 10px;background:#f0fdf4;border-bottom:2px solid #e2e8f0;font-size:11px;color:#166534;cursor:pointer;user-select:none" onclick="var _cid=this.dataset.cardid;window[\'sortCard_\'+_cid]&&window[\'sortCard_\'+_cid](this.dataset.col)" data-cardid=\"'+cardId+'\" data-col=\"master\" title="Ordenar por qtd master">Qtd<br>master<span id="sort-'+cardId+'-master"></span></th>'
     +'<th style="text-align:center;width:120px;padding:7px 10px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:11px;color:#334155" title="Quanto comprar para o estoque + compra cobrirem o período (consumo × meses), e se a Qtd master está acima, abaixo ou na medida">Ação<br><span style="font-weight:400">compra p/ '+_rotuloInicioPeriodo()+'</span></th>'
     +cabecalhos
@@ -1051,6 +1052,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th style="text-align:center;width:80px;background:#f0fdf4">Qtd<br><span style="font-size:10px;color:#166534">gerente</span></th>
               <th style="text-align:left;width:200px">Justificativa<br>gerente</th>
               <th style="text-align:left;width:160px">Pedido anterior</th>
+              <th style="text-align:center;width:80px;background:#ecfeff" title="Quantidade atendida pelo estoque central (tela Estoque central) — já descontada da Qtd master">Estoque<br><span style="font-size:10px;color:#0e7490">central</span></th>
               <th style="text-align:center;width:100px">Qtd master</th>
               <th style="text-align:center;width:120px" title="Quanto comprar para o estoque + compra cobrirem o período (consumo × meses), e se a Qtd master está acima, abaixo ou na medida">Ação<br><span style="font-weight:400">compra p/ ${_rotuloInicioPeriodo()}</span></th>
             </tr>
@@ -1131,6 +1133,7 @@ let pedsPendentes=peds.filter(p=>{let st=(p.pc_status||'').toLowerCase();return 
 if(pedsPendentes.length>0){let ultEmissao=pedsPendentes[0].c1_emissao;pedsPendentes=pedsPendentes.filter(p=>p.c1_emissao===ultEmissao);}
 return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;let dataEmissao=p.c1_emissao?p.c1_emissao.slice(6,8)+`/`+p.c1_emissao.slice(4,6)+`/`+p.c1_emissao.slice(0,4):``;return`<div style="margin-bottom:2px;padding:2px 4px;border-radius:4px;background:#fff7ed"><span style="font-size:10px;color:#94a3b8">RESSUP</span> <span style="font-family:ui-monospace,monospace;font-size:10.5px">SC `+(p.c1_num||``)+`</span>`+(p.pc_numero?` <span style="font-size:10px;color:#64748b">PC `+p.pc_numero+`</span>`:``)+`<br>`+(dataEmissao?`<span style="font-size:9.5px;color:#94a3b8">`+dataEmissao+`</span> `:``)+`<span style="font-weight:700;color:`+cor+`;font-size:10.5px">⏳ `+(p.pc_status||`Pendente`)+`</span>`+(p.c1_quant?` <span style="font-size:10px;color:#64748b">`+p.c1_quant+` un</span>`:``)+`</div>`}).join(``)+(pedsPendentes.length>3?`<div style="color:#94a3b8;font-size:10px">+`+(pedsPendentes.length-3)+` mais</div>`:``):`<span style="color:#cbd5e1">—</span>`})()}
                 </td>
+                ${_tdCentral([it])}
                 <td style="text-align:center">
                   <input type="number" min="0" id="minp-ind-${it.id}" value="${isRecusadoGer?0:(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0))}"
                     style="width:72px;text-align:right;padding:4px 6px;font-size:13px;border:1px solid #e2e8f0;border-radius:6px;font-family:ui-monospace,monospace"
@@ -1156,7 +1159,7 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
                 });
                 let fv3=function(v){return v>0?'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''};
                 let gerTd=totGer>0?'<td style="text-align:center;font-weight:700;font-size:13px;background:#f0fdf4;color:#166534">'+totGer+'<div style="font-size:9px;color:#94a3b8;font-weight:400">'+fv3(valGer)+'</div></td>':'<td style="text-align:center;color:#cbd5e1;background:#f0fdf4">—</td>';
-                return '<td style="text-align:center;font-weight:700;font-size:13px;background:#eff6ff;color:#1e40af">'+totSol+'<div style="font-size:9px;color:#94a3b8;font-weight:400">'+fv3(valSol)+'</div></td>'+gerTd+'<td></td><td></td><td style="text-align:center;font-weight:700;font-size:13px;color:#166534" id="tot-master-'+s.id+'"></td>';
+                return '<td style="text-align:center;font-weight:700;font-size:13px;background:#eff6ff;color:#1e40af">'+totSol+'<div style="font-size:9px;color:#94a3b8;font-weight:400">'+fv3(valSol)+'</div></td>'+gerTd+'<td></td><td></td>'+_tdCentral(itensVis)+'<td style="text-align:center;font-weight:700;font-size:13px;color:#166534" id="tot-master-'+s.id+'"></td>';
               })()}
             </tr>
           </table>
@@ -1268,12 +1271,14 @@ document.addEventListener('input',function(e){var card=e.target&&e.target.type==
     el.innerHTML=_htmlTotais3(solicitacoes.filter(function(x){return ids.indexOf(x.id)>=0}),1)})},0)});
 function _qtdGer(it){return it.qtd_gerente!=null?Number(it.qtd_gerente):(it.quantidade||0)}
 // Valor de referência do botão ↺: gerente, senão almoxarife
-function _qtdBase(it){if(it.situacao==='recusado')return 0;return it.qtd_gerente!=null?Number(it.qtd_gerente):it.qtd_almoxarife!=null?Number(it.qtd_almoxarife):(it.quantidade||0)}
+function _qtdBase(it){if(it.situacao==='recusado')return 0;var b=it.qtd_gerente!=null?Number(it.qtd_gerente):it.qtd_almoxarife!=null?Number(it.qtd_almoxarife):(it.quantidade||0);return Math.max(0,b-(Number(it.qtd_estoque_central)||0))}
 function _itemPorId(id){for(var s of (solicitacoes||[]))for(var it of (s.itens||[]))if(it.id===id)return it;return null}
 // Campos a gravar quando o master salva a quantidade (registra quem alterou)
 // Master muda só a quantidade final: a do almoxarife fica guardada em qtd_almoxarife (como o gerente já faz)
 function _updMaster(it,qtd,extra){var u=Object.assign({},extra||{});if(qtd===undefined)return u;u.quantidade=qtd;if(Number(qtd)!==Number(it.quantidade)){if(it.qtd_almoxarife==null&&!it.master_alterado_em){u.qtd_almoxarife=it.quantidade;it.qtd_almoxarife=it.quantidade}u.master_alterado_por=userEmail||null;u.master_alterado_em=new Date().toISOString();it.master_alterado_por=u.master_alterado_por;it.master_alterado_em=u.master_alterado_em;try{_atualizarInfoAlteracao(it)}catch(e){}}return u}
 function _infoAlteracao(its){return'<span data-alt-ids=" '+(its||[]).filter(Boolean).map(function(i){return i.id}).join(' ')+' ">'+_infoAlteracaoHtml(its)+'</span>'}
+// Coluna "Estoque central" (tela estoque-central.html): quanto já saiu do estoque central, descontado da Qtd master
+function _tdCentral(its){var t=0;(its||[]).forEach(function(i){if(i)t+=Number(i.qtd_estoque_central)||0});return '<td style="text-align:center;background:#ecfeff;font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:'+(t>0?'#0e7490':'#cbd5e1')+'">'+(t>0?t:'—')+'</td>'}
 function _atualizarInfoAlteracao(it){document.querySelectorAll('[data-alt-ids*=" '+it.id+' "]').forEach(function(el){var ids=el.dataset.altIds.trim().split(' ').map(Number);el.innerHTML=_infoAlteracaoHtml(ids.map(_itemPorId))})}
 // Última atualização do card (data e quem): solicitação (gerente/master) ou item alterado no master
 function _ultimaAtualizacaoHtml(sols){
