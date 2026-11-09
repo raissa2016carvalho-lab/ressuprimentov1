@@ -12,10 +12,17 @@ Antes de rodar a 1ª vez: rodar docs/sql/faturamento.sql no Supabase (cria a tab
 
 import sys
 import math
+import traceback
 from datetime import date, datetime
-import pyodbc
-import pandas as pd
-from supabase import create_client
+
+try:
+    import pyodbc
+    import pandas as pd
+    from supabase import create_client
+except Exception as e:
+    print(f"❌ Falta biblioteca do Python: {e}")
+    input("Pressione Enter para fechar...")
+    sys.exit(1)
 
 # ── CONFIGURAÇÃO (cole aqui as suas linhas, como nos outros scripts) ──────────
 SERVIDOR = "XXXX"
@@ -28,7 +35,7 @@ RESSUP_KEY = "XXXX"
 # ─────────────────────────────────────────────────────────────────────────────
 
 TABELA = "LWHSF2001"
-sb = create_client(RESSUP_URL, RESSUP_KEY)
+sb = None
 
 
 def conectar():
@@ -65,6 +72,8 @@ def colunas(conn):
 
 
 def main():
+    global sb
+    sb = create_client(RESSUP_URL, RESSUP_KEY)
     desde = None
     if "--desde" in sys.argv:
         desde = sys.argv[sys.argv.index("--desde") + 1]
@@ -120,7 +129,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        import traceback
         print(f"❌ Erro: {e}")
         traceback.print_exc()
     input("Pressione Enter para fechar...")
