@@ -326,7 +326,7 @@ function exportarFormulariosExcel(){
     const nome=ccMap[s.cc]?ccMap[s.cc].nome:s.cc;
     const dt=new Date(s.criado_em).toLocaleString('pt-BR');
     (s.itens||[]).forEach(it=>{
-      const qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0;
+      const qtdAlm=_qAlm(it);
       linhas.push({
         ID:s.id,CC:nome,SOLICITANTE:s.solicitante_nome,MATRICULA:s.solicitante_matricula,
         DATA:dt,STATUS:s.status,SC:s.sc_numero||'',PERIODO:s.periodo_meses,OBS:s.observacao||'',
@@ -538,9 +538,9 @@ function renderCardMatricial(grupo,readonly){
   var itensMap2={};
   grupo.forEach(function(s){
     (s.itens||[]).forEach(function(it){
-      if((it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade)>0||it.quantidade>0){
+      if((_qAlm(it))>0||it.quantidade>0){
         // incluir item se tiver qtd > 0 OU se foi recusado (para visibilidade)
-        var qtdRef=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0;
+        var qtdRef=_qAlm(it);
         if(qtdRef>0||it.situacao==='recusado'){
         if(!itensMap2[it.codigo])itensMap2[it.codigo]={codigo:it.codigo,descricao:it.descricao,porCC:{}};
         itensMap2[it.codigo].porCC[s.cc]=it;}
@@ -560,8 +560,8 @@ function renderCardMatricial(grupo,readonly){
       var va=0,vb=0;
       if(col==='desc'){va=(a.descricao||a.codigo||'').toLowerCase();vb=(b.descricao||b.codigo||'').toLowerCase();return dir*(va<vb?-1:va>vb?1:0);}
       if(col==='cons'){va=Object.values(a.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);}
-      if(col==='qtd'){va=Object.values(a.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);}
-      if(col==='total'){va=Object.values(a.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);}
+      if(col==='qtd'){va=Object.values(a.porCC).reduce(function(s,it){return s+(_qAlm(it))},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(_qAlm(it))},0);}
+      if(col==='total'){va=Object.values(a.porCC).reduce(function(s,it){return s+(_qAlm(it))},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(_qAlm(it))},0);}
       if(col==='ger'){va=Object.values(a.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);vb=Object.values(b.porCC).reduce(function(s,it){return s+(it.quantidade||0)},0);}
       if(col==='master'){va=masterQtd[Object.values(a.porCC)[0]?.id]||0;vb=masterQtd[Object.values(b.porCC)[0]?.id]||0;}
       return dir*(va-vb);
@@ -592,13 +592,13 @@ function renderCardMatricial(grupo,readonly){
   // Linhas
   var _linhaItem=function(item){
     // Qtd total (soma de todos CCs)
-    var qtdTotal=Object.values(item.porCC).reduce(function(s,it){return s+(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0)},0);
+    var qtdTotal=Object.values(item.porCC).reduce(function(s,it){return s+(_qAlm(it))},0);
     // Qtd digitada pelo almoxarife (total / periodo)
     var qtdDigitada=periodo>0?Math.round(qtdTotal/periodo):qtdTotal;
 
     var colunas=grupo.map(function(s){
       var it=item.porCC[s.cc];
-      var qtd=it?(it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade||0):0;
+      var qtd=it?(_qAlm(it)):0;
       var masterVal=it?masterQtd[it.id]||it.quantidade||0:0;
       var cellId='mcell-'+item.codigo+'-'+s.cc;
       if(!qtd)return'<td id="'+cellId+'" style="text-align:center;color:#cbd5e1">—</td>';
@@ -1056,7 +1056,7 @@ window.gerarExcelMatricial=gerarExcelMatricial;function renderCard(s,readonly){l
               <th style="text-align:center;width:100px">Qtd Almoxarifado Matriz</th>
               <th style="text-align:center;width:120px" title="Quanto comprar para o estoque + compra cobrirem o período (consumo × meses), e se a Qtd Almoxarifado Matriz está acima, abaixo ou na medida">Ação<br><span style="font-weight:400">compra p/ ${_rotuloInicioPeriodo()}</span></th>
             </tr>
-            ${s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[String(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;// Buscar consumo mensal dos CCs reais desta solicitação agrupada
+            ${s.itens.filter(it=>(_qAlm(it))>0||it.situacao==='recusado').map(it=>{let nomeCC=ccMap[s.cc]?.nome||s.cc;let _grInd=typeof _ccParaGrupo!=='undefined'?_ccParaGrupo[String(s.cc||'').trim()]:null;let consLive=it.codigo&&it.codigo!=='MANUAL'?(_grInd?consumoMap[_grInd+'|'+it.codigo]:undefined)??consumoMap[s.cc+'|'+it.codigo]??consumoMap[nomeCC+'|'+it.codigo]??0:0;let cons=it.consumo_medio>0?it.consumo_medio:consLive;// Buscar consumo mensal dos CCs reais desta solicitação agrupada
 let _histAll={};
 let _ccCode=String(s.cc||'').trim();
 // Pegar todos os CCs das solicitações do mesmo card
@@ -1087,7 +1087,7 @@ let hist=Object.keys(_histAll).length?encodeURIComponent(JSON.stringify(_histAll
 let _custoKey2=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
 let _cu=custoMap[_custoKey2]||0;
 if(!_cu){let _cod=String(it.codigo||'').trim();for(let _ck in custoMap){if(_ck.endsWith('|'+_cod)){_cu=custoMap[_ck];break;}}}
-let qtdAlmox=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade,qtdGerente=_qtdGer(it),justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=_gerenteAvaliou(it,s),alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0;
+let qtdAlmox=_qAlm(it),qtdGerente=_qtdGer(it),justGer=it.justificativa_gerente||``,isRecusadoGer=it.situacao===`recusado`,gerenteJaAvaliou=_gerenteAvaliou(it,s),alterada=gerenteJaAvaliou&&qtdAlmox!==qtdGerente,gerenteAlterou=gerenteJaAvaliou&&(!!justGer||isRecusadoGer||qtdAlmox!==qtdGerente);let semHist=cons===0&&(_qAlm(it))>0;
         return`
               <tr class="${semHist?'sem-historico-row':''}" style="${isRecusadoGer?'background:#fff5f5;border-left:3px solid #ef4444;':''}">
                 <td>`+( isRecusadoGer?'<span style="color:#ef4444;font-size:10px;font-weight:700;margin-right:4px">✕ RECUSADO</span>':'')+`
@@ -1147,12 +1147,12 @@ return pedsPendentes.length?pedsPendentes.slice(0,3).map(p=>{let cor=`#d97706`;l
             <tr style="border-top:2px solid #e2e8f0;background:#f8fafc">
               <td colspan="4" style="font-weight:700;font-size:12px;color:#0f172a">TOTAL</td>
               ${(()=>{
-                let itensVis=s.itens.filter(it=>(it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado');
+                let itensVis=s.itens.filter(it=>(_qAlm(it))>0||it.situacao==='recusado');
                 let totSol=0,totGer=0,valSol=0,valGer=0;
                 itensVis.forEach(it=>{
                   let _ck3=String(s.filial||'').trim()+'|'+String(it.codigo||'').trim();
                   let _c3=custoMap[_ck3]||0;
-                  let qS=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
+                  let qS=_qAlm(it);
                   let qG=it.quantidade;
                   totSol+=qS;valSol+=_c3*qS;
                   if(it.qtd_almoxarife!=null){totGer+=qG;valGer+=_c3*qG;}
@@ -1217,17 +1217,17 @@ function _chaveGrupo(s){if(s.grupo_envio)return 'G|'+s.grupo_envio;let dt=new Da
 // Totais em R$ do card: o que o almoxarife pediu, o que o gerente aprovou e o que o master deixou
 function _custoItem(fil,cod){fil=String(fil||'').trim();cod=String(cod||'').trim();var c=custoMap[fil+'|'+cod]||0;if(!c){for(var k in custoMap){if(k.endsWith('|'+cod)){c=custoMap[k];break}}}return c}
 function _calcTotais3(sols){var t={a:0,g:0,m:0,temG:false,e:0,eu:0,ei:0};(sols||[]).forEach(function(sol){(sol.itens||[]).forEach(function(it){
-  if(!((it.qtd_almoxarife==null?it.quantidade:it.qtd_almoxarife)>0||it.situacao==='recusado'))return;
+  if(!((_qAlm(it))>0||it.situacao==='recusado'))return;
   var c=_custoItem(sol.filial,it.codigo),rec=it.situacao==='recusado';
   var _ec=Number(it.qtd_estoque_central)||0;if(_ec>0){t.e+=c*_ec;t.eu+=_ec;t.ei++}
-  t.a+=c*Number(it.qtd_almoxarife!=null?it.qtd_almoxarife:(it.quantidade||0));
+  t.a+=c*Number(_qAlm(it));
   if(_gerenteAvaliou(it,sol)){t.temG=true;t.g+=rec?0:c*_qtdGer(it)}
   t.m+=rec?0:c*Number(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0));
 })});return t}
 function _fmtR$(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function _htmlTotais3(sols,soCorpo){var t=_calcTotais3(sols);
   var lin=function(rot,v,cor,peso){return '<div style="display:flex;justify-content:flex-end;gap:8px;align-items:baseline;white-space:nowrap"><span style="font-size:10px;color:#94a3b8">'+rot+'</span><span style="font-size:'+(peso?'15px':'12.5px')+';font-weight:'+(peso?800:700)+';color:'+cor+';font-family:ui-monospace,monospace">'+v+'</span></div>'};
-  var corpo=lin('Almoxarife',_fmtR$(t.a),'#1e40af')+lin('Gerente',t.temG?_fmtR$(t.g):'—','#166534')+lin('Almoxarifado Matriz',_fmtR$(t.m),'#0f172a',1)+(t.eu>0?lin('📦 Estoque central · '+t.eu.toLocaleString('pt-BR')+' un.',_fmtR$(t.e),'#0e7490'):'');
+  var corpo=lin('Almoxarife',_fmtR$(t.a),'#1e40af')+lin('Gerente',t.temG?_fmtR$(t.g):'—','#166534')+(t.eu>0?lin('Almoxarifado Matriz',_fmtR$(t.m+t.e),'#0f172a')+lin('📦 Estoque central · '+t.eu.toLocaleString('pt-BR')+' un.','− '+_fmtR$(t.e),'#0e7490')+lin('🛒 A comprar',_fmtR$(t.m),'#b45309',1):lin('Almoxarifado Matriz',_fmtR$(t.m),'#0f172a',1));
   if(soCorpo)return corpo;
   return '<div data-totais-sols=" '+(sols||[]).map(function(x){return x.id}).join(' ')+' " style="margin-bottom:4px" title="Valor estimado (custo médio × quantidade)">'+corpo+'</div>'}
 // Excel da aba Solicitações: um item por linha, com estoque no envio e estoque atual (SB2)
@@ -1238,7 +1238,7 @@ function exportarSolicitacoesExcel(){
   sols.forEach(function(s){var fil=String(s.filial||'').trim(),nomeCC=ccMap[s.cc]?ccMap[s.cc].nome:'';
     (s.itens||[]).forEach(function(it){
       var cod=String(it.codigo||'').trim(),rec=it.situacao==='recusado',c=_custoItem(fil,cod);
-      var qA=Number(it.qtd_almoxarife!=null?it.qtd_almoxarife:(it.quantidade||0));
+      var qA=Number(_qAlm(it));
       var avaliou=_gerenteAvaliou(it,s),qG=avaliou?(rec?0:_qtdGer(it)):'';
       var qM=rec?0:Number(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0));
       var estAtual=estoqueMap[fil+'|'+cod];
@@ -1261,8 +1261,8 @@ window.exportarSolicitacoesExcel=exportarSolicitacoesExcel;
 // Totalizador do topo da aba Solicitações: soma dos cards visíveis
 function _htmlTotaisGeral(sols,soCorpo){var t=_calcTotais3(sols);
   var box=function(rot,v,cor,sub){return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px"><div style="font-size:11px;color:#64748b;font-weight:600">'+rot+'</div><div style="font-size:19px;font-weight:800;color:'+cor+';font-family:ui-monospace,monospace;margin-top:2px">'+v+'</div>'+(sub?'<div style="font-size:10.5px;color:#94a3b8;margin-top:1px">'+sub+'</div>':'')+'</div>'};
-  var pct=function(v){if(!(t.a>0))return '';var d=Math.round((v/t.a-1)*100);return (d>0?'+':'')+d+'% vs. almoxarife'};
-  var corpo=box('Total almoxarife',_fmtR$(t.a),'#1e40af',(sols||[]).length+' solicitação(ões)')+box('Total gerente',t.temG?_fmtR$(t.g):'—','#166534',t.temG?'só itens já avaliados pelo gerente':'')+box('Total Almoxarifado Matriz',_fmtR$(t.m),'#0f172a',pct(t.m))+box('📦 Via estoque central',t.eu>0?_fmtR$(t.e):'—','#0e7490',t.eu>0?t.eu.toLocaleString('pt-BR')+' un. em '+t.ei+' item(ns) · já fora da compra':'nada atendido pelo estoque');
+  var tm=t.m+t.e;var pct=function(v){if(!(t.a>0))return '';var d=Math.round((v/t.a-1)*100);return (d>0?'+':'')+d+'% vs. almoxarife'};
+  var corpo=box('Total almoxarife',_fmtR$(t.a),'#1e40af',(sols||[]).length+' solicitação(ões)')+box('Total gerente',t.temG?_fmtR$(t.g):'—','#166534',t.temG?'só itens já avaliados pelo gerente':'')+box('Total Almoxarifado Matriz',_fmtR$(tm),'#0f172a',pct(tm))+box('📦 Via estoque central',t.eu>0?_fmtR$(t.e):'—','#0e7490',t.eu>0?t.eu.toLocaleString('pt-BR')+' un. em '+t.ei+' item(ns) · já fora da compra':'nada atendido pelo estoque')+box('🛒 Total estimado a comprar',_fmtR$(t.m),'#b45309','Almoxarifado Matriz − estoque central');
   if(soCorpo)return corpo;
   return '<div id="totais-geral" data-sols=" '+(sols||[]).map(function(x){return x.id}).join(' ')+' " style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px" title="Valor estimado (custo médio × quantidade)">'+corpo+'</div>'}
 // atualiza os totais do card enquanto o master digita
@@ -1270,9 +1270,11 @@ document.addEventListener('input',function(e){var card=e.target&&e.target.type==
   setTimeout(function(){var tg=document.getElementById('totais-geral');if(tg){var ig=tg.getAttribute('data-sols').trim().split(/\s+/).map(Number);tg.innerHTML=_htmlTotaisGeral(solicitacoes.filter(function(x){return ig.indexOf(x.id)>=0}),1)}
   card.querySelectorAll('[data-totais-sols]').forEach(function(el){var ids=el.getAttribute('data-totais-sols').trim().split(/\s+/).map(Number);
     el.innerHTML=_htmlTotais3(solicitacoes.filter(function(x){return ids.indexOf(x.id)>=0}),1)})},0)});
-function _qtdGer(it){return it.qtd_gerente!=null?Number(it.qtd_gerente):(it.quantidade||0)}
+function _qtdGer(it){return it.qtd_gerente!=null?Number(it.qtd_gerente):(Number(it.quantidade)||0)+(Number(it.qtd_estoque_central)||0)}
+// Qtd do almoxarife. Registros antigos não têm qtd_almoxarife e usavam a quantidade; somamos o que foi para o estoque central (já descontado da quantidade)
+function _qAlm(it){return it.qtd_almoxarife!=null?Number(it.qtd_almoxarife):(Number(it.quantidade)||0)+(Number(it.qtd_estoque_central)||0)}
 // Valor de referência do botão ↺: gerente, senão almoxarife
-function _qtdBase(it){if(it.situacao==='recusado')return 0;var b=it.qtd_gerente!=null?Number(it.qtd_gerente):it.qtd_almoxarife!=null?Number(it.qtd_almoxarife):(it.quantidade||0);return Math.max(0,b-(Number(it.qtd_estoque_central)||0))}
+function _qtdBase(it){if(it.situacao==='recusado')return 0;var b=it.qtd_gerente!=null?Number(it.qtd_gerente):_qAlm(it);return Math.max(0,b-(Number(it.qtd_estoque_central)||0))}
 function _itemPorId(id){for(var s of (solicitacoes||[]))for(var it of (s.itens||[]))if(it.id===id)return it;return null}
 // Campos a gravar quando o master salva a quantidade (registra quem alterou)
 // Master muda só a quantidade final: a do almoxarife fica guardada em qtd_almoxarife (como o gerente já faz)
@@ -1944,7 +1946,7 @@ async function expandirAcomp(solId, topo){
       <tbody>
         ${itens.map(it=>{
           let isRec=it.situacao==='recusado';
-          let qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
+          let qtdAlm=_qAlm(it);
           let qtdGer=it.qtd_gerente!=null?it.qtd_gerente:null;
           let qtdMaster=isRec?0:(Number(it.quantidade)||0);
           let _clA=_classConsumo(it.consumo_historico,sol.criado_em);
@@ -2899,7 +2901,7 @@ Detalhes:
   let rows=[];
   sols.forEach(s=>{
     (itensPor[s.id]||[]).forEach(it=>{
-      let qtdAlm=it.qtd_almoxarife!=null?it.qtd_almoxarife:it.quantidade;
+      let qtdAlm=_qAlm(it);
       if(!(Number(qtdAlm)>0)&&!(Number(it.quantidade)>0)&&it.situacao!=='recusado')return;
       let cl=_classConsumo(it.consumo_historico,s.criado_em);
       let p=(pcsPor[s.id]||[]).filter(r=>r.sc_produto===it.codigo);
