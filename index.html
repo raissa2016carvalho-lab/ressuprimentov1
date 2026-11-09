@@ -1217,12 +1217,12 @@ function _chaveGrupo(s){if(s.grupo_envio)return 'G|'+s.grupo_envio;let dt=new Da
 // Totais em R$ do card: o que o almoxarife pediu, o que o gerente aprovou e o que o master deixou
 // Custo do item: custo médio da filial; sem custo na filial → preço do cadastro (itens.preco); sem cadastro → mediana das outras filiais
 function _custoItem(fil,cod){fil=String(fil||'').trim();cod=String(cod||'').trim();var c=custoMap[fil+'|'+cod]||0;if(c)return c;var pc=(window._precoCad||{})[cod];if(pc)return pc;var vs=[];for(var k in custoMap){if(k.endsWith('|'+cod)&&custoMap[k]>0)vs.push(custoMap[k])}if(!vs.length)return 0;vs.sort(function(a,b){return a-b});var m=vs.length>>1;return vs.length%2?vs[m]:(vs[m-1]+vs[m])/2}
-function _calcTotais3(sols){var t={a:0,g:0,m:0,temG:false,e:0,eu:0,ei:0};(sols||[]).forEach(function(sol){(sol.itens||[]).forEach(function(it){
+function _calcTotais3(sols){var t={a:0,g:0,g2:0,m:0,temG:false,e:0,eu:0,ei:0};(sols||[]).forEach(function(sol){(sol.itens||[]).forEach(function(it){
   if(!((_qAlm(it))>0||it.situacao==='recusado'))return;
   var c=_custoItem(sol.filial,it.codigo),rec=it.situacao==='recusado';
   var _ec=Number(it.qtd_estoque_central)||0;if(_ec>0){t.e+=c*_ec;t.eu+=_ec;t.ei++}
   t.a+=c*Number(_qAlm(it));
-  if(_gerenteAvaliou(it,sol)){t.temG=true;t.g+=rec?0:c*_qtdGer(it)}
+  if(_gerenteAvaliou(it,sol)){t.temG=true;t.g+=rec?0:c*_qtdGer(it);t.g2+=rec?0:c*_qtdGer(it)}else t.g2+=c*Number(_qAlm(it)); // g2: sem avaliação do gerente, vale o que o almoxarife pediu
   t.m+=rec?0:c*Number(masterQtd[it.id]!==undefined?masterQtd[it.id]:(it.quantidade||0));
 })});return t}
 function _fmtR$(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
@@ -1262,8 +1262,14 @@ window.exportarSolicitacoesExcel=exportarSolicitacoesExcel;
 // Totalizador do topo da aba Solicitações: soma dos cards visíveis
 function _htmlTotaisGeral(sols,soCorpo){var t=_calcTotais3(sols);
   var box=function(rot,v,cor,sub){return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px"><div style="font-size:11px;color:#64748b;font-weight:600">'+rot+'</div><div style="font-size:19px;font-weight:800;color:'+cor+';font-family:ui-monospace,monospace;margin-top:2px">'+v+'</div>'+(sub?'<div style="font-size:10.5px;color:#94a3b8;margin-top:1px">'+sub+'</div>':'')+'</div>'};
-  var tm=t.m+t.e;var pct=function(v){if(!(t.a>0))return '';var d=Math.round((v/t.a-1)*100);return (d>0?'+':'')+d+'% vs. almoxarife'};
-  var corpo=box('Total almoxarife',_fmtR$(t.a),'#1e40af',(sols||[]).length+' solicitação(ões)')+box('Total gerente',t.temG?_fmtR$(t.g):'—','#166534',t.temG?'só itens já avaliados pelo gerente':'')+box('Total Almoxarifado Matriz',_fmtR$(tm),'#0f172a',pct(tm))+box('📦 Via estoque central',t.eu>0?_fmtR$(t.e):'—','#0e7490',t.eu>0?t.eu.toLocaleString('pt-BR')+' un. em '+t.ei+' item(ns) · já fora da compra':'nada atendido pelo estoque')+box('🛒 Total estimado a comprar',_fmtR$(t.m),'#b45309','Almoxarifado Matriz − estoque central');
+  // Cascata: pedido dos almoxarifes → gerentes reduziram → Almoxarifado Matriz reduziu → estoque central atendeu → a comprar
+  var tm=t.m+t.e,red=function(v){return (v>=0?'− ':'+ ')+_fmtR$(Math.abs(v))},pc=function(v,base){return base>0?(v>=0?'−':'+')+Math.round(Math.abs(v)/base*100)+'%':''};
+  var rG=t.a-t.g2,rM=t.g2-tm;
+  var corpo=box('Total pedido pelos almoxarifes',_fmtR$(t.a),'#1e40af',(sols||[]).length+' solicitação(ões)')
+    +box('▸ Gerentes reduziram',red(rG),rG>=0?'#166534':'#b91c1c',pc(rG,t.a)+' · fica '+_fmtR$(t.g2))
+    +box('▸ Almoxarifado Matriz reduziu',red(rM),rM>=0?'#0f172a':'#b91c1c',pc(rM,t.g2)+' · fica '+_fmtR$(tm))
+    +box('▸ 📦 Estoque central atendeu',t.e>0?red(t.e):'—','#0e7490',t.eu>0?t.eu.toLocaleString('pt-BR')+' un. em '+t.ei+' item(ns) · fica '+_fmtR$(t.m):'nada atendido pelo estoque')
+    +box('🛒 Total a comprar',_fmtR$(t.m),'#b45309',t.a>0?Math.round(t.m/t.a*100)+'% do pedido dos almoxarifes':'');
   if(soCorpo)return corpo;
   return '<div id="totais-geral" data-sols=" '+(sols||[]).map(function(x){return x.id}).join(' ')+' " style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px" title="Valor estimado (custo médio × quantidade)">'+corpo+'</div>'}
 // atualiza os totais do card enquanto o master digita
