@@ -1245,12 +1245,12 @@ function exportarSolicitacoesExcel(){
       linhas.push({'Nº solicitação':s.id,'Filial':fil,'CC':s.cc,'Nome do CC':nomeCC,'Solicitante':s.solicitante_nome||'','Matrícula':s.solicitante_matricula||'',
         'Enviado em':s.criado_em?new Date(s.criado_em).toLocaleString('pt-BR'):'','Status':LABEL_STATUS[s.status]||s.status,'SC':s.sc_numero||'','Período (meses)':s.periodo_meses||'',
         'Código':cod,'Descrição':it.descricao||'','Situação do item':it.situacao||'',
-        'Qtd almoxarife':qA,'Qtd gerente':qG,'Qtd master':qM,
+        'Qtd almoxarife':qA,'Qtd gerente':qG,'Estoque central':Number(it.qtd_estoque_central)||0,'Qtd master':qM,
         'Consumo médio/mês':Number(it.consumo_medio||0),
         'Estoque no envio':it.estoque_filial!=null?Number(it.estoque_filial):'',
         'Data da posição':it.estoque_filial_data?new Date(it.estoque_filial_data).toLocaleDateString('pt-BR'):'',
         'Estoque atual (SB2)':estAtual!=null?estAtual:0,
-        'Custo médio':c||'','Valor almoxarife':c*qA,'Valor gerente':qG===''?'':c*qG,'Valor master':c*qM});
+        'Custo médio':c||'','Valor almoxarife':c*qA,'Valor gerente':qG===''?'':c*qG,'Valor estoque central':c*(Number(it.qtd_estoque_central)||0),'Valor master':c*qM});
     });
   });
   var ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();
