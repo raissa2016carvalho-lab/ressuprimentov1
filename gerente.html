@@ -243,7 +243,7 @@ atualizarBadges();
     +'<div style="display:flex;gap:8px;margin-top:10px">'
     +'<button class="btn-aprovar-todas" style="margin-top:0" data-cardid="'+cardId+'" onclick="aprovarTodosVisual(this,\''+cardId+'\')">✔ Aprovar todos os itens</button>'
     +'<button class="btn-aprovar-todas" style="margin-top:0;background:#fff;color:#1e40af;border:1px solid #bfdbfe" data-cardid="'+cardId+'" onclick="salvarRascunhoServidor(this)">💾 Salvar rascunho</button>'
-    +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-cardid="'+cardId+'" onclick="aprovarGerente(this)">📤 Enviar para master</button>'
+    +'<button class="btn-salvar" style="flex:1;margin-top:0" data-ids="'+solIds+'" data-cardid="'+cardId+'" onclick="aprovarGerente(this)">📤 Enviar para Almoxarifado Matriz</button>'
     +'</div>'
     +'</div>'
     +'</div>';
@@ -284,7 +284,7 @@ function aprovarTodosVisual(btn, cardId){
   btn.style.color='#16a34a';
   btn.style.border='1px solid #bbf7d0';
   var msgEl=document.getElementById('msg-'+cardId);
-  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:12px">Todos marcados como aprovados. Clique em "📤 Enviar para master" para confirmar.</span>';
+  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:12px">Todos marcados como aprovados. Clique em "📤 Enviar para Almoxarifado Matriz" para confirmar.</span>';
 }
 window.aprovarTodosVisual=aprovarTodosVisual;
 
@@ -299,7 +299,7 @@ function aprovarTodosIndividual(solId){
     if(btnR){btnR.classList.remove('recusado');}
   });
   var msgEl=document.getElementById('msg-'+solId);
-  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:12px">Todos marcados como aprovados. Clique em "📤 Enviar para master" para confirmar.</span>';
+  if(msgEl)msgEl.innerHTML='<span style="color:#16a34a;font-size:12px">Todos marcados como aprovados. Clique em "📤 Enviar para Almoxarifado Matriz" para confirmar.</span>';
 }
 window.aprovarTodosIndividual=aprovarTodosIndividual;
 
@@ -605,7 +605,7 @@ async function salvarGrupo(solIds,msgElId){
       await db.from('solicitacao_itens').update({situacao:dec,quantidade:novaQtd,qtd_gerente:novaQtd,justificativa:justificativas[it.id]||null}).eq('id',it.id);
       _salvIdxGrupo++;_progresso(msgEl,_salvIdxGrupo,_totalItensGrupo,'Salvando');
     }
-    await db.from('solicitacoes').update({sc_numero:scNum,status:'aguardando_master',atualizado_em:(new Date()).toISOString(),atualizado_por:userEmail||null}).eq('id',solId);
+    await db.from('solicitacoes').update({sc_numero:scNum,status:'aguardando_master',atualizado_em:(new Date()).toISOString(),atualizado_por:userEmail||null,gerente_por:userEmail||null,gerente_em:(new Date()).toISOString()}).eq('id',solId);
   }
   if(msgEl)msgEl.innerHTML='<span style="color:#16a34a">✓ Salvo!</span>';
   setTimeout(function(){carregarSolicitacoes()},800);
@@ -656,7 +656,7 @@ function renderCard_ORIGINAL(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.c
             <span style="color:#94a3b8;font-weight:500;font-family:ui-monospace,monospace;font-size:11.5px">· ${s.cc}</span>
             ${filial?`<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px">${filial}</span>`:``}
           </div>
-          ${s.observacao_master?`<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:7px;padding:7px 12px;margin-bottom:6px;font-size:12.5px;color:#92400e;display:flex;align-items:flex-start;gap:6px"><span style="font-size:14px">↩</span><div><strong>Devolvido pelo master:</strong> ${s.observacao_master}</div></div>`:''}
+          ${s.observacao_master?`<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:7px;padding:7px 12px;margin-bottom:6px;font-size:12.5px;color:#92400e;display:flex;align-items:flex-start;gap:6px"><span style="font-size:14px">↩</span><div><strong>Devolvido pelo Almoxarifado Matriz:</strong> ${s.observacao_master}</div></div>`:''}
           <div class="card-sub">${s.solicitante_nome} · mat. ${s.solicitante_matricula} · ${fmtData(s.criado_em)} · ${s.itens.length} item(ns) · <span style="background:#f0fdf4;color:#166534;border-radius:4px;padding:1px 7px;font-weight:700">📅 ${s.periodo_meses||3} meses</span></div>
           ${s.justificativa?`<div style="font-size:12px;color:#475569;margin-top:5px;font-style:italic">"${s.justificativa}"</div>`:``}
         </div>
@@ -677,7 +677,7 @@ function renderCard_ORIGINAL(s){let base=ccMap[s.cc],nomeBase=base?base.nome:s.c
         <div class="rodape-card">
           
           <button class="btn-aprovar-todas" onclick="aprovarTodosIndividual(${s.id})">✔ Aprovar todos os itens</button>
-          <button class="btn-salvar" onclick="salvar(${s.id})">📤 Enviar para master</button>
+          <button class="btn-salvar" onclick="salvar(${s.id})">📤 Enviar para Almoxarifado Matriz</button>
           <div style="margin-left:auto;text-align:right;flex-shrink:0">
             <div style="font-size:10.5px;color:#94a3b8;font-weight:600">VALOR TOTAL ESTIMADO</div>
             <div style="font-size:16px;font-weight:700;color:#0f172a" id="total-${s.id}">
@@ -830,7 +830,7 @@ for(let it of sol.itens){
   await db.from(`solicitacao_itens`).update(upd).eq(`id`,it.id);
   _salvIdx++;_progresso(msgEl,_salvIdx,sol.itens.length,'Salvando');
 }
-let{error}=await db.from(`solicitacoes`).update({status:`aguardando_master`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString(),atualizado_por:userEmail||null}).eq(`id`,solId);if(error){msgEl.innerHTML=`<span style="color:#991b1b">Erro: `+error.message+`</span>`;return;}
+let{error}=await db.from(`solicitacoes`).update({status:`aguardando_master`,atualizado_em:(/* @__PURE__ */ new Date()).toISOString(),atualizado_por:userEmail||null,gerente_por:userEmail||null,gerente_em:(/* @__PURE__ */ new Date()).toISOString()}).eq(`id`,solId);if(error){msgEl.innerHTML=`<span style="color:#991b1b">Erro: `+error.message+`</span>`;return;}
 msgEl.innerHTML=`<span style="color:#065f46">✓ Enviado para aprovação final!</span>`;
 // Remove o card do DOM sem recarregar tudo
 var cardEl=msgEl.closest('.card');

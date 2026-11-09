@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estoque central</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<link rel="stylesheet" href="/padrao.css"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--bq-fonte);background:var(--bq-fundo);color:var(--bq-texto);min-height:100vh}
+body.bq-trancado>*:not(#tela-login){display:none!important}
+.lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
+.lg-inp{width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
+.lg-inp:focus{border-color:#1e40af}
+.topo-dir{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:12px;color:#94a3b8}
+.btn{background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn:hover{border-color:#1e40af;color:#1e40af}
+.btn.azul{background:#1e40af;color:#fff;border-color:#1e40af}.btn.azul:hover{background:#1d3a9e;color:#fff}
+.btn.verde{background:#16a34a;color:#fff;border-color:#16a34a}.btn.verde:hover{background:#15803d;color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-sair{background:transparent;border:1px solid #334155;color:#cbd5e1;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+.corpo{max-width:1100px;margin:0 auto;padding:20px 24px 40px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px}
+.card h2{font-size:15px;margin-bottom:4px}
+.dica{font-size:12.5px;color:#64748b;margin-bottom:10px}
+textarea{width:100%;min-height:170px;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:12.5px;font-family:ui-monospace,monospace;outline:none;resize:vertical}
+textarea:focus,.inp:focus{border-color:#1e40af}
+.inp{border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;outline:none}
+.linha{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.linha label{font-size:12.5px;color:#475569;display:flex;gap:6px;align-items:center}
+.kpis{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.kpis div{flex:1;min-width:130px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;font-size:12px;color:#64748b}
+.kpis b{display:block;font-size:20px;color:#0f172a}
+.kpis .alerta b{color:#b45309}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;padding:7px 8px;font-size:11px;font-weight:600;white-space:nowrap}
+td{border-bottom:1px solid #f1f5f9;padding:7px 8px;vertical-align:top}
+.n{text-align:right;font-family:ui-monospace,monospace;white-space:nowrap}
+.n.b{font-weight:700}.verdeT{color:#16a34a}.cinza{color:#94a3b8}.ciano{color:#0e7490;font-weight:700}
+.tabs{display:flex;gap:2px;border-bottom:1px solid #e2e8f0;margin-bottom:10px;flex-wrap:wrap}
+.tabs button{border:none;background:none;padding:8px 12px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+.tabs button.on{color:#1e40af;border-bottom-color:#1e40af}
+details{border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;background:#fff}
+summary{cursor:pointer;padding:10px 14px;font-size:13px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+summary .dir{margin-left:auto;color:#64748b;font-size:12px}
+details table{border-top:1px solid #f1f5f9}
+.pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap;background:#f1f5f9;color:#475569}
+.uf-CE{background:#dbeafe;color:#1e40af}.uf-RN{background:#fef3c7;color:#92400e}.uf-BA{background:#dcfce7;color:#166534}
+.aviso{background:#fef3c7;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:12px}
+.ok{background:#dcfce7;color:#166534;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+.erro{background:#fee2e2;color:#991b1b;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+.rodape{position:sticky;bottom:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:0 -4px 16px #0f172a0d}
+.scroll{overflow-x:auto}
+@media(max-width:800px){.corpo{padding:14px 16px 40px}}
+</style>
+<body class="bq-trancado">
+
+<div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
+  <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px">
+    <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
+    <h1 style="margin:0 0 4px;font-size:16px">Estoque central</h1>
+    <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
+    <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
+    <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <div id="lg-msg" style="color:#991b1b;background:#fee2e2;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:12px;display:none"></div>
+    <button id="lg-btn" onclick="entrar()" style="width:100%;background:#1e40af;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+    <a class="bq-login-voltar" href="/los.html">← Voltar ao menu de sistemas</a>
+  </div>
+</div>
+
+<div class="bq-topo">
+  <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
+  <div><h1>Estoque central → solicitações</h1><div class="bq-sub">Descontar das solicitações em aberto o que o estoque central vai atender</div></div>
+  <div class="topo-dir"><span id="user-email"></span><button class="btn-sair" onclick="sair()">Sair</button></div>
+</div>
+
+<div class="corpo">
+  <div class="card">
+    <h2>1. Cole a lista do estoque</h2>
+    <div class="dica">Copie do Excel as colunas <b>Descrição</b> e <b>Quantidade</b> (pode ter o <b>Código</b> antes). Linha de título é ignorada.</div>
+    <textarea id="txt" placeholder="BALDE DE LONA P/ ICAR MATERIAIS ...&#9;1&#10;CAPACETE ABA TOTAL BRANCO&#9;5"></textarea>
+    <div class="linha">
+      <label><input type="checkbox" id="outros"> Por último, atender os outros estados (PE, GO...)</label>
+      <button class="btn azul" onclick="simular()" id="btn-sim">Simular distribuição</button>
+      <span id="carregando" class="dica" style="margin:0"></span>
+    </div>
+    <div class="dica" style="margin:10px 0 4px"><b>Ordem de atendimento:</b></div>
+    <ol class="dica" id="lista-grupos" style="margin:0 0 6px 20px"></ol>
+    <div class="dica" style="margin:6px 0 0">Entram as solicitações <b>pendentes</b> e <b>aguardando Almoxarifado Matriz</b> (ainda sem SC), itens não recusados. Dentro de cada estado, a solicitação mais antiga é atendida primeiro.</div>
+  </div>
+  <div id="res"></div>
+</div>
+
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtN=v=>(Math.round((Number(v)||0)*100)/100).toLocaleString('pt-BR');
+const fmtD=iso=>iso?new Date(iso).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
+const norm=s=>String(s||'').trim().replace(/\s+/g,' ').toUpperCase();
+// Filial → estado (mesma lista do Painel)
+const FILIAIS={'01':['CE','MATRIZ'],'03':['RN','PAU DOS FERROS'],'04':['CE','ITAPIPOCA'],'06':['RN','CURRAIS NOVOS'],'07':['CE','SOBRAL'],'08':['GO','APARECIDA DE GOIANIA'],'09':['CE','MARACANAU'],'10':['RN','MOSSORO'],'11':['GO','ANAPOLIS'],'13':['BA','ALAGOINHAS'],'14':['BA','RIBEIRA DO POMBAL'],'15':['BA','PAULO AFONSO'],'22':['GO','GOIANIA'],'23':['CE','BATURITE'],'24':['GO','MORRINHOS'],'25':['CE','CASCAVEL'],'27':['CE','CAUCAIA'],'29':['CE','HORIZONTE'],'34':['BA','SENHOR DO BONFIM'],'36':['GO','LUZIANIA'],'37':['MG','DIVINOPOLIS'],'39':['SP','SÃO PAULO'],'40':['PE','GARANHUNS'],'41':['PI','FLORIANO'],'42':['BA','LIVRAMENTO DE NOSSA SENHORA'],'43':['SP','HORTOLANDIA'],'44':['BA','BRUMADO'],'45':['RJ','NITEROI']};
+const ufDe=f=>(FILIAIS[String(f||'').trim()]||['?'])[0];
+const nomeFil=f=>{f=String(f||'').trim();return f+(FILIAIS[f]?' — '+FILIAIS[f][1]:'')};
+// Ordem de atendimento (combinada em 09/11): bases do CE, depois Oeste/Alto Oeste no RN, depois Bahia, depois o restante do CE e RN
+const GRUPOS=[
+  {nome:'CE — Metrô Baturité, Maracanaú, Caucaia, Cascavel, Horizonte + Obras Atlântico e Obras Norte',cc:['141080101','141080103','141080104','141080105','141080102','141060102','141060101']},
+  {nome:'RN — TEC Oeste e TEC Alto Oeste',cc:['145040101','145030102']},
+  {nome:'Bahia — todas as bases',uf:['BA']},
+  {nome:'Demais bases do CE e RN (Sobral, Itapipoca, Eusébio, Obras Metropolitana, Seridó...)',uf:['CE','RN']}
+];
+let userEmail='',isAdmin=false,SIM=null,ABA='filial';
+
+// ── 1. Ler a lista colada ──────────────────────────────────────────────────
+function lerLista(txt){
+  let mapa={},ordem=[];
+  txt.split(/\r?\n/).forEach(l=>{
+    if(!l.trim())return;
+    let c=l.split(/\t|;/).map(x=>x.trim()).filter(x=>x!=='');
+    if(c.length<2)return;
+    let q=String(c[c.length-1]).replace(/\./g,'').replace(',','.');
+    if(!/^\d+(\.\d+)?$/.test(q))return;              // título ou linha sem número
+    let tira=x=>/^".*"$/.test(x)?x.slice(1,-1).replace(/""/g,'"'):x;let desc=tira(c[c.length-2]),cod=c.length>=3?tira(c[0]):'';
+    let k=norm(desc);
+    if(!mapa[k]){mapa[k]={k,desc,cod:norm(cod),qtd:0};ordem.push(k)}
+    mapa[k].qtd+=Number(q);
+  });
+  return ordem.map(k=>mapa[k]);
+}
+
+async function carregarAbertas(){
+  let sols=[];for(let o=0;;o+=1000){let{data,error}=await db.from('solicitacoes').select('id,filial,cc,status,criado_em,solicitante_nome').in('status',['pendente','aguardando_master']).order('id').range(o,o+999);if(error)throw error;sols=sols.concat(data||[]);if(!data||data.length<1000)break}
+  let ids=sols.map(s=>s.id),itens=[];
+  for(let i=0;i<ids.length;i+=100){let lote=ids.slice(i,i+100);for(let o=0;;o+=1000){let{data,error}=await db.from('solicitacao_itens').select('id,solicitacao_id,codigo,descricao,quantidade,situacao,qtd_estoque_central').in('solicitacao_id',lote).order('id').range(o,o+999);if(error)throw error;itens=itens.concat(data||[]);if(!data||data.length<1000)break}}
+  let porId={};sols.forEach(s=>porId[s.id]=s);
+  return itens.filter(i=>porId[i.solicitacao_id]&&i.situacao!=='recusado'&&Number(i.quantidade)>0).map(i=>({...i,sol:porId[i.solicitacao_id]}));
+}
+
+// ── 2. Simular ─────────────────────────────────────────────────────────────
+async function simular(){
+  let lista=lerLista($('txt').value);
+  if(!lista.length){$('res').innerHTML='<div class="erro">Não achei nenhuma linha com descrição e quantidade. Cole as colunas do Excel (descrição e quantidade).</div>';return}
+  let comOutros=$('outros').checked;
+  $('btn-sim').disabled=true;$('carregando').textContent='Carregando solicitações em aberto...';
+  let itens;
+  try{itens=await carregarAbertas()}catch(e){$('res').innerHTML='<div class="erro">Erro ao carregar: '+esc(e.message||e)+'</div>';$('btn-sim').disabled=false;$('carregando').textContent='';return}
+  $('btn-sim').disabled=false;$('carregando').textContent='';
+  let prio=it=>{let cc=String(it.sol.cc||'').trim(),u=ufDe(it.sol.filial);for(let i=0;i<GRUPOS.length;i++){let g=GRUPOS[i];if((g.cc&&g.cc.includes(cc))||(g.uf&&g.uf.includes(u)))return i}return comOutros?GRUPOS.length:-1};
+  let porDesc={},porCod={};
+  itens.forEach(it=>{let p=prio(it);if(p<0)return;it.prio=p;(porDesc[norm(it.descricao)]=porDesc[norm(it.descricao)]||[]).push(it);(porCod[norm(it.codigo)]=porCod[norm(it.codigo)]||[]).push(it)});
+  let ord=(a,b)=>a.prio-b.prio||String(a.sol.criado_em).localeCompare(String(b.sol.criado_em))||a.sol.id-b.sol.id||a.id-b.id;
+  let aloc=[],porItem=[],usados=new Set();
+  lista.forEach(l=>{
+    let cands=(l.cod&&porCod[l.cod])||porDesc[l.k]||[];
+    cands=cands.filter(it=>!usados.has(it.id)).sort(ord);
+    let resta=l.qtd,pedido=0,dist=0;
+    cands.forEach(it=>{usados.add(it.id);let need=Number(it.quantidade)||0;pedido+=need;let a=Math.min(need,resta);if(a>0){resta-=a;dist+=a;aloc.push({it,lista:l,antes:need,aloc:a,fica:need-a})}});
+    porItem.push({...l,pedido,dist,sobra:l.qtd-dist,achou:cands.length>0});
+  });
+  SIM={aloc,porItem,comOutros,quando:new Date()};
+  desenhar();
+}
+
+// ── 3. Mostrar ─────────────────────────────────────────────────────────────
+function desenhar(){
+  if(!SIM)return;
+  let{aloc,porItem}=SIM;
+  let tot=porItem.reduce((s,l)=>s+l.qtd,0),dist=aloc.reduce((s,a)=>s+a.aloc,0),nao=porItem.filter(l=>!l.achou),sobra=porItem.filter(l=>l.sobra>0);
+  let sols=new Set(aloc.map(a=>a.it.sol.id)),zeram=aloc.filter(a=>a.fica===0).length;
+  let h=`<div class="kpis">
+    <div>Itens na lista<b>${porItem.length}</b></div>
+    <div>Unidades no estoque<b>${fmtN(tot)}</b></div>
+    <div>Distribuídas<b class="verdeT">${fmtN(dist)}</b>em ${sols.size} solicitações</div>
+    <div class="${tot-dist>0?'alerta':''}">Sobra<b>${fmtN(tot-dist)}</b>${sobra.length} item(ns)</div>
+    <div class="${nao.length?'alerta':''}">Sem solicitação aberta<b>${nao.length}</b>nos estados escolhidos</div>
+    <div>Itens que zeram<b>${zeram}</b>não vão para a SC</div>
+  </div>`;
+  if(nao.length)h+=`<div class="aviso"><b>Sem solicitação em aberto (nos estados escolhidos) para:</b> ${nao.map(l=>esc(l.desc)+' ('+fmtN(l.qtd)+')').join(' · ')}</div>`;
+  h+=`<div class="card"><div class="tabs">
+      <button class="${ABA==='filial'?'on':''}" onclick="ABA='filial';desenhar()">Por estado / filial</button>
+      <button class="${ABA==='item'?'on':''}" onclick="ABA='item';desenhar()">Por item</button>
+      <button class="${ABA==='sol'?'on':''}" onclick="ABA='sol';desenhar()">Por solicitação</button></div>`;
+  if(ABA==='filial'){
+    let g={};aloc.forEach(a=>{let f=String(a.it.sol.filial||'').trim(),k=a.it.prio+'|'+f;(g[k]=g[k]||{uf:ufDe(f),f,prio:a.it.prio,sols:new Set(),itens:0,un:0,zeram:0});g[k].sols.add(a.it.sol.id);g[k].itens++;g[k].un+=a.aloc;if(!a.fica)g[k].zeram++});
+    let rows=Object.values(g).sort((a,b)=>a.prio-b.prio||a.f.localeCompare(b.f)),porUf={};rows.forEach(r=>porUf[r.uf]=(porUf[r.uf]||0)+r.un);
+    h+=`<div class="scroll"><table><tr><th>Ordem</th><th>Estado</th><th>Filial</th><th class="n">Solicitações</th><th class="n">Itens</th><th class="n">Unidades</th><th class="n">Itens que zeram</th></tr>`+
+      rows.map(r=>`<tr><td class="cinza">${r.prio+1}º</td><td><span class="pill uf-${r.uf}">${r.uf}</span></td><td>${esc(nomeFil(r.f))}</td><td class="n">${r.sols.size}</td><td class="n">${r.itens}</td><td class="n b">${fmtN(r.un)}</td><td class="n">${r.zeram}</td></tr>`).join('')+
+      `</table></div><div class="dica" style="margin:10px 0 0">Total por estado: ${Object.keys(porUf).map(u=>`<b>${u}</b> ${fmtN(porUf[u])}`).join(' · ')}</div>`;
+  }else if(ABA==='item'){
+    h+=`<div class="scroll"><table><tr><th>Item</th><th class="n">Estoque</th><th class="n">Pedido em aberto</th><th class="n">Distribuído</th><th class="n">Sobra</th></tr>`+
+      porItem.map(l=>`<tr><td>${esc(l.desc)}${l.achou?'':' <span class="pill" style="background:#fef3c7;color:#92400e">sem solicitação aberta</span>'}</td><td class="n">${fmtN(l.qtd)}</td><td class="n">${fmtN(l.pedido)}</td><td class="n b verdeT">${fmtN(l.dist)}</td><td class="n ${l.sobra>0?'b':'cinza'}">${fmtN(l.sobra)}</td></tr>`).join('')+`</table></div>`;
+  }else{
+    let g={};aloc.forEach(a=>{let s=a.it.sol;(g[s.id]=g[s.id]||{s,prio:a.it.prio,ls:[]}).ls.push(a)});
+    h+=Object.values(g).sort((a,b)=>a.prio-b.prio||String(a.s.criado_em).localeCompare(String(b.s.criado_em))).map(x=>{let s=x.s,u=ufDe(s.filial),un=x.ls.reduce((t,a)=>t+a.aloc,0);
+      return `<details><summary><span class="pill uf-${u}">${u}</span><b>#${s.id}</b> ${esc(nomeFil(s.filial))} · ${fmtD(s.criado_em)} · ${esc(s.solicitante_nome||'')}<span class="dir">${x.ls.length} item(ns) · ${fmtN(un)} un.</span></summary>
+      <div class="scroll"><table><tr><th>Código</th><th>Item</th><th class="n">Qtd antes</th><th class="n">Estoque central</th><th class="n">Fica para a SC</th></tr>${x.ls.map(a=>`<tr><td class="cinza">${esc(a.it.codigo)}</td><td>${esc(a.it.descricao)}</td><td class="n">${fmtN(a.antes)}</td><td class="n ciano">−${fmtN(a.aloc)}</td><td class="n b">${fmtN(a.fica)}</td></tr>`).join('')}</table></div></details>`}).join('')||'<div class="dica">Nada para distribuir.</div>';
+  }
+  h+=`</div><div class="rodape"><span style="font-size:13px"><b>${aloc.length}</b> itens em <b>${sols.size}</b> solicitações recebem <b>${fmtN(dist)}</b> unidades</span>
+    <button class="btn" onclick="exportar()">⬇ Excel</button>
+    <span style="flex:1"></span>
+    ${isAdmin?`<button class="btn verde" onclick="gravar()" id="btn-gravar"${aloc.length?'':' disabled'}>✓ Gravar nas solicitações</button>`:'<span class="dica" style="margin:0">Só administradores gravam.</span>'}</div>`;
+  $('res').innerHTML=h;
+}
+
+function exportar(){
+  if(!SIM)return;
+  let linhas=[['Estado','Filial','Solicitação','Data','Código','Descrição','Qtd antes','Estoque central','Fica para a SC']];
+  SIM.aloc.forEach(a=>{let s=a.it.sol;linhas.push([ufDe(s.filial),nomeFil(s.filial),s.id,fmtD(s.criado_em),a.it.codigo,a.it.descricao,a.antes,a.aloc,a.fica])});
+  linhas.push([]);linhas.push(['Item da lista','','','','','','Estoque','Distribuído','Sobra']);
+  SIM.porItem.forEach(l=>linhas.push([l.desc+(l.achou?'':' (sem solicitação aberta)'),'','','','','',l.qtd,l.dist,l.sobra]));
+  let csv='﻿'+linhas.map(r=>r.map(v=>{v=String(v==null?'':v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(';')).join('\r\n');
+  let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='estoque_central_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
+
+// ── 4. Gravar ──────────────────────────────────────────────────────────────
+async function gravar(){
+  if(!SIM||!isAdmin)return;
+  let{aloc}=SIM,dist=aloc.reduce((s,a)=>s+a.aloc,0);
+  if(!confirm(`Gravar o desconto do estoque central?\n\n${aloc.length} itens · ${fmtN(dist)} unidades.\nA quantidade do Almoxarifado Matriz diminui e o valor fica guardado em "estoque central".`))return;
+  let b=$('btn-gravar');b.disabled=true;b.textContent='Conferindo...';
+  // confere se ninguém mexeu nas quantidades desde a simulação
+  let ids=aloc.map(a=>a.it.id),atual={};
+  for(let i=0;i<ids.length;i+=200){let{data,error}=await db.from('solicitacao_itens').select('id,quantidade,qtd_estoque_central').in('id',ids.slice(i,i+200));if(error){alert('Erro: '+error.message);b.disabled=false;b.textContent='✓ Gravar nas solicitações';return}(data||[]).forEach(r=>atual[r.id]=r)}
+  let mudou=aloc.filter(a=>!atual[a.it.id]||Number(atual[a.it.id].quantidade)!==Number(a.antes)||Number(atual[a.it.id].qtd_estoque_central||0)!==Number(a.it.qtd_estoque_central||0));
+  if(mudou.length){alert(mudou.length+' item(ns) mudaram desde a simulação. Clique em "Simular distribuição" de novo antes de gravar.');b.disabled=false;b.textContent='✓ Gravar nas solicitações';return}
+  let feitos=[],erros=[];
+  for(let i=0;i<aloc.length;i+=10){
+    b.textContent=`Gravando ${Math.min(i+10,aloc.length)}/${aloc.length}...`;
+    await Promise.all(aloc.slice(i,i+10).map(async a=>{
+      let novo={quantidade:a.fica,qtd_estoque_central:(Number(a.it.qtd_estoque_central)||0)+a.aloc};
+      let{error}=await db.from('solicitacao_itens').update(novo).eq('id',a.it.id).eq('quantidade',a.antes);
+      if(error)erros.push(a.it.id+': '+error.message);else feitos.push({id:a.it.id,aloc:a.aloc});
+    }));
+  }
+  try{localStorage.setItem('estoque_central_ultimo',JSON.stringify({quando:new Date().toISOString(),por:userEmail,itens:feitos}))}catch(e){}
+  $('res').innerHTML=(erros.length?`<div class="erro">${erros.length} item(ns) com erro: ${esc(erros.slice(0,5).join(' · '))}</div>`:'')+
+    `<div class="ok">✓ Gravado: ${feitos.length} itens, ${fmtN(feitos.reduce((s,f)=>s+f.aloc,0))} unidades. No Painel, cada item mostra "📦 −X estoque central".</div>`;
+  SIM=null;
+}
+
+// ── Login: mesmo usuário do Painel principal ───────────────────────────────
+async function liberar(email){
+  $('lista-grupos').innerHTML=GRUPOS.map(g=>'<li>'+esc(g.nome)+'</li>').join('');
+  userEmail=email||'';$('user-email').textContent=userEmail;
+  try{let{data}=await db.from('perfis_usuario').select('role').eq('email',userEmail.toLowerCase().trim()).maybeSingle();isAdmin=data&&data.role==='admin'}catch(e){}
+  document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';
+}
+async function entrar(){
+  let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
+  if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
+  b.disabled=true;b.textContent='Entrando...';
+  let{data,error}=await db.auth.signInWithPassword({email,password:senha});
+  b.disabled=false;b.textContent='Entrar';
+  if(error){msg.textContent=error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message;msg.style.display='block';return}
+  liberar(data.user&&data.user.email);
+}
+async function sair(){await db.auth.signOut();location.reload()}
+(async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
+</script>
+</body>
+</html>
