@@ -20,6 +20,8 @@ from datetime import date, datetime
 try:
     import pyodbc
     import pandas as pd
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning)
     from supabase import create_client
 except Exception as e:
     print(f"❌ Falta biblioteca do Python: {e}")
@@ -67,11 +69,6 @@ def data_iso(v):
     return f"{s[:4]}-{s[4:6]}-{s[6:8]}" if len(s) >= 8 and s[:8].isdigit() else None
 
 
-def colunas(conn):
-    df = pd.read_sql("SELECT COLUMN_NAME FROM BEQ_LWH.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?", conn, params=[TABELA])
-    return set(c.strip().upper() for c in df["COLUMN_NAME"])
-
-
 def main():
     global sb
     # aceita os nomes usados nos outros scripts (RESSUP_URL/RESSUP_KEY ou SUPABASE_URL/SUPABASE_KEY...)
@@ -92,22 +89,14 @@ def main():
     print(f"\n🔄 Faturamento (SF2) desde {desde[6:8]}/{desde[4:6]}/{desde[:4]} — {datetime.now():%d/%m/%Y %H:%M}")
 
     conn = conectar()
-    cols = colunas(conn)
-    if not cols:
-        print(f"❌ Não achei a tabela {TABELA} no BEQ_LWH.")
-        return
-    c = lambda nome, alias: (f"F2.{nome}" if nome in cols else "NULL") + f" AS {alias}"
-    sql = ("SELECT RTRIM(F2.F2_FILIAL) AS filial, RTRIM(F2.F2_DOC) AS doc, "
-           + ("RTRIM(F2.F2_SERIE)" if "F2_SERIE" in cols else "''") + " AS serie, "
-           + ("RTRIM(F2.F2_CLIENTE)" if "F2_CLIENTE" in cols else "''") + " AS cliente, "
-           + ("RTRIM(F2.F2_LOJA)" if "F2_LOJA" in cols else "''") + " AS loja, "
-           + "F2.F2_EMISSAO AS emissao, "
-           + ("RTRIM(F2.F2_TIPO)" if "F2_TIPO" in cols else "NULL") + " AS tipo, "
-           + c("F2_VALBRUT", "valbrut") + ", " + c("F2_VALMERC", "valmerc") + ", " + c("F2_VALFAT", "valfat")
-           + f" FROM BEQ_LWH.dbo.{TABELA} F2 WHERE F2.F2_EMISSAO >= ?"
-           + (" AND F2.D_E_L_E_T_ = ' '" if "D_E_L_E_T_" in cols else ""))
-    print("  Colunas: valor bruto " + ("✔" if "F2_VALBRUT" in cols else "✘") + " · mercadorias " + ("✔" if "F2_VALMERC" in cols else "✘")
-          + " · faturado " + ("✔" if "F2_VALFAT" in cols else "✘") + " · tipo " + ("✔" if "F2_TIPO" in cols else "✘"))
+    # LWHSF2001 vem com nomes próprios (Filial, Documento, Serie, Emissao, VlrBruto...) e uma linha por item:
+    # somamos os itens de cada nota. Emissao é texto (AAAAMMDD ou AAAA-MM-DD).
+    sql = (f"SELECT RTRIM(Filial) AS filial, RTRIM(Documento) AS doc, RTRIM(ISNULL(Serie,'')) AS serie, "
+           f"RTRIM(ISNULL(Cliente,'')) AS cliente, RTRIM(ISNULL(Loja,'')) AS loja, MIN(Emissao) AS emissao, "
+           f"NULL AS tipo, SUM(ISNULL(VlrBruto,0)) AS valbrut, SUM(ISNULL(VlrBruto,0) - ISNULL(VlrIpi,0)) AS valmerc, NULL AS valfat "
+           f"FROM BEQ_LWH.dbo.{TABELA} "
+           f"WHERE REPLACE(LEFT(Emissao,10),'-','') >= ? "
+           f"GROUP BY RTRIM(Filial), RTRIM(Documento), RTRIM(ISNULL(Serie,'')), RTRIM(ISNULL(Cliente,'')), RTRIM(ISNULL(Loja,''))")
     df = pd.read_sql(sql, conn, params=[desde])
     conn.close()
     print(f"  {len(df)} notas lidas.")
