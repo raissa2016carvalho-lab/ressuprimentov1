@@ -25,7 +25,8 @@ create index mv_compras_precos_dt on public.mv_compras_precos (dt);
 create or replace function public.compras_precos(p_ini date default null, p_fim date default null, p_grp text default null,
   p_fil text default null, p_q text default null, p_servicos boolean default false, p_min int default 2,
   p_ordem text default 'var', p_off int default 0, p_lim int default 20)
-returns json language sql stable security definer set search_path = public as $$
+returns json language sql stable security definer set search_path = public
+  set enable_nestloop = off set plan_cache_mode = force_custom_plan as $$   -- evita o cruzamento linha a linha (lento)
 with b as materialized (
   select * from mv_compras_precos
   where (p_ini is null or dt >= p_ini) and (p_fim is null or dt <= p_fim)
