@@ -67,8 +67,12 @@ select n.id,
        n.logerrointegracaoerp                          as erro_integracao,
        n.ultimoeventomanifestacao                      as manifestacao,
        n.dataultimoeventomanifestacao                  as data_manifestacao,
-       pr.prenota                                      as prenota
+       pr.prenota                                      as prenota,
+       substring(encode(x.xmlnota,'escape') from '<infCpl>(.*?)</infCpl>')         as rodape,
+       substring(encode(x.xmlnota,'escape') from '<infAdFisco>(.*?)</infAdFisco>') as rodape_fisco,
+       substring(encode(x.xmlnota,'escape') from '<xPed>(.*?)</xPed>')             as xped
 from nfemanager.tb_nfe n
+left join nfemanager.tb_nfexml x on x.id = n.id      -- XML da nota (mesmo id da nota)
 left join nfemanager.tb_empresanfe e on e.id = n.idempresa
 left join (
   select distinct on (idnfe) * from protheus.tb_integracaoprotheusnfe order by idnfe, id desc
@@ -151,7 +155,9 @@ select -n.id                                           as id,
        n.motivoemtratativa                             as motivo_tratativa,
        n.dataemtratativa                               as data_tratativa,
        n.ultimoeventomanifestacao::text                as manifestacao,
-       n.dataultimoeventomanifestacao                  as data_manifestacao
+       n.dataultimoeventomanifestacao                  as data_manifestacao,
+       n.dsoutrasinfo                                  as rodape,
+       n.numeropedido::text                            as xped
 from nfse.tb_nfse n
 left join nfemanager.tb_empresanfe e on e.id = n.idempresa
 where {filtro}
@@ -168,7 +174,7 @@ def _enviar(sb, con, tabela, sql, nome):
         linhas = cur.fetchmany(LOTE)
         if not linhas:
             break
-        dados = [{k: _json(v) for k, v in l.items()} for l in linhas]
+        dados = [_ajusta({k: _json(v) for k, v in l.items()}) for l in linhas]
         for tentativa in range(4):
             try:
                 sb.table(tabela).upsert(dados, on_conflict="id").execute()
@@ -184,6 +190,63 @@ def _enviar(sb, con, tabela, sql, nome):
     return total
 
 
+import re, html
+
+def _desescapa(t):
+    # texto vindo de encode(bytea,'escape'): bytes fora do ASCII viram \ooo e a barra vira \\
+    if not t:
+        return None
+    out, i = bytearray(), 0
+    while i < len(t):
+        if t[i] == '\\' and t[i+1:i+4].isdigit() and len(t[i+1:i+4]) == 3:
+            out.append(int(t[i+1:i+4], 8)); i += 4
+        elif t[i] == '\\' and t[i+1:i+2] == '\\':
+            out.append(92); i += 2
+        else:
+            out.extend(t[i].encode('latin-1', 'replace')); i += 1
+    txt = out.decode('utf-8', 'replace')
+    return html.unescape(txt).strip() or None
+
+# "pedido do cliente" escrito no rodapé (é o nosso nº de pedido de compra)
+# Fica o número que EXISTE nos nossos pedidos (PEDIDOS_VALIDOS, lido do Supabase no começo da rodada);
+# se nenhum existir, só aceita frase bem clara ("pedido do cliente", "pedido de compra").
+PEDIDOS_VALIDOS = set()
+_RE_GERAL = re.compile(r'(?:pedido|ped\.?|p\.?c\.?|o\.?c\.?)\D{0,12}?(\d{4,7})\b', re.I)
+_RE_PED = [re.compile(p, re.I) for p in (
+    r'pedido\s+d[oe]\s+cliente\D{0,15}?(\d{4,10})',
+    r'pedido\s+de\s+compras?\D{0,15}?(\d{4,10})',
+    r'\bP\.?\s?C\.?\s*(?:n[ºo°.]*)?\s*[:\-]?\s*(\d{5,10})',
+    r'\bO\.?\s?C\.?\s*(?:n[ºo°.]*)?\s*[:\-]\s*(\d{4,10})',
+    r'seu\s+pedido\D{0,15}?(\d{4,10})',
+)]
+
+def _norm6(v):
+    v = re.sub(r'\D', '', v or '')
+    return (v.zfill(6) if len(v) < 6 else v) if 4 <= len(v) <= 10 else None
+
+def _pedido_cliente(xped, rodape):
+    fortes = [m.group(1) for rx in _RE_PED for m in rx.finditer(rodape or '')]
+    cands = [_norm6(xped)] + [_norm6(v) for v in fortes] + [_norm6(m.group(1)) for m in _RE_GERAL.finditer(rodape or '')]
+    cands = [c for c in cands if c]
+    if PEDIDOS_VALIDOS:
+        for c in cands:
+            if c in PEDIDOS_VALIDOS:
+                return c
+    # nenhum confere com os pedidos: só a frase clara do rodapé (o xPed sozinho pode ser outra coisa)
+    return _norm6(fortes[0]) if fortes else None
+
+def _ajusta(d):
+    # rodapé, rodapé do fisco e pedido do cliente (só nas tabelas de notas)
+    if 'xped' in d:
+        for k in ('rodape', 'rodape_fisco'):
+            if k in d:
+                d[k] = _desescapa(d[k]) if k == 'rodape_fisco' or d.get('modelo') != 'NFSE' else (d[k] or None)
+        xp = d.pop('xped')
+        xp = _desescapa(xp) if d.get('modelo') != 'NFSE' else xp
+        d['pedido_cliente'] = _pedido_cliente(xp, d.get('rodape'))
+    return d
+
+
 def _json(v):
     if isinstance(v, (datetime.datetime, datetime.date)):
         return v.isoformat()
@@ -192,8 +255,29 @@ def _json(v):
     return v
 
 
+def _carregar_pedidos(sb):
+    # números de pedido de compra que existem (tabela pedidos do painel de Compras)
+    global PEDIDOS_VALIDOS
+    nums, ini = set(), 0
+    try:
+        while True:
+            r = sb.table("pedidos").select("C7_NUM").range(ini, ini + 999).execute()
+            for l in r.data or []:
+                v = re.sub(r'\D', '', str(l.get("C7_NUM") or ''))
+                if v:
+                    nums.add(v.zfill(6))
+            if not r.data or len(r.data) < 1000:
+                break
+            ini += 1000
+    except Exception as e:
+        print("  (não consegui ler a lista de pedidos para conferir o pedido do cliente:", e, ")", flush=True)
+    PEDIDOS_VALIDOS = nums
+    print(f"  {len(nums)} números de pedido para conferir o pedido do cliente.", flush=True)
+
+
 def rodar(desde=None):
     sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+    _carregar_pedidos(sb)
     ultimo = None
     if not desde:
         r = sb.table("sync_log").select("atualizado_em").eq("chave", "nfe_master").execute()

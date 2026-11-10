@@ -121,7 +121,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 </div>
 
 <div class="filtros-wrap">
-  <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor ou CNPJ" oninput="pag=0;render()"></div>
+  <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor, CNPJ, pedido ou texto do rodapé" oninput="pag=0;render();buscaRodape()"></div>
   <div class="f-group so-notas"><label>Tipo</label><select id="f-tipo-nota" onchange="pag=0;render()"><option value="">NF-e e NFS-e</option><option value="NFE">Só NF-e (produto)</option><option value="NFSE">Só NFS-e (serviço)</option></select></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="">Todas</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
@@ -200,16 +200,20 @@ async function buscarSetores(tabela,chave){
 async function carregar(){
   $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
   try{
-    let [ns,sf,sn,{data:log},sd1r,flr]=await Promise.all([
-      buscarTudo('nfe_master','id,numero,serie,modelo,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,prenota,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
+    let [ns,sf,sn,{data:log},sd1r,flr,entr]=await Promise.all([
+      buscarTudo('nfe_master','id,numero,serie,modelo,pedido_cliente,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,prenota,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
       buscarSd1(),
-      buscarFluxo()
+      buscarFluxo(),
+      db.rpc('nfe_entregas_json')
     ]);
+
     let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
     if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
     sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;
+    // [nfe_id, entrega, emissão do pedido, aprovação] — vem tudo num pacote (a API limita a 1.000 linhas por consulta)
+    ENT_PED={};((entr&&entr.data)||[]).forEach(x=>{ENT_PED[x[0]]={entrega:x[1],pc_emissao:x[2],pc_aprovacao:x[3]}});
     notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
     $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
     montarFiltros();if(MODO_RECEB&&window._filialReceb&&(!FILIAIS_USUARIO||!FILIAIS_USUARIO.length||FILIAIS_USUARIO.includes(window._filialReceb))){msSet('f-filial',String(window._filialReceb).split(','))}agrupar();if(!MODO_RECEB&&!window._abaUrl){window._abaUrl=1;let a=new URLSearchParams(location.search).get('aba');if(a==='sla'||a==='forn'||a==='setor'){setAba(a);return}}render();
@@ -275,6 +279,17 @@ const MANIF={'210210':'Ciência da operação','210200':'Confirmação da opera�
 function passaManif(n,m){if(n&&n.modelo==='NFSE')return true;   // nota de serviço não tem manifestação do destinatário
   if(Array.isArray(m))return !m.length||m.some(x=>passaManif(n,x));if(!m)return true;if(m==='__sem')return !n.manifestacao;return n.manifestacao===m}
 function passaStatus(n,si){if(Array.isArray(si))return si.length?si.some(x=>passaStatus(n,x)):passaStatus(n,'');if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(n.status_nfe==='C')return false;return !si||n.status_integracao===si}
+// busca no texto do rodapé (feita no banco, para não baixar o rodapé de todas as notas)
+let RODAPE_IDS=null,RODAPE_T=null;
+function buscaRodape(){
+  clearTimeout(RODAPE_T);let b=$('f-busca').value.toLowerCase().trim();
+  if(b.length<3||/^\d+$/.test(b)){RODAPE_IDS=null;return}
+  RODAPE_T=setTimeout(async()=>{
+    let{data,error}=await db.from('nfe_master').select('id').ilike('rodape','%'+b+'%').limit(3000);
+    if(error||$('f-busca').value.toLowerCase().trim()!==b)return;
+    RODAPE_IDS={q:b,ids:new Set((data||[]).map(r=>r.id))};pag=0;render();
+  },500);
+}
 function notasFiltradas(ignorarSetor){
   let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=vals('f-setor'),fil=vals('f-filial'),si=vals('f-status');
   return notas.filter(n=>{
@@ -285,7 +300,7 @@ function notasFiltradas(ignorarSetor){
     if(fil.length&&!fil.includes(n.filial))return false;
     let tp=$('f-tipo-nota')?$('f-tipo-nota').value:'';if(tp==='NFSE'&&!ehServ(n))return false;if(tp==='NFE'&&ehServ(n))return false;
     let s=setorDa(n).setor;if(!ignorarSetor&&st.length&&!st.some(x=>x==='__sem'?!s:s===x))return false;
-    if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd))))return false}
+    if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd)||String(n.pedido_cliente||'').includes(bd)))&&!(RODAPE_IDS&&RODAPE_IDS.q===b&&RODAPE_IDS.ids.has(n.id)))return false}
     return true;
   }).sort((a,b)=>String(b.emissao||'').localeCompare(String(a.emissao||'')));
 }
@@ -331,7 +346,7 @@ function render(){
   let l=notasFiltradas(),parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
   let todasMarcadas=parte.every(n=>sel.has(n.id));
-  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th>Pedido</th><th>Observação</th><th>Status</th></tr></thead><tbody>'+
+  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th title="Data em que o material chegou de verdade. Lead time = da emissão do pedido até a entrega real">Entrega real</th><th>Pedido</th><th>Observação</th><th>Status</th></tr></thead><tbody>'+
     parte.map(n=>{let s=setorDa(n),st=statusUnico(n);
       return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
         '<td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
@@ -340,7 +355,7 @@ function render(){
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
         (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
-        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlEntregaReal(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
 }
 // ── SLA de lançamento: emissão → pré-nota (almoxarifado, pelo NFe Master) → lançamento (fiscal classifica; D1_DTDIGIT) ──
@@ -477,7 +492,9 @@ function irSetor(i){let r=_gRows[i];if(!r)return;$('gtip').style.display='none';
 
 // ===== Fluxo: entrega prevista (Compras) e aceite do recebimento (Almoxarifado) — tabela nfe_fluxo =====
 const MODO_RECEB=/recebimento/.test(location.pathname)||new URLSearchParams(location.search).get('modo')==='recebimento';
-let fluxo=null,abaReceb='chegar';
+let fluxo=null,abaReceb='chegar',ENT_PED={};
+// data de entrega: a que o Compras digitou ou, se não tiver, a data de entrega do pedido (Protheus)
+const entregaDe=n=>{let f=(fluxo&&fluxo[n.id])||{};return f.previsao_entrega||(ENT_PED[n.id]||{}).entrega||''};
 async function buscarFluxo(){
   let out={},de=0;
   for(;;){let{data,error}=await db.from('nfe_fluxo').select('*').range(de,de+999);
@@ -490,14 +507,27 @@ function htmlEntrega(n){
   let f=fluxo[n.id]||{};
   if(f.recebido_em)return '<span class="pill st-3" title="Recebida por '+esc(f.recebido_por||'')+'">✓ Recebida '+fmtData(f.recebido_em)+'</span>';
   if(f.recusado_em)return '<span class="pill st-C" title="Recusada por '+esc(f.recusado_por||'')+(f.motivo_recusa?': '+esc(f.motivo_recusa):'')+'">✕ Recusada '+fmtData(f.recusado_em)+'</span>'+(f.motivo_recusa?'<div class="herdado" style="max-width:160px">'+esc(f.motivo_recusa)+'</div>':'');
-  let v=f.previsao_entrega||'',atr=v&&v<hojeIso();
-  return '<input type="date" class="inp-data'+(atr?' atrasada':'')+'" value="'+v+'" onchange="salvarEntrega(['+n.id+'],this.value,this)" title="'+(f.previsao_por?'Informada por '+esc(f.previsao_por):'Data que o fornecedor vai entregar')+'">'+(atr?'<div class="herdado" style="color:#dc2626">atrasada</div>':'');
+  let ep=(ENT_PED[n.id]||{}).entrega,doPed=!f.previsao_entrega&&!!ep,v=f.previsao_entrega||ep||'',atr=v&&v<hojeIso()&&!f.entrega_real;
+  return '<input type="date" class="inp-data'+(atr?' atrasada':'')+'" value="'+v+'" onchange="salvarEntrega(['+n.id+'],this.value,this)" title="'+(f.previsao_por?'Informada por '+esc(f.previsao_por):doPed?'Previsão de entrega do pedido (pedidos v2 do Protheus) — pode trocar':'Data que o fornecedor vai entregar')+'"'+(doPed?' style="color:#64748b"':'')+'>'+(doPed?'<div class="herdado">do pedido</div>':'')+(atr?'<div class="herdado" style="color:#dc2626">atrasada</div>':'');
 }
+// Entrega real (data em que chegou) e lead time = emissão do pedido → entrega real; atraso = entrega real − previsão
+const _diasEnt=(a,b)=>Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5);
+function htmlEntregaReal(n){
+  if(!fluxo)return '<span class="herdado">—</span>';
+  let f=fluxo[n.id]||{},rec=f.recebido_em?String(f.recebido_em).slice(0,10):'',v=f.entrega_real||'',auto=!v&&rec?rec:'',real=v||auto;
+  let ped=ENT_PED[n.id]||{},emi=ped.pc_emissao?String(ped.pc_emissao).slice(0,10):'',prev=f.previsao_entrega||(ped.entrega?String(ped.entrega).slice(0,10):'');
+  let info='';
+  if(real&&emi)info+='<div class="herdado" title="Da emissão do pedido ('+fmtData(emi+'T12:00')+') até a entrega real"><b>Lead time '+_diasEnt(emi,real)+' d</b></div>';
+  if(real&&prev){let a=_diasEnt(prev,real);info+='<div class="herdado" style="color:'+(a>0?'#dc2626':'#16a34a')+'">'+(a>0?a+' d de atraso':a<0?(-a)+' d adiantado':'no dia')+'</div>'}
+  if(auto)info+='<div class="herdado">do recebimento</div>';
+  return '<input type="date" class="inp-data" value="'+real+'" onchange="salvarEntregaReal(['+n.id+'],this.value,this)" title="Data em que o material chegou"'+(auto?' style="color:#64748b"':'')+'>'+info;
+}
+function salvarEntregaReal(ids,data,el){return salvarFluxo(ids,{entrega_real:data||null,entrega_real_por:userEmail||null,atualizado_em:new Date().toISOString()},el)}
 // campos de texto do Compras (nº do pedido e observação): salvam ao sair do campo
 function htmlCampoFluxo(n,campo,ph,larg){
   if(!fluxo)return '<span class="herdado">—</span>';
-  let v=(fluxo[n.id]||{})[campo]||'';
-  return '<input class="inp-txt" style="width:'+larg+'px" placeholder="'+ph+'" value="'+esc(v)+'" data-orig="'+esc(v)+'" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarCampoFluxo('+n.id+',\''+campo+'\',this)" title="'+esc(v)+'">';
+  let v=(fluxo[n.id]||{})[campo]||'',auto=campo==='pedido'&&!v&&n.pedido_cliente?n.pedido_cliente:'';
+  return (auto?'<div style="position:relative">':'')+'<input class="inp-txt" style="width:'+larg+'px'+(auto?';color:#1e40af':'')+'" placeholder="'+ph+'" value="'+esc(v||auto)+'" data-orig="'+esc(v)+'" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarCampoFluxo('+n.id+',\''+campo+'\',this)" title="'+(auto?'Pedido do cliente escrito na nota (pode trocar)':esc(v))+'">'+(auto?'<div class="herdado">da nota</div></div>':'');
 }
 function salvarCampoFluxo(id,campo,el){let v=el.value.trim();let c={};c[campo]=v||null;c.atualizado_em=new Date().toISOString();
   salvarFluxo([id],c,el).then(ok=>{if(!ok)el.value=el.dataset.orig})}
@@ -534,11 +564,11 @@ function renderReceb(){
   let fil=vals('f-filial'),b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),h=hojeIso(),lim=_iso(new Date(Date.now()-90*864e5));
   let base=notas.filter(n=>(!fil.length||fil.includes(n.filial))&&(!FILIAIS_USUARIO||!FILIAIS_USUARIO.length||FILIAIS_USUARIO.includes(n.filial))&&String(n.emissao||'').slice(0,10)>=lim&&(!b||(n.fornecedor_nome||'').toLowerCase().includes(b)||(bd&&String(n.numero||'').includes(bd))));
   // só aparece para o almoxarifado o que o Compras já colocou data de entrega
-  let semData=base.filter(n=>_vaiChegar(n)&&!(fluxo[n.id]||{}).previsao_entrega&&!(fluxo[n.id]||{}).recebido_em&&!(fluxo[n.id]||{}).recusado_em).length;
-  let chegar=base.filter(n=>{let f=fluxo[n.id]||{};return _vaiChegar(n)&&f.previsao_entrega&&!f.recebido_em&&!f.recusado_em});
+  let semData=base.filter(n=>_vaiChegar(n)&&!entregaDe(n)&&!(fluxo[n.id]||{}).recebido_em&&!(fluxo[n.id]||{}).recusado_em).length;
+  let chegar=base.filter(n=>{let f=fluxo[n.id]||{};return _vaiChegar(n)&&entregaDe(n)&&!f.recebido_em&&!f.recusado_em});
   let receb=base.filter(n=>{let f=fluxo[n.id]||{};return f.recebido_em&&n.status_integracao!=='3'&&n.status_nfe!=='C'});
   let recus=base.filter(n=>(fluxo[n.id]||{}).recusado_em);
-  let prev=n=>(fluxo[n.id]||{}).previsao_entrega||'';
+  let prev=n=>entregaDe(n);
   let atras=chegar.filter(n=>prev(n)<h).length,hoje=chegar.filter(n=>prev(n)===h).length;
   $('resumo').innerHTML='<div class="resumo-card azul"><div class="val">'+chegar.length+'</div><div class="lab">A chegar</div><div class="sub">com data informada pelo Compras</div></div>'+
     '<div class="resumo-card alerta"><div class="val">'+atras+'</div><div class="lab">Previsão já passou</div></div>'+
@@ -553,7 +583,7 @@ function renderReceb(){
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">'+({chegar:'Nada previsto para chegar com esses filtros.',recebidas:'Nenhuma nota recebida aguardando lançamento.',recusadas:'Nenhuma nota recusada.'}[abaReceb])+'</div>';return}
   let cab={chegar:'<th>Previsão</th>',recebidas:'<th>Recebida</th>',recusadas:'<th>Recusada</th>'}[abaReceb];
   $('tabela').innerHTML='<table><thead><tr>'+cab+'<th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Fornecedor</th><th>Setor</th><th>Pedido</th><th>Observação do Compras</th><th class="num">Valor</th><th></th></tr></thead><tbody>'+
-    parte.map(n=>{let f=fluxo[n.id]||{},p=f.previsao_entrega,c1,acao;
+    parte.map(n=>{let f=fluxo[n.id]||{},p=entregaDe(n),c1,acao;
       if(abaReceb==='chegar'){c1='<span class="pill '+(p<h?'st-C':p===h?'st-3':'st-x')+'">'+(p<h?'⚠ ':'')+fmtData(p+'T12:00')+'</span>';
         acao='<div style="display:flex;gap:6px"><button class="btn-receber" onclick="receber('+n.id+',this)">✓ Recebi</button><button class="btn-recusar" onclick="recusar('+n.id+',this)">✕ Recusar</button></div>'}
       else if(abaReceb==='recebidas'){c1='<div style="font-weight:600">'+fmtData(f.recebido_em)+'</div><div class="herdado">'+esc(f.recebido_por||'')+'</div>';
@@ -564,7 +594,7 @@ function renderReceb(){
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens">'+esc(n.numero)+tagServ(n)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
         '<td>'+(setorDa(n).setor?'<span class="pill tag-setor" style="margin:0">'+esc(setorDa(n).setor)+'</span>':'<span class="herdado">—</span>')+'</td>'+
-        '<td style="font-family:ui-monospace,monospace">'+esc(f.pedido||'—')+'</td><td style="font-size:12px;max-width:220px">'+esc(f.obs_compras||'')+'</td>'+
+        '<td style="font-family:ui-monospace,monospace">'+esc(f.pedido||n.pedido_cliente||'—')+(!f.pedido&&n.pedido_cliente?'<div class="cnpj" title="Pedido do cliente escrito no rodapé da nota">do rodapé</div>':'')+'</td><td style="font-size:12px;max-width:220px">'+esc(f.obs_compras||'')+'</td>'+
         '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+acao+'</td></tr>'}).join('')+'</tbody></table>';
 }
 function iniciarModoReceb(){
@@ -579,6 +609,8 @@ function iniciarModoReceb(){
 
 // nota de serviço (NFS-e, vem do esquema nfse do NFe Master): etiqueta ao lado do número
 const ehServ=n=>n&&n.modelo==='NFSE';
+// pedido do cliente (nosso nº de pedido) que o fornecedor escreveu no XML ou no rodapé da nota
+const pedTag=n=>n&&n.pedido_cliente?' · <b style="color:#1e40af" title="Pedido do cliente escrito na nota (rodapé ou XML)">Pedido '+esc(n.pedido_cliente)+'</b>':'';
 const tagServ=n=>ehServ(n)?' <span class="pill" style="background:#ede9fe;color:#5b21b6;font-size:10px" title="Nota de serviço (NFS-e)">Serviço</span>':'';
 // popup com os itens da nota
 async function abrirItens(id){
@@ -589,6 +621,14 @@ async function abrirItens(id){
     (n.chave?'<div class="cnpj" style="margin-top:3px">Chave '+esc(n.chave)+'</div>':'')+
     (sd1&&sd1[n.id]?'<div style="margin-top:6px;font-size:12.5px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:6px 10px;color:#5b21b6"><b>Já lançada no Protheus (SD1)</b> sem passar pelo NFe Master: '+sd1[n.id].sd1_itens+' itens · '+fmtR(sd1[n.id].sd1_valor)+' · fornecedor '+esc(sd1[n.id].sd1_fornecedor||'')+'</div>':'');
   $('pop-corpo').innerHTML='<div class="msg-vazio">Carregando itens...</div>';$('pop-itens').style.display='block';
+  // rodapé (informações complementares) e pedido do cliente, buscados só desta nota
+  db.from('nfe_master').select('rodape,rodape_fisco,pedido_cliente').eq('id',id).maybeSingle().then(({data:rd})=>{
+    if(!rd||(!rd.rodape&&!rd.rodape_fisco&&!rd.pedido_cliente))return;
+    $('pop-cab').insertAdjacentHTML('beforeend','<div style="margin-top:8px;font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px">'+
+      (rd.pedido_cliente?'<div style="font-weight:700;color:#1e40af;margin-bottom:4px">Pedido do cliente na nota: '+esc(rd.pedido_cliente)+'</div>':'')+
+      (rd.rodape?'<div style="font-weight:600;color:#475569">Informações complementares (rodapé)</div><div style="white-space:pre-wrap;color:#334155">'+esc(rd.rodape)+'</div>':'')+
+      (rd.rodape_fisco?'<div style="font-weight:600;color:#475569;margin-top:4px">Informações ao fisco</div><div style="white-space:pre-wrap;color:#334155">'+esc(rd.rodape_fisco)+'</div>':'')+'</div>');
+  });
   if(ehServ(n)){   // nota de serviço não tem itens: mostra a discriminação do serviço e os valores
     let{data:d}=await db.from('nfe_master').select('natureza,valor_total,valor_produtos,integracao,chegada').eq('id',id).maybeSingle();
     $('pop-corpo').innerHTML='<div style="font-size:13px;line-height:1.5"><div style="font-weight:700;margin-bottom:4px">Nota de serviço (NFS-e)</div>'+
