@@ -4,27 +4,45 @@
 -- Rodar no Supabase SQL Editor. Desfazer no fim do arquivo.
 
 create materialized view public.mv_compras_det as
-with ped as (
-  -- um pedido por SC + filial (o mesmo nº de SC existe em filiais diferentes)
-  select distinct on (trim("C7_NUMSC"), trim("C7_FILIAL"))
-         trim("C7_NUMSC") numsc, trim("C7_FILIAL") fil, trim("C7_NUM") num, "EMISSAO_PEDIDO" emissao,
-         coalesce(nullif("STATUS_PEDIDO",''),'–') st
-  from public.pedidos
-  where coalesce(trim("C7_NUMSC"),'') <> ''
-  order by trim("C7_NUMSC"), trim("C7_FILIAL"), "EMISSAO_PEDIDO" desc nulls last
+-- 11/11: status do pedido POR ITEM (antes pegava um pedido só por SC e repetia o status em todos os itens)
+with pci as (   -- item do pedido: SC + filial + produto + nº do pedido
+  select distinct on (trim(c7_numsc), trim(c7_filial), trim(c7_produto), trim(c7_num))
+         trim(c7_numsc) numsc, trim(c7_filial) fil, trim(c7_produto) prod, trim(c7_num) num, c7_emissao emissao, status_desc st
+  from public.pedidos_compra where coalesce(trim(c7_numsc),'') <> ''
+  order by trim(c7_numsc), trim(c7_filial), trim(c7_produto), trim(c7_num), c7_emissao desc
+),
+pci2 as (select distinct on (numsc, fil, prod) * from pci order by numsc, fil, prod, emissao desc),   -- item sem nº de pedido na SC
+ped as (        -- pedido inteiro (quando o item não é achado no pedido)
+  select distinct on (trim("C7_NUM"), trim("C7_FILIAL")) trim("C7_NUM") num, trim("C7_FILIAL") fil, "EMISSAO_PEDIDO" emissao, "STATUS_PEDIDO" st
+  from public.pedidos order by trim("C7_NUM"), trim("C7_FILIAL"), "EMISSAO_PEDIDO" desc nulls last
+),
+j as (
+  select s.*, nullif(trim(s.pedido_num),'') pn, p1.st st1, p1.emissao em1, p2.st st2, p2.num num2, p2.emissao em2, pd.st st3, pd.emissao em3
+  from public.scs s
+  left join pci p1 on p1.numsc = trim(s."C1_NUM") and p1.fil = trim(s."C1_FILIAL") and p1.prod = trim(s."C1_PRODUTO") and p1.num = trim(s.pedido_num)
+  left join pci2 p2 on p2.numsc = trim(s."C1_NUM") and p2.fil = trim(s."C1_FILIAL") and p2.prod = trim(s."C1_PRODUTO")
+  left join ped pd on pd.num = coalesce(nullif(trim(s.pedido_num),''), p2.num) and pd.fil = trim(s."C1_FILIAL")
 )
-select s."C1_NUM" num_sc, s."C1_ITEM" item, trim(s."C1_FILIAL") fil,
-       coalesce(nullif(trim(f.nome_filial),''), trim(s."C1_FILIAL")) filial,
-       s."C1_GRPRD" grupo, s."C1_EMISSAO" emissao_sc, nullif(s."C1_EMISSAO",'')::date dt, s."C1_YDTAPRO" aprov_sc,
-       coalesce(nullif(s."C1_DESCRI",''),'–') descricao, coalesce(s."C1_OBS",'') obs, s."C1_QUANT" quant,
-       coalesce(nullif(s."STATUS_DESC",''),'–') status_sc,
-       coalesce(nullif(trim(s.pedido_num),''), p.num, '–') num_ped, p.emissao emissao_ped,
-       case when p.num is not null then p.st when coalesce(trim(s.pedido_num),'') <> '' then '–' else 'SEM PEDIDO' end status_ped,
-       coalesce(s.pedido_total,0) valor, s.comprador, s.tipo_sc tipo,
-       lower(coalesce(f.nome_filial,'')||' '||coalesce(s."C1_DESCRI",'')||' '||coalesce(s."C1_OBS",'')||' '||coalesce(s.comprador,'')) busca
-from public.scs s
-left join public.filiais f on ltrim(f.filial,'0') = ltrim(trim(s."C1_FILIAL"),'0')
-left join ped p on p.numsc = trim(s."C1_NUM") and p.fil = trim(s."C1_FILIAL");
+select j."C1_NUM" num_sc, j."C1_ITEM" item, trim(j."C1_FILIAL") fil,
+       coalesce(nullif(trim(f.nome_filial),''), trim(j."C1_FILIAL")) filial,
+       j."C1_GRPRD" grupo, j."C1_EMISSAO" emissao_sc, nullif(j."C1_EMISSAO",'')::date dt, j."C1_YDTAPRO" aprov_sc,
+       coalesce(nullif(j."C1_DESCRI",''),'–') descricao, coalesce(j."C1_OBS",'') obs, j."C1_QUANT" quant,
+       coalesce(nullif(j."STATUS_DESC",''),'–') status_sc,
+       coalesce(j.pn, case when j.st2 is not null then j.num2 end, '–') num_ped,
+       coalesce(j.em1, case when j.pn is null then j.em2 end, j.em3) emissao_ped,
+       case when coalesce(j.st1, case when j.pn is null then j.st2 end, j.st3) is null
+            then case when j.pn is not null then '–' else 'SEM PEDIDO' end
+            else case upper(coalesce(j.st1, case when j.pn is null then j.st2 end, j.st3))
+                   when 'RECEBIDO' then 'Recebido' when 'RECEBIDO PARCIALMENTE' then 'Recebido parcialmente'
+                   when 'PENDENTE' then 'Pendente' when 'PC ELIMINADO POR RESÍDUO' then 'PC Eliminado por Resíduo'
+                   when 'REJEITADO PELO APROVADOR' then 'Rejeitado pelo aprovador' when 'EM APROVAÇÃO' then 'Em aprovação'
+                   when 'EM RECEBIMENTO (PRÉ-NOTA)' then 'Em recebimento (Pré-nota)' when 'PEDIDO DE CONTRATO (GCT)' then 'Pedido de Contrato (GCT)'
+                   when 'SEM STATUS' then 'Sem status'
+                   else coalesce(j.st1, case when j.pn is null then j.st2 end, j.st3) end end status_ped,
+       coalesce(j.pedido_total,0) valor, j.comprador, j.tipo_sc tipo,
+       lower(coalesce(f.nome_filial,'')||' '||coalesce(j."C1_DESCRI",'')||' '||coalesce(j."C1_OBS",'')||' '||coalesce(j.comprador,'')) busca
+from j
+left join public.filiais f on ltrim(f.filial,'0') = ltrim(trim(j."C1_FILIAL"),'0');
 create unique index mv_compras_det_pk on public.mv_compras_det (num_sc, item, fil);
 create index mv_compras_det_dt on public.mv_compras_det (dt);
 create index mv_compras_det_busca on public.mv_compras_det using gin (busca gin_trgm_ops);
