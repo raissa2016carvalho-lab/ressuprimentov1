@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Separação de mobilização</title>
+<title>Separação</title>
 <script src="vendor/supabase-2.118.0.js"></script>
 <link rel="stylesheet" href="/padrao.css"><style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -54,6 +54,18 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 .salvo{font-size:10.5px;color:#16a34a;height:12px}
 .rodape{position:sticky;bottom:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px;margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:0 -4px 16px #0f172a0d}
 .aviso{background:#fef3c7;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:12px}
+.abas{display:flex;gap:4px;border-bottom:1px solid #e2e8f0;margin-bottom:14px}
+.abas button{border:none;background:none;padding:9px 14px;font-size:13.5px;font-weight:600;color:#64748b;cursor:pointer;border-bottom:3px solid transparent;font-family:inherit}
+.abas button.on{color:#1e40af;border-bottom-color:#1e40af}
+.ritem{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:minmax(200px,1.6fr) 90px 230px 110px;gap:12px;align-items:center}
+.ritem.feito{border-left:4px solid #0e7490}.ritem.zero{border-left:4px solid #dc2626;background:#fffafa}
+.ritem .desc{font-weight:600;font-size:13px}.ritem .cod{font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin-top:2px}
+.ritem .lbl{font-size:10.5px;color:#94a3b8;font-weight:600;display:block;margin-bottom:3px}
+.ritem .big{font-family:ui-monospace,monospace;font-weight:700;font-size:15px}
+.rq{display:flex;gap:4px;align-items:center}.rq .inp{width:80px}
+.rq button{border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:6px 8px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;color:#64748b;white-space:nowrap}
+.rq button:hover{border-color:#1e40af;color:#1e40af}
+@media(max-width:800px){.ritem{grid-template-columns:1fr 1fr}.ritem>div:first-child{grid-column:1/-1}}
 .ok{background:#dcfce7;color:#166534;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
 @media(max-width:800px){.corpo{padding:14px 16px 40px}.item{grid-template-columns:1fr 1fr}.item>div:first-child{grid-column:1/-1}.extra{grid-template-columns:1fr}.resumo{margin-left:0}.mob{flex-wrap:wrap}}
 </style>
@@ -62,7 +74,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 <div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
   <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px">
     <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
-    <h1 style="margin:0 0 4px;font-size:16px">Separação de mobilização</h1>
+    <h1 style="margin:0 0 4px;font-size:16px">Separação</h1>
     <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
     <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
     <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
@@ -74,7 +86,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 
 <div class="bq-topo">
   <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
-  <div><h1>Separação de mobilização</h1><div class="bq-sub">Conferir o estoque e separar o material de cada mobilização</div></div>
+  <div><h1>Separação</h1><div class="bq-sub">Conferir o estoque e separar o material das mobilizações e dos ressuprimentos</div></div>
   <div class="topo-dir"><span id="user-email"></span><button class="btn-sair" onclick="sair()">Sair</button></div>
 </div>
 
@@ -88,14 +100,20 @@ const fmtN=v=>(Math.round((Number(v)||0)*100)/100).toLocaleString('pt-BR');
 const fmtDH=iso=>iso?new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 const STATUS={pendente:'Pendente',em_separacao:'Em separação',concluida:'Concluída'};
 let userEmail='',isAdmin=false,FILTRO='abertas',MOBS=[],ATUAL=null;
+// modo da tela: mobilizações ou ressuprimento (solicitações em aberto)
+let MODO=(()=>{let q=new URLSearchParams(location.search);return q.get('ressup')||q.get('modo')==='ressup'?'ressup':'mob'})();
+let RESS=[],ATUAL_R=null,FILTRO_R='todas';
 // Item já conferido? Estoque lançado antes desta tela (quantidade > 0, sem marcação) conta como "Tem"
 const dispo=r=>!r?null:r.disponivel!=null?r.disponivel:(Number(r.qtd_estoque)>0?true:null);
 
 // lê a tabela inteira de 1000 em 1000 (o Supabase devolve no máximo 1000 por vez)
 async function todas(tab,cols){let out=[];for(let o=0;;o+=1000){let{data,error}=await db.from(tab).select(cols).order('id').range(o,o+999);if(error||!data||!data.length)break;out=out.concat(data);if(data.length<1000)break}return out}
 // ── Lista de mobilizações ──────────────────────────────────────────────────
+function abasHtml(){return `<div class="abas"><button class="${MODO==='mob'?'on':''}" onclick="irModo('mob')">🦺 Mobilizações</button><button class="${MODO==='ressup'?'on':''}" onclick="irModo('ressup')">📦 Ressuprimento</button></div>`}
+function irModo(m){MODO=m;carregarLista()}
 async function carregarLista(){
-  $('corpo').innerHTML='<div class="vazio">Carregando mobilizações...</div>';
+  if(MODO==='ressup')return carregarRessup();
+  $('corpo').innerHTML=abasHtml()+'<div class="vazio">Carregando mobilizações...</div>';
   let[{data:mobs,error},itens,est]=await Promise.all([
     db.from('mobilizacoes').select('*').order('criado_em',{ascending:false}),
     todas('mobilizacao_itens','mobilizacao_id,codigo,excluido'),
@@ -125,7 +143,7 @@ function desenharLista(){
         <div class="sub">${m.num_equipes?m.num_equipes+' equipe(s) · ':''}${m._tot} item(ns) · criada em ${fmtDH(m.criado_em)}${m._st==='concluida'&&m.sep_operador?' · separada por '+esc(m.sep_operador)+' em '+fmtDH(m.sep_concluida_em):''}</div></div>
       <div style="text-align:right"><div style="font-size:12px;color:#64748b">${m._conf}/${m._tot} conferidos</div><div class="barra"><i style="width:${pct}%"></i></div></div>
       <span style="color:#1e40af;font-weight:700">→</span></div>`}).join('')).join('');
-  $('corpo').innerHTML=`<div class="filtros">${chips}<input class="busca" id="busca" placeholder="Buscar mobilização ou grupo..." value="${esc(q)}" oninput="desenharLista();this.focus();this.setSelectionRange(this.value.length,this.value.length)"></div>`+
+  $('corpo').innerHTML=abasHtml()+`<div class="filtros">${chips}<input class="busca" id="busca" placeholder="Buscar mobilização ou grupo..." value="${esc(q)}" oninput="desenharLista();this.focus();this.setSelectionRange(this.value.length,this.value.length)"></div>`+
     (html||'<div class="vazio">Nenhuma mobilização '+(FILTRO==='concluidas'?'concluída':'para separar')+'.</div>');
 }
 
@@ -225,13 +243,114 @@ async function reabrir(){
   Object.assign(ATUAL.mob,upd);desenharSeparacao();
 }
 
+// ── Ressuprimento: solicitações em aberto (as mesmas que aparecem no Painel) ─────────────
+// A equipe informa quanto sai do estoque central; isso vai para solicitacao_itens.qtd_estoque_central
+// e desconta da quantidade do Almoxarifado Matriz (o que fica para a SC).
+const FILIAIS={'01':['CE','MATRIZ'],'03':['RN','PAU DOS FERROS'],'04':['CE','ITAPIPOCA'],'06':['RN','CURRAIS NOVOS'],'07':['CE','SOBRAL'],'08':['GO','APARECIDA DE GOIANIA'],'09':['CE','MARACANAU'],'10':['RN','MOSSORO'],'11':['GO','ANAPOLIS'],'13':['BA','ALAGOINHAS'],'14':['BA','RIBEIRA DO POMBAL'],'15':['BA','PAULO AFONSO'],'22':['GO','GOIANIA'],'23':['CE','BATURITE'],'24':['GO','MORRINHOS'],'25':['CE','CASCAVEL'],'27':['CE','CAUCAIA'],'29':['CE','HORIZONTE'],'34':['BA','SENHOR DO BONFIM'],'36':['GO','LUZIANIA'],'37':['MG','DIVINOPOLIS'],'39':['SP','SÃO PAULO'],'40':['PE','GARANHUNS'],'41':['PI','FLORIANO'],'42':['BA','LIVRAMENTO DE NOSSA SENHORA'],'43':['SP','HORTOLANDIA'],'44':['BA','BRUMADO'],'45':['RJ','NITEROI']};
+// mesma ordem de atendimento da tela Estoque central
+const GRUPOS_R=[
+  {nome:'1º · Ceará — Metrôs e Obras Atlântico/Norte',cc:['141080101','141080103','141080104','141080105','141080102','141060102','141060101']},
+  {nome:'2º · Rio Grande do Norte — TEC Oeste e Alto Oeste',cc:['145040101','145030102']},
+  {nome:'3º · Bahia',uf:['BA']},
+  {nome:'4º · Demais bases do Ceará e RN',uf:['CE','RN']},
+  {nome:'Outros estados',uf:null}];
+const ufDe=f=>(FILIAIS[String(f||'').trim()]||['?'])[0];
+const nomeFil=f=>{f=String(f||'').trim();return f+(FILIAIS[f]?' — '+FILIAIS[f][1]:'')};
+function grupoR(s){let cc=String(s.cc||'').trim(),u=ufDe(s.filial);for(let i=0;i<GRUPOS_R.length-1;i++){let g=GRUPOS_R[i];if((g.cc&&g.cc.includes(cc))||(g.uf&&g.uf.includes(u)))return i}return GRUPOS_R.length-1}
+const precisa=i=>(Number(i.quantidade)||0)+(Number(i.qtd_estoque_central)||0);   // o que o Almoxarifado Matriz liberou
+const doCentral=i=>Number(i.qtd_estoque_central)||0;
+
+async function carregarRessup(){
+  $('corpo').innerHTML=abasHtml()+'<div class="vazio">Carregando solicitações...</div>';
+  history.replaceState(null,'','?modo=ressup');
+  let[{data:sols,error},{data:ccs}]=await Promise.all([
+    db.from('solicitacoes').select('id,cc,filial,status,criado_em,solicitante_nome').in('status',['pendente','aguardando_master']).order('criado_em'),
+    db.from('centros_custo').select('cc,nome')]);
+  if(error){$('corpo').innerHTML=abasHtml()+'<div class="vazio">Não consegui carregar: '+esc(error.message)+'</div>';return}
+  let nomeCC={};(ccs||[]).forEach(c=>nomeCC[String(c.cc).trim()]=String(c.nome||'').replace(/\s+/g,' ').trim());
+  let ids=(sols||[]).map(s=>s.id),itens=[];
+  for(let i=0;i<ids.length;i+=100){for(let o=0;;o+=1000){let{data}=await db.from('solicitacao_itens').select('solicitacao_id,quantidade,qtd_estoque_central,situacao').in('solicitacao_id',ids.slice(i,i+100)).order('id').range(o,o+999);itens=itens.concat(data||[]);if(!data||data.length<1000)break}}
+  let por={};itens.forEach(i=>{if(i.situacao==='recusado'||precisa(i)<=0)return;let o=por[i.solicitacao_id]=por[i.solicitacao_id]||{n:0,c:0,un:0};o.n++;if(doCentral(i)>0){o.c++;o.un+=doCentral(i)}});
+  RESS=(sols||[]).filter(s=>por[s.id]).map(s=>({...s,_base:nomeCC[String(s.cc||'').trim()]||s.cc,_g:grupoR(s),_n:por[s.id].n,_c:por[s.id].c,_un:por[s.id].un}));
+  desenharListaRessup();
+}
+function desenharListaRessup(){
+  ATUAL_R=null;
+  let q=($('busca-r')?.value||'').toLowerCase().trim();
+  let lista=RESS.filter(s=>FILTRO_R==='todas'||(FILTRO_R==='com'?s._c>0:s._c===0))
+    .filter(s=>!q||(s._base||'').toLowerCase().includes(q)||nomeFil(s.filial).toLowerCase().includes(q)||String(s.id).includes(q));
+  let chips=[['todas','Todas'],['sem','Sem estoque central'],['com','Com estoque central']].map(([k,t])=>
+    `<button class="chip${FILTRO_R===k?' ativo':''}" onclick="FILTRO_R='${k}';desenharListaRessup()">${t} (${RESS.filter(s=>k==='todas'||(k==='com'?s._c>0:s._c===0)).length})</button>`).join('');
+  let html=GRUPOS_R.map((g,gi)=>{let ls=lista.filter(s=>s._g===gi);if(!ls.length)return '';
+    return '<div class="grupo-tit">'+esc(g.nome)+'</div>'+ls.map(s=>{let pct=s._n?Math.round(s._c/s._n*100):0;
+      return `<div class="mob" onclick="abrirRessup(${s.id})">
+        <div style="flex:1;min-width:0"><div class="nome">${esc(s._base)} <span style="color:#94a3b8;font-weight:500;font-size:12px">#${s.id}</span></div>
+          <div class="sub">${esc(nomeFil(s.filial))} · ${s._n} item(ns) · enviada em ${fmtDH(s.criado_em)}${s.solicitante_nome?' · '+esc(s.solicitante_nome):''}</div></div>
+        <div style="text-align:right"><div style="font-size:12px;color:#64748b">${s._c}/${s._n} com estoque central${s._un?' · '+fmtN(s._un)+' un.':''}</div><div class="barra"><i style="width:${pct}%;background:#0e7490"></i></div></div>
+        <span style="color:#1e40af;font-weight:700">→</span></div>`}).join('')}).join('');
+  $('corpo').innerHTML=abasHtml()+`<div class="filtros">${chips}<input class="busca" id="busca-r" placeholder="Buscar base, filial ou nº da solicitação..." value="${esc(q)}" oninput="desenharListaRessup();this.focus();this.setSelectionRange(this.value.length,this.value.length)"></div>`+
+    (html||'<div class="vazio">Nenhuma solicitação em aberto.</div>');
+}
+async function abrirRessup(id){
+  $('corpo').innerHTML='<div class="vazio">Carregando itens...</div>';
+  history.replaceState(null,'','?ressup='+id);
+  let[{data:sol},{data:itens}]=await Promise.all([
+    db.from('solicitacoes').select('id,cc,filial,status,criado_em,solicitante_nome').eq('id',id).maybeSingle(),
+    db.from('solicitacao_itens').select('id,codigo,descricao,quantidade,qtd_estoque_central,situacao').eq('solicitacao_id',id).order('id')]);
+  if(!sol){$('corpo').innerHTML='<div class="vazio">Solicitação não encontrada. <a href="#" onclick="irModo(\'ressup\');return false">Voltar</a></div>';return}
+  let base=(RESS.find(s=>s.id===sol.id)||{})._base;
+  if(!base){let{data:c}=await db.from('centros_custo').select('nome').eq('cc',sol.cc).maybeSingle();base=c&&c.nome||sol.cc}
+  ATUAL_R={sol,base,aberta:sol.status==='pendente'||sol.status==='aguardando_master',
+    itens:(itens||[]).filter(i=>i.situacao!=='recusado'&&precisa(i)>0).sort((a,b)=>(a.descricao||'').localeCompare(b.descricao||''))};
+  desenharRessup();
+}
+function desenharRessup(){
+  let {sol,base,itens,aberta}=ATUAL_R,dis=aberta?'':' disabled';
+  let com=itens.filter(i=>doCentral(i)>0).length,un=itens.reduce((t,i)=>t+doCentral(i),0),
+      fica=itens.reduce((t,i)=>t+(Number(i.quantidade)||0),0);
+  let linhas=itens.map(i=>{let c=doCentral(i),p=precisa(i);
+    return `<div class="ritem ${c>0?'feito':''}" id="ri-${i.id}">
+      <div><div class="desc">${esc(i.descricao)}</div><div class="cod">${esc(i.codigo||'')}</div></div>
+      <div><span class="lbl">Liberado</span><span class="big">${fmtN(p)}</span></div>
+      <div><span class="lbl">Sai do estoque central</span><div class="rq">
+        <input class="inp num" type="number" min="0" max="${p}" step="1" id="rq-${i.id}" value="${c||''}" placeholder="0" onchange="salvarRessup(${i.id},this.value)"${dis}>
+        <button onclick="salvarRessup(${i.id},${p})" title="O estoque atende tudo"${dis}>Tudo</button>
+        <button onclick="salvarRessup(${i.id},0)" title="Não tem no estoque central"${dis}>Não tem</button></div><div class="salvo" id="rok-${i.id}"></div></div>
+      <div><span class="lbl">Fica para a SC</span><span class="big" id="rf-${i.id}">${fmtN(Number(i.quantidade)||0)}</span></div>
+    </div>`}).join('');
+  $('corpo').innerHTML=`
+    <button class="btn" onclick="irModo('ressup')" style="margin-bottom:12px">← Voltar ao ressuprimento</button>
+    <div class="cab"><div><h2>${esc(base)} <span style="color:#94a3b8;font-weight:500;font-size:13px">#${sol.id}</span></h2>
+      <div style="font-size:12.5px;color:#64748b;margin-top:4px">${esc(nomeFil(sol.filial))} · enviada em ${fmtDH(sol.criado_em)}${sol.solicitante_nome?' · '+esc(sol.solicitante_nome):''} · ${itens.length} item(ns)</div></div>
+      <div class="resumo"><div><b>${com}/${itens.length}</b>com estoque central</div><div><b style="color:#0e7490">${fmtN(un)}</b>un. do estoque</div><div><b>${fmtN(fica)}</b>un. para a SC</div></div></div>
+    ${aberta?'':'<div class="aviso">Esta solicitação já saiu do aberto (SC gerada ou finalizada): só consulta.</div>'}
+    ${linhas||'<div class="vazio">Nenhum item com quantidade liberada.</div>'}
+    <div class="rodape"><div style="font-size:12.5px;color:#64748b;flex:1;min-width:200px">Tudo é salvo automaticamente. O que sai do estoque central aparece na coluna <b>Estoque central</b> do Painel e já sai da quantidade da SC.</div></div>`;
+}
+async function salvarRessup(id,valor){
+  if(!ATUAL_R||!ATUAL_R.aberta)return;
+  // relê o item no banco para não usar quantidade velha (o Almoxarifado Matriz pode ter mudado)
+  let{data:at,error:e1}=await db.from('solicitacao_itens').select('id,quantidade,qtd_estoque_central').eq('id',id).maybeSingle();
+  if(e1||!at){alert('Não consegui ler o item: '+(e1?e1.message:'não encontrado'));return}
+  let p=precisa(at),v=Math.max(0,Math.min(p,Math.round(Number(valor)||0)));
+  if(Number(valor)>p)alert('O máximo para este item é '+fmtN(p)+' (o que foi liberado).');
+  let{data:upd,error}=await db.from('solicitacao_itens').update({quantidade:p-v,qtd_estoque_central:v||null})
+    .eq('id',id).eq('quantidade',at.quantidade).select('id,quantidade,qtd_estoque_central');
+  if(error){alert('Não consegui salvar: '+error.message);return}
+  if(!upd||!upd.length){alert('Este item foi alterado por outra pessoa agora. Vou recarregar.');return abrirRessup(ATUAL_R.sol.id)}
+  let it=ATUAL_R.itens.find(i=>i.id===id);Object.assign(it,upd[0]);
+  desenharRessup();
+  let ok=$('rok-'+id);if(ok){ok.textContent='✓ salvo';setTimeout(()=>{ok.textContent=''},1500)}
+}
+
 // ── Login: mesmo usuário do Painel principal ───────────────────────────────
 async function liberar(email){
   userEmail=email||'';$('user-email').textContent=userEmail;
   try{let{data}=await db.from('perfis_usuario').select('role').eq('email',userEmail.toLowerCase().trim()).maybeSingle();isAdmin=data&&data.role==='admin'}catch(e){}
   document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';
-  let id=new URLSearchParams(location.search).get('id');
-  if(id){await carregarLista();abrir(Number(id))}else carregarLista();
+  let qs=new URLSearchParams(location.search),id=qs.get('id'),rid=qs.get('ressup');
+  if(rid){MODO='ressup';await carregarRessup();abrirRessup(Number(rid))}
+  else if(id){MODO='mob';await carregarLista();abrir(Number(id))}else carregarLista();
 }
 async function entrar(){
   let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
