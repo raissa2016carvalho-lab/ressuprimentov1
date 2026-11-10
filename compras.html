@@ -569,6 +569,8 @@ function popularFiltros(){
     (arr||[]).forEach(v=>{const o=document.createElement("option");o.value=Array.isArray(v)?v[0]:v;o.textContent=lblFn?lblFn(v):v;s.appendChild(o);});
   };
   fill("f-comp",OPC.comps); fill("f-grp",OPC.grps); fill("f-tipo",OPC.tipos);
+  // filtro de grupo com a descrição (vem depois, sem atrasar a abertura)
+  preGrupos().then(()=>{ [...document.getElementById("f-grp").options].forEach(o=>{ if(o.value) o.textContent=grpRot(o.value); }); });
   fill("f-filial",OPC.filiais,v=>nomeFilial(v[0],v[1])+" ("+String(v[0]).trim()+")");
   const now=new Date(), past=new Date(); past.setFullYear(past.getFullYear()-1);
   document.getElementById("f-ini").value=past.toISOString().slice(0,10);
