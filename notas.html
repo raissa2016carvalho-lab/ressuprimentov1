@@ -206,13 +206,14 @@ async function carregar(){
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
       buscarSd1(),
       buscarFluxo(),
-      db.rpc('nfe_entregas')
+      db.rpc('nfe_entregas_json')
     ]);
 
     let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
     if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
     sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;
-    ENT_PED={};((entr&&entr.data)||[]).forEach(x=>{ENT_PED[x.nfe_id]=x});
+    // [nfe_id, entrega, emissão do pedido, aprovação] — vem tudo num pacote (a API limita a 1.000 linhas por consulta)
+    ENT_PED={};((entr&&entr.data)||[]).forEach(x=>{ENT_PED[x[0]]={entrega:x[1],pc_emissao:x[2],pc_aprovacao:x[3]}});
     notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
     $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
     montarFiltros();if(MODO_RECEB&&window._filialReceb&&(!FILIAIS_USUARIO||!FILIAIS_USUARIO.length||FILIAIS_USUARIO.includes(window._filialReceb))){msSet('f-filial',String(window._filialReceb).split(','))}agrupar();if(!MODO_RECEB&&!window._abaUrl){window._abaUrl=1;let a=new URLSearchParams(location.search).get('aba');if(a==='sla'||a==='forn'||a==='setor'){setAba(a);return}}render();

@@ -96,3 +96,5 @@ alter table public.nfe_fluxo add column if not exists entrega_real date, add col
 -- create or replace function public.atualizar_nfe_sd1() returns void language sql security definer set search_path = public as $$ refresh materialized view concurrently public.mv_nfe_sd1 $$;
 -- drop function if exists public.nfe_entregas(); drop materialized view if exists public.mv_ped_entrega;
 -- alter table public.nfe_fluxo drop column entrega_real, drop column entrega_real_por;
+-- nfe_entregas_json(): o mesmo que nfe_entregas() num JSON só (a API devolve no máximo 1.000 linhas por consulta).
+-- DESFAZER: drop function if exists public.nfe_entregas_json();
