@@ -1,6 +1,6 @@
 # Ressuprimento B&Q — Visão geral (leia primeiro)
 
-Atualizado em 08/11/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
+Atualizado em 10/11/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
 mudado no banco. Os detalhes de cada tela estão nos outros arquivos desta pasta:
 `index.md`, `gerente.md`, `mobilizacao.md`, `outras-telas.md` (formulário, estoque, compras,
 fechamento, manutenção, menu), `syncs.md` e `nfe-master.md` (Notas Fiscais / Recebimento).
@@ -88,6 +88,11 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
 | Mobilização: excluir sem apagar (05/11) | `mobilizacao_itens` + `excluido`, `excluido_por`, `excluido_em`, `motivo_exclusao`; 6 itens da #42 riscados (SC 124 eliminados) | `alter table ... drop column ...` |
 | Compras rápido (06/11) | `mv_compras_sc`, `mv_compras_ped`, funções `compras_resumo`, `compras_lista_sc`, `compras_lista_ped`, `compras_opcoes`, `atualizar_compras` (só service_role) | fim de `docs/sql/compras_resumo.sql` |
 
+| Estoque central (09/11) | `solicitacao_itens.qtd_estoque_central` | ver Estado em 10/11 |
+| Gerente que avaliou (09/11) | `solicitacoes.gerente_por`, `gerente_em` | `alter table solicitacoes drop column gerente_por, drop column gerente_em;` |
+| Faturamento (09/11) | `faturamento_sf2`, função `faturamento_mensal` | fim de `docs/sql/faturamento.sql` |
+| Comparativo rápido (09/11) | `mv_compras_cmp`, `compras_cmp_base`, `compras_cmp_opcoes`; `atualizar_compras` atualiza as 3 | fim de `docs/sql/compras_comparativo.sql` |
+
 ### Backups guardados
 `backup_mobilizacoes_2026_10_22`, `backup_mobilizacao_itens_2026_10_22`, `backup_mobilizacao_scs_2026_10_22`
 (mobilizações #31–35), `backup_estoque_ribeira_2026_11_04` (estoque no envio das solicitações #620/#622/#623, RLS ligado), `backup_mob_36_37_*` (mobilizações de teste #36 e #37) e `backup_mob_40_43_2026_10_27_*`
@@ -110,7 +115,23 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
   Não voltar a usar `cdn.jsdelivr.net`.
 
 ## Pendências (em ordem sugerida)
-00. **Estado em 08/11** — publicado de 05 a 07/11 (PRs #50–#62): Notas com `mv_nfe_sd1`; alerta "Paradas há 5+ dias";
+00. **Estado em 10/11** — publicado em 09–10/11 (PRs #63–#67):
+    **Estoque central** (`estoque-central.html`, fora do menu): cola a lista do estoque, simula e grava em
+    `solicitacao_itens.qtd_estoque_central`, descontando da quantidade do Almoxarifado Matriz. Ordem: CE (Metrô Baturité,
+    Maracanaú, Caucaia, Cascavel, Horizonte + Obras Atlântico/Norte) → RN (TEC Oeste/Alto Oeste) → Bahia → demais CE/RN.
+    1ª carga 09/11: 912 un., 197 itens. Desfazer: `update solicitacao_itens set quantidade = quantidade + qtd_estoque_central,
+    qtd_estoque_central = null where qtd_estoque_central is not null;`
+    **Painel – Solicitações**: coluna Estoque central; cards do topo em cascata (pedido → gerentes → Almoxarifado Matriz →
+    estoque central → a comprar); "master" virou "Almoxarifado Matriz" nas telas; custo sem custo na filial = preço do cadastro
+    (`itens.preco`); itens antigos sem `qtd_almoxarife` usam quantidade + estoque central (`_qAlm`). Tela do gerente grava
+    `solicitacoes.gerente_por/gerente_em`.
+    **Compras rápido** publicado (resumo, listas e Comparativo no banco: `mv_compras_sc/ped/cmp`, `docs/sql/compras_*.sql`) +
+    **faturamento** SF2 (`LWHSF2001`, colunas Filial/Documento/Emissao/VlrBruto, 1 linha por item) em `faturamento_sf2`
+    via `sync_faturamento.py`; barra verde atrás de cada mês. Pedidos voltaram a atualizar (09/11).
+    **Menu**: um só card de Notas fiscais (recebimento e SLA dentro); Separação de mobilização publicada.
+    `iniciar_syncs.bat` com 30 s entre os syncs + NFe Master `--loop` + faturamento. Usuário `nfe_leitura` tem limite de
+    conexões: desconectar o DBeaver do nfemaster quando não usar.
+00a. **Estado em 08/11** — publicado de 05 a 07/11 (PRs #50–#62): Notas com `mv_nfe_sd1`; alerta "Paradas há 5+ dias";
     Recebimento por filial pelo link (`/recebimento.html?filial=42`); filtros de seleção múltipla nas Notas; aba **SLA de lançamento**
     (emissão → **pré-nota** → lançamento SD1; meta do fiscal 2 dias úteis; linha piscando; card no menu `/notas.html?aba=sla`);
     Mobilização: data de entrega salva de verdade + legenda em dia/atrasada/reprogramada, lixinho risca o item (fora do %), PC
