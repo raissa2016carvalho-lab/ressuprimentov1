@@ -61,3 +61,9 @@ create or replace view public.vw_nfe_sd1 as
 
 -- DESFAZER: rodar de novo a definição anterior (sem a regra 4 e sem a coluna modelo no bloco n) —
 -- está no histórico do repositório (docs/sql/nfse.sql, versão anterior = definição atual do banco em 10/11).
+
+-- ── Rodapé da nota e pedido do cliente (11/11, aplicado) ─────────────────────────────────
+alter table public.nfe_master add column if not exists rodape text, add column if not exists rodape_fisco text,
+  add column if not exists pedido_cliente text;
+create index if not exists nfe_master_rodape_trgm on public.nfe_master using gin (lower(coalesce(rodape,'')) gin_trgm_ops);
+-- DESFAZER: drop index if exists nfe_master_rodape_trgm; alter table public.nfe_master drop column rodape, drop column rodape_fisco, drop column pedido_cliente;
