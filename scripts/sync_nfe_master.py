@@ -208,6 +208,10 @@ def _desescapa(t):
     return html.unescape(txt).strip() or None
 
 # "pedido do cliente" escrito no rodapé (é o nosso nº de pedido de compra)
+# Fica o número que EXISTE nos nossos pedidos (PEDIDOS_VALIDOS, lido do Supabase no começo da rodada);
+# se nenhum existir, só aceita frase bem clara ("pedido do cliente", "pedido de compra").
+PEDIDOS_VALIDOS = set()
+_RE_GERAL = re.compile(r'(?:pedido|ped\.?|p\.?c\.?|o\.?c\.?)\D{0,12}?(\d{4,7})\b', re.I)
 _RE_PED = [re.compile(p, re.I) for p in (
     r'pedido\s+d[oe]\s+cliente\D{0,15}?(\d{4,10})',
     r'pedido\s+de\s+compras?\D{0,15}?(\d{4,10})',
@@ -216,16 +220,20 @@ _RE_PED = [re.compile(p, re.I) for p in (
     r'seu\s+pedido\D{0,15}?(\d{4,10})',
 )]
 
+def _norm6(v):
+    v = re.sub(r'\D', '', v or '')
+    return (v.zfill(6) if len(v) < 6 else v) if 4 <= len(v) <= 10 else None
+
 def _pedido_cliente(xped, rodape):
-    x = re.sub(r'\D', '', xped or '')
-    if 4 <= len(x) <= 10:
-        return x.zfill(6) if len(x) < 6 else x
-    for rx in _RE_PED:
-        m = rx.search(rodape or '')
-        if m:
-            v = m.group(1)
-            return v.zfill(6) if len(v) < 6 else v
-    return None
+    fortes = [m.group(1) for rx in _RE_PED for m in rx.finditer(rodape or '')]
+    cands = [_norm6(xped)] + [_norm6(v) for v in fortes] + [_norm6(m.group(1)) for m in _RE_GERAL.finditer(rodape or '')]
+    cands = [c for c in cands if c]
+    if PEDIDOS_VALIDOS:
+        for c in cands:
+            if c in PEDIDOS_VALIDOS:
+                return c
+    # nenhum confere com os pedidos: só a frase clara do rodapé (o xPed sozinho pode ser outra coisa)
+    return _norm6(fortes[0]) if fortes else None
 
 def _ajusta(d):
     # rodapé, rodapé do fisco e pedido do cliente (só nas tabelas de notas)
@@ -247,8 +255,29 @@ def _json(v):
     return v
 
 
+def _carregar_pedidos(sb):
+    # números de pedido de compra que existem (tabela pedidos do painel de Compras)
+    global PEDIDOS_VALIDOS
+    nums, ini = set(), 0
+    try:
+        while True:
+            r = sb.table("pedidos").select("C7_NUM").range(ini, ini + 999).execute()
+            for l in r.data or []:
+                v = re.sub(r'\D', '', str(l.get("C7_NUM") or ''))
+                if v:
+                    nums.add(v.zfill(6))
+            if not r.data or len(r.data) < 1000:
+                break
+            ini += 1000
+    except Exception as e:
+        print("  (não consegui ler a lista de pedidos para conferir o pedido do cliente:", e, ")", flush=True)
+    PEDIDOS_VALIDOS = nums
+    print(f"  {len(nums)} números de pedido para conferir o pedido do cliente.", flush=True)
+
+
 def rodar(desde=None):
     sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+    _carregar_pedidos(sb)
     ultimo = None
     if not desde:
         r = sb.table("sync_log").select("atualizado_em").eq("chave", "nfe_master").execute()
