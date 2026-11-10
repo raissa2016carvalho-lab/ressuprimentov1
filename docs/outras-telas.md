@@ -115,6 +115,12 @@ seções Ressuprimento (formulário, gerente, painel principal), Estoque (risco 
 - **Pendência**: otimizar (ordem fixa na paginação, não baixar `itens` inteiro, cache).
 
 ## compras.html — Painel de compras (sem login)
+
+**Compras rápido (06/11, no Preview)**: abertura não baixa mais 106 mil SCs + 27 mil pedidos. Solicitações/Pedidos/Indicadores vêm
+do banco (`compras_resumo` com os filtros; listas `compras_lista_sc/ped` 20 por página; `compras_opcoes`), sobre as tabelas prontas
+`mv_compras_sc`/`mv_compras_ped` (atualizadas no fim do `upload_compras.py` por `atualizar_compras()`). Detalhamento e Comparativo
+ainda baixam a base inteira, só ao abrir a aba (2ª entrega: `vw_compras_detalhe` paginada + `mv_compras_mensal`). Detalhamento
+agora amarra SC × pedido por **nº SC + filial**. "Top descrições" (campo inexistente) virou "Por Grupo de Produto".
 - Baixa as tabelas `scs` (~105 mil linhas) e `pedidos` (~27 mil) **inteiras** a cada abertura, via REST
   (`sbGet`), e monta gráficos (Chart.js).
 - Filtro de data padrão = últimos 12 meses, mas tudo é baixado.
@@ -144,6 +150,16 @@ seções Ressuprimento (formulário, gerente, painel principal), Estoque (risco 
 - Filtro de filial montado a partir dos dados + nomes da tabela `filiais`.
 - `login_fechamento.html` removido (era um segundo login que só redirecionava).
 - Pendente (SQL no SQL Editor): RLS em `justificativas_consumo` — só usuários logados leem/gravam.
+- **Fonte do consumo = SCP** (`LWHSCP001`, solicitação ao armazém). Conferido em 05/11 no DBeaver: status E, entregue = pedido.
+  Campos úteis: `CP_YCUSTD` = **valor total da linha** (não é unitário — `qtd × CP_YCUSTD` dá errado), `CP_YMAT` matrícula de quem
+  recebeu, `CP_YFILMAT` filial do funcionário, `CP_YMOTIVO` (1 perda, 2 roubo, 3 desgaste, 4 defeito, 5 admissional, 6 mal uso,
+  7 manutenção, 8 transferência, 9 consumo, A mobilização, C complementação), `CP_SOLICIT` quem lançou. O **CC vem da matrícula**.
+- No DBeaver use o nome completo `BEQ_LWH.dbo.LWHSCP001` (o script abre no banco `master`). Cadastro de CC: `BEQ_LWH.dbo.LWHCTT001`,
+  colunas `[Centro de Custo]` (com espaços no fim → `RTRIM`) e `[Descrição]`.
+- **Caso Brumado Out/26** (CC 142070101 = R$ 852 mil, igual ao Protheus): R$ 659 mil saíram do estoque de **Livramento (filial 42)**
+  para funcionários da **filial 44**, quase tudo admissional; 7 matrículas somam R$ 439 mil de **kits coletivos de equipe** (ex.: SCP
+  001205 de 22/10, R$ 129,6 mil de material de linha viva na matrícula 023546). Falhas de processo: retirada em outra filial sem
+  transferência; kit de equipe lançado como admissional numa pessoa. Justificativas curtas do Top 8 de Out/26 foram passadas no chat.
 
 ## manutencao.html — Manutenção de veículos
 - Usa **outro projeto Supabase** (`vvwtqbehfwrgcmbjdniu`), não o do ressuprimento.
