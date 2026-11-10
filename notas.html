@@ -200,16 +200,19 @@ async function buscarSetores(tabela,chave){
 async function carregar(){
   $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
   try{
-    let [ns,sf,sn,{data:log},sd1r,flr]=await Promise.all([
+    let [ns,sf,sn,{data:log},sd1r,flr,entr]=await Promise.all([
       buscarTudo('nfe_master','id,numero,serie,modelo,pedido_cliente,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,prenota,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
       buscarSd1(),
-      buscarFluxo()
+      buscarFluxo(),
+      db.rpc('nfe_entregas')
     ]);
+
     let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
     if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
     sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;
+    ENT_PED={};((entr&&entr.data)||[]).forEach(x=>{if(x.entrega)ENT_PED[x.nfe_id]=x.entrega});
     notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
     $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
     montarFiltros();if(MODO_RECEB&&window._filialReceb&&(!FILIAIS_USUARIO||!FILIAIS_USUARIO.length||FILIAIS_USUARIO.includes(window._filialReceb))){msSet('f-filial',String(window._filialReceb).split(','))}agrupar();if(!MODO_RECEB&&!window._abaUrl){window._abaUrl=1;let a=new URLSearchParams(location.search).get('aba');if(a==='sla'||a==='forn'||a==='setor'){setAba(a);return}}render();
@@ -488,7 +491,9 @@ function irSetor(i){let r=_gRows[i];if(!r)return;$('gtip').style.display='none';
 
 // ===== Fluxo: entrega prevista (Compras) e aceite do recebimento (Almoxarifado) — tabela nfe_fluxo =====
 const MODO_RECEB=/recebimento/.test(location.pathname)||new URLSearchParams(location.search).get('modo')==='recebimento';
-let fluxo=null,abaReceb='chegar';
+let fluxo=null,abaReceb='chegar',ENT_PED={};
+// data de entrega: a que o Compras digitou ou, se não tiver, a data de entrega do pedido (Protheus)
+const entregaDe=n=>{let f=(fluxo&&fluxo[n.id])||{};return f.previsao_entrega||ENT_PED[n.id]||''};
 async function buscarFluxo(){
   let out={},de=0;
   for(;;){let{data,error}=await db.from('nfe_fluxo').select('*').range(de,de+999);
@@ -501,14 +506,14 @@ function htmlEntrega(n){
   let f=fluxo[n.id]||{};
   if(f.recebido_em)return '<span class="pill st-3" title="Recebida por '+esc(f.recebido_por||'')+'">✓ Recebida '+fmtData(f.recebido_em)+'</span>';
   if(f.recusado_em)return '<span class="pill st-C" title="Recusada por '+esc(f.recusado_por||'')+(f.motivo_recusa?': '+esc(f.motivo_recusa):'')+'">✕ Recusada '+fmtData(f.recusado_em)+'</span>'+(f.motivo_recusa?'<div class="herdado" style="max-width:160px">'+esc(f.motivo_recusa)+'</div>':'');
-  let v=f.previsao_entrega||'',atr=v&&v<hojeIso();
-  return '<input type="date" class="inp-data'+(atr?' atrasada':'')+'" value="'+v+'" onchange="salvarEntrega(['+n.id+'],this.value,this)" title="'+(f.previsao_por?'Informada por '+esc(f.previsao_por):'Data que o fornecedor vai entregar')+'">'+(atr?'<div class="herdado" style="color:#dc2626">atrasada</div>':'');
+  let doPed=!f.previsao_entrega&&!!ENT_PED[n.id],v=f.previsao_entrega||ENT_PED[n.id]||'',atr=v&&v<hojeIso();
+  return '<input type="date" class="inp-data'+(atr?' atrasada':'')+'" value="'+v+'" onchange="salvarEntrega(['+n.id+'],this.value,this)" title="'+(f.previsao_por?'Informada por '+esc(f.previsao_por):doPed?'Data de entrega do pedido no Protheus (pode trocar)':'Data que o fornecedor vai entregar')+'"'+(doPed?' style="color:#64748b"':'')+'>'+(doPed?'<div class="herdado">do pedido</div>':'')+(atr?'<div class="herdado" style="color:#dc2626">atrasada</div>':'');
 }
 // campos de texto do Compras (nº do pedido e observação): salvam ao sair do campo
 function htmlCampoFluxo(n,campo,ph,larg){
   if(!fluxo)return '<span class="herdado">—</span>';
-  let v=(fluxo[n.id]||{})[campo]||'';
-  return '<input class="inp-txt" style="width:'+larg+'px" placeholder="'+ph+'" value="'+esc(v)+'" data-orig="'+esc(v)+'" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarCampoFluxo('+n.id+',\''+campo+'\',this)" title="'+esc(v)+'">';
+  let v=(fluxo[n.id]||{})[campo]||'',auto=campo==='pedido'&&!v&&n.pedido_cliente?n.pedido_cliente:'';
+  return (auto?'<div style="position:relative">':'')+'<input class="inp-txt" style="width:'+larg+'px'+(auto?';color:#1e40af':'')+'" placeholder="'+ph+'" value="'+esc(v||auto)+'" data-orig="'+esc(v)+'" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarCampoFluxo('+n.id+',\''+campo+'\',this)" title="'+(auto?'Pedido do cliente escrito na nota (pode trocar)':esc(v))+'">'+(auto?'<div class="herdado">da nota</div></div>':'');
 }
 function salvarCampoFluxo(id,campo,el){let v=el.value.trim();let c={};c[campo]=v||null;c.atualizado_em=new Date().toISOString();
   salvarFluxo([id],c,el).then(ok=>{if(!ok)el.value=el.dataset.orig})}
@@ -545,11 +550,11 @@ function renderReceb(){
   let fil=vals('f-filial'),b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),h=hojeIso(),lim=_iso(new Date(Date.now()-90*864e5));
   let base=notas.filter(n=>(!fil.length||fil.includes(n.filial))&&(!FILIAIS_USUARIO||!FILIAIS_USUARIO.length||FILIAIS_USUARIO.includes(n.filial))&&String(n.emissao||'').slice(0,10)>=lim&&(!b||(n.fornecedor_nome||'').toLowerCase().includes(b)||(bd&&String(n.numero||'').includes(bd))));
   // só aparece para o almoxarifado o que o Compras já colocou data de entrega
-  let semData=base.filter(n=>_vaiChegar(n)&&!(fluxo[n.id]||{}).previsao_entrega&&!(fluxo[n.id]||{}).recebido_em&&!(fluxo[n.id]||{}).recusado_em).length;
-  let chegar=base.filter(n=>{let f=fluxo[n.id]||{};return _vaiChegar(n)&&f.previsao_entrega&&!f.recebido_em&&!f.recusado_em});
+  let semData=base.filter(n=>_vaiChegar(n)&&!entregaDe(n)&&!(fluxo[n.id]||{}).recebido_em&&!(fluxo[n.id]||{}).recusado_em).length;
+  let chegar=base.filter(n=>{let f=fluxo[n.id]||{};return _vaiChegar(n)&&entregaDe(n)&&!f.recebido_em&&!f.recusado_em});
   let receb=base.filter(n=>{let f=fluxo[n.id]||{};return f.recebido_em&&n.status_integracao!=='3'&&n.status_nfe!=='C'});
   let recus=base.filter(n=>(fluxo[n.id]||{}).recusado_em);
-  let prev=n=>(fluxo[n.id]||{}).previsao_entrega||'';
+  let prev=n=>entregaDe(n);
   let atras=chegar.filter(n=>prev(n)<h).length,hoje=chegar.filter(n=>prev(n)===h).length;
   $('resumo').innerHTML='<div class="resumo-card azul"><div class="val">'+chegar.length+'</div><div class="lab">A chegar</div><div class="sub">com data informada pelo Compras</div></div>'+
     '<div class="resumo-card alerta"><div class="val">'+atras+'</div><div class="lab">Previsão já passou</div></div>'+
@@ -564,7 +569,7 @@ function renderReceb(){
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">'+({chegar:'Nada previsto para chegar com esses filtros.',recebidas:'Nenhuma nota recebida aguardando lançamento.',recusadas:'Nenhuma nota recusada.'}[abaReceb])+'</div>';return}
   let cab={chegar:'<th>Previsão</th>',recebidas:'<th>Recebida</th>',recusadas:'<th>Recusada</th>'}[abaReceb];
   $('tabela').innerHTML='<table><thead><tr>'+cab+'<th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Fornecedor</th><th>Setor</th><th>Pedido</th><th>Observação do Compras</th><th class="num">Valor</th><th></th></tr></thead><tbody>'+
-    parte.map(n=>{let f=fluxo[n.id]||{},p=f.previsao_entrega,c1,acao;
+    parte.map(n=>{let f=fluxo[n.id]||{},p=entregaDe(n),c1,acao;
       if(abaReceb==='chegar'){c1='<span class="pill '+(p<h?'st-C':p===h?'st-3':'st-x')+'">'+(p<h?'⚠ ':'')+fmtData(p+'T12:00')+'</span>';
         acao='<div style="display:flex;gap:6px"><button class="btn-receber" onclick="receber('+n.id+',this)">✓ Recebi</button><button class="btn-recusar" onclick="recusar('+n.id+',this)">✕ Recusar</button></div>'}
       else if(abaReceb==='recebidas'){c1='<div style="font-weight:600">'+fmtData(f.recebido_em)+'</div><div class="herdado">'+esc(f.recebido_por||'')+'</div>';

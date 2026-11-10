@@ -67,3 +67,21 @@ alter table public.nfe_master add column if not exists rodape text, add column i
   add column if not exists pedido_cliente text;
 create index if not exists nfe_master_rodape_trgm on public.nfe_master using gin (lower(coalesce(rodape,'')) gin_trgm_ops);
 -- DESFAZER: drop index if exists nfe_master_rodape_trgm; alter table public.nfe_master drop column rodape, drop column rodape_fisco, drop column pedido_cliente;
+
+-- ── Data de entrega do pedido para o painel de Notas (11/11, aplicado) ───────────────────
+create or replace function public.nfe_entregas()
+returns table(nfe_id bigint, pedido text, entrega date)
+language sql stable security definer set search_path = public as $$
+  with np as (
+    select n.id, n.filial,
+           lpad(regexp_replace(coalesce(nullif(trim(f.pedido),''), n.pedido_cliente),'\D','','g'),6,'0') ped
+    from nfe_master n left join nfe_fluxo f on f.nfe_id = n.id
+    where coalesce(nullif(trim(f.pedido),''), n.pedido_cliente) is not null
+      and n.emissao >= now() - interval '400 days'
+  ),
+  pe as (select trim("C7_NUM") num, trim("C7_FILIAL") fil, min(nullif("ENTREGA_PEDIDO",'')::date) entrega
+         from pedidos group by 1,2)
+  select np.id, np.ped, pe.entrega from np join pe on pe.num = np.ped and pe.fil = np.filial
+$$;
+grant execute on function public.nfe_entregas() to authenticated;
+-- DESFAZER: drop function if exists public.nfe_entregas();
