@@ -1,6 +1,6 @@
 # Ressuprimento B&Q — Visão geral (leia primeiro)
 
-Atualizado em 29/10/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
+Atualizado em 10/11/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
 mudado no banco. Os detalhes de cada tela estão nos outros arquivos desta pasta:
 `index.md`, `gerente.md`, `mobilizacao.md`, `outras-telas.md` (formulário, estoque, compras,
 fechamento, manutenção, menu), `syncs.md` e `nfe-master.md` (Notas Fiscais / Recebimento).
@@ -26,13 +26,16 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | `fechamento.html` (+ `login_fechamento.html`) | Fechamento de consumo | Sim |
 | `manutencao.html` | Manutenção de veículos — **outro projeto Supabase** (fora do menu) | Não |
 | `ruptura.html` | Risco de ruptura (EPI/fardamento por filial) | Sim (desde 29/10, mesmo login do Painel principal) |
-| `notas.html` / `recebimento.html` | Notas Fiscais do NFe Master (setor, entrega prevista, cruzamento SD1) e Recebimento do almoxarifado | Sim — **ainda só no Preview (PR #40)** |
+| `notas.html` / `recebimento.html` | Notas Fiscais do NFe Master (setor, entrega prevista, cruzamento SD1 pela `mv_nfe_sd1`) e Recebimento do almoxarifado | Sim (publicado; `mv_nfe_sd1` desde 04/11) |
+| `notas.html?aba=sla` | SLA de lançamento (emissão → pré-nota → lançamento) | Sim (publicado) |
+| `separacao.html` | Separação de mobilização: equipe confere Tem/Não tem, qtd e patrimônios; grava em `mobilizacao_estoque` (coluna Estoque do card) | Sim — **no Preview, esperando "pode"** |
 | `los.html` | Menu de sistemas (portal) — inclui link externo "Consulta de bens" (não é nosso, não mexer) | Não |
 
 Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png` em todas as telas.
 
 ## Como trabalhamos (fluxo seguro)
-1. Mudança de código vai no branch de trabalho do chat (ex.: `claude/kind-ptolemy-v4icku`) → abre PR no GitHub.
+1. Mudança de código vai no branch de trabalho do chat (ex.: `claude/inspiring-brahmagupta-d8c2yf`) → abre PR no GitHub.
+   Para publicar **só uma parte**, cria-se um branch temporário a partir do `main` com `cherry-pick` do commit (ex.: `claude/totalizador`).
 2. O Vercel gera um **Preview** do PR. Eu testo lá.
 3. Só com meu **"pode"** faz o Merge no `main` (site oficial).
 4. **Depois do Merge, confira no GitHub se os commits realmente entraram no `main`.**
@@ -78,9 +81,21 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
 | Estoque Livramento/Brumado/Garanhuns (04/11) | #641/#642/#646/#648 estavam sem posição de estoque; preenchidas com o estoque de 04/11 | `update solicitacao_itens set estoque_filial=null, estoque_filial_data=null where solicitacao_id in (641,642,646,648)` |
 | Master × almoxarife (04/11) | Correção: o master guarda a qtd do almoxarife em `qtd_almoxarife` antes de alterar. Antes disso, 15 solicitações pendentes perderam o original (609/610/612, 627–634, 644, 648, 655, 656) | — |
 
+| Separação de mobilização (04/11, **Raissa rodou**) | `mobilizacao_estoque` + `disponivel`, `patrimonios`, `observacao`, `separado_por`, `separado_em`; `mobilizacoes` + `sep_status` (pendente/em_separacao/concluida), `sep_operador`, `sep_concluida_em` | `alter table ... drop column ...` (ver chat de 04/11) |
+| `mv_nfe_sd1` (29/10, refresh 04/11) | Visão materializada do cruzamento NFe × SD1 + função `atualizar_nfe_sd1()` (só service_role), chamada pelo `sync_nfe_master.py` novo | `drop function atualizar_nfe_sd1(); drop materialized view mv_nfe_sd1;` |
+
+| SLA das Notas (05–06/11) | `movimentos_entrada` + `loja`, `dtdigit`, `chave_nfe`, `fornecedor_cnpj`; `vw_nfe_sd1`/`mv_nfe_sd1` refeitas para todas as notas (amarração chave → filial+nota+série+emissão+CNPJ → filial+nota+série+emissão; coluna `amarracao`); `nfe_master.prenota` | ver `nfe-master.md` |
+| Mobilização: excluir sem apagar (05/11) | `mobilizacao_itens` + `excluido`, `excluido_por`, `excluido_em`, `motivo_exclusao`; 6 itens da #42 riscados (SC 124 eliminados) | `alter table ... drop column ...` |
+| Compras rápido (06/11) | `mv_compras_sc`, `mv_compras_ped`, funções `compras_resumo`, `compras_lista_sc`, `compras_lista_ped`, `compras_opcoes`, `atualizar_compras` (só service_role) | fim de `docs/sql/compras_resumo.sql` |
+
+| Estoque central (09/11) | `solicitacao_itens.qtd_estoque_central` | ver Estado em 10/11 |
+| Gerente que avaliou (09/11) | `solicitacoes.gerente_por`, `gerente_em` | `alter table solicitacoes drop column gerente_por, drop column gerente_em;` |
+| Faturamento (09/11) | `faturamento_sf2`, função `faturamento_mensal` | fim de `docs/sql/faturamento.sql` |
+| Comparativo rápido (09/11) | `mv_compras_cmp`, `compras_cmp_base`, `compras_cmp_opcoes`; `atualizar_compras` atualiza as 3 | fim de `docs/sql/compras_comparativo.sql` |
+
 ### Backups guardados
 `backup_mobilizacoes_2026_10_22`, `backup_mobilizacao_itens_2026_10_22`, `backup_mobilizacao_scs_2026_10_22`
-(mobilizações #31–35), `backup_mob_36_37_*` (mobilizações de teste #36 e #37) e `backup_mob_40_43_2026_10_27_*`
+(mobilizações #31–35), `backup_estoque_ribeira_2026_11_04` (estoque no envio das solicitações #620/#622/#623, RLS ligado), `backup_mob_36_37_*` (mobilizações de teste #36 e #37) e `backup_mob_40_43_2026_10_27_*`
 (SKY #40 e #43 antes de antecipar 1 equipe, 27/10).
 
 ## Syncs alterados no computador da Raissa (26/10)
@@ -100,7 +115,51 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
   Não voltar a usar `cdn.jsdelivr.net`.
 
 ## Pendências (em ordem sugerida)
-00. **Estado em 29/10** — publicado hoje: popup de estoque por armazém no Painel principal (PR #41); Compras sem travar
+00. **Estado em 10/11** — publicado em 09–10/11 (PRs #63–#67):
+    **Estoque central** (`estoque-central.html`, fora do menu): cola a lista do estoque, simula e grava em
+    `solicitacao_itens.qtd_estoque_central`, descontando da quantidade do Almoxarifado Matriz. Ordem: CE (Metrô Baturité,
+    Maracanaú, Caucaia, Cascavel, Horizonte + Obras Atlântico/Norte) → RN (TEC Oeste/Alto Oeste) → Bahia → demais CE/RN.
+    1ª carga 09/11: 912 un., 197 itens. Desfazer: `update solicitacao_itens set quantidade = quantidade + qtd_estoque_central,
+    qtd_estoque_central = null where qtd_estoque_central is not null;`
+    **Painel – Solicitações**: coluna Estoque central; cards do topo em cascata (pedido → gerentes → Almoxarifado Matriz →
+    estoque central → a comprar); "master" virou "Almoxarifado Matriz" nas telas; custo sem custo na filial = preço do cadastro
+    (`itens.preco`); itens antigos sem `qtd_almoxarife` usam quantidade + estoque central (`_qAlm`). Tela do gerente grava
+    `solicitacoes.gerente_por/gerente_em`.
+    **Compras rápido** publicado (resumo, listas e Comparativo no banco: `mv_compras_sc/ped/cmp`, `docs/sql/compras_*.sql`) +
+    **faturamento** SF2 (`LWHSF2001`, colunas Filial/Documento/Emissao/VlrBruto, 1 linha por item) em `faturamento_sf2`
+    via `sync_faturamento.py`; barra verde atrás de cada mês. Pedidos voltaram a atualizar (09/11).
+    **Menu**: um só card de Notas fiscais (recebimento e SLA dentro); Separação de mobilização publicada.
+    `iniciar_syncs.bat` com 30 s entre os syncs + NFe Master `--loop` + faturamento. Usuário `nfe_leitura` tem limite de
+    conexões: desconectar o DBeaver do nfemaster quando não usar.
+00a. **Estado em 08/11** — publicado de 05 a 07/11 (PRs #50–#62): Notas com `mv_nfe_sd1`; alerta "Paradas há 5+ dias";
+    Recebimento por filial pelo link (`/recebimento.html?filial=42`); filtros de seleção múltipla nas Notas; aba **SLA de lançamento**
+    (emissão → **pré-nota** → lançamento SD1; meta do fiscal 2 dias úteis; linha piscando; card no menu `/notas.html?aba=sla`);
+    Mobilização: data de entrega salva de verdade + legenda em dia/atrasada/reprogramada, lixinho risca o item (fora do %), PC
+    eliminado por resíduo aparece riscado na lista; Painel: sessão inválida volta ao login e trocar senha pede a senha atual.
+    **No Preview, esperando "pode"**: Compras rápido (1ª entrega: Solicitações/Pedidos/Indicadores calculados no banco —
+    `docs/sql/compras_resumo.sql`, **já rodado**); tela `separacao.html`; marcar as 20 mobilizações atuais como concluídas.
+    **Urgente — pedidos parados desde 29/10/2026**: a tabela `BEQ_LWH.dbo.LWHSC7010` voltou a ter só até 29/10/2024 (113.750
+    linhas); a visão `PEDIDOS_SCS` (filtra C7_EMISSAO >= 20250101) e `scs_x_pedidos` vêm vazias → `upload_compras.py` não traz
+    pedidos novos e `pedidos_grupo` fica vazia. O `sync_sc_pedidos_v2.py` continua com pedidos até 05/11 (outra fonte): **pedir à
+    Raissa o FROM dele** e passar o `upload_compras.py` para a mesma fonte; mensagem para a TI já foi passada. Cadastro de
+    fornecedor é `LWHSA2001` (com A2_CGC) — dá para trazer o CNPJ no sync de entradas.
+    **Segurança (06/11)**: o usuário da Raissa foi apagado e recriado (novo id `18ba11f9…`); sessões derrubadas. Falta no Supabase:
+    Authentication → URL Configuration → **Site URL** ainda é `http://localhost:3000` (links de e-mail não abrem). Não compartilhar
+    magic link / endereço com `#access_token`. Senha forte.
+00b. **Estado em 05/11** — publicado de 03 a 05/11: Comparativo do Compras com filtro de CC e várias filiais (PR #44); totais
+    almoxarife/gerente/master no card e no topo das Solicitações (PRs #45, #48); master não apaga mais a qtd do almoxarife (PR #46);
+    armazém 02 fora do cálculo nas filiais 13/14/15 (PR #47); Excel das Solicitações (PR #49); Notas com `mv_nfe_sd1` (PR #50).
+    **Esperando "pode"**: publicar `separacao.html` (+ card no menu) e marcar as 20 mobilizações atuais como concluídas
+    (`sep_operador = 'lançado antes da tela de separação'`). **Esperando a Raissa**: (a) trocar o `sync_nfe_master.py` no PC;
+    (b) rodar `upload_compras.py` — a `pedidos_grupo` estava **vazia** em 04/11 e o Comparativo caiu no cálculo por pedido inteiro;
+    (c) respostas sobre **ressuprimento na tela de Separação** (quais solicitações, de que estoque sai, se desconta da compra);
+    (d) números originais do almoxarife das solicitações alteradas pelo master antes da correção (609/610/612 Gustavo; 627–634 Daniel Ramos;
+    656, 655, 607, 644, 648) — ela vai pedir aos almoxarifes; montar SQL para gravar em `qtd_almoxarife`.
+    **Ideias oferecidas**: Fechamento separar "equipe nova" (admissional + mobilização) de "rotina" no Top estouros; botão "ver saídas"
+    por CC com Excel; alertas na Auditoria (saída fora da filial do funcionário; admissional > R$ 15 mil por matrícula) — precisa
+    trazer `CP_YFILMAT`/`CP_YMAT` no sync do consumo. Comparar browser do Protheus × painel por filial (Matriz, Sobral, Ribeira e
+    Itapipoca diferem; Livramento e Brumado batem) — falta a Raissa dizer os filtros do browser.
+00a. **Estado em 29/10** — publicado hoje: popup de estoque por armazém no Painel principal (PR #41); Compras sem travar
     (paginação keyset + contagem estimada), clique no mês, filtro de mobilização e tabela por filial no Comparativo Mensal
     (PR #42, números validados no DBeaver). **No Preview, esperando "pode"**: Notas Fiscais + Recebimento (PR #40, branch
     `claude/inspiring-brahmagupta-d8c2yf`) — antes, rodar o SQL da `nfe_fluxo`. **Próximos combinados**: tabela por centro
