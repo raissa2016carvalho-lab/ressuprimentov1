@@ -121,6 +121,43 @@ where {filtro}
 order by i.id
 """
 
+# Notas de SERVIÇO (NFS-e, esquema nfse do NFe Master) — entram na MESMA tabela do painel (nfe_master),
+# com id negativo (para não colidir com as NF-e) e modelo 'NFSE'.
+SQL_NFSE = """
+select -n.id                                           as id,
+       n.chaveacesso                                   as chave,
+       case when n.nrnfse::text ~ '^[0-9]+$' then n.nrnfse::text::bigint end as numero,
+       null::bigint                                    as serie,
+       'NFSE'                                          as modelo,
+       right(split_part(split_part(e.cnpj,'/',2),'-',1), 2) as filial,
+       e.nomefantasia                                  as empresa_nome,
+       e.cnpj                                          as empresa_cnpj,
+       n.nrcnpjprestador                               as fornecedor_cnpj,
+       n.dsrazaosocialprestador                        as fornecedor_nome,
+       n.dsnomefantasiaprestador                       as fornecedor_fantasia,
+       n.cdufprestador::text                           as fornecedor_uf,
+       n.dtemissaonfse                                 as emissao,
+       n.datainclusao                                  as chegada,
+       n.dataintegracao                                as integracao,
+       greatest(n.dataalteracao, n.datainclusao)       as alterado,
+       case when n.dtcancelamento is not null then 'C' else 'A' end as status_nfe,
+       n.statusintegracao::text                        as status_integracao,
+       n.numeropedido::text                            as pedido,
+       'SERVICO'                                       as tipo_operacao,
+       left(n.dsdiscriminacao, 300)                    as natureza,
+       n.vlservico                                     as valor_total,
+       n.vlliquidonfse                                 as valor_produtos,
+       n.flagemtratativa                               as em_tratativa,
+       n.motivoemtratativa                             as motivo_tratativa,
+       n.dataemtratativa                               as data_tratativa,
+       n.ultimoeventomanifestacao::text                as manifestacao,
+       n.dataultimoeventomanifestacao                  as data_manifestacao
+from nfse.tb_nfse n
+left join nfemanager.tb_empresanfe e on e.id = n.idempresa
+where {filtro}
+order by n.id
+"""
+
 
 def _enviar(sb, con, tabela, sql, nome):
     cur = con.cursor(name="sync_" + tabela, cursor_factory=psycopg2.extras.RealDictCursor)
@@ -179,6 +216,16 @@ def rodar(desde=None):
     total = _enviar(sb, con, "nfe_master", SQL.format(filtro=filtro, extra=extra), "notas")
     print("Agora os itens das notas...", flush=True)
     itens = _enviar(sb, con, "nfe_master_itens", SQL_ITENS.format(filtro=filtro), "itens")
+    # notas de serviço (NFS-e): mesmo período, pelas datas da própria NFS-e
+    print("Agora as notas de serviço (NFS-e)...", flush=True)
+    filtro_nfse = (f"greatest(n.dataalteracao, n.datainclusao) >= now() - interval '{DIAS_REVISAO} days'" if ultimo
+                   else f"n.dtemissaonfse >= '{(desde or DESDE)[:4]}-{(desde or DESDE)[4:6]}-{(desde or DESDE)[6:8]}'")
+    try:
+        nfse = _enviar(sb, con, "nfe_master", SQL_NFSE.format(filtro=filtro_nfse), "notas de serviço")
+    except Exception as e:
+        nfse = 0
+        con.rollback()
+        print("  (não consegui trazer as NFS-e:", e, ")", flush=True)
     con.close()
     # atualiza o cruzamento NF × SD1 usado pela tela (tabela pronta, para a tela abrir rápido)
     try:
@@ -188,7 +235,7 @@ def rodar(desde=None):
         print("  (não consegui atualizar o cruzamento com a SD1:", e, ")", flush=True)
     sb.table("sync_log").upsert({"chave": "nfe_master", "atualizado_em": datetime.datetime.now().isoformat(),
                                  "total": total}, on_conflict="chave").execute()
-    print(f"OK: {total} notas e {itens} itens em {time.time() - inicio:.0f}s ({'revisão' if ultimo else 'carga completa'})")
+    print(f"OK: {total} notas, {itens} itens e {nfse} notas de serviço em {time.time() - inicio:.0f}s ({'revisão' if ultimo else 'carga completa'})")
 
 
 if __name__ == "__main__":
