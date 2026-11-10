@@ -148,9 +148,26 @@ canvas{max-height:220px}
   <select id="f-tipo"><option value="">Todos</option></select>
   <span class="fl">Filial</span>
   <select id="f-filial"><option value="">Todas</option></select>
+  <span id="det-filtros" style="display:none">
+    <span class="fl">Cód. SC</span>
+    <input class="sbox" id="s-det-sc" placeholder="Ex: 000071" oninput="detBusca()" style="width:120px;margin:0">
+    <span class="fl">Cód. Pedido</span>
+    <input class="sbox" id="s-det-ped" placeholder="Ex: 275144" oninput="detBusca()" style="width:120px;margin:0">
+    <span class="fl">Busca Geral</span>
+    <input class="sbox" id="s-det" placeholder="Filial, descrição, observação..." oninput="detBusca()" style="width:220px;margin:0">
+    <span class="fl">Status SC</span>
+    <select id="f-det-status-sc" onchange="detPg=1;renderDetTable()" style="font-size:11px;padding:5px 8px">
+      <option value="">Todos</option>
+    </select>
+    <span class="fl">Status Pedido</span>
+    <select id="f-det-status-ped" onchange="detPg=1;renderDetTable()" style="font-size:11px;padding:5px 8px">
+      <option value="">Todos</option>
+    </select>
+  </span>
   <button class="btn-f" onclick="applyFilters()">Filtrar</button>
   <button class="btn-c" onclick="clearFilters()">Limpar</button>
   <span id="fcount"></span>
+  <span id="det-count" style="font-size:11px;color:var(--muted);white-space:nowrap;display:none"></span>
 </div>
 
 <!-- TELA SCs -->
@@ -282,24 +299,6 @@ canvas{max-height:220px}
 <!-- TELA DETALHAMENTO -->
 <div id="screen-detalhamento" class="screen">
   <div class="kpi-bar" id="kpi-det"></div>
-  <!-- filtros específicos do detalhamento -->
-  <div style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-    <span class="fl">Cód. SC</span>
-    <input class="sbox" id="s-det-sc" placeholder="Ex: 000071" oninput="detBusca()" style="width:120px;margin:0">
-    <span class="fl">Cód. Pedido</span>
-    <input class="sbox" id="s-det-ped" placeholder="Ex: 275144" oninput="detBusca()" style="width:120px;margin:0">
-    <span class="fl">Busca Geral</span>
-    <input class="sbox" id="s-det" placeholder="Filial, descrição, observação..." oninput="detBusca()" style="width:220px;margin:0">
-    <span class="fl">Status SC</span>
-    <select id="f-det-status-sc" onchange="detPg=1;renderDetTable()" style="font-size:11px;padding:5px 8px">
-      <option value="">Todos</option>
-    </select>
-    <span class="fl">Status Pedido</span>
-    <select id="f-det-status-ped" onchange="detPg=1;renderDetTable()" style="font-size:11px;padding:5px 8px">
-      <option value="">Todos</option>
-    </select>
-    <span id="det-count" style="font-size:11px;color:var(--muted);margin-left:8px;white-space:nowrap"></span>
-  </div>
   <div style="padding:16px 24px">
     <div class="ct">
       <div class="ct-head">
@@ -603,7 +602,7 @@ function clearFilters(){
   const now=new Date(), past=new Date(); past.setFullYear(past.getFullYear()-1);
   document.getElementById("f-ini").value=past.toISOString().slice(0,10);
   document.getElementById("f-fim").value=now.toISOString().slice(0,10);
-  ["f-comp","f-grp","f-tipo","f-filial"].forEach(id=>document.getElementById(id).value="");
+  ["f-comp","f-grp","f-tipo","f-filial","s-det-sc","s-det-ped","s-det","f-det-status-sc","f-det-status-ped","s-pre"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
   applyFilters();
 }
 
@@ -614,6 +613,9 @@ async function showScreen(n,btn,title){
   btn.classList.add("active");
   document.getElementById("tela-title").textContent=title;
   document.querySelector(".filters").style.display = n==="comparativo" ? "none" : "";
+  // na aba Detalhamento os filtros dela ficam na mesma barra do topo
+  document.getElementById("det-filtros").style.display = n==="detalhamento" ? "contents" : "none";
+  document.getElementById("det-count").style.display = n==="detalhamento" ? "" : "none";
   if(n==="comparativo") renderComparativo();
   if(n==="detalhamento") renderDetTable();
   if(n==="precos") renderPrecos();
@@ -905,6 +907,29 @@ function renderPag(id,pages,current,cb){
 // ── DETALHAMENTO SC × PEDIDO ─────────────────────────────────────────────────
 // ── DETALHAMENTO (SC × pedido): filtros, página e indicadores calculados no banco (compras_det) ─────
 let DET_OPC=false, DET_T=null, DET_REQ=0;
+// lista inteira com barra de rolagem: abre com 300 linhas e carrega mais 300 quando a rolagem chega no fim
+const DET_PG=300; let DET_ARGS=null, DET_N=0, DET_TOT=0, DET_MAIS=false, DET_VAL=0;
+function detContagem(){
+  document.getElementById("det-count").innerHTML=`${DET_TOT.toLocaleString("pt-BR")} registros · ${fmtM(DET_VAL)}`+
+    (DET_TOT>DET_N?` · mostrando ${DET_N.toLocaleString("pt-BR")} <span style="color:var(--muted)">(role a lista para carregar mais)</span>`:"");
+}
+async function detCarregarMais(){
+  if(DET_MAIS||!DET_ARGS||DET_N>=DET_TOT) return;
+  DET_MAIS=true; const req=DET_REQ;
+  document.getElementById("det-count").innerHTML+=" · carregando...";
+  try{
+    const res=await rpc("compras_det",{...DET_ARGS,p_off:DET_N});
+    if(req!==DET_REQ) return;
+    const rows=res.rows||[];
+    document.getElementById("tb-det").insertAdjacentHTML("beforeend",rows.map(_detLinha).join(""));
+    DET_N+=rows.length; if(!rows.length) DET_N=DET_TOT;
+  }catch(e){}
+  finally{ DET_MAIS=false; if(req===DET_REQ) detContagem(); }
+}
+document.addEventListener("DOMContentLoaded",()=>{
+  const corpo=document.querySelector("#screen-detalhamento .ct-body");
+  if(corpo) corpo.addEventListener("scroll",()=>{ if(corpo.scrollTop+corpo.clientHeight>=corpo.scrollHeight-400) detCarregarMais(); });
+});
 function detBusca(){ clearTimeout(DET_T); DET_T=setTimeout(()=>{ detPg=1; renderDetTable(); },400); }
 async function detCarregarOpcoes(){
   if(DET_OPC) return; DET_OPC=true;
@@ -922,7 +947,7 @@ async function renderDetTable(){
   const f=filtrosAtuais();
   const args={p_ini:f.p_ini,p_fim:f.p_fim,p_comp:f.p_comp,p_grp:f.p_grp,p_fil:f.p_fil,
     p_ssc:v("f-det-status-sc"),p_sped:v("f-det-status-ped"),p_qsc:v("s-det-sc"),p_qped:v("s-det-ped"),p_q:v("s-det"),
-    p_off:(detPg-1)*PER,p_lim:PER};
+    p_off:0,p_lim:DET_PG};
   const req=++DET_REQ;
   document.getElementById("det-count").textContent="Carregando...";
   let res;
@@ -930,8 +955,6 @@ async function renderDetTable(){
   catch(e){ if(req===DET_REQ) document.getElementById("det-count").textContent="Erro: "+e.message; return; }
   if(req!==DET_REQ) return;            // chegou uma busca mais nova
   const total=+res.total||0, totalVal=+res.valor||0, k=res.k||{}, slice=res.rows||[];
-  const pages=Math.max(1,Math.ceil(total/PER));
-  if(detPg>pages){ detPg=1; return renderDetTable(); }
   const stSCcor={
     "Solicitação Totalmente Atendida":"#d1fae5;color:#065f46",
     "Solicitação Pendente":"#fef3c7;color:#92400e",
@@ -943,7 +966,7 @@ async function renderDetTable(){
   };
   const bmap={"NORMAL":"bn","URGENCIA":"bu","REGULARIZACAO":"br","FUNDO FIXO":"bf","RESSUPRIMENTO":"brs","ESTOQUE":"be"};
 
-  document.getElementById("tb-det").innerHTML=slice.map(r=>{
+  window._detLinha=r=>{
     const sscStyle=stSCcor[r.status_sc]||"#f3f4f6;color:#374151";
     const spedStyle=r.status_ped==="Recebido"?"#d1fae5;color:#065f46":
                     r.status_ped==="SEM PEDIDO"?"#ede9fe;color:#5b21b6":
@@ -965,9 +988,12 @@ async function renderDetTable(){
       <td>${r.comprador||"–"}</td>
       <td><span class="bdg ${bmap[r.tipo]||"br"}">${r.tipo||"–"}</span></td>
     </tr>`;
-  }).join("");
+  };
+  document.getElementById("tb-det").innerHTML=slice.map(_detLinha).join("");
+  const corpo=document.querySelector("#screen-detalhamento .ct-body"); if(corpo) corpo.scrollTop=0;
+  DET_ARGS=args; DET_N=slice.length; DET_TOT=total; DET_VAL=totalVal;
 
-  document.getElementById("det-count").textContent=`${total.toLocaleString("pt-BR")} registros · ${fmtM(totalVal)}`;
+  detContagem();
 
   // KPIs de atendimento
   const atend=+k.atend||0, parcial=+k.parcial||0, pend=+k.pend||0, bloq=+k.bloq||0, rej=+k.rej||0, elim=+k.elim||0,
@@ -994,7 +1020,7 @@ async function renderDetTable(){
     <div class="kpi"><div class="kpi-val green">${recebido.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Recebidos</div></div>
     <div class="kpi"><div class="kpi-val">${fmtM(totalVal)}</div><div class="kpi-lbl">Valor Total</div></div>
     <div class="kpi" style="border:none"><div style="font-size:9px;color:var(--muted);line-height:1.4">*excl. rejeitadas<br>e eliminadas</div></div>`;
-  renderPag("pg-det",pages,detPg,p=>{detPg=p;renderDetTable();});
+  document.getElementById("pg-det").innerHTML="";
 }
 
 

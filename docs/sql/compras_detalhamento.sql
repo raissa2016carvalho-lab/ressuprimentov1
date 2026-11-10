@@ -54,7 +54,9 @@ create or replace function public.compras_det(p_ini date default null, p_fim dat
   p_qsc text default null, p_qped text default null, p_q text default null, p_off int default 0, p_lim int default 20)
 returns json language sql stable security definer set search_path = public as $$
 with b as materialized (
-  select * from mv_compras_det
+  select fil, filial, grupo, num_sc, item, emissao_sc, dt, aprov_sc, descricao, obs, quant, status_sc,
+         num_ped, emissao_ped, status_ped, status_pedido_total, valor, comprador, tipo
+  from mv_compras_det
   where (p_ini is null or dt is null or dt >= p_ini) and (p_fim is null or dt is null or dt <= p_fim)
     and (p_comp is null or comprador = p_comp) and (p_grp is null or grupo = p_grp)
     and (p_fil is null or fil = trim(p_fil))
@@ -75,13 +77,13 @@ select json_build_object(
           'elim',    count(*) filter (where status_sc like '%Resíduo%'),
           'semped',  count(*) filter (where status_ped = 'SEM PEDIDO'),
           'recebido',count(*) filter (where status_ped like '%Recebido%'),
-          'pedidos', count(distinct (fil, num_ped)) filter (where num_ped <> '–'),
-          'pedidos_receb', count(distinct (fil, num_ped)) filter (where num_ped <> '–' and status_pedido_total = 'Recebido')) from b),
+          'pedidos', (select count(*) from (select distinct fil, num_ped from b where num_ped <> '–') p),
+          'pedidos_receb', (select count(*) from (select distinct fil, num_ped from b where num_ped <> '–' and status_pedido_total = 'Recebido') p)) from b),
   'rows', (select coalesce(json_agg(x), '[]'::json) from (
              select filial, fil filial_cod, grupo, num_sc, emissao_sc, aprov_sc, descricao, obs, quant, status_sc,
                     num_ped, emissao_ped, status_ped, valor, comprador, tipo
              from b order by dt desc nulls last, num_sc desc, item
-             offset greatest(p_off,0) limit least(greatest(p_lim,1),200)) x)
+             offset greatest(p_off,0) limit least(greatest(p_lim,1),3000)) x)
 )
 $$;
 
