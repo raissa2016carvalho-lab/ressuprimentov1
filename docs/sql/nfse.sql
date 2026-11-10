@@ -61,3 +61,40 @@ create or replace view public.vw_nfe_sd1 as
 
 -- DESFAZER: rodar de novo a definição anterior (sem a regra 4 e sem a coluna modelo no bloco n) —
 -- está no histórico do repositório (docs/sql/nfse.sql, versão anterior = definição atual do banco em 10/11).
+
+-- ── Rodapé da nota e pedido do cliente (11/11, aplicado) ─────────────────────────────────
+alter table public.nfe_master add column if not exists rodape text, add column if not exists rodape_fisco text,
+  add column if not exists pedido_cliente text;
+create index if not exists nfe_master_rodape_trgm on public.nfe_master using gin (lower(coalesce(rodape,'')) gin_trgm_ops);
+-- DESFAZER: drop index if exists nfe_master_rodape_trgm; alter table public.nfe_master drop column rodape, drop column rodape_fisco, drop column pedido_cliente;
+
+-- ── Data de entrega do pedido para o painel de Notas (11/11, aplicado) ───────────────────
+create or replace function public.nfe_entregas()
+returns table(nfe_id bigint, pedido text, entrega date)
+language sql stable security definer set search_path = public as $$
+  with np as (
+    select n.id, n.filial,
+           lpad(regexp_replace(coalesce(nullif(trim(f.pedido),''), n.pedido_cliente),'\D','','g'),6,'0') ped
+    from nfe_master n left join nfe_fluxo f on f.nfe_id = n.id
+    where coalesce(nullif(trim(f.pedido),''), n.pedido_cliente) is not null
+      and n.emissao >= now() - interval '400 days'
+  ),
+  pe as (select trim("C7_NUM") num, trim("C7_FILIAL") fil, min(nullif("ENTREGA_PEDIDO",'')::date) entrega
+         from pedidos group by 1,2)
+  select np.id, np.ped, pe.entrega from np join pe on pe.num = np.ped and pe.fil = np.filial
+$$;
+grant execute on function public.nfe_entregas() to authenticated;
+-- DESFAZER: drop function if exists public.nfe_entregas();
+
+-- ── Previsão de entrega pela sc_pedidos_v2 + entrega real (11/11, aplicado) ──────────────
+alter table public.nfe_fluxo add column if not exists entrega_real date, add column if not exists entrega_real_por text;
+-- mv_ped_entrega: por pedido + filial, última data de entrega dos itens (sc_pedidos_v2), emissão e aprovação;
+-- sem o pedido na v2, usa a tabela pedidos. Atualizada pelo atualizar_nfe_sd1() (fim dos syncs de notas/entradas).
+-- nfe_entregas(): (nfe_id, pedido, entrega, pc_emissao, pc_aprovacao) lida pela tela de Notas.
+-- (definições completas aplicadas no banco em 11/11; ver histórico do chat/PR)
+-- DESFAZER:
+-- create or replace function public.atualizar_nfe_sd1() returns void language sql security definer set search_path = public as $$ refresh materialized view concurrently public.mv_nfe_sd1 $$;
+-- drop function if exists public.nfe_entregas(); drop materialized view if exists public.mv_ped_entrega;
+-- alter table public.nfe_fluxo drop column entrega_real, drop column entrega_real_por;
+-- nfe_entregas_json(): o mesmo que nfe_entregas() num JSON só (a API devolve no máximo 1.000 linhas por consulta).
+-- DESFAZER: drop function if exists public.nfe_entregas_json();
