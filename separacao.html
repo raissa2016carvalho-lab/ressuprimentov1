@@ -102,7 +102,7 @@ const STATUS={pendente:'Pendente',em_separacao:'Em separação',concluida:'Concl
 let userEmail='',isAdmin=false,FILTRO='abertas',MOBS=[],ATUAL=null;
 // modo da tela: mobilizações ou ressuprimento (solicitações em aberto)
 let MODO=(()=>{let q=new URLSearchParams(location.search);return q.get('ressup')||q.get('modo')==='ressup'?'ressup':'mob'})();
-let RESS=[],ATUAL_R=null,FILTRO_R='todas';
+let RESS=[],ATUAL_R=null,FILTRO_R='abertas';
 // Item já conferido? Estoque lançado antes desta tela (quantidade > 0, sem marcação) conta como "Tem"
 const dispo=r=>!r?null:r.disponivel!=null?r.disponivel:(Number(r.qtd_estoque)>0?true:null);
 
@@ -264,48 +264,50 @@ async function carregarRessup(){
   $('corpo').innerHTML=abasHtml()+'<div class="vazio">Carregando solicitações...</div>';
   history.replaceState(null,'','?modo=ressup');
   let[{data:sols,error},{data:ccs}]=await Promise.all([
-    db.from('solicitacoes').select('id,cc,filial,status,criado_em,solicitante_nome').in('status',['pendente','aguardando_master']).order('criado_em'),
+    db.from('solicitacoes').select('id,cc,filial,status,criado_em,solicitante_nome,sep_status,sep_operador,sep_concluida_em').in('status',['pendente','aguardando_master']).order('criado_em'),
     db.from('centros_custo').select('cc,nome')]);
   if(error){$('corpo').innerHTML=abasHtml()+'<div class="vazio">Não consegui carregar: '+esc(error.message)+'</div>';return}
   let nomeCC={};(ccs||[]).forEach(c=>nomeCC[String(c.cc).trim()]=String(c.nome||'').replace(/\s+/g,' ').trim());
   let ids=(sols||[]).map(s=>s.id),itens=[];
   for(let i=0;i<ids.length;i+=100){for(let o=0;;o+=1000){let{data}=await db.from('solicitacao_itens').select('solicitacao_id,quantidade,qtd_estoque_central,situacao').in('solicitacao_id',ids.slice(i,i+100)).order('id').range(o,o+999);itens=itens.concat(data||[]);if(!data||data.length<1000)break}}
   let por={};itens.forEach(i=>{if(i.situacao==='recusado'||precisa(i)<=0)return;let o=por[i.solicitacao_id]=por[i.solicitacao_id]||{n:0,c:0,un:0};o.n++;if(doCentral(i)>0){o.c++;o.un+=doCentral(i)}});
-  RESS=(sols||[]).filter(s=>por[s.id]).map(s=>({...s,_base:nomeCC[String(s.cc||'').trim()]||s.cc,_g:grupoR(s),_n:por[s.id].n,_c:por[s.id].c,_un:por[s.id].un}));
+  RESS=(sols||[]).filter(s=>por[s.id]).map(s=>({...s,_st:s.sep_status||'pendente',_base:nomeCC[String(s.cc||'').trim()]||s.cc,_g:grupoR(s),_n:por[s.id].n,_c:por[s.id].c,_un:por[s.id].un}));
   desenharListaRessup();
 }
 function desenharListaRessup(){
   ATUAL_R=null;
   let q=($('busca-r')?.value||'').toLowerCase().trim();
-  let lista=RESS.filter(s=>FILTRO_R==='todas'||(FILTRO_R==='com'?s._c>0:s._c===0))
+  const passaR=(s,k)=>k==='todas'||(k==='concluidas'?s._st==='concluida':s._st!=='concluida');
+  let lista=RESS.filter(s=>passaR(s,FILTRO_R))
     .filter(s=>!q||(s._base||'').toLowerCase().includes(q)||nomeFil(s.filial).toLowerCase().includes(q)||String(s.id).includes(q));
-  let chips=[['todas','Todas'],['sem','Sem estoque central'],['com','Com estoque central']].map(([k,t])=>
-    `<button class="chip${FILTRO_R===k?' ativo':''}" onclick="FILTRO_R='${k}';desenharListaRessup()">${t} (${RESS.filter(s=>k==='todas'||(k==='com'?s._c>0:s._c===0)).length})</button>`).join('');
+  let chips=[['abertas','Para separar'],['concluidas','Concluídas'],['todas','Todas']].map(([k,t])=>
+    `<button class="chip${FILTRO_R===k?' ativo':''}" onclick="FILTRO_R='${k}';desenharListaRessup()">${t} (${RESS.filter(s=>passaR(s,k)).length})</button>`).join('');
   let html=GRUPOS_R.map((g,gi)=>{let ls=lista.filter(s=>s._g===gi);if(!ls.length)return '';
     return '<div class="grupo-tit">'+esc(g.nome)+'</div>'+ls.map(s=>{let pct=s._n?Math.round(s._c/s._n*100):0;
       return `<div class="mob" onclick="abrirRessup(${s.id})">
-        <div style="flex:1;min-width:0"><div class="nome">${esc(s._base)} <span style="color:#94a3b8;font-weight:500;font-size:12px">#${s.id}</span></div>
-          <div class="sub">${esc(nomeFil(s.filial))} · ${s._n} item(ns) · enviada em ${fmtDH(s.criado_em)}${s.solicitante_nome?' · '+esc(s.solicitante_nome):''}</div></div>
+        <div style="flex:1;min-width:0"><div class="nome">${esc(s._base)} <span style="color:#94a3b8;font-weight:500;font-size:12px">#${s.id}</span> <span class="pill p-${s._st}">${STATUS[s._st]||s._st}</span></div>
+          <div class="sub">${esc(nomeFil(s.filial))} · ${s._n} item(ns) · enviada em ${fmtDH(s.criado_em)}${s.solicitante_nome?' · '+esc(s.solicitante_nome):''}${s._st==='concluida'&&s.sep_operador?' · separada por '+esc(s.sep_operador)+(s.sep_concluida_em?' em '+fmtDH(s.sep_concluida_em):''):''}</div></div>
         <div style="text-align:right"><div style="font-size:12px;color:#64748b">${s._c}/${s._n} com estoque central${s._un?' · '+fmtN(s._un)+' un.':''}</div><div class="barra"><i style="width:${pct}%;background:#0e7490"></i></div></div>
         <span style="color:#1e40af;font-weight:700">→</span></div>`}).join('')}).join('');
   $('corpo').innerHTML=abasHtml()+`<div class="filtros">${chips}<input class="busca" id="busca-r" placeholder="Buscar base, filial ou nº da solicitação..." value="${esc(q)}" oninput="desenharListaRessup();this.focus();this.setSelectionRange(this.value.length,this.value.length)"></div>`+
-    (html||'<div class="vazio">Nenhuma solicitação em aberto.</div>');
+    (html||'<div class="vazio">Nenhuma solicitação '+(FILTRO_R==='concluidas'?'concluída':FILTRO_R==='abertas'?'para separar':'em aberto')+'.</div>');
 }
 async function abrirRessup(id){
   $('corpo').innerHTML='<div class="vazio">Carregando itens...</div>';
   history.replaceState(null,'','?ressup='+id);
   let[{data:sol},{data:itens}]=await Promise.all([
-    db.from('solicitacoes').select('id,cc,filial,status,criado_em,solicitante_nome').eq('id',id).maybeSingle(),
+    db.from('solicitacoes').select('id,cc,filial,status,criado_em,solicitante_nome,sep_status,sep_operador,sep_concluida_em').eq('id',id).maybeSingle(),
     db.from('solicitacao_itens').select('id,codigo,descricao,quantidade,qtd_estoque_central,situacao').eq('solicitacao_id',id).order('id')]);
   if(!sol){$('corpo').innerHTML='<div class="vazio">Solicitação não encontrada. <a href="#" onclick="irModo(\'ressup\');return false">Voltar</a></div>';return}
   let base=(RESS.find(s=>s.id===sol.id)||{})._base;
   if(!base){let{data:c}=await db.from('centros_custo').select('nome').eq('cc',sol.cc).maybeSingle();base=c&&c.nome||sol.cc}
-  ATUAL_R={sol,base,aberta:sol.status==='pendente'||sol.status==='aguardando_master',
+  ATUAL_R={sol,base,emAberto:sol.status==='pendente'||sol.status==='aguardando_master',
     itens:(itens||[]).filter(i=>i.situacao!=='recusado'&&precisa(i)>0).sort((a,b)=>(a.descricao||'').localeCompare(b.descricao||''))};
   desenharRessup();
 }
 function desenharRessup(){
-  let {sol,base,itens,aberta}=ATUAL_R,dis=aberta?'':' disabled';
+  let {sol,base,itens,emAberto}=ATUAL_R,trav=sol.sep_status==='concluida',aberta=emAberto&&!trav,dis=aberta?'':' disabled',st=sol.sep_status||'pendente';
+  ATUAL_R.aberta=aberta;
   let com=itens.filter(i=>doCentral(i)>0).length,un=itens.reduce((t,i)=>t+doCentral(i),0),
       fica=itens.reduce((t,i)=>t+(Number(i.quantidade)||0),0);
   let linhas=itens.map(i=>{let c=doCentral(i),p=precisa(i);
@@ -320,12 +322,14 @@ function desenharRessup(){
     </div>`}).join('');
   $('corpo').innerHTML=`
     <button class="btn" onclick="irModo('ressup')" style="margin-bottom:12px">← Voltar ao ressuprimento</button>
-    <div class="cab"><div><h2>${esc(base)} <span style="color:#94a3b8;font-weight:500;font-size:13px">#${sol.id}</span></h2>
+    <div class="cab"><div><h2>${esc(base)} <span style="color:#94a3b8;font-weight:500;font-size:13px">#${sol.id}</span> <span class="pill p-${st}">${STATUS[st]||st}</span></h2>
       <div style="font-size:12.5px;color:#64748b;margin-top:4px">${esc(nomeFil(sol.filial))} · enviada em ${fmtDH(sol.criado_em)}${sol.solicitante_nome?' · '+esc(sol.solicitante_nome):''} · ${itens.length} item(ns)</div></div>
       <div class="resumo"><div><b>${com}/${itens.length}</b>com estoque central</div><div><b style="color:#0e7490">${fmtN(un)}</b>un. do estoque</div><div><b>${fmtN(fica)}</b>un. para a SC</div></div></div>
-    ${aberta?'':'<div class="aviso">Esta solicitação já saiu do aberto (SC gerada ou finalizada): só consulta.</div>'}
+    ${trav?`<div class="ok">✓ Separação concluída por <b>${esc(sol.sep_operador||'')}</b>${sol.sep_concluida_em?' em '+fmtDH(sol.sep_concluida_em):''}. O que saiu do estoque central já está na coluna Estoque central do Painel.</div>`:''}
+    ${emAberto?'':'<div class="aviso">Esta solicitação já saiu do aberto (SC gerada ou finalizada): só consulta.</div>'}
     ${linhas||'<div class="vazio">Nenhum item com quantidade liberada.</div>'}
-    <div class="rodape"><div style="font-size:12.5px;color:#64748b;flex:1;min-width:200px">Tudo é salvo automaticamente. O que sai do estoque central aparece na coluna <b>Estoque central</b> do Painel e já sai da quantidade da SC.</div></div>`;
+    <div class="rodape"><div style="font-size:12.5px;color:#64748b;flex:1;min-width:200px">${trav?'':'Tudo é salvo automaticamente. O que sai do estoque central aparece na coluna <b>Estoque central</b> do Painel e já sai da quantidade da SC. Ao terminar, conclua a separação.'}</div>
+      ${trav?(isAdmin?'<button class="btn" onclick="reabrirRessup()">↺ Reabrir separação</button>':''):(emAberto?'<button class="btn verde" onclick="concluirRessup()">✓ Concluir separação</button>':'')}</div>`;
 }
 async function salvarRessup(id,valor){
   if(!ATUAL_R||!ATUAL_R.aberta)return;
@@ -339,8 +343,25 @@ async function salvarRessup(id,valor){
   if(error){alert('Não consegui salvar: '+error.message);return}
   if(!upd||!upd.length){alert('Este item foi alterado por outra pessoa agora. Vou recarregar.');return abrirRessup(ATUAL_R.sol.id)}
   let it=ATUAL_R.itens.find(i=>i.id===id);Object.assign(it,upd[0]);
+  if(!ATUAL_R.sol.sep_status||ATUAL_R.sol.sep_status==='pendente'){let{error:e2}=await db.from('solicitacoes').update({sep_status:'em_separacao'}).eq('id',ATUAL_R.sol.id);if(!e2)ATUAL_R.sol.sep_status='em_separacao'}
   desenharRessup();
   let ok=$('rok-'+id);if(ok){ok.textContent='✓ salvo';setTimeout(()=>{ok.textContent=''},1500)}
+}
+
+async function concluirRessup(){
+  let s=ATUAL_R.sol,com=ATUAL_R.itens.filter(i=>doCentral(i)>0).length;
+  if(!confirm('Concluir a separação da solicitação #'+s.id+' ('+ATUAL_R.base+')?\n\n'+com+' de '+ATUAL_R.itens.length+' item(ns) saem do estoque central. Depois disso ela fica travada.'))return;
+  let upd={sep_status:'concluida',sep_operador:userEmail,sep_concluida_em:new Date().toISOString()};
+  let{error}=await db.from('solicitacoes').update(upd).eq('id',s.id);
+  if(error){alert('Não consegui concluir: '+error.message);return}
+  Object.assign(s,upd);desenharRessup();window.scrollTo({top:0});
+}
+async function reabrirRessup(){
+  if(!isAdmin||!confirm('Reabrir a separação desta solicitação para edição?'))return;
+  let upd={sep_status:'em_separacao',sep_operador:null,sep_concluida_em:null};
+  let{error}=await db.from('solicitacoes').update(upd).eq('id',ATUAL_R.sol.id);
+  if(error){alert('Não consegui reabrir: '+error.message);return}
+  Object.assign(ATUAL_R.sol,upd);desenharRessup();
 }
 
 // ── Login: mesmo usuário do Painel principal ───────────────────────────────
