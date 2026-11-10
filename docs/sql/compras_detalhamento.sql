@@ -40,6 +40,7 @@ select j."C1_NUM" num_sc, j."C1_ITEM" item, trim(j."C1_FILIAL") fil,
                    when 'SEM STATUS' then 'Sem status'
                    else coalesce(j.st1, case when j.pn is null then j.st2 end, j.st3) end end status_ped,
        coalesce(j.pedido_total,0) valor, j.comprador, j.tipo_sc tipo,
+       j.st3 status_pedido_total,   -- status do pedido inteiro (para o % Entregas por pedido)
        lower(coalesce(f.nome_filial,'')||' '||coalesce(j."C1_DESCRI",'')||' '||coalesce(j."C1_OBS",'')||' '||coalesce(j.comprador,'')) busca
 from j
 left join public.filiais f on ltrim(f.filial,'0') = ltrim(trim(j."C1_FILIAL"),'0');
@@ -73,7 +74,9 @@ select json_build_object(
           'rej',     count(*) filter (where lower(status_sc) like '%rejeitada%'),
           'elim',    count(*) filter (where status_sc like '%Resíduo%'),
           'semped',  count(*) filter (where status_ped = 'SEM PEDIDO'),
-          'recebido',count(*) filter (where status_ped like '%Recebido%')) from b),
+          'recebido',count(*) filter (where status_ped like '%Recebido%'),
+          'pedidos', count(distinct (fil, num_ped)) filter (where num_ped <> '–'),
+          'pedidos_receb', count(distinct (fil, num_ped)) filter (where num_ped <> '–' and status_pedido_total = 'Recebido')) from b),
   'rows', (select coalesce(json_agg(x), '[]'::json) from (
              select filial, fil filial_cod, grupo, num_sc, emissao_sc, aprov_sc, descricao, obs, quant, status_sc,
                     num_ped, emissao_ped, status_ped, valor, comprador, tipo

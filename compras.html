@@ -971,7 +971,9 @@ async function renderDetTable(){
 
   // KPIs de atendimento
   const atend=+k.atend||0, parcial=+k.parcial||0, pend=+k.pend||0, bloq=+k.bloq||0, rej=+k.rej||0, elim=+k.elim||0,
-        semPed=+k.semped||0, recebido=+k.recebido||0;
+        semPed=+k.semped||0, recebido=+k.recebido||0, nPed=+k.pedidos||0, nPedRec=+k.pedidos_receb||0;
+  // % Entregas (regra do BI, por pedido): pedidos 100% recebidos ÷ total de pedidos; rejeitado/eliminado/pendente contam como não entregue
+  const pctEnt=nPed>0?nPedRec/nPed*100:0, corEnt=pctEnt>=80?"var(--green)":pctEnt>=60?"var(--orange)":"var(--red)";
 
   const base   = total - rej - elim;
   const pctAtend = base>0?((atend/base)*100):0;
@@ -980,6 +982,7 @@ async function renderDetTable(){
   const kpiDet=document.getElementById("kpi-det");
   if(kpiDet) kpiDet.innerHTML=`
     <div class="kpi"><div class="kpi-val orange">${total.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Total Itens</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:${corEnt}">${nPed?pctEnt.toFixed(1)+"%":"–"}</div><div class="kpi-lbl">% Entregas (pedidos)</div><div style="font-size:9.5px;color:var(--muted)">${nPedRec.toLocaleString("pt-BR")} de ${nPed.toLocaleString("pt-BR")} pedidos recebidos</div></div>
     <div class="kpi"><div class="kpi-val" style="color:${corPct}">${pctAtend.toFixed(1)}%</div><div class="kpi-lbl">% Atendimento*</div></div>
     <div class="kpi"><div class="kpi-val green">${atend.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Atendidas</div></div>
     <div class="kpi"><div class="kpi-val blue">${parcial.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Parcialmente</div></div>
