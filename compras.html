@@ -132,6 +132,7 @@ canvas{max-height:220px}
   <button class="tab" onclick="showScreen('indicadores',this,'INDICADORES')">Indicadores</button>
   <button class="tab" onclick="showScreen('detalhamento',this,'DETALHAMENTO SC × PEDIDO')">Detalhamento</button>
   <button class="tab" onclick="showScreen('comparativo',this,'COMPARATIVO MENSAL')">Comparativo Mensal</button>
+  <button class="tab" onclick="showScreen('precos',this,'VARIAÇÃO DE PREÇO')">Variação de Preço</button>
 </div>
 
 <div class="filters">
@@ -328,6 +329,45 @@ canvas{max-height:220px}
         </table>
       </div>
       <div style="padding:8px 14px"><div class="pag" id="pg-det"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- TELA VARIAÇÃO DE PREÇO -->
+<div id="screen-precos" class="screen">
+  <div class="kpi-bar" id="kpi-pre"></div>
+  <div style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <span class="fl">Item</span>
+    <input class="sbox" id="s-pre" placeholder="Código ou descrição..." oninput="preBusca()" style="width:220px;margin:0">
+    <span class="fl">Ordenar por</span>
+    <select id="f-pre-ordem" onchange="prePg=1;renderPrecos()" style="font-size:11px;padding:5px 8px">
+      <option value="var">Maior diferença entre menor e maior preço</option>
+      <option value="subiu">Maior alta na última compra</option>
+      <option value="desceu">Maior queda na última compra</option>
+      <option value="valor">Mais comprados (R$)</option>
+    </select>
+    <span class="fl">Mín. de compras</span>
+    <select id="f-pre-min" onchange="prePg=1;renderPrecos()" style="font-size:11px;padding:5px 8px">
+      <option value="2">2</option><option value="3" selected>3</option><option value="5">5</option><option value="10">10</option>
+    </select>
+    <label style="font-size:11px;color:var(--muted);display:flex;gap:5px;align-items:center"><input type="checkbox" id="f-pre-serv" onchange="prePg=1;renderPrecos()"> Incluir serviços</label>
+    <span id="pre-count" style="font-size:11px;color:var(--muted);margin-left:8px;white-space:nowrap"></span>
+  </div>
+  <div style="padding:16px 24px">
+    <div class="ct">
+      <div class="ct-head"><span class="ct-title">Preço unitário dos pedidos por item — clique na linha para ver os últimos preços</span></div>
+      <div class="ct-body" style="max-height:calc(100vh - 330px)">
+        <table>
+          <thead><tr>
+            <th>Código</th><th>Descrição</th><th>Grupo</th><th>UM</th><th class="r">Compras</th>
+            <th class="r">Menor</th><th class="r">Maior</th><th class="r">Médio</th><th class="r">Variação</th>
+            <th class="r">Penúltimo</th><th class="r">Último</th><th class="r">Último × anterior</th><th>Último fornecedor</th>
+          </tr></thead>
+          <tbody id="tb-pre"></tbody>
+        </table>
+      </div>
+      <div style="padding:8px 14px;font-size:10.5px;color:var(--muted)">Preço unitário = valor do item no pedido ÷ quantidade. Período, grupo e filial seguem os filtros do topo. Preço fora do padrão do item (mais de 5× abaixo ou acima do preço do meio — ex.: R$ 0,01 de base de troca, garantia ou unidade diferente) não entra na conta e aparece marcado no histórico. Serviços (grupos 3xxx e 4xxx) ficam fora, a não ser que marque "Incluir serviços".</div>
+      <div style="padding:8px 14px"><div class="pag" id="pg-pre"></div></div>
     </div>
   </div>
 </div>
@@ -529,6 +569,8 @@ function popularFiltros(){
     (arr||[]).forEach(v=>{const o=document.createElement("option");o.value=Array.isArray(v)?v[0]:v;o.textContent=lblFn?lblFn(v):v;s.appendChild(o);});
   };
   fill("f-comp",OPC.comps); fill("f-grp",OPC.grps); fill("f-tipo",OPC.tipos);
+  // filtro de grupo com a descrição (vem depois, sem atrasar a abertura)
+  preGrupos().then(()=>{ [...document.getElementById("f-grp").options].forEach(o=>{ if(o.value) o.textContent=grpRot(o.value); }); });
   fill("f-filial",OPC.filiais,v=>nomeFilial(v[0],v[1])+" ("+String(v[0]).trim()+")");
   const now=new Date(), past=new Date(); past.setFullYear(past.getFullYear()-1);
   document.getElementById("f-ini").value=past.toISOString().slice(0,10);
@@ -574,6 +616,7 @@ async function showScreen(n,btn,title){
   document.querySelector(".filters").style.display = n==="comparativo" ? "none" : "";
   if(n==="comparativo") renderComparativo();
   if(n==="detalhamento") renderDetTable();
+  if(n==="precos") renderPrecos();
 }
 function fmtD(s){
   if(!s) return"–";
@@ -952,6 +995,69 @@ async function renderDetTable(){
 }
 
 
+// ── VARIAÇÃO DE PREÇO (compras_precos / compras_precos_hist) ──────────────────────────────
+let prePg=1, PRE_T=null, PRE_REQ=0, PRE_ABERTO=null, GRP_NOME=null;
+// nome do grupo (descrição mais usada nos pedidos), carregado uma vez
+async function preGrupos(){
+  if(GRP_NOME) return; GRP_NOME={};
+  try{ const o=CMP_OPC||await rpc("compras_cmp_opcoes",{}); (o.grupos||[]).forEach(([c,d])=>{ GRP_NOME[c||""]=String(d||"").trim(); }); }catch(e){}
+}
+const grpRot=c=>c?(c+(GRP_NOME&&GRP_NOME[c]?" — "+GRP_NOME[c]:"")):"–";
+const fmtP=v=>v==null?"–":"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:4});
+const fmtPct=v=>v==null?"–":(v>0?"+":"")+(v*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%";
+function preBusca(){ clearTimeout(PRE_T); PRE_T=setTimeout(()=>{ prePg=1; renderPrecos(); },400); }
+async function renderPrecos(){
+  if(!document.getElementById("screen-precos").classList.contains("active")) return;
+  const f=filtrosAtuais(), q=document.getElementById("s-pre").value.trim();
+  const args={p_ini:f.p_ini,p_fim:f.p_fim,p_grp:f.p_grp,p_fil:f.p_fil,p_q:q||null,
+    p_servicos:document.getElementById("f-pre-serv").checked,p_min:+document.getElementById("f-pre-min").value,
+    p_ordem:document.getElementById("f-pre-ordem").value,p_off:(prePg-1)*PER,p_lim:PER};
+  const req=++PRE_REQ; PRE_ABERTO=null;
+  document.getElementById("pre-count").textContent="Calculando...";
+  let res;
+  try{ [res]=await Promise.all([rpc("compras_precos",args),preGrupos()]); }
+  catch(e){ if(req===PRE_REQ) document.getElementById("pre-count").textContent="Erro: "+e.message; return; }
+  if(req!==PRE_REQ) return;
+  const total=+res.total||0, rows=res.rows||[], pages=Math.max(1,Math.ceil(total/PER));
+  if(prePg>pages){ prePg=1; return renderPrecos(); }
+  document.getElementById("pre-count").textContent=total.toLocaleString("pt-BR")+" itens com "+args.p_min+"+ compras no período";
+  const corVar=v=>v==null?"":v>=1?"color:var(--red);font-weight:700":v>=.3?"color:var(--orange);font-weight:600":"";
+  const corUlt=v=>v==null?"":v>.05?"color:var(--red);font-weight:700":v<-.05?"color:var(--green);font-weight:700":"";
+  document.getElementById("tb-pre").innerHTML=rows.map((r,i)=>`<tr style="cursor:pointer" onclick="preAbrir(${i},'${cmpEsc(r.produto)}')" id="pre-l-${i}" title="Clique para ver os últimos preços">
+      <td style="font-family:monospace;color:var(--muted)">${cmpEsc(r.produto)}</td>
+      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="${cmpEsc(r.descri||"")}">${cmpEsc(r.descri||"–")}${r.fora?` <span style="font-size:9.5px;color:var(--muted)" title="Preços fora do padrão ignorados na conta">(${r.fora} ignorado${r.fora>1?"s":""})</span>`:""}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:11px" title="${cmpEsc(grpRot(r.grp))}">${cmpEsc(grpRot(r.grp))}</td>
+      <td>${cmpEsc(r.um||"")}</td><td class="r">${r.n}</td>
+      <td class="r">${fmtP(r.pmin)}</td><td class="r">${fmtP(r.pmax)}</td><td class="r">${fmtP(r.pmed)}</td>
+      <td class="r" style="${corVar(r.var)}">${fmtPct(r.var)}</td>
+      <td class="r">${fmtP(r.ant)}<div style="font-size:9.5px;color:var(--muted)">${fmtD(r.ant_dt)}</div></td>
+      <td class="r" style="font-weight:700">${fmtP(r.ult)}<div style="font-size:9.5px;color:var(--muted);font-weight:400">${fmtD(r.ult_dt)}</div></td>
+      <td class="r" style="${corUlt(r.var_ult)}">${fmtPct(r.var_ult)}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-size:11px" title="${cmpEsc(r.ult_forn||"")}">${cmpEsc(r.ult_forn||"–")}</td>
+    </tr><tr id="pre-h-${i}" style="display:none"><td colspan="13" style="background:#f8fafc;padding:8px 16px"></td></tr>`).join("")
+    ||'<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">Nenhum item no período com esses filtros.</td></tr>';
+  const subiu=rows.filter(r=>r.var_ult>.05).length, desceu=rows.filter(r=>r.var_ult<-.05).length;
+  document.getElementById("kpi-pre").innerHTML=`
+    <div class="kpi"><div class="kpi-val">${total.toLocaleString("pt-BR")}</div><div class="kpi-lbl">Itens analisados</div></div>
+    <div class="kpi"><div class="kpi-val red">${subiu}</div><div class="kpi-lbl">Subiram na última compra (nesta página)</div></div>
+    <div class="kpi"><div class="kpi-val green">${desceu}</div><div class="kpi-lbl">Caíram na última compra (nesta página)</div></div>
+    <div class="kpi" style="border:none"><div style="font-size:9.5px;color:var(--muted);line-height:1.4">Variação = maior ÷ menor preço − 1<br>Último × anterior = última compra ÷ a de antes − 1</div></div>`;
+  renderPag("pg-pre",pages,prePg,p=>{prePg=p;renderPrecos();});
+}
+async function preAbrir(i,produto){
+  const lin=document.getElementById("pre-h-"+i); if(!lin) return;
+  if(PRE_ABERTO===i){ lin.style.display="none"; PRE_ABERTO=null; return; }
+  if(PRE_ABERTO!=null){ const a=document.getElementById("pre-h-"+PRE_ABERTO); if(a) a.style.display="none"; }
+  PRE_ABERTO=i; lin.style.display=""; const td=lin.firstElementChild; td.innerHTML='<span style="color:var(--muted);font-size:11px">Carregando os últimos preços...</span>';
+  const f=filtrosAtuais();
+  let h;
+  try{ h=await rpc("compras_precos_hist",{p_produto:produto,p_ini:f.p_ini,p_fim:f.p_fim}); }catch(e){ td.textContent="Erro: "+e.message; return; }
+  td.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px">Últimas ${h.length} compras de ${cmpEsc(produto)} no período</div>
+    <table style="font-size:11px;width:auto"><tr><th>Data</th><th>Pedido</th><th>Filial</th><th>Fornecedor</th><th class="r">Qtd</th><th class="r">Preço unit.</th><th>Comprador</th><th>Status</th></tr>`+
+    h.map(x=>`<tr style="${x.fora?"color:var(--muted);text-decoration:line-through":""}" title="${x.fora?"Preço fora do padrão: não entra na conta":""}"><td>${fmtD(x.dt)}</td><td>${cmpEsc(x.num)}</td><td>${cmpEsc(nomeFilial(x.fil))}</td><td>${cmpEsc(x.forn||"–")}</td>
+      <td class="r">${Number(x.qtd).toLocaleString("pt-BR")}</td><td class="r" style="font-weight:600">${fmtP(x.preco)}</td><td>${cmpEsc(x.comprador||"")}</td><td style="font-size:10px">${cmpEsc(x.st||"")}</td></tr>`).join("")+`</table>`;
+}
+
 // ── COMPARATIVO MENSAL ────────────────────────────────────────────────────────
 const MESES=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const STATUS_FORA=["Rejeitado pelo aprovador","PC Eliminado por Resíduo"];
@@ -1201,7 +1307,7 @@ function renderComparativo(){
 }
 function cmpClicaFilial(f){ cmpMarcaDd("fil",f,!CMP_DD.fil.sel.has(f)); }
 
-function renderAll(){renderSCs();renderPedidos();renderIndicadores();renderDetTable();}
+function renderAll(){renderSCs();renderPedidos();renderIndicadores();renderDetTable();renderPrecos();}
 document.addEventListener("DOMContentLoaded",carregar);
 </script>
 </body>
