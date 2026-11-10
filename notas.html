@@ -212,7 +212,7 @@ async function carregar(){
     let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
     if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
     sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;
-    ENT_PED={};((entr&&entr.data)||[]).forEach(x=>{if(x.entrega)ENT_PED[x.nfe_id]=x.entrega});
+    ENT_PED={};((entr&&entr.data)||[]).forEach(x=>{ENT_PED[x.nfe_id]=x});
     notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
     $('tag-sync').textContent=log&&log.atualizado_em?'NFe Master atualizado em '+new Date(log.atualizado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'sem registro de sync';
     montarFiltros();if(MODO_RECEB&&window._filialReceb&&(!FILIAIS_USUARIO||!FILIAIS_USUARIO.length||FILIAIS_USUARIO.includes(window._filialReceb))){msSet('f-filial',String(window._filialReceb).split(','))}agrupar();if(!MODO_RECEB&&!window._abaUrl){window._abaUrl=1;let a=new URLSearchParams(location.search).get('aba');if(a==='sla'||a==='forn'||a==='setor'){setAba(a);return}}render();
@@ -345,7 +345,7 @@ function render(){
   let l=notasFiltradas(),parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
   let todasMarcadas=parte.every(n=>sel.has(n.id));
-  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th>Pedido</th><th>Observação</th><th>Status</th></tr></thead><tbody>'+
+  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th title="Data em que o material chegou de verdade. Lead time = da emissão do pedido até a entrega real">Entrega real</th><th>Pedido</th><th>Observação</th><th>Status</th></tr></thead><tbody>'+
     parte.map(n=>{let s=setorDa(n),st=statusUnico(n);
       return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
         '<td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
@@ -353,8 +353,8 @@ function render(){
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+tagServ(n)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
         (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td>'+
-        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+pedTag(n)+'</div></td>'+
-        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlEntregaReal(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
 }
 // ── SLA de lançamento: emissão → pré-nota (almoxarifado, pelo NFe Master) → lançamento (fiscal classifica; D1_DTDIGIT) ──
@@ -493,7 +493,7 @@ function irSetor(i){let r=_gRows[i];if(!r)return;$('gtip').style.display='none';
 const MODO_RECEB=/recebimento/.test(location.pathname)||new URLSearchParams(location.search).get('modo')==='recebimento';
 let fluxo=null,abaReceb='chegar',ENT_PED={};
 // data de entrega: a que o Compras digitou ou, se não tiver, a data de entrega do pedido (Protheus)
-const entregaDe=n=>{let f=(fluxo&&fluxo[n.id])||{};return f.previsao_entrega||ENT_PED[n.id]||''};
+const entregaDe=n=>{let f=(fluxo&&fluxo[n.id])||{};return f.previsao_entrega||(ENT_PED[n.id]||{}).entrega||''};
 async function buscarFluxo(){
   let out={},de=0;
   for(;;){let{data,error}=await db.from('nfe_fluxo').select('*').range(de,de+999);
@@ -506,9 +506,22 @@ function htmlEntrega(n){
   let f=fluxo[n.id]||{};
   if(f.recebido_em)return '<span class="pill st-3" title="Recebida por '+esc(f.recebido_por||'')+'">✓ Recebida '+fmtData(f.recebido_em)+'</span>';
   if(f.recusado_em)return '<span class="pill st-C" title="Recusada por '+esc(f.recusado_por||'')+(f.motivo_recusa?': '+esc(f.motivo_recusa):'')+'">✕ Recusada '+fmtData(f.recusado_em)+'</span>'+(f.motivo_recusa?'<div class="herdado" style="max-width:160px">'+esc(f.motivo_recusa)+'</div>':'');
-  let doPed=!f.previsao_entrega&&!!ENT_PED[n.id],v=f.previsao_entrega||ENT_PED[n.id]||'',atr=v&&v<hojeIso();
-  return '<input type="date" class="inp-data'+(atr?' atrasada':'')+'" value="'+v+'" onchange="salvarEntrega(['+n.id+'],this.value,this)" title="'+(f.previsao_por?'Informada por '+esc(f.previsao_por):doPed?'Data de entrega do pedido no Protheus (pode trocar)':'Data que o fornecedor vai entregar')+'"'+(doPed?' style="color:#64748b"':'')+'>'+(doPed?'<div class="herdado">do pedido</div>':'')+(atr?'<div class="herdado" style="color:#dc2626">atrasada</div>':'');
+  let ep=(ENT_PED[n.id]||{}).entrega,doPed=!f.previsao_entrega&&!!ep,v=f.previsao_entrega||ep||'',atr=v&&v<hojeIso()&&!f.entrega_real;
+  return '<input type="date" class="inp-data'+(atr?' atrasada':'')+'" value="'+v+'" onchange="salvarEntrega(['+n.id+'],this.value,this)" title="'+(f.previsao_por?'Informada por '+esc(f.previsao_por):doPed?'Previsão de entrega do pedido (pedidos v2 do Protheus) — pode trocar':'Data que o fornecedor vai entregar')+'"'+(doPed?' style="color:#64748b"':'')+'>'+(doPed?'<div class="herdado">do pedido</div>':'')+(atr?'<div class="herdado" style="color:#dc2626">atrasada</div>':'');
 }
+// Entrega real (data em que chegou) e lead time = emissão do pedido → entrega real; atraso = entrega real − previsão
+const _diasEnt=(a,b)=>Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5);
+function htmlEntregaReal(n){
+  if(!fluxo)return '<span class="herdado">—</span>';
+  let f=fluxo[n.id]||{},rec=f.recebido_em?String(f.recebido_em).slice(0,10):'',v=f.entrega_real||'',auto=!v&&rec?rec:'',real=v||auto;
+  let ped=ENT_PED[n.id]||{},emi=ped.pc_emissao?String(ped.pc_emissao).slice(0,10):'',prev=f.previsao_entrega||(ped.entrega?String(ped.entrega).slice(0,10):'');
+  let info='';
+  if(real&&emi)info+='<div class="herdado" title="Da emissão do pedido ('+fmtData(emi+'T12:00')+') até a entrega real"><b>Lead time '+_diasEnt(emi,real)+' d</b></div>';
+  if(real&&prev){let a=_diasEnt(prev,real);info+='<div class="herdado" style="color:'+(a>0?'#dc2626':'#16a34a')+'">'+(a>0?a+' d de atraso':a<0?(-a)+' d adiantado':'no dia')+'</div>'}
+  if(auto)info+='<div class="herdado">do recebimento</div>';
+  return '<input type="date" class="inp-data" value="'+real+'" onchange="salvarEntregaReal(['+n.id+'],this.value,this)" title="Data em que o material chegou"'+(auto?' style="color:#64748b"':'')+'>'+info;
+}
+function salvarEntregaReal(ids,data,el){return salvarFluxo(ids,{entrega_real:data||null,entrega_real_por:userEmail||null,atualizado_em:new Date().toISOString()},el)}
 // campos de texto do Compras (nº do pedido e observação): salvam ao sair do campo
 function htmlCampoFluxo(n,campo,ph,larg){
   if(!fluxo)return '<span class="herdado">—</span>';
@@ -578,7 +591,7 @@ function renderReceb(){
         acao='<button class="btn-atualizar" style="font-size:12px;padding:5px 10px" onclick="desfazerRecusa('+n.id+',this)">Desfazer</button>'}
       return '<tr><td>'+c1+'</td><td style="font-weight:600">'+esc(n.filial||'—')+'</td><td>'+fmtData(n.emissao)+'</td>'+
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens">'+esc(n.numero)+tagServ(n)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
-        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+pedTag(n)+'</div></td>'+
+        '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
         '<td>'+(setorDa(n).setor?'<span class="pill tag-setor" style="margin:0">'+esc(setorDa(n).setor)+'</span>':'<span class="herdado">—</span>')+'</td>'+
         '<td style="font-family:ui-monospace,monospace">'+esc(f.pedido||n.pedido_cliente||'—')+(!f.pedido&&n.pedido_cliente?'<div class="cnpj" title="Pedido do cliente escrito no rodapé da nota">do rodapé</div>':'')+'</td><td style="font-size:12px;max-width:220px">'+esc(f.obs_compras||'')+'</td>'+
         '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+acao+'</td></tr>'}).join('')+'</tbody></table>';

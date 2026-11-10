@@ -85,3 +85,14 @@ language sql stable security definer set search_path = public as $$
 $$;
 grant execute on function public.nfe_entregas() to authenticated;
 -- DESFAZER: drop function if exists public.nfe_entregas();
+
+-- ── Previsão de entrega pela sc_pedidos_v2 + entrega real (11/11, aplicado) ──────────────
+alter table public.nfe_fluxo add column if not exists entrega_real date, add column if not exists entrega_real_por text;
+-- mv_ped_entrega: por pedido + filial, última data de entrega dos itens (sc_pedidos_v2), emissão e aprovação;
+-- sem o pedido na v2, usa a tabela pedidos. Atualizada pelo atualizar_nfe_sd1() (fim dos syncs de notas/entradas).
+-- nfe_entregas(): (nfe_id, pedido, entrega, pc_emissao, pc_aprovacao) lida pela tela de Notas.
+-- (definições completas aplicadas no banco em 11/11; ver histórico do chat/PR)
+-- DESFAZER:
+-- create or replace function public.atualizar_nfe_sd1() returns void language sql security definer set search_path = public as $$ refresh materialized view concurrently public.mv_nfe_sd1 $$;
+-- drop function if exists public.nfe_entregas(); drop materialized view if exists public.mv_ped_entrega;
+-- alter table public.nfe_fluxo drop column entrega_real, drop column entrega_real_por;
