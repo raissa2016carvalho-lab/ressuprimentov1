@@ -284,17 +284,17 @@ canvas{max-height:220px}
   <!-- filtros específicos do detalhamento -->
   <div style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <span class="fl">Cód. SC</span>
-    <input class="sbox" id="s-det-sc" placeholder="Ex: 000071" oninput="renderDetTable()" style="width:120px;margin:0">
+    <input class="sbox" id="s-det-sc" placeholder="Ex: 000071" oninput="detBusca()" style="width:120px;margin:0">
     <span class="fl">Cód. Pedido</span>
-    <input class="sbox" id="s-det-ped" placeholder="Ex: 275144" oninput="renderDetTable()" style="width:120px;margin:0">
+    <input class="sbox" id="s-det-ped" placeholder="Ex: 275144" oninput="detBusca()" style="width:120px;margin:0">
     <span class="fl">Busca Geral</span>
-    <input class="sbox" id="s-det" placeholder="Filial, descrição, observação..." oninput="renderDetTable()" style="width:220px;margin:0">
+    <input class="sbox" id="s-det" placeholder="Filial, descrição, observação..." oninput="detBusca()" style="width:220px;margin:0">
     <span class="fl">Status SC</span>
-    <select id="f-det-status-sc" onchange="renderDetTable()" style="font-size:11px;padding:5px 8px">
+    <select id="f-det-status-sc" onchange="detPg=1;renderDetTable()" style="font-size:11px;padding:5px 8px">
       <option value="">Todos</option>
     </select>
     <span class="fl">Status Pedido</span>
-    <select id="f-det-status-ped" onchange="renderDetTable()" style="font-size:11px;padding:5px 8px">
+    <select id="f-det-status-ped" onchange="detPg=1;renderDetTable()" style="font-size:11px;padding:5px 8px">
       <option value="">Todos</option>
     </select>
     <span id="det-count" style="font-size:11px;color:var(--muted);margin-left:8px;white-space:nowrap"></span>
@@ -431,7 +431,7 @@ const H = {"apikey":SUPA_ANON,"Authorization":"Bearer "+SUPA_ANON};
 const PAL = ['#1e40af','#f26522','#16a34a','#dc2626','#7c3aed','#0891b2','#ca8a04','#be185d','#059669','#9333ea'];
 const PER = 20;
 
-let ALL_SC=[], ALL_PED=[], ALL_DET=[], FILIAIS={}, fSC=[], fPed=[], fDet=[], scPg=1, pedPg=1, detPg=1;
+let FILIAIS={}, fSC=[], fPed=[], scPg=1, pedPg=1, detPg=1;
 const CH={};
 
 function setProgresso(pct,msg){
@@ -496,7 +496,7 @@ async function rpc(fn, args){
   }
   throw new Error("banco ocupado em "+fn);
 }
-let RES=null, BRUTO=false, OPC=null;
+let RES=null, OPC=null;
 async function carregar(){
   setProgresso(10,"Carregando filiais...");
   try{
@@ -515,25 +515,6 @@ async function carregar(){
   }
 }
 // Base inteira (SCs + pedidos): só para Detalhamento e Comparativo, na 1ª vez que uma dessas abas é aberta
-async function carregarBruto(){
-  if(BRUTO) return;
-  const ov=document.getElementById("loading-overlay");ov.style.display="";
-  try{
-    setProgresso(5,"Carregando SCs (Detalhamento/Comparativo)...");
-    ALL_SC = await sbGet("scs",
-      "C1_NUM,C1_ITEM,C1_FILIAL,C1_EMISSAO,C1_YDTAPRO,C1_XTIPOSC,C1_GRPRD,C1_SOLICIT,C1_CC,C1_NOMAPRO,C1_DESCRI,C1_QUANT,C1_OBS,STATUS_DESC,tipo_sc,comprador,temp_atendimento,pedido_num,pedido_preco,pedido_total",
-      (n)=>setProgresso(5+Math.min(n/110000*45,45),"Carregando SCs... "+n.toLocaleString("pt-BR")), "", "C1_NUM,C1_ITEM,C1_FILIAL");
-    setProgresso(50,"Carregando Pedidos...");
-    ALL_PED = await sbGet("pedidos",
-      "C7_NUM,C7_FILIAL,DESC_FILIAL,C7_GRPPROD,DESC_GRPPROD,C7_COMPRADOR,FORNECEDOR,COND_PAG,EMISSAO_PEDIDO,APROVACAO_PEDIDO,ENTREGA_PEDIDO,EMISSAO_NOTA,STATUS_PEDIDO,C7_NUMSC,TIPO_SC,TIPO_PEDIDO,STATUS_SC,C7_CC,C7_TOTAL,QTD_ITENS,SEM_SC,cond_pag_30,Comp,leadtime_dias,tempo_pagamento",
-      (n)=>setProgresso(50+Math.min(n/30000*48,48),"Carregando Pedidos... "+n.toLocaleString("pt-BR")), "", "C7_NUM,C7_FILIAL");
-    BRUTO=true;
-    buildDetalhamento();
-    if(AVISOS.length) document.getElementById("last-update").innerHTML+='<br><span style="color:#fca5a5">⚠ Dados incompletos ('+AVISOS.join("; ")+'). Recarregue a página.</span>';
-    setProgresso(100,"Pronto!");
-  }finally{ setTimeout(()=>{ov.style.display="none";},300); }
-}
-
 function nomeFilial(cod, desc){
   if(desc && desc.trim()) return desc.trim();
   if(!cod) return "–";
@@ -591,9 +572,6 @@ async function showScreen(n,btn,title){
   btn.classList.add("active");
   document.getElementById("tela-title").textContent=title;
   document.querySelector(".filters").style.display = n==="comparativo" ? "none" : "";
-  if(n==="detalhamento"&&!BRUTO){
-    try{ await carregarBruto(); }catch(e){ alert("Não consegui carregar a base: "+e.message); return; }
-  }
   if(n==="comparativo") renderComparativo();
   if(n==="detalhamento") renderDetTable();
 }
@@ -882,82 +860,35 @@ function renderPag(id,pages,current,cb){
 }
 
 // ── DETALHAMENTO SC × PEDIDO ─────────────────────────────────────────────────
-function buildDetalhamento(){
-  // Mapa de pedidos por C7_NUMSC
-  // amarração SC × pedido: nº da SC + filial (o mesmo nº de SC existe em filiais diferentes)
-  const pedMap={};
-  ALL_PED.forEach(r=>{
-    const k=(r.C7_NUMSC||"").trim();
-    if(k) pedMap[k+"|"+String(r.C7_FILIAL||"").trim()]=r;
-  });
-
-  // Junta SCs com pedido vinculado
-  ALL_DET = ALL_SC.map(sc=>{
-    const ped = pedMap[(sc.C1_NUM||"").trim()+"|"+String(sc.C1_FILIAL||"").trim()] || null;
-    return {
-      filial:     nomeFilial(sc.C1_FILIAL),
-      filial_cod: sc.C1_FILIAL,
-      grupo:      sc.C1_GRPRD,
-      num_sc:    sc.C1_NUM,
-      emissao_sc: sc.C1_EMISSAO,
-      aprov_sc:  sc.C1_YDTAPRO,
-      descricao: sc.C1_DESCRI || "–",
-      obs:       sc.C1_OBS || "",
-      quant:     sc.C1_QUANT,
-      status_sc: sc.STATUS_DESC || "–",
-      num_ped:   sc.pedido_num || (ped ? ped.C7_NUM : "–"),
-      emissao_ped: ped ? ped.EMISSAO_PEDIDO : null,
-      status_ped: ped ? (ped.STATUS_PEDIDO||"–") : (sc.pedido_num ? "–" : "SEM PEDIDO"),
-      valor:     sc.pedido_total || 0,
-      comprador: sc.comprador,
-      tipo:      sc.tipo_sc
-    };
-  });
-
-  // popular filtros de status
-  const sscs=[...new Set(ALL_DET.map(r=>r.status_sc))].filter(Boolean).sort();
-  const speds=[...new Set(ALL_DET.map(r=>r.status_ped))].filter(Boolean).sort();
-  const fss=document.getElementById("f-det-status-sc");
-  const fsp=document.getElementById("f-det-status-ped");
-  fss.innerHTML='<option value="">Status SC — Todos</option>'+sscs.map(s=>`<option value="${s}">${s}</option>`).join("");
-  fsp.innerHTML='<option value="">Status Pedido — Todos</option>'+speds.map(s=>`<option value="${s}">${s}</option>`).join("");
+// ── DETALHAMENTO (SC × pedido): filtros, página e indicadores calculados no banco (compras_det) ─────
+let DET_OPC=false, DET_T=null, DET_REQ=0;
+function detBusca(){ clearTimeout(DET_T); DET_T=setTimeout(()=>{ detPg=1; renderDetTable(); },400); }
+async function detCarregarOpcoes(){
+  if(DET_OPC) return; DET_OPC=true;
+  try{
+    const o=await rpc("compras_det_opcoes",{});
+    const fss=document.getElementById("f-det-status-sc"), fsp=document.getElementById("f-det-status-ped");
+    fss.innerHTML='<option value="">Status SC — Todos</option>'+(o.status_sc||[]).map(v=>`<option value="${cmpEsc(v)}">${cmpEsc(v)}</option>`).join("");
+    fsp.innerHTML='<option value="">Status Pedido — Todos</option>'+(o.status_ped||[]).map(v=>`<option value="${cmpEsc(v)}">${cmpEsc(v)}</option>`).join("");
+  }catch(e){ DET_OPC=false; }
 }
-
-function renderDetTable(){
-  const q    =(document.getElementById("s-det")||{value:""}).value.toLowerCase();
-  const qSC  =(document.getElementById("s-det-sc")||{value:""}).value.trim().toLowerCase();
-  const qPed =(document.getElementById("s-det-ped")||{value:""}).value.trim().toLowerCase();
-  const ssc  =(document.getElementById("f-det-status-sc")||{value:""}).value;
-  const sped =(document.getElementById("f-det-status-ped")||{value:""}).value;
-  const ini  =document.getElementById("f-ini").value;
-  const fim  =document.getElementById("f-fim").value;
-  const comp =document.getElementById("f-comp").value;
-  const grp  =document.getElementById("f-grp").value;
-  const fil  =document.getElementById("f-filial").value;
-
-  fDet = ALL_DET.filter(r=>{
-    const d=normDate(r.emissao_sc);
-    if(ini&&d&&d<ini) return false;
-    if(fim&&d&&d>fim) return false;
-    if(comp&&r.comprador!==comp) return false;
-    if(grp&&r.grupo!==grp) return false;
-    if(fil&&(r.filial_cod||"").trim()!==String(fil).trim()) return false;
-    if(ssc&&r.status_sc!==ssc) return false;
-    if(sped&&r.status_ped!==sped) return false;
-    if(qSC&&!(r.num_sc||"").toLowerCase().includes(qSC)) return false;
-    if(qPed&&!(r.num_ped||"").toLowerCase().includes(qPed)) return false;
-    if(q&&!(
-      (r.filial||"").toLowerCase().includes(q)||
-      (r.descricao||"").toLowerCase().includes(q)||
-      (r.obs||"").toLowerCase().includes(q)||
-      (r.comprador||"").toLowerCase().includes(q)
-    )) return false;
-    return true;
-  });
-
-  const pages=Math.ceil(fDet.length/PER); if(detPg>pages)detPg=1;
-  const slice=fDet.slice((detPg-1)*PER,detPg*PER);
-
+async function renderDetTable(){
+  if(!document.getElementById("screen-detalhamento").classList.contains("active")) return;
+  detCarregarOpcoes();
+  const v=id=>{ const e=document.getElementById(id); return e&&e.value.trim()?e.value.trim():null; };
+  const f=filtrosAtuais();
+  const args={p_ini:f.p_ini,p_fim:f.p_fim,p_comp:f.p_comp,p_grp:f.p_grp,p_fil:f.p_fil,
+    p_ssc:v("f-det-status-sc"),p_sped:v("f-det-status-ped"),p_qsc:v("s-det-sc"),p_qped:v("s-det-ped"),p_q:v("s-det"),
+    p_off:(detPg-1)*PER,p_lim:PER};
+  const req=++DET_REQ;
+  document.getElementById("det-count").textContent="Carregando...";
+  let res;
+  try{ res=await rpc("compras_det",args); }
+  catch(e){ if(req===DET_REQ) document.getElementById("det-count").textContent="Erro: "+e.message; return; }
+  if(req!==DET_REQ) return;            // chegou uma busca mais nova
+  const total=+res.total||0, totalVal=+res.valor||0, k=res.k||{}, slice=res.rows||[];
+  const pages=Math.max(1,Math.ceil(total/PER));
+  if(detPg>pages){ detPg=1; return renderDetTable(); }
   const stSCcor={
     "Solicitação Totalmente Atendida":"#d1fae5;color:#065f46",
     "Solicitação Pendente":"#fef3c7;color:#92400e",
@@ -976,12 +907,12 @@ function renderDetTable(){
                     r.status_ped==="Pendente"?"#fef3c7;color:#92400e":
                     "#f3f4f6;color:#374151";
     return `<tr>
-      <td style="white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis">${r.filial}</td>
+      <td style="white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis">${cmpEsc(nomeFilial(r.filial_cod,r.filial))}</td>
       <td style="font-weight:600;color:var(--orange)">${r.num_sc||"–"}</td>
       <td>${fmtD(r.emissao_sc)}</td>
       <td>${fmtD(r.aprov_sc)}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${r.descricao}">${r.descricao}</td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11px" title="${r.obs}">${r.obs||"–"}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${cmpEsc(r.descricao||"")}">${cmpEsc(r.descricao||"–")}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11px" title="${cmpEsc(r.obs||"")}">${cmpEsc(r.obs||"–")}</td>
       <td class="r">${r.quant!=null?Number(r.quant).toLocaleString("pt-BR"):"–"}</td>
       <td><span style="display:inline-block;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;background:${sscStyle.split(";")[0]};${sscStyle.split(";")[1]}">${r.status_sc}</span></td>
       <td style="font-weight:600;color:var(--blue)">${r.num_ped}</td>
@@ -993,19 +924,11 @@ function renderDetTable(){
     </tr>`;
   }).join("");
 
-  const total=fDet.length;
-  const totalVal=fDet.reduce((a,r)=>a+(r.valor||0),0);
   document.getElementById("det-count").textContent=`${total.toLocaleString("pt-BR")} registros · ${fmtM(totalVal)}`;
 
   // KPIs de atendimento
-  const atend  = fDet.filter(r=>(r.status_sc||"").includes("Totalmente Atendida")).length;
-  const parcial= fDet.filter(r=>(r.status_sc||"").includes("Parcialmente")).length;
-  const pend   = fDet.filter(r=>(r.status_sc||"").includes("Pendente")).length;
-  const bloq   = fDet.filter(r=>(r.status_sc||"").includes("Bloqueada")).length;
-  const rej    = fDet.filter(r=>(r.status_sc||"").toLowerCase().includes("rejeitada")||(r.status_sc||"").includes("Rejeitada pelo Compras")).length;
-  const elim   = fDet.filter(r=>(r.status_sc||"").includes("Resíduo")).length;
-  const semPed = fDet.filter(r=>r.status_ped==="SEM PEDIDO").length;
-  const recebido=fDet.filter(r=>(r.status_ped||"").includes("Recebido")).length;
+  const atend=+k.atend||0, parcial=+k.parcial||0, pend=+k.pend||0, bloq=+k.bloq||0, rej=+k.rej||0, elim=+k.elim||0,
+        semPed=+k.semped||0, recebido=+k.recebido||0;
 
   const base   = total - rej - elim;
   const pctAtend = base>0?((atend/base)*100):0;
@@ -1278,7 +1201,7 @@ function renderComparativo(){
 }
 function cmpClicaFilial(f){ cmpMarcaDd("fil",f,!CMP_DD.fil.sel.has(f)); }
 
-function renderAll(){renderSCs();renderPedidos();renderIndicadores();}
+function renderAll(){renderSCs();renderPedidos();renderIndicadores();renderDetTable();}
 document.addEventListener("DOMContentLoaded",carregar);
 </script>
 </body>
