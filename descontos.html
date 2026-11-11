@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Descontos de EPI</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<link rel="stylesheet" href="/padrao.css"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--bq-fonte);background:var(--bq-fundo);color:var(--bq-texto);min-height:100vh}
+body.bq-trancado>*:not(#tela-login){display:none!important}
+.lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
+.lg-inp{width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
+.topo-dir{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:12px;color:#94a3b8}
+.btn-sair{background:transparent;border:1px solid #334155;color:#cbd5e1;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+.corpo{max-width:1500px;margin:0 auto;padding:16px 20px 40px}
+.filtros{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.f{display:flex;flex-direction:column;gap:4px}.f label{font-size:11px;font-weight:600;color:#64748b}
+.inp{border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;background:#fff}
+.inp:focus{border-color:#1e40af}
+.btn{background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn:hover{border-color:#1e40af;color:#1e40af}
+.kpis{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.kpis div{flex:1;min-width:140px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;font-size:11.5px;color:#64748b}
+.kpis b{display:block;font-size:19px;color:#0f172a;margin-top:2px}
+.tab{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:auto;max-height:calc(100vh - 290px)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{position:sticky;top:0;background:#f8fafc;text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;padding:8px;font-size:11px;font-weight:600;white-space:nowrap;z-index:1}
+td{border-bottom:1px solid #f1f5f9;padding:7px 8px;vertical-align:middle}
+.n{text-align:right;font-family:ui-monospace,monospace;white-space:nowrap}
+.cz{color:#94a3b8;font-size:11px}
+tr.abonar td{background:#f0fdf4}tr.descontar td{background:#fff7ed}
+.dec{display:flex;gap:4px}
+.dec button{border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:5px 9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;color:#64748b;white-space:nowrap}
+.dec button.on-ab{background:#16a34a;border-color:#16a34a;color:#fff}
+.dec button.on-de{background:#ea580c;border-color:#ea580c;color:#fff}
+.barra{height:6px;background:#f1f5f9;border-radius:99px;overflow:hidden;width:70px;display:inline-block;vertical-align:middle;margin-left:6px}
+.barra i{display:block;height:100%;background:#ea580c}
+.vazio{text-align:center;color:#64748b;padding:30px;font-size:13px}
+.aviso{background:#fef3c7;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:12px}
+.graf{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:12px;margin-bottom:12px}
+.gcard{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px}
+.gcard h3{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:2px}.gcard p{font-size:11.5px;color:#64748b;margin-bottom:8px}
+.gcard .cv{position:relative;height:260px}.gcard.largo{grid-column:1/-1}
+.gleg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:#475569;margin-bottom:6px}.gleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+</style>
+<body class="bq-trancado">
+
+<div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
+  <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px">
+    <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
+    <h1 style="margin:0 0 4px;font-size:16px">Descontos de EPI</h1>
+    <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
+    <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
+    <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <div id="lg-msg" style="color:#991b1b;background:#fee2e2;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:12px;display:none"></div>
+    <button id="lg-btn" onclick="entrar()" style="width:100%;background:#1e40af;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+    <a class="bq-login-voltar" href="/los.html">← Voltar ao menu de sistemas</a>
+  </div>
+</div>
+
+<div class="bq-topo">
+  <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
+  <div><h1>Descontos de EPI</h1><div class="bq-sub">Material retirado antes do fim da vida útil — abonar ou descontar, por período da folha (21 a 20)</div></div>
+  <div class="topo-dir"><span id="user-email"></span><button class="btn-sair" onclick="sair()">Sair</button></div>
+</div>
+
+<div class="corpo">
+  <div class="filtros">
+    <div class="f"><label>Período da folha</label><select id="f-per" class="inp" onchange="carregar()"></select></div>
+    <div class="f"><label>Filial</label><select id="f-fil" class="inp" onchange="desenhar()"><option value="">Todas</option></select></div>
+    <div class="f"><label>Centro de custo</label><select id="f-cc" class="inp" onchange="desenhar()" style="max-width:260px"><option value="">Todos</option></select></div>
+    <div class="f"><label>Decisão</label><select id="f-dec" class="inp" onchange="desenhar()"><option value="">Todas</option><option value="pend">Pendentes</option><option value="descontar">Descontar</option><option value="abonar">Abonar</option></select></div>
+    <div class="f" style="flex:1;min-width:200px"><label>Buscar</label><input id="f-q" class="inp" placeholder="Nome, matrícula, SA ou produto..." oninput="desenhar()"></div>
+    <div class="f"><label>&nbsp;</label><div style="display:flex;gap:6px" id="btns-massa">
+ <button class="btn" onclick="emMassa('descontar')" title="Marca DESCONTAR em todos os pendentes da lista filtrada">Descontar pendentes</button>
+      <button class="btn" onclick="emMassa('abonar')" title="Marca ABONAR em todos os pendentes da lista filtrada">Abonar pendentes</button></div></div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+    <button class="btn" id="bt-lista" onclick="VISAO='lista';desenhar()">📋 Lista</button>
+    <button class="btn" id="bt-analise" onclick="VISAO='analise';desenhar()">📊 Análise e gráficos</button>
+    <span style="flex:1"></span>
+    <button class="btn" onclick="exportar()" title="Arquivo para importar no Protheus: um CSV por centro de custo (com um CC escolhido no filtro, baixa só o dele)">⬇ Arquivo para o Protheus</button>
+  </div>
+  <div id="aviso"></div>
+  <div class="kpis" id="kpis"></div>
+  <div id="analise" style="display:none"></div>
+  <div class="tab" id="caixa-lista"><table>
+    <thead><tr>
+      <th>Emissão</th><th>SA</th><th>Fil.</th><th>Matrícula</th><th>Nome</th><th>Produto</th>
+      <th class="n" title="Vida útil do material, em dias">Vida útil</th><th class="n" title="Quanto faltava da vida útil quando trocou">Faltava</th>
+      <th title="Quanto da vida útil ainda faltava">% faltava</th><th class="n">Custo do material</th><th class="n">Desconto</th>
+      <th>Observação da SA</th><th>Resposta do gerente</th><th>Decisão final</th>
+    </tr></thead>
+    <tbody id="tb"><tr><td colspan="14" class="vazio">Carregando...</td></tr></tbody>
+  </table></div>
+</div>
+
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD=d=>d?new Date(String(d).slice(0,10)+'T12:00').toLocaleDateString('pt-BR'):'–';
+const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+let userEmail='',isAdmin=false,MEUS_CC=null,DADOS=[],DEC={},NOME_CC={},ULT_FECHADO=null,FECHADO=false,VISAO='lista',GER_CC={};
+const MOTIVO={'1':'Perda','2':'Roubo','3':'Desgaste','4':'Defeito','5':'Admissional','6':'Mal uso','7':'Manutenção','8':'Transferência','9':'Consumo','A':'Mobilização','C':'Complementação'};
+// Período fechado = já foi integrado na folha: no Protheus, ZZA_INTEG = S (descontado) ou N (abonado).
+// O último dia com desconto integrado (S) marca o fim dos fechados; o período em aberto é o seguinte.
+
+// períodos da folha: do dia 21 de um mês ao dia 20 do seguinte (o atual primeiro)
+function periodos(){
+  let h=new Date(),y=h.getFullYear(),m=h.getMonth();   // fim do período atual: dia 20 deste mês (até o dia 20) ou do próximo
+  if(h.getDate()>20){m++;if(m>11){m=0;y++}}
+  let out=[];
+  for(let k=0;k<14;k++){
+    let fy=y,fm=m-k;while(fm<0){fm+=12;fy--}
+    let iy=fy,im=fm-1;if(im<0){im=11;iy--}
+    let ini=`${iy}-${String(im+1).padStart(2,'0')}-21`,fim=`${fy}-${String(fm+1).padStart(2,'0')}-20`;
+    out.push({ini,fim,rot:`21 ${MESES[im]}/${String(iy).slice(2)} a 20 ${MESES[fm]}/${String(fy).slice(2)}`});
+  }
+  return out;
+}
+async function todas(q){let out=[];for(let o=0;;o+=1000){let{data,error}=await q().range(o,o+999);if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break}return out}
+
+async function carregar(){
+  $('tb').innerHTML='<tr><td colspan="14" class="vazio">Carregando os descontos...</td></tr>';
+  let [ini,fim]=$('f-per').value.split('|');
+  FECHADO=!!(ULT_FECHADO&&fim<=ULT_FECHADO);
+  $('btns-massa').style.display=FECHADO?'none':'flex';
+  try{
+    DADOS=await todas(()=>{let q=db.from('descontos_epi').select('*').gte('datinc',ini).lte('datinc',fim).order('datinc').order('nome');if(MEUS_CC)q=q.in('cc',MEUS_CC);return q});
+    DEC={};let ch=DADOS.map(d=>d.chave);
+    for(let i=0;i<ch.length;i+=200){let{data}=await db.from('descontos_decisao').select('*').in('chave',ch.slice(i,i+200));(data||[]).forEach(x=>DEC[x.chave]=x)}
+  }catch(e){$('tb').innerHTML='<tr><td colspan="14" class="vazio">Não consegui carregar: '+esc(e.message||e)+'</td></tr>';return}
+  // filtros de filial e CC com o que veio no período
+  let fs=$('f-fil'),fc=$('f-cc'),vf=fs.value,vc=fc.value;
+  fs.innerHTML='<option value="">Todas</option>'+[...new Set(DADOS.map(d=>d.filial))].sort().map(f=>`<option>${esc(f)}</option>`).join('');
+  let ccs={};DADOS.forEach(d=>{if(d.cc)ccs[d.cc]=NOME_CC[d.cc]||d.desc_cc||''});
+  fc.innerHTML='<option value="">Todos</option>'+Object.keys(ccs).sort().map(c=>`<option value="${esc(c)}">${esc(c)}${ccs[c]?' — '+esc(ccs[c]):''}</option>`).join('');
+  fs.value=vf;fc.value=vc;
+  $('aviso').innerHTML=!DADOS.length?'<div class="aviso">Nenhum desconto neste período. Se for o primeiro uso, rode o <b>sync_descontos_epi.py</b> no seu PC.</div>'
+    :FECHADO?'<div class="aviso" style="background:#f1f5f9;color:#475569">🔒 Período fechado: já foi integrado na folha. <b>Descontado</b> = S no Protheus · <b>Abonado</b> = N. Só consulta.</div>':'';
+  desenhar();
+}
+const decDe=d=>FECHADO?(d.integrado==='S'?'descontar':'abonar'):((DEC[d.chave]||{}).decisao||(DEC[d.chave]||{}).gerente_decisao||'');
+const faltaPct=d=>Number(d.valor)>0?Math.min(1,Math.max(0,(Number(d.valor_desconto)||0)/Number(d.valor))):null;
+function filtrados(){
+  let f=$('f-fil').value,c=$('f-cc').value,dc=$('f-dec').value,q=$('f-q').value.toLowerCase().trim();
+  return DADOS.filter(d=>{
+    let de=decDe(d);
+    if(f&&d.filial!==f)return false; if(c&&d.cc!==c)return false;
+    if(dc==='pend'&&de)return false; if(dc&&dc!=='pend'&&de!==dc)return false;
+    if(q&&![d.nome,d.matricula,d.sa,d.produto,d.descricao].some(x=>String(x||'').toLowerCase().includes(q)))return false;
+    return true});
+}
+function desenhar(){
+  $('bt-lista').style.borderColor=VISAO==='lista'?'#1e40af':'';$('bt-analise').style.borderColor=VISAO==='analise'?'#1e40af':'';
+  $('caixa-lista').style.display=VISAO==='lista'?'':'none';$('analise').style.display=VISAO==='analise'?'':'none';
+  let L=filtrados();
+  if(VISAO==='analise'){desenharKpis(L);return desenharAnalise(L)}
+  desenharKpis(L);desenharLista(L);
+}
+function desenharKpis(L){
+  let tot=L.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0),mat=L.reduce((s,d)=>s+(Number(d.valor)||0),0);
+  let dsc=L.filter(d=>decDe(d)==='descontar'),ab=L.filter(d=>decDe(d)==='abonar'),pe=L.filter(d=>!decDe(d));
+  let soma=a=>a.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0);
+  $('kpis').innerHTML=`
+    <div>Descontos no período<b>${L.length.toLocaleString('pt-BR')}</b>${new Set(L.map(d=>d.matricula)).size} funcionário(s)</div>
+    <div>Custo do material<b>${fmtR(mat)}</b></div>
+    <div>Total de desconto<b>${fmtR(tot)}</b></div>
+    <div>${FECHADO?'Descontado na folha':'A descontar'}<b style="color:#ea580c">${fmtR(soma(dsc))}</b>${dsc.length} item(ns)</div>
+    <div>Abonado<b style="color:#16a34a">${fmtR(soma(ab))}</b>${ab.length} item(ns)</div>
+    <div>Pendentes de decisão<b>${pe.length}</b>${fmtR(soma(pe))}</div>`;
+}
+function desenharLista(L){
+  $('tb').innerHTML=L.map(d=>{
+    let dc=DEC[d.chave]||{},de=decDe(d),p=faltaPct(d),falta=p!=null&&d.vida_util!=null?Math.round(p*Number(d.vida_util)):null;
+    return `<tr class="${de}" id="l-${esc(d.chave)}">
+      <td>${fmtD(d.emissao)}</td><td style="font-family:ui-monospace,monospace">${esc(d.sa)}</td><td>${esc(d.filial)}</td>
+      <td style="font-family:ui-monospace,monospace">${esc(d.matricula)}</td>
+      <td><div style="font-weight:600">${esc(d.nome||'(sem nome)')}</div><div class="cz">${esc(d.funcao||'')}</div></td>
+      <td><div>${esc(d.descricao||'')}</div><div class="cz">${esc(d.produto)}${Number(d.quantidade)>1?' · qtd '+Number(d.quantidade).toLocaleString('pt-BR'):''}</div></td>
+      <td class="n">${d.vida_util!=null?Number(d.vida_util).toLocaleString('pt-BR')+' d':'–'}</td>
+      <td class="n">${falta!=null?falta+' d':'–'}</td>
+      <td style="white-space:nowrap">${p!=null?Math.round(p*100)+'%':'–'}${p!=null?`<span class="barra"><i style="width:${Math.round(p*100)}%"></i></span>`:''}</td>
+      <td class="n">${fmtR(d.valor)}</td><td class="n" style="font-weight:700">${fmtR(d.valor_desconto)}</td>
+      <td style="max-width:220px;font-size:11.5px">${esc(d.observacao||'')}${d.motivo?`<div class="cz">${esc(MOTIVO[d.motivo]||'motivo '+d.motivo)}</div>`:''}</td>
+      <td style="font-size:11.5px;max-width:170px">${dc.gerente_decisao?`<b style="color:${dc.gerente_decisao==='abonar'?'#16a34a':'#ea580c'}">${dc.gerente_decisao==='abonar'?'Abonar':'Descontar'}</b><div class="cz">${esc(String(dc.gerente_por||'').split('@')[0])} · ${fmtD(dc.gerente_em)}</div>${dc.gerente_obs?`<div style="color:#475569">“${esc(dc.gerente_obs)}”</div>`:''}`:'<span class="cz">aguardando</span>'}</td>
+      <td>${FECHADO?`<span class="dec"><button class="${de==='abonar'?'on-ab':'on-de'}" disabled title="Período fechado: ${d.integrado==='S'?'descontado e integrado na folha (S)':'abonado (N)'}">${de==='abonar'?'Abonado':'Descontado'}</button></span>`:
+        `<div class="dec"><button class="${de==='abonar'?'on-ab':''}" onclick="decidir('${esc(d.chave)}','abonar')">Abonar</button><button class="${de==='descontar'?'on-de':''}" onclick="decidir('${esc(d.chave)}','descontar')">Descontar</button></div>`}
+        ${!FECHADO&&!dc.decisao&&dc.gerente_decisao?'<div class="cz">pela resposta do gerente</div>':''}
+        ${!FECHADO&&dc.decidido_por&&dc.decisao?`<div class="cz" title="${esc(dc.decidido_por)}">${esc(String(dc.decidido_por).split('@')[0])} · ${fmtD(dc.decidido_em)}</div>`:''}</td>
+    </tr>`}).join('')||'<tr><td colspan="14" class="vazio">Nenhum desconto com esses filtros.</td></tr>';
+}
+// ── Análise: por gerente (pelo cadastro de gerentes × CC) e por centro de custo ──
+function desenharAnalise(L){
+  let soma=a=>a.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0);
+  let lin=(nome,a)=>{let g=a.filter(d=>(DEC[d.chave]||{}).gerente_decisao),ab=a.filter(d=>(DEC[d.chave]||{}).gerente_decisao==='abonar'),de=a.filter(d=>(DEC[d.chave]||{}).gerente_decisao==='descontar'),
+      fa=a.filter(d=>decDe(d)==='abonar'),fd=a.filter(d=>decDe(d)==='descontar');
+    return `<tr><td style="font-weight:600">${nome}</td><td class="n">${a.length}</td><td class="n">${fmtR(soma(a))}</td>
+      <td class="n">${g.length} <span class="cz">(${a.length?Math.round(g.length/a.length*100):0}%)</span></td>
+      <td class="n" style="color:#16a34a">${ab.length} · ${fmtR(soma(ab))}</td><td class="n" style="color:#ea580c">${de.length} · ${fmtR(soma(de))}</td>
+      <td class="n">${g.length?Math.round(ab.length/g.length*100)+'%':'–'}</td><td class="n">${a.length-g.length}</td>
+      <td class="n" style="color:#16a34a">${fmtR(soma(fa))}</td><td class="n" style="color:#ea580c">${fmtR(soma(fd))}</td></tr>`};
+  let cab=`<tr><th></th><th class="n">Descontos</th><th class="n">Valor</th><th class="n">Gerente respondeu</th><th class="n">Gerente abonou</th><th class="n">Gerente descontou</th><th class="n">% abono</th><th class="n">Sem resposta</th><th class="n">Final: abonado</th><th class="n">Final: descontado</th></tr>`;
+  let porGer={};L.forEach(d=>{(GER_CC[d.cc]||['(sem gerente no cadastro)']).forEach(e=>{(porGer[e]=porGer[e]||[]).push(d)})});
+  let porCC={};L.forEach(d=>{(porCC[d.cc||'—']=porCC[d.cc||'—']||[]).push(d)});
+  $('analise').innerHTML=GRAF_HTML+`<div class="tab" style="max-height:none;margin-bottom:12px"><table><thead>${cab.replace('<th></th>','<th>Gerente</th>')}</thead><tbody>${
+      Object.keys(porGer).sort((a,b)=>soma(porGer[b])-soma(porGer[a])).map(e=>lin(esc(e),porGer[e])).join('')}</tbody></table></div>
+    <div class="tab" style="max-height:none"><table><thead>${cab.replace('<th></th>','<th>Centro de custo</th>')}</thead><tbody>${
+      Object.keys(porCC).sort((a,b)=>soma(porCC[b])-soma(porCC[a])).map(c=>lin(esc(c)+(NOME_CC[c]?' <span class="cz">'+esc(NOME_CC[c])+'</span>':''),porCC[c])).join('')}</tbody></table></div>
+    <div class="cz" style="margin-top:6px">Um CC com mais de um gerente conta para cada um deles. "Final" = decisão do almoxarifado (ou a resposta do gerente, se o almoxarifado ainda não decidiu); em período fechado, o que foi para a folha.</div>`;
+  desenharGraficos(L,porGer,porCC);
+}
+
+
+// ── Gráficos da análise (cores: abonado = verde-água, descontado = laranja, sem decisão = cinza; valores sempre em R$ do desconto) ──
+const C_AB='#1baf7a',C_DE='#eb6834',C_PE='#cbd5e1',C_UM='#2a78d6';
+const GRAF_HTML=`<div class="graf">
+  <div class="gcard largo"><h3>Evolução por período da folha</h3><p>Fechados: o que foi para a folha (S = descontado, N = abonado). Em aberto: decisão atual</p><div class="gleg"><span><i style="background:${C_DE}"></i>Descontado</span><span><i style="background:${C_AB}"></i>Abonado</span><span><i style="background:${C_PE}"></i>Sem decisão</span></div><div class="cv"><canvas id="g-evol"></canvas></div></div>
+  <div class="gcard"><h3>Para onde foi o valor</h3><p>Decisão final do período, em R$ de desconto</p><div class="cv"><canvas id="g-final"></canvas></div></div>
+  <div class="gcard"><h3>Centros de custo que mais geram desconto</h3><p>Top 10 em R$, pela decisão final</p><div class="gleg"><span><i style="background:${C_DE}"></i>Descontado</span><span><i style="background:${C_AB}"></i>Abonado</span><span><i style="background:${C_PE}"></i>Sem decisão</span></div><div class="cv"><canvas id="g-cc"></canvas></div></div>
+  <div class="gcard"><h3>Por motivo</h3><p>R$ de desconto por motivo da troca</p><div class="cv"><canvas id="g-mot"></canvas></div></div>
+  <div class="gcard largo"><h3>Resposta de cada gerente</h3><p>R$ de desconto dos CCs de cada gerente, pelo que ele respondeu</p><div class="gleg"><span><i style="background:${C_AB}"></i>Gerente abonou</span><span><i style="background:${C_DE}"></i>Gerente descontou</span><span><i style="background:${C_PE}"></i>Sem resposta</span></div><div class="cv" id="cv-ger"><canvas id="g-ger"></canvas></div></div>
+  <div class="gcard"><h3>Produtos com mais desconto</h3><p>Top 10 em R$</p><div class="cv"><canvas id="g-prod"></canvas></div></div>
+  <div class="gcard"><h3>Funcionários com mais descontos</h3><p>Top 10 por quantidade de descontos no período</p><div class="cv"><canvas id="g-func"></canvas></div></div>
+  <div class="gcard"><h3>Quanto faltava da vida útil na troca</h3><p>Quantidade de descontos por faixa: quanto mais à direita, mais cedo o EPI foi trocado</p><div class="cv"><canvas id="g-vida"></canvas></div></div>
+  <div class="gcard largo"><h3>Por filial</h3><p>R$ de desconto por filial</p><div class="cv"><canvas id="g-fil"></canvas></div></div>
+</div>`;
+let GRAFS={},EVOL=null,EVOL_CHAVE='';
+const corta=(t,n)=>{t=String(t||'');if(innerWidth<600)n=Math.min(n,16);return t.length>n?t.slice(0,n-1)+'…':t};
+const vDes=d=>Number(d.valor_desconto)||0;
+function grafico(id,cfg){
+  if(!window.Chart){let c=$(id);if(c)c.parentNode.innerHTML='<div class="cz" style="padding:20px">Não consegui carregar os gráficos (sem internet?). As tabelas abaixo têm os mesmos números.</div>';return}
+  if(GRAFS[id])GRAFS[id].destroy();
+  let el=$(id);if(!el)return;
+  Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;Chart.defaults.color='#64748b';
+  if(window.ChartDataLabels&&!grafico.reg){Chart.register(ChartDataLabels);grafico.reg=1}
+  GRAFS[id]=new Chart(el,cfg);
+}
+// barras (horizontais por padrão); datasets empilhados quando há mais de um
+function barras(id,labels,sets,{hor=true,reais=true,titulos=null}={}){
+  let fmt=v=>reais?fmtR(v):Number(v).toLocaleString('pt-BR');
+  let curto=v=>reais?'R$ '+Number(v).toLocaleString('pt-BR',{notation:'compact',maximumFractionDigits:Math.abs(v)<1000?0:1}):Number(v).toLocaleString('pt-BR');
+  let pilha=sets.length>1,tots=labels.map((_,i)=>sets.reduce((s,x)=>s+(Number(x.data[i])||0),0)),max=Math.max(1,...tots);
+  // rótulo: barra simples = valor na ponta; empilhada = valor dentro de cada parte (se couber) + total na ponta
+  let fora={anchor:'end',align:'end',offset:2,clamp:true,color:'#0f172a',font:{size:10.5,weight:'600'},formatter:(v,c)=>pilha?(tots[c.dataIndex]?curto(tots[c.dataIndex]):''):(v?curto(v):'')};
+  let dentro={anchor:'center',align:'center',color:'#0f172a',font:{size:10,weight:'600'},display:c=>{let v=Number(c.dataset.data[c.dataIndex])||0,el=c.chart.getDatasetMeta(c.datasetIndex).data[c.dataIndex];if(!v||!el)return false;let w=Math.abs(hor?el.width:el.height),h=hor?el.height:el.width;return hor?w>=curto(v).length*6+6:(w>=16&&h>=curto(v).length*5.6+4)},formatter:v=>curto(v)};
+  grafico(id,{type:'bar',data:{labels,datasets:sets.map((s,k)=>({label:s.label,data:s.data,backgroundColor:s.cor,borderColor:'#fff',borderWidth:pilha?{[hor?'right':'top']:2}:0,borderRadius:4,borderSkipped:'start',maxBarThickness:hor?26:56,categoryPercentage:.8,barPercentage:.9,
+      datalabels:pilha?{labels:k===sets.length-1?{parte:dentro,total:Object.assign({},fora,{formatter:(v,c)=>tots[c.dataIndex]?curto(tots[c.dataIndex]):''})}:{parte:dentro}}:{labels:{valor:fora}}}))},
+    options:{indexAxis:hor?'y':'x',maintainAspectRatio:false,animation:false,layout:{padding:hor?{right:62}:{top:20}},
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{
+        title:it=>titulos?titulos[it[0].dataIndex]:it[0].label,
+        label:c=>' '+(c.dataset.label?c.dataset.label+': ':'')+fmt(c.raw),
+        footer:it=>it.length>1?'Total: '+fmt(it.reduce((s,c)=>s+(Number(c.raw)||0),0)):''}}},
+      scales:{[hor?'x':'y']:{stacked:pilha,beginAtZero:true,grid:{color:'#f1f5f9'},border:{display:false},ticks:{maxRotation:0,maxTicksLimit:hor?5:7,precision:0,callback:v=>reais?'R$ '+Number(v).toLocaleString('pt-BR',{notation:'compact'}):v}},
+              [hor?'y':'x']:{stacked:pilha,grid:{display:false},border:{color:'#e2e8f0'},ticks:{autoSkip:false,maxRotation:hor?0:45,font:{size:11}}}}}});
+}
+function desenharGraficos(L,porGer,porCC){
+  let soma=a=>a.reduce((s,d)=>s+vDes(d),0);
+  // 1) para onde foi o valor
+  let fa=L.filter(d=>decDe(d)==='abonar'),fd=L.filter(d=>decDe(d)==='descontar'),fp=L.filter(d=>!decDe(d));
+  let rotF=[FECHADO?'Descontado':'A descontar','Abonado','Sem decisão'],valF=[soma(fd),soma(fa),soma(fp)],tot=valF.reduce((a,b)=>a+b,0);
+  grafico('g-final',{type:'doughnut',data:{labels:rotF.map((r,i)=>`${r}: ${fmtR(valF[i])} (${tot?Math.round(valF[i]/tot*100):0}%)`),datasets:[{data:valF,backgroundColor:[C_DE,C_AB,C_PE],borderColor:'#fff',borderWidth:2}]},
+    options:{maintainAspectRatio:false,animation:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,font:{size:12},color:'#0f172a'}},
+      tooltip:{callbacks:{label:c=>' '+c.label}},
+      datalabels:{color:'#0f172a',font:{size:12,weight:'700'},display:c=>tot&&c.dataset.data[c.dataIndex]/tot>=.04,formatter:v=>Math.round(v/tot*100)+'%'}}}});
+  // 2) gerente: abonou / descontou / sem resposta
+  let gs=Object.keys(porGer).sort((a,b)=>soma(porGer[b])-soma(porGer[a])).slice(0,15),gd=k=>gs.map(e=>soma(porGer[e].filter(d=>((DEC[d.chave]||{}).gerente_decisao||'')===k)));
+  $('cv-ger').style.height=Math.max(160,gs.length*30+40)+'px';
+  barras('g-ger',gs.map(e=>corta(e.split('@')[0],28)),[{label:'Gerente abonou',data:gd('abonar'),cor:C_AB},{label:'Gerente descontou',data:gd('descontar'),cor:C_DE},{label:'Sem resposta',data:gd(''),cor:C_PE}],{titulos:gs});
+  // 3) top CCs pela decisão final
+  let cs=Object.keys(porCC).sort((a,b)=>soma(porCC[b])-soma(porCC[a])).slice(0,10),cd=k=>cs.map(c=>soma(porCC[c].filter(d=>decDe(d)===k)));
+  barras('g-cc',cs.map(c=>corta(NOME_CC[c]||c,26)),[{label:'Descontado',data:cd('descontar'),cor:C_DE},{label:'Abonado',data:cd('abonar'),cor:C_AB},{label:'Sem decisão',data:cd(''),cor:C_PE}],{titulos:cs.map(c=>c+(NOME_CC[c]?' — '+NOME_CC[c]:''))});
+  // agrupador simples
+  let grupo=(fn,val=vDes)=>{let o={};L.forEach(d=>{let k=fn(d);o[k]=(o[k]||0)+val(d)});return Object.entries(o).sort((a,b)=>b[1]-a[1])};
+  let mo=grupo(d=>MOTIVO[d.motivo]||(d.motivo?'Motivo '+d.motivo:'Sem motivo'));
+  barras('g-mot',mo.map(x=>x[0]),[{data:mo.map(x=>x[1]),cor:C_UM}]);
+  let pr=grupo(d=>d.produto).slice(0,10),desc={};L.forEach(d=>desc[d.produto]=d.descricao||d.produto);
+  barras('g-prod',pr.map(x=>corta(desc[x[0]],30)),[{data:pr.map(x=>x[1]),cor:C_UM}],{titulos:pr.map(x=>x[0]+' — '+desc[x[0]])});
+  let fu=grupo(d=>d.matricula,()=>1).slice(0,10),nm={};L.forEach(d=>nm[d.matricula]=d.nome||d.matricula);
+  barras('g-func',fu.map(x=>corta(nm[x[0]],28)),[{data:fu.map(x=>x[1]),cor:C_UM}],{reais:false,titulos:fu.map(x=>x[0]+' — '+nm[x[0]]+' · '+fmtR(soma(L.filter(d=>d.matricula===x[0]))))});
+  let fx=['0–25%','25–50%','50–75%','75–100%'],cont=[0,0,0,0];L.forEach(d=>{let p=faltaPct(d);if(p!=null)cont[Math.min(3,Math.floor(p*4))]++});
+  barras('g-vida',fx,[{data:cont,cor:C_UM}],{hor:false,reais:false,titulos:fx.map(f=>'Faltava '+f+' da vida útil')});
+  let fi=grupo(d=>d.filial||'—');
+  barras('g-fil',fi.map(x=>x[0]),[{data:fi.map(x=>x[1]),cor:C_UM}],{hor:false});
+  desenharEvolucao();
+}
+// evolução: últimos 8 períodos (fechados pelo integrado S/N; em aberto pela decisão de hoje no período carregado)
+async function desenharEvolucao(){
+  let pers=periodos().slice(0,8).reverse(),f=$('f-fil').value,c=$('f-cc').value,chave=[f,c,pers[0].ini].join('|');
+  if(EVOL_CHAVE!==chave){
+    EVOL_CHAVE=chave;EVOL=null;
+    try{EVOL=await todas(()=>{let q=db.from('descontos_epi').select('chave,datinc,valor_desconto,integrado').gte('datinc',pers[0].ini).lte('datinc',pers[pers.length-1].fim).order('chave');
+      if(MEUS_CC)q=q.in('cc',MEUS_CC);if(f)q=q.eq('filial',f);if(c)q=q.eq('cc',c);return q})}catch(e){EVOL=[]}
+    if(EVOL_CHAVE!==chave)return;
+  }
+  if(!EVOL||!$('g-evol'))return;
+  let de=[],ab=[],pe=[];
+  pers.forEach(p=>{let a=EVOL.filter(d=>d.datinc>=p.ini&&d.datinc<=p.fim),fech=ULT_FECHADO&&p.fim<=ULT_FECHADO;
+    let k=d=>fech?(d.integrado==='S'?'descontar':'abonar'):((DEC[d.chave]||{}).decisao||(DEC[d.chave]||{}).gerente_decisao||'');
+    let s=t=>a.filter(d=>k(d)===t).reduce((x,d)=>x+vDes(d),0);de.push(s('descontar'));ab.push(s('abonar'));pe.push(s(''))});
+  barras('g-evol',pers.map(p=>p.rot.split(' a ')[1].replace('20 ','')+(ULT_FECHADO&&p.fim<=ULT_FECHADO?'':' *')),[{label:'Descontado',data:de,cor:C_DE},{label:'Abonado',data:ab,cor:C_AB},{label:'Sem decisão',data:pe,cor:C_PE}],
+    {hor:false,titulos:pers.map(p=>p.rot+(ULT_FECHADO&&p.fim<=ULT_FECHADO?' · fechado':' · em aberto'))});
+}
+// ── Arquivo para o Protheus: igual ao CSV de exemplo (141010101_20260921.csv) ──
+const _corta=(v,n)=>String(v==null?'':v).replace(/[;\r\n]/g,' ').slice(0,n);
+const _num=v=>(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});
+const _qtd=v=>(Number(v)||0).toLocaleString('pt-BR',{maximumFractionDigits:2,useGrouping:false});
+function csvDe(lista){
+  let L=['DESCONTOS'+';'.repeat(20),'C. Custo    ;Filial      ;Matricula   ;Nome        ;Requisic.   ;Item        ;Produto     ;Descricao   ;Motivo      ;Qtd Dias    ;Vida Util   ;Quantidade  ;Desconto    ;Dt. Inclusao;Abonado;;;;;;'];
+  lista.forEach(d=>{let de=decDe(d);
+    L.push([_corta(NOME_CC[d.cc]||d.desc_cc||d.cc,40),d.filial,d.matricula,_corta(d.nome,30),d.sa,d.item||'',d.produto,_corta(d.descricao,30),
+      _corta(MOTIVO[d.motivo]||d.motivo||'',12),d.qtd_dias!=null?Math.round(d.qtd_dias):'',_qtd(d.vida_util),_qtd(d.quantidade),_num(d.valor_desconto),
+      fmtD(d.datinc),de==='abonar'?'S':'N'].join(';')+';;;;;;')});
+  return '\ufeff'+L.join('\r\n')+'\r\n';
+}
+async function exportar(){
+  let L=filtrados();if(!L.length)return alert('Nada para exportar com esses filtros.');
+  let pend=L.filter(d=>!decDe(d)).length;
+  if(pend&&!confirm(pend+' desconto(s) ainda sem decisão vão sair como DESCONTO (Abonado = N). Exportar assim mesmo?'))return;
+  let ini=$('f-per').value.split('|')[0].replace(/-/g,''),porCC={};L.forEach(d=>{(porCC[d.cc||'SEMCC']=porCC[d.cc||'SEMCC']||[]).push(d)});
+  let baixar=(blob,nome)=>{let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nome;a.click()};
+  let ccs=Object.keys(porCC);
+  if(ccs.length===1)return baixar(new Blob([csvDe(porCC[ccs[0]])],{type:'text/csv;charset=utf-8'}),ccs[0]+'_'+ini+'.csv');
+  if(!window.JSZip)return alert('Não consegui montar o .zip. Escolha um centro de custo no filtro para baixar o arquivo dele.');
+  let z=new JSZip();ccs.forEach(c=>z.file(c+'_'+ini+'.csv',csvDe(porCC[c])));
+  baixar(await z.generateAsync({type:'blob'}),'descontos_'+ini+'.zip');
+}
+// clicar na mesma decisão desfaz; clicar na outra troca
+async function decidir(chave,decisao){
+  let atual=(DEC[chave]||{}).decisao;
+  let reg=atual===decisao?{chave,decisao:null,decidido_por:null,decidido_em:null}:{chave,decisao,decidido_por:userEmail,decidido_em:new Date().toISOString()};
+  let{error}=await db.from('descontos_decisao').upsert(reg,{onConflict:'chave'});
+  if(error)return alert('Não consegui salvar: '+error.message);
+  DEC[chave]=Object.assign({},DEC[chave]||{},reg);
+  let y=$('tb').parentElement.parentElement.scrollTop;desenhar();$('tb').parentElement.parentElement.scrollTop=y;
+}
+async function emMassa(decisao){
+  let pend=filtrados().filter(d=>!decDe(d));
+  if(!pend.length)return alert('Não há pendentes na lista filtrada.');
+  if(!confirm(`Marcar ${decisao.toUpperCase()} em ${pend.length} desconto(s) pendente(s) da lista filtrada?`))return;
+  let agora=new Date().toISOString(),regs=pend.map(d=>({chave:d.chave,decisao,decidido_por:userEmail,decidido_em:agora}));
+  for(let i=0;i<regs.length;i+=500){let{error}=await db.from('descontos_decisao').upsert(regs.slice(i,i+500),{onConflict:'chave'});if(error)return alert('Não consegui salvar: '+error.message)}
+  regs.forEach(r=>DEC[r.chave]=Object.assign({},DEC[r.chave]||{},r));desenhar();
+}
+
+// ── Login: mesmo usuário do Painel principal. Administrador vê tudo; gerente vê só os CCs dele ──
+async function liberar(email){
+  userEmail=email||'';$('user-email').textContent=userEmail;
+  try{let{data}=await db.from('perfis_usuario').select('role').eq('email',userEmail.toLowerCase().trim()).maybeSingle();isAdmin=data&&data.role==='admin'}catch(e){}
+  try{let{data}=await db.from('centros_custo').select('cc,nome');(data||[]).forEach(c=>NOME_CC[String(c.cc).trim()]=String(c.nome||'').replace(/\s+/g,' ').trim())}catch(e){}
+  try{let{data}=await db.from('gerentes_cc').select('cc,email');(data||[]).forEach(g=>{let c=String(g.cc).trim();(GER_CC[c]=GER_CC[c]||[]);let e=String(g.email||'').trim().toLowerCase();if(e&&!GER_CC[c].includes(e))GER_CC[c].push(e)})}catch(e){}
+  if(!isAdmin){
+    let{data}=await db.from('gerentes_cc').select('cc').ilike('email',userEmail.trim());
+    MEUS_CC=[...new Set((data||[]).map(x=>String(x.cc).trim()))];
+    if(!MEUS_CC.length)MEUS_CC=['__nenhum__'];
+  }
+  document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';
+  try{let{data}=await db.from('descontos_epi').select('datinc').eq('integrado','S').order('datinc',{ascending:false}).limit(1);ULT_FECHADO=data&&data[0]?data[0].datinc:null}catch(e){}
+  let pers=periodos(),aberto=pers.slice().reverse().find(p=>!ULT_FECHADO||p.fim>ULT_FECHADO);
+  // o período que contém o último dia integrado também é fechado: fecha até o dia 20 dele
+  if(ULT_FECHADO){let f=pers.find(p=>p.ini<=ULT_FECHADO&&ULT_FECHADO<=p.fim);if(f)ULT_FECHADO=f.fim;aberto=pers.slice().reverse().find(p=>p.fim>ULT_FECHADO)}
+  $('f-per').innerHTML=pers.map(p=>`<option value="${p.ini}|${p.fim}"${aberto&&p.ini===aberto.ini?' selected':''}>${p.rot}${ULT_FECHADO&&p.fim<=ULT_FECHADO?' · fechado':aberto&&p.ini===aberto.ini?' · EM ABERTO':''}</option>`).join('');
+  carregar();
+}
+async function entrar(){
+  let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
+  if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
+  b.disabled=true;b.textContent='Entrando...';
+  let{data,error}=await db.auth.signInWithPassword({email,password:senha});
+  b.disabled=false;b.textContent='Entrar';
+  if(error){msg.textContent=error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message;msg.style.display='block';return}
+  liberar(data.user&&data.user.email);
+}
+async function sair(){await db.auth.signOut();location.reload()}
+(async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
+</script>
+</body>
+</html>
