@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Descontos de EPI</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<link rel="stylesheet" href="/padrao.css"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--bq-fonte);background:var(--bq-fundo);color:var(--bq-texto);min-height:100vh}
+body.bq-trancado>*:not(#tela-login){display:none!important}
+.lg-lbl{display:block;color:#64748b;font-size:12px;font-weight:600;margin:0 0 5px}
+.lg-inp{width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font-size:14px;margin-bottom:14px;font-family:inherit;outline:none}
+.topo-dir{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:12px;color:#94a3b8}
+.btn-sair{background:transparent;border:1px solid #334155;color:#cbd5e1;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+.corpo{max-width:1500px;margin:0 auto;padding:16px 20px 40px}
+.filtros{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.f{display:flex;flex-direction:column;gap:4px}.f label{font-size:11px;font-weight:600;color:#64748b}
+.inp{border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;background:#fff}
+.inp:focus{border-color:#1e40af}
+.btn{background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn:hover{border-color:#1e40af;color:#1e40af}
+.kpis{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.kpis div{flex:1;min-width:140px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;font-size:11.5px;color:#64748b}
+.kpis b{display:block;font-size:19px;color:#0f172a;margin-top:2px}
+.tab{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:auto;max-height:calc(100vh - 290px)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{position:sticky;top:0;background:#f8fafc;text-align:left;color:#64748b;border-bottom:1px solid #e2e8f0;padding:8px;font-size:11px;font-weight:600;white-space:nowrap;z-index:1}
+td{border-bottom:1px solid #f1f5f9;padding:7px 8px;vertical-align:middle}
+.n{text-align:right;font-family:ui-monospace,monospace;white-space:nowrap}
+.cz{color:#94a3b8;font-size:11px}
+tr.abonar td{background:#f0fdf4}tr.descontar td{background:#fff7ed}
+.dec{display:flex;gap:4px}
+.dec button{border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:5px 9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;color:#64748b;white-space:nowrap}
+.dec button.on-ab{background:#16a34a;border-color:#16a34a;color:#fff}
+.dec button.on-de{background:#ea580c;border-color:#ea580c;color:#fff}
+.barra{height:6px;background:#f1f5f9;border-radius:99px;overflow:hidden;width:70px;display:inline-block;vertical-align:middle;margin-left:6px}
+.barra i{display:block;height:100%;background:#ea580c}
+.vazio{text-align:center;color:#64748b;padding:30px;font-size:13px}
+.aviso{background:#fef3c7;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:12px}
+</style>
+<body class="bq-trancado">
+
+<div id="tela-login" class="bq-login-fundo" style="display:none;min-height:100vh;padding:20px">
+  <div class="login-card" style="background:#fff;border-radius:14px;width:100%;max-width:360px;padding:32px">
+    <span class="bq-login-logo" role="img" aria-label="B&amp;Q"></span>
+    <h1 style="margin:0 0 4px;font-size:16px">Descontos de EPI</h1>
+    <p style="color:#64748b;margin:0 0 18px;font-size:12.5px">Entre com o mesmo e-mail e senha do Painel principal</p>
+    <label class="lg-lbl">E-mail</label><input id="lg-email" type="email" class="lg-inp" autocomplete="email">
+    <label class="lg-lbl">Senha</label><input id="lg-senha" type="password" class="lg-inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+    <div id="lg-msg" style="color:#991b1b;background:#fee2e2;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:12px;display:none"></div>
+    <button id="lg-btn" onclick="entrar()" style="width:100%;background:#1e40af;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Entrar</button>
+    <a class="bq-login-voltar" href="/los.html">← Voltar ao menu de sistemas</a>
+  </div>
+</div>
+
+<div class="bq-topo">
+  <a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a>
+  <div><h1>Descontos de EPI</h1><div class="bq-sub">Material retirado antes do fim da vida útil — abonar ou descontar, por período da folha (21 a 20)</div></div>
+  <div class="topo-dir"><span id="user-email"></span><button class="btn-sair" onclick="sair()">Sair</button></div>
+</div>
+
+<div class="corpo">
+  <div class="filtros">
+    <div class="f"><label>Período da folha</label><select id="f-per" class="inp" onchange="carregar()"></select></div>
+    <div class="f"><label>Filial</label><select id="f-fil" class="inp" onchange="desenhar()"><option value="">Todas</option></select></div>
+    <div class="f"><label>Centro de custo</label><select id="f-cc" class="inp" onchange="desenhar()" style="max-width:260px"><option value="">Todos</option></select></div>
+    <div class="f"><label>Decisão</label><select id="f-dec" class="inp" onchange="desenhar()"><option value="">Todas</option><option value="pend">Pendentes</option><option value="descontar">Descontar</option><option value="abonar">Abonar</option></select></div>
+    <div class="f" style="flex:1;min-width:200px"><label>Buscar</label><input id="f-q" class="inp" placeholder="Nome, matrícula, SA ou produto..." oninput="desenhar()"></div>
+    <div class="f"><label>&nbsp;</label><div style="display:flex;gap:6px">
+      <button class="btn" onclick="emMassa('descontar')" title="Marca DESCONTAR em todos os pendentes da lista filtrada">Descontar pendentes</button>
+      <button class="btn" onclick="emMassa('abonar')" title="Marca ABONAR em todos os pendentes da lista filtrada">Abonar pendentes</button></div></div>
+  </div>
+  <div id="aviso"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="tab"><table>
+    <thead><tr>
+      <th>Emissão</th><th>SA</th><th>Fil.</th><th>Matrícula</th><th>Nome</th><th>Produto</th>
+      <th class="n" title="Vida útil do material, em dias">Vida útil</th><th class="n" title="Quanto faltava da vida útil quando trocou">Faltava</th>
+      <th title="Quanto da vida útil ainda faltava">% faltava</th><th class="n">Custo do material</th><th class="n">Desconto</th>
+      <th>Observação da SA</th><th>Decisão</th>
+    </tr></thead>
+    <tbody id="tb"><tr><td colspan="13" class="vazio">Carregando...</td></tr></tbody>
+  </table></div>
+</div>
+
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD=d=>d?new Date(String(d).slice(0,10)+'T12:00').toLocaleDateString('pt-BR'):'–';
+const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+let userEmail='',isAdmin=false,MEUS_CC=null,DADOS=[],DEC={},NOME_CC={};
+
+// períodos da folha: do dia 21 de um mês ao dia 20 do seguinte (o atual primeiro)
+function periodos(){
+  let h=new Date(),y=h.getFullYear(),m=h.getMonth();   // fim do período atual: dia 20 deste mês (até o dia 20) ou do próximo
+  if(h.getDate()>20){m++;if(m>11){m=0;y++}}
+  let out=[];
+  for(let k=0;k<14;k++){
+    let fy=y,fm=m-k;while(fm<0){fm+=12;fy--}
+    let iy=fy,im=fm-1;if(im<0){im=11;iy--}
+    let ini=`${iy}-${String(im+1).padStart(2,'0')}-21`,fim=`${fy}-${String(fm+1).padStart(2,'0')}-20`;
+    out.push({ini,fim,rot:`21 ${MESES[im]}/${String(iy).slice(2)} a 20 ${MESES[fm]}/${String(fy).slice(2)}`});
+  }
+  return out;
+}
+async function todas(q){let out=[];for(let o=0;;o+=1000){let{data,error}=await q().range(o,o+999);if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break}return out}
+
+async function carregar(){
+  $('tb').innerHTML='<tr><td colspan="13" class="vazio">Carregando os descontos...</td></tr>';
+  let [ini,fim]=$('f-per').value.split('|');
+  try{
+    DADOS=await todas(()=>{let q=db.from('descontos_epi').select('*').gte('datinc',ini).lte('datinc',fim).order('datinc').order('nome');if(MEUS_CC)q=q.in('cc',MEUS_CC);return q});
+    DEC={};let ch=DADOS.map(d=>d.chave);
+    for(let i=0;i<ch.length;i+=200){let{data}=await db.from('descontos_decisao').select('*').in('chave',ch.slice(i,i+200));(data||[]).forEach(x=>DEC[x.chave]=x)}
+  }catch(e){$('tb').innerHTML='<tr><td colspan="13" class="vazio">Não consegui carregar: '+esc(e.message||e)+'</td></tr>';return}
+  // filtros de filial e CC com o que veio no período
+  let fs=$('f-fil'),fc=$('f-cc'),vf=fs.value,vc=fc.value;
+  fs.innerHTML='<option value="">Todas</option>'+[...new Set(DADOS.map(d=>d.filial))].sort().map(f=>`<option>${esc(f)}</option>`).join('');
+  let ccs={};DADOS.forEach(d=>{if(d.cc)ccs[d.cc]=NOME_CC[d.cc]||d.desc_cc||''});
+  fc.innerHTML='<option value="">Todos</option>'+Object.keys(ccs).sort().map(c=>`<option value="${esc(c)}">${esc(c)}${ccs[c]?' — '+esc(ccs[c]):''}</option>`).join('');
+  fs.value=vf;fc.value=vc;
+  $('aviso').innerHTML=DADOS.length?'':'<div class="aviso">Nenhum desconto neste período. Se for o primeiro uso, rode o <b>sync_descontos_epi.py</b> no seu PC.</div>';
+  desenhar();
+}
+const faltaPct=d=>Number(d.valor)>0?Math.min(1,Math.max(0,(Number(d.valor_desconto)||0)/Number(d.valor))):null;
+function filtrados(){
+  let f=$('f-fil').value,c=$('f-cc').value,dc=$('f-dec').value,q=$('f-q').value.toLowerCase().trim();
+  return DADOS.filter(d=>{
+    let de=(DEC[d.chave]||{}).decisao||'';
+    if(f&&d.filial!==f)return false; if(c&&d.cc!==c)return false;
+    if(dc==='pend'&&de)return false; if(dc&&dc!=='pend'&&de!==dc)return false;
+    if(q&&![d.nome,d.matricula,d.sa,d.produto,d.descricao].some(x=>String(x||'').toLowerCase().includes(q)))return false;
+    return true});
+}
+function desenhar(){
+  let L=filtrados();
+  let tot=L.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0),mat=L.reduce((s,d)=>s+(Number(d.valor)||0),0);
+  let dsc=L.filter(d=>(DEC[d.chave]||{}).decisao==='descontar'),ab=L.filter(d=>(DEC[d.chave]||{}).decisao==='abonar'),pe=L.filter(d=>!(DEC[d.chave]||{}).decisao);
+  let soma=a=>a.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0);
+  $('kpis').innerHTML=`
+    <div>Descontos no período<b>${L.length.toLocaleString('pt-BR')}</b>${new Set(L.map(d=>d.matricula)).size} funcionário(s)</div>
+    <div>Custo do material<b>${fmtR(mat)}</b></div>
+    <div>Total de desconto<b>${fmtR(tot)}</b></div>
+    <div>A descontar<b style="color:#ea580c">${fmtR(soma(dsc))}</b>${dsc.length} item(ns)</div>
+    <div>Abonado<b style="color:#16a34a">${fmtR(soma(ab))}</b>${ab.length} item(ns)</div>
+    <div>Pendentes de decisão<b>${pe.length}</b>${fmtR(soma(pe))}</div>`;
+  $('tb').innerHTML=L.map(d=>{
+    let dc=DEC[d.chave]||{},de=dc.decisao||'',p=faltaPct(d),falta=p!=null&&d.vida_util!=null?Math.round(p*Number(d.vida_util)):null;
+    return `<tr class="${de}" id="l-${esc(d.chave)}">
+      <td>${fmtD(d.emissao)}</td><td style="font-family:ui-monospace,monospace">${esc(d.sa)}</td><td>${esc(d.filial)}</td>
+      <td style="font-family:ui-monospace,monospace">${esc(d.matricula)}</td>
+      <td><div style="font-weight:600">${esc(d.nome||'(sem nome)')}</div><div class="cz">${esc(d.funcao||'')}</div></td>
+      <td><div>${esc(d.descricao||'')}</div><div class="cz">${esc(d.produto)}${Number(d.quantidade)>1?' · qtd '+Number(d.quantidade).toLocaleString('pt-BR'):''}</div></td>
+      <td class="n">${d.vida_util!=null?Number(d.vida_util).toLocaleString('pt-BR')+' d':'–'}</td>
+      <td class="n">${falta!=null?falta+' d':'–'}</td>
+      <td style="white-space:nowrap">${p!=null?Math.round(p*100)+'%':'–'}${p!=null?`<span class="barra"><i style="width:${Math.round(p*100)}%"></i></span>`:''}</td>
+      <td class="n">${fmtR(d.valor)}</td><td class="n" style="font-weight:700">${fmtR(d.valor_desconto)}</td>
+      <td style="max-width:220px;font-size:11.5px">${esc(d.observacao||'')}${d.motivo?`<div class="cz">motivo ${esc(d.motivo)}</div>`:''}</td>
+      <td><div class="dec"><button class="${de==='abonar'?'on-ab':''}" onclick="decidir('${esc(d.chave)}','abonar')">Abonar</button><button class="${de==='descontar'?'on-de':''}" onclick="decidir('${esc(d.chave)}','descontar')">Descontar</button></div>
+        ${dc.decidido_por?`<div class="cz" title="${esc(dc.decidido_por)}">${esc(String(dc.decidido_por).split('@')[0])} · ${fmtD(dc.decidido_em)}</div>`:''}</td>
+    </tr>`}).join('')||'<tr><td colspan="13" class="vazio">Nenhum desconto com esses filtros.</td></tr>';
+}
+// clicar na mesma decisão desfaz; clicar na outra troca
+async function decidir(chave,decisao){
+  let atual=(DEC[chave]||{}).decisao;
+  if(atual===decisao){
+    let{error}=await db.from('descontos_decisao').delete().eq('chave',chave);
+    if(error)return alert('Não consegui desfazer: '+error.message);
+    delete DEC[chave];
+  }else{
+    let reg={chave,decisao,decidido_por:userEmail,decidido_em:new Date().toISOString()};
+    let{error}=await db.from('descontos_decisao').upsert(reg,{onConflict:'chave'});
+    if(error)return alert('Não consegui salvar: '+error.message);
+    DEC[chave]=reg;
+  }
+  let y=$('tb').parentElement.parentElement.scrollTop;desenhar();$('tb').parentElement.parentElement.scrollTop=y;
+}
+async function emMassa(decisao){
+  let pend=filtrados().filter(d=>!(DEC[d.chave]||{}).decisao);
+  if(!pend.length)return alert('Não há pendentes na lista filtrada.');
+  if(!confirm(`Marcar ${decisao.toUpperCase()} em ${pend.length} desconto(s) pendente(s) da lista filtrada?`))return;
+  let agora=new Date().toISOString(),regs=pend.map(d=>({chave:d.chave,decisao,decidido_por:userEmail,decidido_em:agora}));
+  for(let i=0;i<regs.length;i+=500){let{error}=await db.from('descontos_decisao').upsert(regs.slice(i,i+500),{onConflict:'chave'});if(error)return alert('Não consegui salvar: '+error.message)}
+  regs.forEach(r=>DEC[r.chave]=r);desenhar();
+}
+
+// ── Login: mesmo usuário do Painel principal. Administrador vê tudo; gerente vê só os CCs dele ──
+async function liberar(email){
+  userEmail=email||'';$('user-email').textContent=userEmail;
+  try{let{data}=await db.from('perfis_usuario').select('role').eq('email',userEmail.toLowerCase().trim()).maybeSingle();isAdmin=data&&data.role==='admin'}catch(e){}
+  try{let{data}=await db.from('centros_custo').select('cc,nome');(data||[]).forEach(c=>NOME_CC[String(c.cc).trim()]=String(c.nome||'').replace(/\s+/g,' ').trim())}catch(e){}
+  if(!isAdmin){
+    let{data}=await db.from('gerentes_cc').select('cc').ilike('email',userEmail.trim());
+    MEUS_CC=[...new Set((data||[]).map(x=>String(x.cc).trim()))];
+    if(!MEUS_CC.length)MEUS_CC=['__nenhum__'];
+  }
+  document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';
+  $('f-per').innerHTML=periodos().map(p=>`<option value="${p.ini}|${p.fim}">${p.rot}</option>`).join('');
+  carregar();
+}
+async function entrar(){
+  let email=$('lg-email').value.trim(),senha=$('lg-senha').value,msg=$('lg-msg'),b=$('lg-btn');msg.style.display='none';
+  if(!email||!senha){msg.textContent='Preencha e-mail e senha.';msg.style.display='block';return}
+  b.disabled=true;b.textContent='Entrando...';
+  let{data,error}=await db.auth.signInWithPassword({email,password:senha});
+  b.disabled=false;b.textContent='Entrar';
+  if(error){msg.textContent=error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message;msg.style.display='block';return}
+  liberar(data.user&&data.user.email);
+}
+async function sair(){await db.auth.signOut();location.reload()}
+(async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
+</script>
+</body>
+</html>

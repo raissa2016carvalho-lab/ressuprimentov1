@@ -1,0 +1,157 @@
+# -*- coding: utf-8 -*-
+"""
+sync_descontos_epi.py — Descontos de EPI (customização LWHZZA010) para o painel de abono/desconto.
+Junta cada desconto com a SA (LWHSCP001: emissão, centro de custo, observação, solicitante) e com o
+cadastro de funcionários (LWHSRA001: nome, CC e função) e grava na tabela descontos_epi do Supabase.
+As decisões (abonar/descontar) ficam em outra tabela e NÃO são apagadas por este script.
+
+Salvar em: C:\\painel-protheus\\sync_descontos_epi.py
+1ª vez (carga completa):  py sync_descontos_epi.py --desde 20251221
+Depois (dia a dia):       py sync_descontos_epi.py          → refaz desde o dia 21 de dois meses atrás
+"""
+TABELA_ZZA = "LWHZZA010"
+TABELA_SCP = "LWHSCP001"
+TABELA_SRA = "LWHSRA001"
+
+import sys
+import math
+import traceback
+from datetime import date, datetime
+
+try:
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning)
+    import pyodbc
+    import pandas as pd
+    from supabase import create_client
+except Exception as e:
+    print(f"❌ Falta biblioteca do Python: {e}")
+    input("Pressione Enter para fechar...")
+    sys.exit(1)
+
+# ── CONFIGURAÇÃO (cole aqui as suas linhas, como nos outros scripts) ──────────
+SERVIDOR = "XXXX"
+PORTA = "1433"
+BANCO = "BEQ_LWH"
+USUARIO = "XXXX"
+SENHA = "XXXX"
+RESSUP_URL = "XXXX"
+RESSUP_KEY = "XXXX"
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def txt(v):
+    if v is None or (isinstance(v, float) and math.isnan(v)):
+        return ""
+    s = str(v).strip()
+    return "" if s in ("nan", "None", "NaT") else s
+
+
+def num(v):
+    try:
+        f = float(v)
+        return None if math.isnan(f) or math.isinf(f) else round(f, 4)
+    except Exception:
+        return None
+
+
+def data_iso(v):
+    s = txt(v)
+    if len(s) >= 10 and s[4] == "-":
+        return s[:10]
+    return f"{s[:4]}-{s[4:6]}-{s[6:8]}" if len(s) >= 8 and s[:8].isdigit() else None
+
+
+def colunas(conn, tabela):
+    df = pd.read_sql("SELECT COLUMN_NAME FROM BEQ_LWH.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?", conn, params=[tabela])
+    return set(c.strip().upper() for c in df["COLUMN_NAME"])
+
+
+def main():
+    g = globals()
+    url = next((g[n] for n in ("RESSUP_URL", "SUPABASE_URL", "SB_URL", "URL") if n in g and str(g[n]) != "XXXX"), None)
+    key = next((g[n] for n in ("RESSUP_KEY", "SUPABASE_KEY", "SUPABASE_SERVICE_KEY", "SERVICE_KEY", "SB_KEY", "KEY") if n in g and str(g[n]) != "XXXX"), None)
+    if not url or not key:
+        print("❌ Não achei o endereço/chave do Supabase. Cole suas linhas de configuração no lugar dos XXXX.")
+        return
+    sb = create_client(url, key)
+
+    desde = sys.argv[sys.argv.index("--desde") + 1] if "--desde" in sys.argv else None
+    if not desde:
+        h = date.today()
+        ano, mes = h.year, h.month - 2
+        if mes <= 0:
+            ano, mes = ano - 1, mes + 12
+        desde = f"{ano}{mes:02d}21"
+    print(f"\n🔄 Descontos de EPI desde {desde[6:8]}/{desde[4:6]}/{desde[:4]} — {datetime.now():%d/%m/%Y %H:%M}")
+
+    conn = pyodbc.connect(f"DRIVER={{SQL Server}};SERVER={SERVIDOR},{PORTA};DATABASE={BANCO};UID={USUARIO};PWD={SENHA}")
+    czza, cscp = colunas(conn, TABELA_ZZA), colunas(conn, TABELA_SCP)
+    if not czza:
+        print(f"❌ Não achei a tabela {TABELA_ZZA}.")
+        return
+    del_zza = " AND Z.D_E_L_E_T_ = ' '" if "D_E_L_E_T_" in czza else ""
+    del_scp = " AND C.D_E_L_E_T_ = ' '" if "D_E_L_E_T_" in cscp else ""
+    sql = f"""
+SELECT RTRIM(Z.ZZA_FILIAL) filial, RTRIM(Z.ZZA_TRANS) sa, RTRIM(Z.ZZA_MATR) matricula, RTRIM(Z.ZZA_PRODUT) produto,
+       RTRIM(Z.ZZA_DESC) desc_zza, RTRIM(Z.ZZA_MOTIVO) motivo, Z.ZZA_VALOR valor, RTRIM(Z.ZZA_STATUS) status,
+       Z.ZZA_DATINC datinc, RTRIM(Z.ZZA_INTEG) integ, Z.ZZA_QUANT quant, Z.ZZA_VIDUTI vida, RTRIM(Z.ZZA_NOMFUN) nomfun,
+       Z.ZZA_VALDES valdes,
+       C.CP_EMISSAO emissao, RTRIM(C.CP_CC) cc, RTRIM(C.CP_DESCRI) descri, RTRIM(C.CP_YCOMREQ) obs, RTRIM(C.CP_SOLICIT) solic,
+       R.NOME nome, RTRIM(R.CCUSTO) cc_func, RTRIM(R.DESC_CC) desc_cc, RTRIM(R.DESFUNCAO) funcao
+FROM BEQ_LWH.dbo.{TABELA_ZZA} Z
+OUTER APPLY (SELECT TOP 1 C.CP_EMISSAO, C.CP_CC, C.CP_DESCRI, C.CP_YCOMREQ, C.CP_SOLICIT, C.CP_YFILMAT
+             FROM BEQ_LWH.dbo.{TABELA_SCP} C
+             WHERE C.CP_FILIAL = Z.ZZA_FILIAL AND C.CP_NUM = Z.ZZA_TRANS AND C.CP_PRODUTO = Z.ZZA_PRODUT{del_scp}) C
+OUTER APPLY (SELECT TOP 1 R.NOME, R.CCUSTO, R.DESC_CC, R.DESFUNCAO
+             FROM BEQ_LWH.dbo.{TABELA_SRA} R
+             WHERE RTRIM(R.MATRICULA) = RTRIM(Z.ZZA_MATR)
+             ORDER BY CASE WHEN RTRIM(R.FILIAL) = ISNULL(NULLIF(RTRIM(C.CP_YFILMAT), ''), RTRIM(Z.ZZA_FILIAL)) THEN 0 ELSE 1 END,
+                      CASE WHEN R.SIT_FOLHA <> 'D' THEN 0 ELSE 1 END) R
+WHERE Z.ZZA_DATINC >= ?{del_zza}
+"""
+    print("  Lendo os descontos no Protheus...")
+    df = pd.read_sql(sql, conn, params=[desde])
+    conn.close()
+    print(f"  {len(df)} descontos lidos.")
+
+    regs, vistos, repetidos = [], set(), 0
+    for _, r in df.iterrows():
+        datinc = data_iso(r["datinc"])
+        chave = "|".join([txt(r["filial"]), txt(r["sa"]), txt(r["produto"]), txt(r["matricula"]), txt(r["datinc"])])
+        if chave in vistos:
+            repetidos += 1
+            continue
+        vistos.add(chave)
+        regs.append({
+            "chave": chave, "filial": txt(r["filial"]), "sa": txt(r["sa"]),
+            "emissao": data_iso(r["emissao"]) or datinc, "datinc": datinc,
+            "matricula": txt(r["matricula"]), "nome": txt(r["nome"]) or txt(r["nomfun"]) or None,
+            "funcao": txt(r["funcao"]) or None, "cc": txt(r["cc"]) or None, "cc_func": txt(r["cc_func"]) or None,
+            "desc_cc": txt(r["desc_cc"]) or None, "produto": txt(r["produto"]),
+            "descricao": txt(r["descri"]) or txt(r["desc_zza"]) or None, "quantidade": num(r["quant"]),
+            "motivo": txt(r["motivo"]) or None, "observacao": txt(r["obs"]) or None, "solicitante": txt(r["solic"]) or None,
+            "vida_util": num(r["vida"]), "valor": num(r["valor"]), "valor_desconto": num(r["valdes"]),
+            "status": txt(r["status"]) or None, "integrado": txt(r["integ"]) or None,
+            "atualizado_em": datetime.now().isoformat(),
+        })
+    if repetidos:
+        print(f"  ({repetidos} linhas repetidas ignoradas)")
+
+    # refaz o período: apaga os descontos desde a data e grava de novo (as decisões ficam guardadas em outra tabela)
+    print("  🗑️  Limpando o período no Supabase...")
+    sb.table("descontos_epi").delete().gte("datinc", data_iso(desde)).execute()
+    LOTE = 500
+    for i in range(0, len(regs), LOTE):
+        sb.table("descontos_epi").upsert(regs[i:i + LOTE], on_conflict="chave").execute()
+        print(f"  {min(i + LOTE, len(regs))}/{len(regs)} enviados...")
+    print(f"✅ {len(regs)} descontos sincronizados.\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"❌ Erro: {e}")
+        traceback.print_exc()
+    input("Pressione Enter para fechar...")
