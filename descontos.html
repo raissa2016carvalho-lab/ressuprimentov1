@@ -4,6 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Descontos de EPI</title>
 <script src="vendor/supabase-2.118.0.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="stylesheet" href="/padrao.css"><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--bq-fonte);background:var(--bq-fundo);color:var(--bq-texto);min-height:100vh}
@@ -70,16 +71,23 @@ tr.abonar td{background:#f0fdf4}tr.descontar td{background:#fff7ed}
  <button class="btn" onclick="emMassa('descontar')" title="Marca DESCONTAR em todos os pendentes da lista filtrada">Descontar pendentes</button>
       <button class="btn" onclick="emMassa('abonar')" title="Marca ABONAR em todos os pendentes da lista filtrada">Abonar pendentes</button></div></div>
   </div>
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+    <button class="btn" id="bt-lista" onclick="VISAO='lista';desenhar()">📋 Lista</button>
+    <button class="btn" id="bt-analise" onclick="VISAO='analise';desenhar()">📊 Análise por gerente</button>
+    <span style="flex:1"></span>
+    <button class="btn" onclick="exportar()" title="Arquivo para importar no Protheus: um CSV por centro de custo (com um CC escolhido no filtro, baixa só o dele)">⬇ Arquivo para o Protheus</button>
+  </div>
   <div id="aviso"></div>
   <div class="kpis" id="kpis"></div>
-  <div class="tab"><table>
+  <div id="analise" style="display:none"></div>
+  <div class="tab" id="caixa-lista"><table>
     <thead><tr>
       <th>Emissão</th><th>SA</th><th>Fil.</th><th>Matrícula</th><th>Nome</th><th>Produto</th>
       <th class="n" title="Vida útil do material, em dias">Vida útil</th><th class="n" title="Quanto faltava da vida útil quando trocou">Faltava</th>
       <th title="Quanto da vida útil ainda faltava">% faltava</th><th class="n">Custo do material</th><th class="n">Desconto</th>
-      <th>Observação da SA</th><th>Decisão</th>
+      <th>Observação da SA</th><th>Resposta do gerente</th><th>Decisão final</th>
     </tr></thead>
-    <tbody id="tb"><tr><td colspan="13" class="vazio">Carregando...</td></tr></tbody>
+    <tbody id="tb"><tr><td colspan="14" class="vazio">Carregando...</td></tr></tbody>
   </table></div>
 </div>
 
@@ -90,7 +98,8 @@ const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const fmtR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=d=>d?new Date(String(d).slice(0,10)+'T12:00').toLocaleDateString('pt-BR'):'–';
 const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-let userEmail='',isAdmin=false,MEUS_CC=null,DADOS=[],DEC={},NOME_CC={},ULT_FECHADO=null,FECHADO=false;
+let userEmail='',isAdmin=false,MEUS_CC=null,DADOS=[],DEC={},NOME_CC={},ULT_FECHADO=null,FECHADO=false,VISAO='lista',GER_CC={};
+const MOTIVO={'1':'Perda','2':'Roubo','3':'Desgaste','4':'Defeito','5':'Admissional','6':'Mal uso','7':'Manutenção','8':'Transferência','9':'Consumo','A':'Mobilização','C':'Complementação'};
 // Período fechado = já foi integrado na folha: no Protheus, ZZA_INTEG = S (descontado) ou N (abonado).
 // O último dia com desconto integrado (S) marca o fim dos fechados; o período em aberto é o seguinte.
 
@@ -110,7 +119,7 @@ function periodos(){
 async function todas(q){let out=[];for(let o=0;;o+=1000){let{data,error}=await q().range(o,o+999);if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break}return out}
 
 async function carregar(){
-  $('tb').innerHTML='<tr><td colspan="13" class="vazio">Carregando os descontos...</td></tr>';
+  $('tb').innerHTML='<tr><td colspan="14" class="vazio">Carregando os descontos...</td></tr>';
   let [ini,fim]=$('f-per').value.split('|');
   FECHADO=!!(ULT_FECHADO&&fim<=ULT_FECHADO);
   $('btns-massa').style.display=FECHADO?'none':'flex';
@@ -118,7 +127,7 @@ async function carregar(){
     DADOS=await todas(()=>{let q=db.from('descontos_epi').select('*').gte('datinc',ini).lte('datinc',fim).order('datinc').order('nome');if(MEUS_CC)q=q.in('cc',MEUS_CC);return q});
     DEC={};let ch=DADOS.map(d=>d.chave);
     for(let i=0;i<ch.length;i+=200){let{data}=await db.from('descontos_decisao').select('*').in('chave',ch.slice(i,i+200));(data||[]).forEach(x=>DEC[x.chave]=x)}
-  }catch(e){$('tb').innerHTML='<tr><td colspan="13" class="vazio">Não consegui carregar: '+esc(e.message||e)+'</td></tr>';return}
+  }catch(e){$('tb').innerHTML='<tr><td colspan="14" class="vazio">Não consegui carregar: '+esc(e.message||e)+'</td></tr>';return}
   // filtros de filial e CC com o que veio no período
   let fs=$('f-fil'),fc=$('f-cc'),vf=fs.value,vc=fc.value;
   fs.innerHTML='<option value="">Todas</option>'+[...new Set(DADOS.map(d=>d.filial))].sort().map(f=>`<option>${esc(f)}</option>`).join('');
@@ -129,7 +138,7 @@ async function carregar(){
     :FECHADO?'<div class="aviso" style="background:#f1f5f9;color:#475569">🔒 Período fechado: já foi integrado na folha. <b>Descontado</b> = S no Protheus · <b>Abonado</b> = N. Só consulta.</div>':'';
   desenhar();
 }
-const decDe=d=>FECHADO?(d.integrado==='S'?'descontar':'abonar'):((DEC[d.chave]||{}).decisao||'');
+const decDe=d=>FECHADO?(d.integrado==='S'?'descontar':'abonar'):((DEC[d.chave]||{}).decisao||(DEC[d.chave]||{}).gerente_decisao||'');
 const faltaPct=d=>Number(d.valor)>0?Math.min(1,Math.max(0,(Number(d.valor_desconto)||0)/Number(d.valor))):null;
 function filtrados(){
   let f=$('f-fil').value,c=$('f-cc').value,dc=$('f-dec').value,q=$('f-q').value.toLowerCase().trim();
@@ -141,7 +150,13 @@ function filtrados(){
     return true});
 }
 function desenhar(){
+  $('bt-lista').style.borderColor=VISAO==='lista'?'#1e40af':'';$('bt-analise').style.borderColor=VISAO==='analise'?'#1e40af':'';
+  $('caixa-lista').style.display=VISAO==='lista'?'':'none';$('analise').style.display=VISAO==='analise'?'':'none';
   let L=filtrados();
+  if(VISAO==='analise'){desenharKpis(L);return desenharAnalise(L)}
+  desenharKpis(L);desenharLista(L);
+}
+function desenharKpis(L){
   let tot=L.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0),mat=L.reduce((s,d)=>s+(Number(d.valor)||0),0);
   let dsc=L.filter(d=>decDe(d)==='descontar'),ab=L.filter(d=>decDe(d)==='abonar'),pe=L.filter(d=>!decDe(d));
   let soma=a=>a.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0);
@@ -152,6 +167,8 @@ function desenhar(){
     <div>${FECHADO?'Descontado na folha':'A descontar'}<b style="color:#ea580c">${fmtR(soma(dsc))}</b>${dsc.length} item(ns)</div>
     <div>Abonado<b style="color:#16a34a">${fmtR(soma(ab))}</b>${ab.length} item(ns)</div>
     <div>Pendentes de decisão<b>${pe.length}</b>${fmtR(soma(pe))}</div>`;
+}
+function desenharLista(L){
   $('tb').innerHTML=L.map(d=>{
     let dc=DEC[d.chave]||{},de=decDe(d),p=faltaPct(d),falta=p!=null&&d.vida_util!=null?Math.round(p*Number(d.vida_util)):null;
     return `<tr class="${de}" id="l-${esc(d.chave)}">
@@ -163,34 +180,73 @@ function desenhar(){
       <td class="n">${falta!=null?falta+' d':'–'}</td>
       <td style="white-space:nowrap">${p!=null?Math.round(p*100)+'%':'–'}${p!=null?`<span class="barra"><i style="width:${Math.round(p*100)}%"></i></span>`:''}</td>
       <td class="n">${fmtR(d.valor)}</td><td class="n" style="font-weight:700">${fmtR(d.valor_desconto)}</td>
-      <td style="max-width:220px;font-size:11.5px">${esc(d.observacao||'')}${d.motivo?`<div class="cz">motivo ${esc(d.motivo)}</div>`:''}</td>
+      <td style="max-width:220px;font-size:11.5px">${esc(d.observacao||'')}${d.motivo?`<div class="cz">${esc(MOTIVO[d.motivo]||'motivo '+d.motivo)}</div>`:''}</td>
+      <td style="font-size:11.5px;max-width:170px">${dc.gerente_decisao?`<b style="color:${dc.gerente_decisao==='abonar'?'#16a34a':'#ea580c'}">${dc.gerente_decisao==='abonar'?'Abonar':'Descontar'}</b><div class="cz">${esc(String(dc.gerente_por||'').split('@')[0])} · ${fmtD(dc.gerente_em)}</div>${dc.gerente_obs?`<div style="color:#475569">“${esc(dc.gerente_obs)}”</div>`:''}`:'<span class="cz">aguardando</span>'}</td>
       <td>${FECHADO?`<span class="dec"><button class="${de==='abonar'?'on-ab':'on-de'}" disabled title="Período fechado: ${d.integrado==='S'?'descontado e integrado na folha (S)':'abonado (N)'}">${de==='abonar'?'Abonado':'Descontado'}</button></span>`:
         `<div class="dec"><button class="${de==='abonar'?'on-ab':''}" onclick="decidir('${esc(d.chave)}','abonar')">Abonar</button><button class="${de==='descontar'?'on-de':''}" onclick="decidir('${esc(d.chave)}','descontar')">Descontar</button></div>`}
-        ${!FECHADO&&dc.decidido_por?`<div class="cz" title="${esc(dc.decidido_por)}">${esc(String(dc.decidido_por).split('@')[0])} · ${fmtD(dc.decidido_em)}</div>`:''}</td>
-    </tr>`}).join('')||'<tr><td colspan="13" class="vazio">Nenhum desconto com esses filtros.</td></tr>';
+        ${!FECHADO&&!dc.decisao&&dc.gerente_decisao?'<div class="cz">pela resposta do gerente</div>':''}
+        ${!FECHADO&&dc.decidido_por&&dc.decisao?`<div class="cz" title="${esc(dc.decidido_por)}">${esc(String(dc.decidido_por).split('@')[0])} · ${fmtD(dc.decidido_em)}</div>`:''}</td>
+    </tr>`}).join('')||'<tr><td colspan="14" class="vazio">Nenhum desconto com esses filtros.</td></tr>';
+}
+// ── Análise: por gerente (pelo cadastro de gerentes × CC) e por centro de custo ──
+function desenharAnalise(L){
+  let soma=a=>a.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0);
+  let lin=(nome,a)=>{let g=a.filter(d=>(DEC[d.chave]||{}).gerente_decisao),ab=a.filter(d=>(DEC[d.chave]||{}).gerente_decisao==='abonar'),de=a.filter(d=>(DEC[d.chave]||{}).gerente_decisao==='descontar'),
+      fa=a.filter(d=>decDe(d)==='abonar'),fd=a.filter(d=>decDe(d)==='descontar');
+    return `<tr><td style="font-weight:600">${nome}</td><td class="n">${a.length}</td><td class="n">${fmtR(soma(a))}</td>
+      <td class="n">${g.length} <span class="cz">(${a.length?Math.round(g.length/a.length*100):0}%)</span></td>
+      <td class="n" style="color:#16a34a">${ab.length} · ${fmtR(soma(ab))}</td><td class="n" style="color:#ea580c">${de.length} · ${fmtR(soma(de))}</td>
+      <td class="n">${g.length?Math.round(ab.length/g.length*100)+'%':'–'}</td><td class="n">${a.length-g.length}</td>
+      <td class="n" style="color:#16a34a">${fmtR(soma(fa))}</td><td class="n" style="color:#ea580c">${fmtR(soma(fd))}</td></tr>`};
+  let cab=`<tr><th></th><th class="n">Descontos</th><th class="n">Valor</th><th class="n">Gerente respondeu</th><th class="n">Gerente abonou</th><th class="n">Gerente descontou</th><th class="n">% abono</th><th class="n">Sem resposta</th><th class="n">Final: abonado</th><th class="n">Final: descontado</th></tr>`;
+  let porGer={};L.forEach(d=>{(GER_CC[d.cc]||['(sem gerente no cadastro)']).forEach(e=>{(porGer[e]=porGer[e]||[]).push(d)})});
+  let porCC={};L.forEach(d=>{(porCC[d.cc||'—']=porCC[d.cc||'—']||[]).push(d)});
+  $('analise').innerHTML=`<div class="tab" style="max-height:none;margin-bottom:12px"><table><thead>${cab.replace('<th></th>','<th>Gerente</th>')}</thead><tbody>${
+      Object.keys(porGer).sort((a,b)=>soma(porGer[b])-soma(porGer[a])).map(e=>lin(esc(e),porGer[e])).join('')}</tbody></table></div>
+    <div class="tab" style="max-height:none"><table><thead>${cab.replace('<th></th>','<th>Centro de custo</th>')}</thead><tbody>${
+      Object.keys(porCC).sort((a,b)=>soma(porCC[b])-soma(porCC[a])).map(c=>lin(esc(c)+(NOME_CC[c]?' <span class="cz">'+esc(NOME_CC[c])+'</span>':''),porCC[c])).join('')}</tbody></table></div>
+    <div class="cz" style="margin-top:6px">Um CC com mais de um gerente conta para cada um deles. "Final" = decisão do almoxarifado (ou a resposta do gerente, se o almoxarifado ainda não decidiu); em período fechado, o que foi para a folha.</div>`;
+}
+// ── Arquivo para o Protheus: igual ao CSV de exemplo (141010101_20260921.csv) ──
+const _corta=(v,n)=>String(v==null?'':v).replace(/[;\r\n]/g,' ').slice(0,n);
+const _num=v=>(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2,useGrouping:false});
+const _qtd=v=>(Number(v)||0).toLocaleString('pt-BR',{maximumFractionDigits:2,useGrouping:false});
+function csvDe(lista){
+  let L=['DESCONTOS'+';'.repeat(20),'C. Custo    ;Filial      ;Matricula   ;Nome        ;Requisic.   ;Item        ;Produto     ;Descricao   ;Motivo      ;Qtd Dias    ;Vida Util   ;Quantidade  ;Desconto    ;Dt. Inclusao;Abonado;;;;;;'];
+  lista.forEach(d=>{let de=decDe(d);
+    L.push([_corta(NOME_CC[d.cc]||d.desc_cc||d.cc,40),d.filial,d.matricula,_corta(d.nome,30),d.sa,d.item||'',d.produto,_corta(d.descricao,30),
+      _corta(MOTIVO[d.motivo]||d.motivo||'',12),d.qtd_dias!=null?Math.round(d.qtd_dias):'',_qtd(d.vida_util),_qtd(d.quantidade),_num(d.valor_desconto),
+      fmtD(d.datinc),de==='abonar'?'S':'N'].join(';')+';;;;;;')});
+  return '\ufeff'+L.join('\r\n')+'\r\n';
+}
+async function exportar(){
+  let L=filtrados();if(!L.length)return alert('Nada para exportar com esses filtros.');
+  let pend=L.filter(d=>!decDe(d)).length;
+  if(pend&&!confirm(pend+' desconto(s) ainda sem decisão vão sair como DESCONTO (Abonado = N). Exportar assim mesmo?'))return;
+  let ini=$('f-per').value.split('|')[0].replace(/-/g,''),porCC={};L.forEach(d=>{(porCC[d.cc||'SEMCC']=porCC[d.cc||'SEMCC']||[]).push(d)});
+  let baixar=(blob,nome)=>{let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nome;a.click()};
+  let ccs=Object.keys(porCC);
+  if(ccs.length===1)return baixar(new Blob([csvDe(porCC[ccs[0]])],{type:'text/csv;charset=utf-8'}),ccs[0]+'_'+ini+'.csv');
+  if(!window.JSZip)return alert('Não consegui montar o .zip. Escolha um centro de custo no filtro para baixar o arquivo dele.');
+  let z=new JSZip();ccs.forEach(c=>z.file(c+'_'+ini+'.csv',csvDe(porCC[c])));
+  baixar(await z.generateAsync({type:'blob'}),'descontos_'+ini+'.zip');
 }
 // clicar na mesma decisão desfaz; clicar na outra troca
 async function decidir(chave,decisao){
   let atual=(DEC[chave]||{}).decisao;
-  if(atual===decisao){
-    let{error}=await db.from('descontos_decisao').delete().eq('chave',chave);
-    if(error)return alert('Não consegui desfazer: '+error.message);
-    delete DEC[chave];
-  }else{
-    let reg={chave,decisao,decidido_por:userEmail,decidido_em:new Date().toISOString()};
-    let{error}=await db.from('descontos_decisao').upsert(reg,{onConflict:'chave'});
-    if(error)return alert('Não consegui salvar: '+error.message);
-    DEC[chave]=reg;
-  }
+  let reg=atual===decisao?{chave,decisao:null,decidido_por:null,decidido_em:null}:{chave,decisao,decidido_por:userEmail,decidido_em:new Date().toISOString()};
+  let{error}=await db.from('descontos_decisao').upsert(reg,{onConflict:'chave'});
+  if(error)return alert('Não consegui salvar: '+error.message);
+  DEC[chave]=Object.assign({},DEC[chave]||{},reg);
   let y=$('tb').parentElement.parentElement.scrollTop;desenhar();$('tb').parentElement.parentElement.scrollTop=y;
 }
 async function emMassa(decisao){
-  let pend=filtrados().filter(d=>!(DEC[d.chave]||{}).decisao);
+  let pend=filtrados().filter(d=>!decDe(d));
   if(!pend.length)return alert('Não há pendentes na lista filtrada.');
   if(!confirm(`Marcar ${decisao.toUpperCase()} em ${pend.length} desconto(s) pendente(s) da lista filtrada?`))return;
   let agora=new Date().toISOString(),regs=pend.map(d=>({chave:d.chave,decisao,decidido_por:userEmail,decidido_em:agora}));
   for(let i=0;i<regs.length;i+=500){let{error}=await db.from('descontos_decisao').upsert(regs.slice(i,i+500),{onConflict:'chave'});if(error)return alert('Não consegui salvar: '+error.message)}
-  regs.forEach(r=>DEC[r.chave]=r);desenhar();
+  regs.forEach(r=>DEC[r.chave]=Object.assign({},DEC[r.chave]||{},r));desenhar();
 }
 
 // ── Login: mesmo usuário do Painel principal. Administrador vê tudo; gerente vê só os CCs dele ──
@@ -198,6 +254,7 @@ async function liberar(email){
   userEmail=email||'';$('user-email').textContent=userEmail;
   try{let{data}=await db.from('perfis_usuario').select('role').eq('email',userEmail.toLowerCase().trim()).maybeSingle();isAdmin=data&&data.role==='admin'}catch(e){}
   try{let{data}=await db.from('centros_custo').select('cc,nome');(data||[]).forEach(c=>NOME_CC[String(c.cc).trim()]=String(c.nome||'').replace(/\s+/g,' ').trim())}catch(e){}
+  try{let{data}=await db.from('gerentes_cc').select('cc,email');(data||[]).forEach(g=>{let c=String(g.cc).trim();(GER_CC[c]=GER_CC[c]||[]);let e=String(g.email||'').trim().toLowerCase();if(e&&!GER_CC[c].includes(e))GER_CC[c].push(e)})}catch(e){}
   if(!isAdmin){
     let{data}=await db.from('gerentes_cc').select('cc').ilike('email',userEmail.trim());
     MEUS_CC=[...new Set((data||[]).map(x=>String(x.cc).trim()))];

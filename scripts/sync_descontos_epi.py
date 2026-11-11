@@ -97,10 +97,10 @@ SELECT RTRIM(Z.ZZA_FILIAL) filial, RTRIM(Z.ZZA_TRANS) sa, RTRIM(Z.ZZA_MATR) matr
        RTRIM(Z.ZZA_DESC) desc_zza, RTRIM(Z.ZZA_MOTIVO) motivo, Z.ZZA_VALOR valor, RTRIM(Z.ZZA_STATUS) status,
        Z.ZZA_DATINC datinc, RTRIM(Z.ZZA_INTEG) integ, Z.ZZA_QUANT quant, Z.ZZA_VIDUTI vida, RTRIM(Z.ZZA_NOMFUN) nomfun,
        Z.ZZA_VALDES valdes,
-       C.CP_EMISSAO emissao, RTRIM(C.CP_CC) cc, RTRIM(C.CP_DESCRI) descri, RTRIM(C.CP_YCOMREQ) obs, RTRIM(C.CP_SOLICIT) solic,
+       C.CP_EMISSAO emissao, RTRIM(C.CP_ITEM) item, RTRIM(C.CP_CC) cc, RTRIM(C.CP_DESCRI) descri, RTRIM(C.CP_YCOMREQ) obs, RTRIM(C.CP_SOLICIT) solic,
        R.NOME nome, RTRIM(R.CCUSTO) cc_func, RTRIM(R.DESC_CC) desc_cc, RTRIM(R.DESFUNCAO) funcao
 FROM BEQ_LWH.dbo.{TABELA_ZZA} Z
-OUTER APPLY (SELECT TOP 1 C.CP_EMISSAO, C.CP_CC, C.CP_DESCRI, C.CP_YCOMREQ, C.CP_SOLICIT, C.CP_YFILMAT
+OUTER APPLY (SELECT TOP 1 C.CP_EMISSAO, C.CP_ITEM, C.CP_CC, C.CP_DESCRI, C.CP_YCOMREQ, C.CP_SOLICIT, C.CP_YFILMAT
              FROM BEQ_LWH.dbo.{TABELA_SCP} C
              WHERE C.CP_FILIAL = Z.ZZA_FILIAL AND C.CP_NUM = Z.ZZA_TRANS AND C.CP_PRODUTO = Z.ZZA_PRODUT{del_scp}) C
 OUTER APPLY (SELECT TOP 1 R.NOME, R.CCUSTO, R.DESC_CC, R.DESFUNCAO
@@ -112,8 +112,37 @@ WHERE Z.ZZA_DATINC >= ?{del_zza}
 """
     print("  Lendo os descontos no Protheus...")
     df = pd.read_sql(sql, conn, params=[desde])
-    conn.close()
     print(f"  {len(df)} descontos lidos.")
+
+    # Qtd Dias = dias desde a retirada anterior do mesmo produto pelo mesmo funcionário (SA anterior, CP_YMAT)
+    ant = {}
+    try:
+        prods = sorted(set(txt(x) for x in df["produto"] if txt(x)))
+        ini_hist = f"{int(desde[:4]) - 4}{desde[4:]}"
+        hist = []
+        for i in range(0, len(prods), 300):
+            lista = ",".join("'" + p.replace("'", "") + "'" for p in prods[i:i + 300])
+            q = (f"SELECT RTRIM(C.CP_YMAT) mat, RTRIM(C.CP_PRODUTO) prod, C.CP_EMISSAO emi FROM BEQ_LWH.dbo.{TABELA_SCP} C "
+                 f"WHERE RTRIM(C.CP_PRODUTO) IN ({lista}) AND C.CP_EMISSAO >= '{ini_hist}' AND ISNULL(RTRIM(C.CP_YMAT),'') <> ''{del_scp}")
+            hist.append(pd.read_sql(q, conn))
+        h = pd.concat(hist) if hist else pd.DataFrame(columns=["mat", "prod", "emi"])
+        for (m, p_), g in h.groupby(["mat", "prod"]):
+            ant[(txt(m), txt(p_))] = sorted(set(txt(e) for e in g["emi"] if txt(e)))
+        print(f"  Histórico de retiradas lido ({len(h)} linhas) para a Qtd Dias.")
+    except Exception as e:
+        print("  (não consegui calcular a Qtd Dias:", e, ")")
+    conn.close()
+
+    def qtd_dias(mat, prod, emi):
+        datas = ant.get((txt(mat), txt(prod)), [])
+        emi = txt(emi)[:8]
+        antes = [d[:8] for d in datas if d[:8] < emi]
+        if not emi or not antes:
+            return None
+        try:
+            return (datetime.strptime(emi, "%Y%m%d") - datetime.strptime(antes[-1], "%Y%m%d")).days
+        except Exception:
+            return None
 
     regs, vistos, repetidos = [], set(), 0
     for _, r in df.iterrows():
@@ -132,6 +161,8 @@ WHERE Z.ZZA_DATINC >= ?{del_zza}
             "descricao": txt(r["descri"]) or txt(r["desc_zza"]) or None, "quantidade": num(r["quant"]),
             "motivo": txt(r["motivo"]) or None, "observacao": txt(r["obs"]) or None, "solicitante": txt(r["solic"]) or None,
             "vida_util": num(r["vida"]), "valor": num(r["valor"]), "valor_desconto": num(r["valdes"]),
+            "item": txt(r["item"]) or None,
+            "qtd_dias": qtd_dias(r["matricula"], r["produto"], txt(r["emissao"]) or txt(r["datinc"])),
             "status": txt(r["status"]) or None, "integrado": txt(r["integ"]) or None,
             "atualizado_em": datetime.now().isoformat(),
         })

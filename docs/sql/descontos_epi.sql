@@ -48,3 +48,12 @@ create policy logado_tudo on public.descontos_decisao for all to authenticated u
 -- DESFAZER:
 -- drop table if exists public.descontos_decisao;
 -- drop table if exists public.descontos_epi;
+
+-- ── 11/11 (aplicado): resposta do gerente, item da SA e Qtd Dias ─────────────────────────
+alter table public.descontos_decisao
+  add column if not exists gerente_decisao text check (gerente_decisao in ('descontar','abonar')),
+  add column if not exists gerente_por text, add column if not exists gerente_em timestamptz, add column if not exists gerente_obs text;
+alter table public.descontos_epi add column if not exists item text, add column if not exists qtd_dias numeric;
+-- Decisão final = decisao (almoxarifado); se vazia, gerente_decisao. Em período fechado: ZZA_INTEG (S = descontado, N = abonado).
+-- DESFAZER: alter table public.descontos_decisao drop column gerente_decisao, drop column gerente_por, drop column gerente_em, drop column gerente_obs;
+--           alter table public.descontos_epi drop column item, drop column qtd_dias;
