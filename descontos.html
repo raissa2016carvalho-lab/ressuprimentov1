@@ -6,6 +6,7 @@
 <script src="vendor/supabase-2.118.0.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <link rel="stylesheet" href="/padrao.css"><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--bq-fonte);background:var(--bq-fundo);color:var(--bq-texto);min-height:100vh}
@@ -219,15 +220,15 @@ function desenharAnalise(L){
 // ── Gráficos da análise (cores: abonado = verde-água, descontado = laranja, sem decisão = cinza; valores sempre em R$ do desconto) ──
 const C_AB='#1baf7a',C_DE='#eb6834',C_PE='#cbd5e1',C_UM='#2a78d6';
 const GRAF_HTML=`<div class="graf">
+  <div class="gcard largo"><h3>Evolução por período da folha</h3><p>Fechados: o que foi para a folha (S = descontado, N = abonado). Em aberto: decisão atual</p><div class="gleg"><span><i style="background:${C_DE}"></i>Descontado</span><span><i style="background:${C_AB}"></i>Abonado</span><span><i style="background:${C_PE}"></i>Sem decisão</span></div><div class="cv"><canvas id="g-evol"></canvas></div></div>
   <div class="gcard"><h3>Para onde foi o valor</h3><p>Decisão final do período, em R$ de desconto</p><div class="cv"><canvas id="g-final"></canvas></div></div>
-  <div class="gcard"><h3>Evolução por período da folha</h3><p>Fechados: o que foi para a folha (S = descontado, N = abonado). Em aberto: decisão atual</p><div class="gleg"><span><i style="background:${C_DE}"></i>Descontado</span><span><i style="background:${C_AB}"></i>Abonado</span><span><i style="background:${C_PE}"></i>Sem decisão</span></div><div class="cv"><canvas id="g-evol"></canvas></div></div>
-  <div class="gcard largo"><h3>Resposta de cada gerente</h3><p>R$ de desconto dos CCs de cada gerente, pelo que ele respondeu</p><div class="gleg"><span><i style="background:${C_AB}"></i>Gerente abonou</span><span><i style="background:${C_DE}"></i>Gerente descontou</span><span><i style="background:${C_PE}"></i>Sem resposta</span></div><div class="cv" id="cv-ger"><canvas id="g-ger"></canvas></div></div>
   <div class="gcard"><h3>Centros de custo que mais geram desconto</h3><p>Top 10 em R$, pela decisão final</p><div class="gleg"><span><i style="background:${C_DE}"></i>Descontado</span><span><i style="background:${C_AB}"></i>Abonado</span><span><i style="background:${C_PE}"></i>Sem decisão</span></div><div class="cv"><canvas id="g-cc"></canvas></div></div>
   <div class="gcard"><h3>Por motivo</h3><p>R$ de desconto por motivo da troca</p><div class="cv"><canvas id="g-mot"></canvas></div></div>
+  <div class="gcard largo"><h3>Resposta de cada gerente</h3><p>R$ de desconto dos CCs de cada gerente, pelo que ele respondeu</p><div class="gleg"><span><i style="background:${C_AB}"></i>Gerente abonou</span><span><i style="background:${C_DE}"></i>Gerente descontou</span><span><i style="background:${C_PE}"></i>Sem resposta</span></div><div class="cv" id="cv-ger"><canvas id="g-ger"></canvas></div></div>
   <div class="gcard"><h3>Produtos com mais desconto</h3><p>Top 10 em R$</p><div class="cv"><canvas id="g-prod"></canvas></div></div>
   <div class="gcard"><h3>Funcionários com mais descontos</h3><p>Top 10 por quantidade de descontos no período</p><div class="cv"><canvas id="g-func"></canvas></div></div>
   <div class="gcard"><h3>Quanto faltava da vida útil na troca</h3><p>Quantidade de descontos por faixa: quanto mais à direita, mais cedo o EPI foi trocado</p><div class="cv"><canvas id="g-vida"></canvas></div></div>
-  <div class="gcard"><h3>Por filial</h3><p>R$ de desconto por filial</p><div class="cv"><canvas id="g-fil"></canvas></div></div>
+  <div class="gcard largo"><h3>Por filial</h3><p>R$ de desconto por filial</p><div class="cv"><canvas id="g-fil"></canvas></div></div>
 </div>`;
 let GRAFS={},EVOL=null,EVOL_CHAVE='';
 const corta=(t,n)=>{t=String(t||'');if(innerWidth<600)n=Math.min(n,16);return t.length>n?t.slice(0,n-1)+'…':t};
@@ -237,14 +238,20 @@ function grafico(id,cfg){
   if(GRAFS[id])GRAFS[id].destroy();
   let el=$(id);if(!el)return;
   Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;Chart.defaults.color='#64748b';
+  if(window.ChartDataLabels&&!grafico.reg){Chart.register(ChartDataLabels);grafico.reg=1}
   GRAFS[id]=new Chart(el,cfg);
 }
 // barras (horizontais por padrão); datasets empilhados quando há mais de um
 function barras(id,labels,sets,{hor=true,reais=true,titulos=null}={}){
   let fmt=v=>reais?fmtR(v):Number(v).toLocaleString('pt-BR');
-  let pilha=sets.length>1;
-  grafico(id,{type:'bar',data:{labels,datasets:sets.map(s=>({label:s.label,data:s.data,backgroundColor:s.cor,borderColor:'#fff',borderWidth:pilha?{[hor?'right':'top']:2}:0,borderRadius:4,borderSkipped:'start',maxBarThickness:26,categoryPercentage:.8,barPercentage:.9}))},
-    options:{indexAxis:hor?'y':'x',maintainAspectRatio:false,animation:false,
+  let curto=v=>reais?'R$ '+Number(v).toLocaleString('pt-BR',{notation:'compact',maximumFractionDigits:Math.abs(v)<1000?0:1}):Number(v).toLocaleString('pt-BR');
+  let pilha=sets.length>1,tots=labels.map((_,i)=>sets.reduce((s,x)=>s+(Number(x.data[i])||0),0)),max=Math.max(1,...tots);
+  // rótulo: barra simples = valor na ponta; empilhada = valor dentro de cada parte (se couber) + total na ponta
+  let fora={anchor:'end',align:'end',offset:2,clamp:true,color:'#0f172a',font:{size:10.5,weight:'600'},formatter:(v,c)=>pilha?(tots[c.dataIndex]?curto(tots[c.dataIndex]):''):(v?curto(v):'')};
+  let dentro={anchor:'center',align:'center',color:'#0f172a',font:{size:10,weight:'600'},display:c=>{let v=Number(c.dataset.data[c.dataIndex])||0,el=c.chart.getDatasetMeta(c.datasetIndex).data[c.dataIndex];if(!v||!el)return false;let w=Math.abs(hor?el.width:el.height),h=hor?el.height:el.width;return hor?w>=curto(v).length*6+6:(w>=16&&h>=curto(v).length*5.6+4)},formatter:v=>curto(v)};
+  grafico(id,{type:'bar',data:{labels,datasets:sets.map((s,k)=>({label:s.label,data:s.data,backgroundColor:s.cor,borderColor:'#fff',borderWidth:pilha?{[hor?'right':'top']:2}:0,borderRadius:4,borderSkipped:'start',maxBarThickness:hor?26:56,categoryPercentage:.8,barPercentage:.9,
+      datalabels:pilha?{labels:k===sets.length-1?{parte:dentro,total:Object.assign({},fora,{formatter:(v,c)=>tots[c.dataIndex]?curto(tots[c.dataIndex]):''})}:{parte:dentro}}:{labels:{valor:fora}}}))},
+    options:{indexAxis:hor?'y':'x',maintainAspectRatio:false,animation:false,layout:{padding:hor?{right:62}:{top:20}},
       plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{
         title:it=>titulos?titulos[it[0].dataIndex]:it[0].label,
         label:c=>' '+(c.dataset.label?c.dataset.label+': ':'')+fmt(c.raw),
@@ -259,7 +266,8 @@ function desenharGraficos(L,porGer,porCC){
   let rotF=[FECHADO?'Descontado':'A descontar','Abonado','Sem decisão'],valF=[soma(fd),soma(fa),soma(fp)],tot=valF.reduce((a,b)=>a+b,0);
   grafico('g-final',{type:'doughnut',data:{labels:rotF.map((r,i)=>`${r}: ${fmtR(valF[i])} (${tot?Math.round(valF[i]/tot*100):0}%)`),datasets:[{data:valF,backgroundColor:[C_DE,C_AB,C_PE],borderColor:'#fff',borderWidth:2}]},
     options:{maintainAspectRatio:false,animation:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,font:{size:12},color:'#0f172a'}},
-      tooltip:{callbacks:{label:c=>' '+c.label}}}}});
+      tooltip:{callbacks:{label:c=>' '+c.label}},
+      datalabels:{color:'#0f172a',font:{size:12,weight:'700'},display:c=>tot&&c.dataset.data[c.dataIndex]/tot>=.04,formatter:v=>Math.round(v/tot*100)+'%'}}}});
   // 2) gerente: abonou / descontou / sem resposta
   let gs=Object.keys(porGer).sort((a,b)=>soma(porGer[b])-soma(porGer[a])).slice(0,15),gd=k=>gs.map(e=>soma(porGer[e].filter(d=>((DEC[d.chave]||{}).gerente_decisao||'')===k)));
   $('cv-ger').style.height=Math.max(160,gs.length*30+40)+'px';
