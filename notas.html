@@ -4,6 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Notas Fiscais</title>
 <script src="vendor/supabase-2.118.0.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="/padrao.css"><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#0f172a;min-height:100vh}
@@ -115,6 +116,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
     <button class="aba-btn" id="aba-recusadas" onclick="setAbaReceb('recusadas')">✕ Recusadas</button>
   </div>
   <div class="topo-right">
+    <button class="btn-atualizar" id="btn-excel" onclick="exportarExcel()" title="Baixa em Excel as notas da lista, com os filtros aplicados">⬇ Excel</button>
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
     <button class="btn-atualizar" onclick="sair()" title="Sair">Sair</button>
   </div>
@@ -125,7 +127,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
   <div class="f-group so-notas"><label>Tipo</label><select id="f-tipo-nota" onchange="pag=0;render()"><option value="">NF-e e NFS-e</option><option value="NFE">Só NF-e (produto)</option><option value="NFSE">Só NFS-e (serviço)</option></select></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="">Todas</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
-  <div class="f-group so-notas so-gestao"><label>Lançada no Protheus (SD1)?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já tem na SD1</option><option value="nao">✗ Não — falta lançar</option></select></div>
+  <div class="f-group so-notas so-gestao"><label>Lançada no Protheus?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já lançada</option><option value="nao">✗ Não — falta lançar</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Status</label><select id="f-status" multiple class="ms-src" style="display:none" onchange="pag=0;render()"></select></div>
   <div class="f-group so-gestao"><label>Setor</label><select id="f-setor" multiple class="ms-src" style="display:none" onchange="pag=0;render()"></select></div>
   <div class="f-group so-gestao"><label>Emitidas de</label><input type="date" id="f-de" onchange="document.querySelectorAll('.btn-dia').forEach(b=>b.classList.remove('ativo'));pag=0;render()"></div>
@@ -172,6 +174,8 @@ const ST_INT={'1':'Pendente · sem XML','2':'Pendente','3':'Integrado'};
 const PEND=n=>n.status_nfe!=='C'&&n.status_integracao!=='3';
 // Nota parada: pendente no NFe Master, não lançada na SD1 e emitida há PARADA_DIAS dias ou mais
 const PARADA_DIAS=5;let SO_PARADAS=false;
+// lançada no Protheus = integrada pelo NFe Master (status 3) ou já encontrada na SD1 (lançamento manual)
+const lancada=n=>n.status_integracao==='3'||!!(sd1&&sd1[n.id]);
 function diasParada(n){if(!PEND(n)||(sd1&&sd1[n.id])||!n.emissao)return 0;let d=Math.floor((Date.now()-new Date(n.emissao).getTime())/864e5);return d>=PARADA_DIAS?d:0}
 const ST_NFE={'A':'Autorizada','C':'Cancelada','D':'Denegada'};
 const POR_PAG=100;
@@ -296,7 +300,7 @@ function notasFiltradas(ignorarSetor){
     if(!noPeriodo(n))return false;
     if(!passaStatus(n,si)||!passaManif(n,vals('f-manif')))return false;
     if(SO_PARADAS&&!diasParada(n))return false;
-    let fs=$('f-sd1').value;if(fs&&sd1){let tem=!!sd1[n.id];if(fs==='sim'&&!tem)return false;if(fs==='nao'&&tem)return false}
+    let fs=$('f-sd1').value;if(fs){let tem=lancada(n);if(fs==='sim'&&!tem)return false;if(fs==='nao'&&(tem||n.status_nfe==='C'))return false}
     if(fil.length&&!fil.includes(n.filial))return false;
     let tp=$('f-tipo-nota')?$('f-tipo-nota').value:'';if(tp==='NFSE'&&!ehServ(n))return false;if(tp==='NFE'&&ehServ(n))return false;
     let s=setorDa(n).setor;if(!ignorarSetor&&st.length&&!st.some(x=>x==='__sem'?!s:s===x))return false;
@@ -337,6 +341,7 @@ function paginar(l){let pags=Math.max(1,Math.ceil(l.length/POR_PAG));if(pag>=pag
   return l.slice(pag*POR_PAG,(pag+1)*POR_PAG)}
 
 function render(){
+  if($('btn-excel'))$('btn-excel').style.display=!MODO_RECEB&&aba==='notas'?'':'none';
   if(MODO_RECEB){renderReceb();return}
   agrupar();
   if(aba==='forn'){renderForn();$('barra-sel').style.display='none';return}
@@ -357,6 +362,27 @@ function render(){
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
         '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlEntregaReal(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
+}
+
+// ── Excel da aba "Por nota fiscal": todas as notas da lista (todas as páginas), com os filtros aplicados ──
+function exportarExcel(){
+  let l=notasFiltradas();if(!l.length)return alert('Nenhuma nota com esses filtros.');
+  if(!window.XLSX)return alert('Não consegui carregar o gerador de Excel. Atualize a página e tente de novo.');
+  let dt=v=>{if(!v)return '';let d=new Date(String(v).slice(0,10)+'T12:00');return isNaN(d)?'':d};
+  let txtStatus=n=>n.status_nfe==='C'?'Cancelada':n.status_integracao==='3'?'Integrado':(sd1&&sd1[n.id])?'Lançada manual':n.status_integracao==='1'?'Pendente · sem XML':'Pendente';
+  let linhas=l.map(n=>{let f=(fluxo&&fluxo[n.id])||{},ped=ENT_PED[n.id]||{},rec=f.recebido_em?String(f.recebido_em).slice(0,10):'',real=f.entrega_real||rec||'',x=sd1&&sd1[n.id];
+    return {'Filial':n.filial||'','Emissão':dt(n.emissao),'Nº nota':n.numero||'','Série':n.serie==null?'':n.serie,'Tipo':ehServ(n)?'NFS-e':'NF-e',
+      'Setor':setorDa(n).setor||'','Fornecedor':n.fornecedor_nome||n.fornecedor_fantasia||'','CNPJ':fmtCnpj(n.fornecedor_cnpj),'Valor':Number(n.valor_total)||0,
+      'Entrega prevista':dt(f.previsao_entrega||ped.entrega),'Entrega real':dt(real),'Pedido':f.pedido||n.pedido_cliente||'','Observação':f.obs_compras||'',
+      'Status':txtStatus(n),'Lançada no Protheus':lancada(n)?'Sim':'Não','Data de lançamento (SD1)':x&&x.sd1_dtdigit?dt(x.sd1_dtdigit.slice(0,4)+'-'+x.sd1_dtdigit.slice(4,6)+'-'+x.sd1_dtdigit.slice(6,8)):'',
+      'Dias parada':diasParada(n)||'','Chave':n.chave||''}});
+  let ws=XLSX.utils.json_to_sheet(linhas,{cellDates:true,dateNF:'dd/mm/yyyy'});
+  ws['!cols']=[6,11,10,6,7,18,40,20,13,13,13,12,30,16,10,14,9,46].map(w=>({wch:w}));
+  let rg=XLSX.utils.decode_range(ws['!ref']);
+  for(let r=1;r<=rg.e.r;r++){let c=ws[XLSX.utils.encode_cell({r,c:8})];if(c)c.z='#,##0.00'}
+  ws['!autofilter']={ref:ws['!ref']};
+  let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Notas');
+  XLSX.writeFile(wb,'notas_fiscais_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
 // ── SLA de lançamento: emissão → pré-nota (almoxarifado, pelo NFe Master) → lançamento (fiscal classifica; D1_DTDIGIT) ──
 // Pré-nota = 1ª vez que o NFe Master criou a pré-nota no Protheus com sucesso (log INCLUIPRENOTA; nfe_master.prenota).
