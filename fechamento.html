@@ -1688,10 +1688,11 @@ const GRUPOS_COLS = [
 ];
 // Coluna do grupo. As tabelas escrevem o mesmo grupo de jeitos diferentes:
 // consumo "FARDAMENTOS & UNIFORMES" x devolução "FARDAMENTOS E UNIFORMES"; "USINAS" x "USINA".
-// Antes, a grafia com "E" caía fora das colunas e a devolução sumia da tela (out/26: R$ 11.738,18).
+// Antes, a grafia com "E" caía fora das colunas e a devolução sumia da tela (out/26: R$ 11.738,18);
+// combustíveis (sem coluna) também ficavam de fora (set/26: R$ 420,00) -> coluna OUTROS.
 // A regra corrigida vale a partir de MES_REGRA_NOVA. Meses anteriores ficam como estavam (fechamentos já entregues):
 // só a grafia exata, e o que não tem coluna fica de fora (retorna null).
-const MES_REGRA_NOVA='202610';
+const MES_REGRA_NOVA='202609';
 function _colGrupo(g,mes){
   if(String(mes||'')<MES_REGRA_NOVA){const c=GRUPO_DEPARA[g]||'OUTROS';return c==='OUTROS'?null:c}
   const k=String(g||'').toUpperCase().replace(/\s+/g,' ').trim();
