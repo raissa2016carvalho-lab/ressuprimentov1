@@ -2407,7 +2407,41 @@ async function toggleMob(id){let el=document.getElementById(`corpo-mob-`+id);
   }
   el.classList.toggle(`aberto`),el.classList.contains(`aberto`)&&el.dataset.carregado===`0`&&(el.dataset.carregado=`1`,await renderDetalheMob(id,el))}window.toggleMob=toggleMob;
 // Carregar resumos em background após renderizar lista
-async function carregarResumosMob(mobs){for(let m of mobs){try{let el=document.getElementById('mob-resumo-'+m.id);if(!el)continue;let{data:scsLinks}=await db.from('mobilizacao_scs').select('sc_numero,filial').eq('mobilizacao_id',m.id);let{data:itensMob}=await db.from('mobilizacao_itens').select('*').eq('mobilizacao_id',m.id);itensMob=(itensMob||[]).filter(it=>!it.excluido);let{data:estItems}=await db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id',m.id);let mapaEst={};(estItems||[]).forEach(e=>{mapaEst[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0;});let scNums=(scsLinks||[]).map(s=>String(s.sc_numero||'').trim()).filter(Boolean);
+// ── Pedido marcado como RECEBIDO manualmente (tabela pedido_recebido_manual) ──
+// Vale só para o painel: sobrepõe o status do Protheus (sc_pedidos_v2) no % do card e nos itens do detalhe.
+let _pcManual={};
+const _kPc=(f,p)=>String(f||'').trim()+'|'+(String(p||'').trim().replace(/^0+/,'')||'0');
+async function carregarPcManual(){let{data,error}=await db.from('pedido_recebido_manual').select('filial,pc_numero,recebido_por,recebido_em,motivo');let m={};if(!error)(data||[]).forEach(r=>m[_kPc(r.filial,r.pc_numero)]=r);_pcManual=m;return m}
+function _stManual(filial,pc,st){if(!pc)return st;let m=_pcManual[_kPc(filial,pc)];let u=(st||'').toLowerCase();return m&&!u.includes('receb')&&!u.includes('pré-nota')&&!u.includes('pre-nota')?'Recebido (manual)':st}
+function _htmlPcsMob(mobId,pcs){
+  let g={};(pcs||[]).forEach(p=>{if(!p.c7_num)return;let k=_kPc(p.c7_filial,p.c7_num);if(!g[k])g[k]={filial:String(p.c7_filial||'').trim(),pc:String(p.c7_num).trim(),st:p.status_desc||'',scs:new Set()};g[k].scs.add(p.c7_numsc)});
+  let l=Object.entries(g);if(!l.length)return '';
+  let rec=s=>{let u=(s||'').toLowerCase();return u.includes('receb')||u.includes('pré-nota')||u.includes('pre-nota')};
+  let pend=l.filter(([k,x])=>!rec(x.st)).length;
+  let fd=d=>d?new Date(d).toLocaleDateString('pt-BR'):'';
+  return `<details style="margin-bottom:16px" ${pend?'open':''}><summary style="cursor:pointer;font-size:11.5px;font-weight:600;color:#64748b">Pedidos desta mobilização (${l.length}) · ${pend} sem entrada</summary><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">`+
+   l.map(([k,x])=>{let m=_pcManual[k],r=rec(x.st),cor=r?'#16a34a':'#d97706',a=`${mobId},'${_escV(x.filial)}','${_escV(x.pc)}'`;
+     return `<span style="display:inline-flex;align-items:center;gap:6px;background:${cor}14;color:${cor};border:1px solid ${cor}33;border-radius:8px;padding:4px 8px;font-size:12px">`+
+       `<b style="font-family:ui-monospace,monospace">PC ${_escV(x.pc)}</b><span style="color:#64748b">fil ${_escV(x.filial)} · SC ${[...x.scs].map(_escV).join(', ')}</span> · ${_escV(x.st||'Pendente')}`+
+       (m?`<span style="color:#64748b" title="${_escV(m.motivo||'')}">por ${_escV(m.recebido_por||'?')} em ${fd(m.recebido_em)}</span><button class="somente-admin" onclick="desfazerPcRecebido(${a})" style="border:none;background:#fff;color:#64748b;border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer">Desfazer</button>`
+        :!r?`<button class="somente-admin" onclick="marcarPcRecebido(${a})" style="border:none;background:#16a34a;color:#fff;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer">✓ Marcar recebido</button>`:'')+`</span>`}).join('')+
+   `</div><div style="font-size:11px;color:#94a3b8;margin-top:6px">"Marcar recebido" vale só para o painel (conta no % e nos itens). Não altera o Protheus.</div></details>`;
+}
+async function _recarregarMob(mobId){let c=document.getElementById('corpo-mob-'+mobId);if(c){let y=window.scrollY;c.dataset.carregado='0';await renderDetalheMob(mobId,c);c.classList.add('aberto');window.scrollTo({top:y})}let m=(typeof _mobsTodas!=='undefined'?_mobsTodas:[]).find(x=>x.id===mobId);if(m)carregarResumosMob([m])}
+async function marcarPcRecebido(mobId,filial,pc){
+  if(!isAdmin){alert('Apenas administradores podem marcar pedido como recebido.');return}
+  let motivo=prompt('Marcar o pedido '+pc+' (filial '+filial+') como RECEBIDO?\n\nVale só para o painel (não altera o Protheus).\nMotivo (opcional):','');if(motivo===null)return;
+  let{error}=await db.from('pedido_recebido_manual').upsert({filial:String(filial||'').trim(),pc_numero:String(pc||'').trim(),recebido_por:userEmail||null,recebido_em:new Date().toISOString(),motivo:motivo.trim()||null,mobilizacao_id:mobId},{onConflict:'filial,pc_numero'});
+  if(error){alert('Não salvou: '+error.message+(/relation|does not exist|schema cache/i.test(error.message)?'\n\nFalta criar a tabela pedido_recebido_manual no Supabase.':''));return}
+  await _recarregarMob(mobId)}
+async function desfazerPcRecebido(mobId,filial,pc){
+  if(!isAdmin){alert('Apenas administradores.');return}
+  if(!confirm('Desfazer a marcação manual do pedido '+pc+'? Ele volta a seguir o status do Protheus.'))return;
+  let{error}=await db.from('pedido_recebido_manual').delete().eq('filial',String(filial||'').trim()).eq('pc_numero',String(pc||'').trim());
+  if(error){alert('Não desfez: '+error.message);return}
+  await _recarregarMob(mobId)}
+window.marcarPcRecebido=marcarPcRecebido;window.desfazerPcRecebido=desfazerPcRecebido;
+async function carregarResumosMob(mobs){await carregarPcManual();for(let m of mobs){try{let el=document.getElementById('mob-resumo-'+m.id);if(!el)continue;let{data:scsLinks}=await db.from('mobilizacao_scs').select('sc_numero,filial').eq('mobilizacao_id',m.id);let{data:itensMob}=await db.from('mobilizacao_itens').select('*').eq('mobilizacao_id',m.id);itensMob=(itensMob||[]).filter(it=>!it.excluido);let{data:estItems}=await db.from('mobilizacao_estoque').select('codigo,qtd_estoque').eq('mobilizacao_id',m.id);let mapaEst={};(estItems||[]).forEach(e=>{mapaEst[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0;});let scNums=(scsLinks||[]).map(s=>String(s.sc_numero||'').trim()).filter(Boolean);
 let pcsR=[];
 if(scNums.length>0){
   // Buscar via sc_pedidos_v2 usando sc_numero + filial
@@ -2420,10 +2454,10 @@ if(scNums.length>0){
     if(!scsPorFilialR[fil].includes(sc))scsPorFilialR[fil].push(sc);
   });
   for(let[filial,scs]of Object.entries(scsPorFilialR)){
-    let q=db.from('sc_pedidos_v2').select('sc_produto,pc_status,pc_quant').in('sc_numero',scs);
+    let q=db.from('sc_pedidos_v2').select('sc_produto,pc_status,pc_quant,pc_numero,filial').in('sc_numero',scs);
     if(filial)q=q.eq('filial',filial);
     let{data:v2Data}=await q;
-    (v2Data||[]).forEach(r=>{if(r.pc_status)pcsR.push({c7_produto:r.sc_produto,status_desc:r.pc_status,c7_quant:r.pc_quant});});
+    (v2Data||[]).forEach(r=>{let st=_stManual(r.filial||filial,r.pc_numero,r.pc_status);if(st)pcsR.push({c7_produto:r.sc_produto,status_desc:st,c7_quant:r.pc_quant});});
   }
 }let scSet=new Set(scNums.map(s=>s.replace(/^0+/,'')||'0'));
 function stRec(s){let u=(s||'').toLowerCase();return u.includes('receb')||u.includes('pré-nota')||u.includes('pre-nota');}
@@ -2456,7 +2490,7 @@ let total=(itensAgrupados.length-eliminados)||1;
 let totalAtend=recebidos+estoque;let pct=Math.round(totalAtend/total*100);_resumoMob[m.id]={total,atend:totalAtend,recebidos,estoque};_atualizarCardTotalMob();_atualizarGruposMob();let cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';el.innerHTML=`<span style="font-weight:800;font-size:15px;color:${cor}">${pct}%</span><span style="color:#94a3b8;font-size:11px">atendimento</span>`;} catch(e){console.error('resumo mob',e);}}}
 
 let _catsGlobal=null,_mobIdExcel=null;
-async function renderDetalheMob(mobId,container){container.innerHTML=`<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>`;let[{data:mob},{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([db.from(`mobilizacoes`).select(`*`).eq(`id`,mobId).maybeSingle(),db.from(`mobilizacao_itens`).select(`*`).eq(`mobilizacao_id`,mobId).order(`descricao`),db.from(`mobilizacao_scs`).select(`*`).eq(`mobilizacao_id`,mobId).order(`criado_em`),db.from(`mobilizacao_estoque`).select(`*`).eq(`mobilizacao_id`,mobId)]);if(!mob){container.innerHTML=`<div style="padding:12px;color:#ef4444">Mobilização não encontrada.</div>`;return;}mapaEstoque={};(estoqueData||[]).forEach(e=>{e.codigo&&(mapaEstoque[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0)});let numEquipes=mob.num_equipes,grupos={},_gExcl={};(itens||[]).filter(it=>{if(!it.excluido)return true;let k=String(it.codigo||'').trim()||('desc:'+String(it.descricao||'').trim());let g=_gExcl[k]=_gExcl[k]||{descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],por:it.excluido_por,em:it.excluido_em,motivo:it.motivo_exclusao};g.total_mob+=Number(it.total_mob)||0;g.ids.push(it.id);return false}).forEach(it=>{let chave=it.codigo&&String(it.codigo||'').trim()?`cod:`+String(it.codigo||'').trim():`desc:`+String(it.descricao||'').trim();grupos[chave]||(grupos[chave]={descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],observacao:it.observacao||null,dt_entrega_manual:it.dt_entrega_manual||null}),grupos[chave].total_mob+=Number(it.total_mob)||0,grupos[chave].ids.push(it.id),it.observacao&&(grupos[chave].observacao=it.observacao),it.dt_entrega_manual&&(grupos[chave].dt_entrega_manual=it.dt_entrega_manual)});let itensExcluidosMob=Object.values(_gExcl),itensConsolidados=Object.values(grupos),numerosSc=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);function normalizarSc(sc){let s=String(sc||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function normalizarCodigo(cod){let s=String(cod||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function variantesSc(sc){let v=new Set([sc]);return/^\d+$/.test(sc)&&v.add(normalizarSc(sc)),[...v]}let numerosScNormalizados=new Set(numerosSc.map(normalizarSc)),pcsEncontrados=[],scSemPedido=[],avisoProtheus=``;if(numerosSc.length>0){let _scFilialMob={};(scsLista||[]).forEach(s=>{if(s.sc_numero&&s.filial)_scFilialMob[s.sc_numero.trim()]=s.filial;});let _scsPorFilial={};numerosSc.forEach(sc=>{let f=_scFilialMob[sc]||'';if(!_scsPorFilial[f])_scsPorFilial[f]=[];_scsPorFilial[f].push(sc);});let ePcs=null;// Buscar via sc_pedidos_v2 usando sc_numero + filial de cada SC da mobilização
+async function renderDetalheMob(mobId,container){await carregarPcManual();container.innerHTML=`<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>`;let[{data:mob},{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([db.from(`mobilizacoes`).select(`*`).eq(`id`,mobId).maybeSingle(),db.from(`mobilizacao_itens`).select(`*`).eq(`mobilizacao_id`,mobId).order(`descricao`),db.from(`mobilizacao_scs`).select(`*`).eq(`mobilizacao_id`,mobId).order(`criado_em`),db.from(`mobilizacao_estoque`).select(`*`).eq(`mobilizacao_id`,mobId)]);if(!mob){container.innerHTML=`<div style="padding:12px;color:#ef4444">Mobilização não encontrada.</div>`;return;}mapaEstoque={};(estoqueData||[]).forEach(e=>{e.codigo&&(mapaEstoque[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0)});let numEquipes=mob.num_equipes,grupos={},_gExcl={};(itens||[]).filter(it=>{if(!it.excluido)return true;let k=String(it.codigo||'').trim()||('desc:'+String(it.descricao||'').trim());let g=_gExcl[k]=_gExcl[k]||{descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],por:it.excluido_por,em:it.excluido_em,motivo:it.motivo_exclusao};g.total_mob+=Number(it.total_mob)||0;g.ids.push(it.id);return false}).forEach(it=>{let chave=it.codigo&&String(it.codigo||'').trim()?`cod:`+String(it.codigo||'').trim():`desc:`+String(it.descricao||'').trim();grupos[chave]||(grupos[chave]={descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],observacao:it.observacao||null,dt_entrega_manual:it.dt_entrega_manual||null}),grupos[chave].total_mob+=Number(it.total_mob)||0,grupos[chave].ids.push(it.id),it.observacao&&(grupos[chave].observacao=it.observacao),it.dt_entrega_manual&&(grupos[chave].dt_entrega_manual=it.dt_entrega_manual)});let itensExcluidosMob=Object.values(_gExcl),itensConsolidados=Object.values(grupos),numerosSc=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);function normalizarSc(sc){let s=String(sc||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function normalizarCodigo(cod){let s=String(cod||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function variantesSc(sc){let v=new Set([sc]);return/^\d+$/.test(sc)&&v.add(normalizarSc(sc)),[...v]}let numerosScNormalizados=new Set(numerosSc.map(normalizarSc)),pcsEncontrados=[],scSemPedido=[],avisoProtheus=``;if(numerosSc.length>0){let _scFilialMob={};(scsLista||[]).forEach(s=>{if(s.sc_numero&&s.filial)_scFilialMob[s.sc_numero.trim()]=s.filial;});let _scsPorFilial={};numerosSc.forEach(sc=>{let f=_scFilialMob[sc]||'';if(!_scsPorFilial[f])_scsPorFilial[f]=[];_scsPorFilial[f].push(sc);});let ePcs=null;// Buscar via sc_pedidos_v2 usando sc_numero + filial de cada SC da mobilização
 {
   // Agrupar SCs por filial
   let scsPorFilialMob={};
@@ -2473,7 +2507,7 @@ async function renderDetalheMob(mobId,container){container.innerHTML=`<div style
       let off=0;
       for(;;){
         let q=db.from('sc_pedidos_v2')
-          .select('sc_numero,sc_produto,sc_quant,pc_numero,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_comprador')
+          .select('sc_numero,sc_produto,sc_quant,pc_numero,pc_quant,pc_valor,pc_status,pc_dt_entrega,pc_comprador,filial')
           .in('sc_numero',lote);
         if(filial)q=q.eq('filial',filial);
         let{data:loteV2,error:eLote}=await q.range(off,off+999);
@@ -2481,9 +2515,11 @@ async function renderDetalheMob(mobId,container){container.innerHTML=`<div style
         if(!loteV2||!loteV2.length)break;
         // Converter para formato compatível com pcsEncontrados
         loteV2.forEach(r=>{
+          r.pc_status=_stManual(r.filial||filial,r.pc_numero,r.pc_status);// marcação manual de recebido
           if(!r.pc_numero){scSemPedido.push({c7_numsc:r.sc_numero,c7_produto:r.sc_produto,c7_num:null,c7_quant:r.sc_quant,status_desc:'SC aberta · sem pedido'});return;}// SC sem pedido: só para mostrar o número da SC
           pcsEncontrados.push({
             c7_numsc:    r.sc_numero,
+            c7_filial:   r.filial||filial,
             c7_produto:  r.sc_produto,
             c7_num:      r.pc_numero,
             c7_quant:    (r.pc_status&&['receb','pré-nota','pre-nota'].some(s=>(r.pc_status||'').toLowerCase().includes(s)))?Math.max(r.sc_quant||0,r.pc_quant||0):r.pc_quant,
@@ -2718,6 +2754,7 @@ window.baixarExcelMobCompleto=baixarExcelMobCompleto;function toggleCatMob(mobId
         </div>
       </div>
 
+      ${_htmlPcsMob(mobId,pcsEncontrados)}
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px">
         ${renderCardCat(`recebido`,`Recebidos`,`#22c55e`,`✅`,cats.recebido)}
         ${renderCardCat(`estoque`,`Via estoque`,`#6366f1`,`📦`,cats.estoque)}
