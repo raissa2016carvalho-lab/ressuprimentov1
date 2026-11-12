@@ -200,18 +200,19 @@ async function buscarSetores(tabela,chave){
 async function carregar(){
   $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
   try{
-    let [ns,sf,sn,{data:log},sd1r,flr,entr]=await Promise.all([
+    let [ns,sf,sn,{data:log},sd1r,flr,entr,medr]=await Promise.all([
       buscarTudo('nfe_master','id,numero,serie,modelo,pedido_cliente,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,prenota,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
       buscarSd1(),
       buscarFluxo(),
-      db.rpc('nfe_entregas_json')
+      db.rpc('nfe_entregas_json'),
+      buscarMedicoes()
     ]);
 
     let faltam=[sf.erro&&'fornecedor_setor',sn.erro&&'nfe_setor'].filter(Boolean);
     if(faltam.length){$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco: <b>'+faltam.join(', ')+'</b>. Rode o SQL que a Raissa recebeu.</div>';return}
-    sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;
+    sd1=sd1r.ok?sd1r.mapa:null;fluxo=flr.ok?flr.mapa:null;montarMedicoes(medr);
     // [nfe_id, entrega, emissão do pedido, aprovação] — vem tudo num pacote (a API limita a 1.000 linhas por consulta)
     ENT_PED={};((entr&&entr.data)||[]).forEach(x=>{ENT_PED[x[0]]={entrega:x[1],pc_emissao:x[2],pc_aprovacao:x[3]}});
     notas=ns;setForn={};sf.dados.forEach(x=>setForn[chaveCnpj(x.cnpj)]=x);setNota={};sn.dados.forEach(x=>setNota[x.nfe_id]=x);
@@ -300,7 +301,7 @@ function notasFiltradas(ignorarSetor){
     if(fil.length&&!fil.includes(n.filial))return false;
     let tp=$('f-tipo-nota')?$('f-tipo-nota').value:'';if(tp==='NFSE'&&!ehServ(n))return false;if(tp==='NFE'&&ehServ(n))return false;
     let s=setorDa(n).setor;if(!ignorarSetor&&st.length&&!st.some(x=>x==='__sem'?!s:s===x))return false;
-    if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd)||String(n.pedido_cliente||'').includes(bd)))&&!(RODAPE_IDS&&RODAPE_IDS.q===b&&RODAPE_IDS.ids.has(n.id)))return false}
+    if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd)||String(n.pedido_cliente||'').includes(bd)||((medicaoDa(n)||{}).medicao||'').includes(bd)))&&!(RODAPE_IDS&&RODAPE_IDS.q===b&&RODAPE_IDS.ids.has(n.id)))return false}
     return true;
   }).sort((a,b)=>String(b.emissao||'').localeCompare(String(a.emissao||'')));
 }
@@ -355,7 +356,7 @@ function render(){
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
         (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
-        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlEntregaReal(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlEntregaReal(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+htmlMed(n)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
 }
 // ── SLA de lançamento: emissão → pré-nota (almoxarifado, pelo NFe Master) → lançamento (fiscal classifica; D1_DTDIGIT) ──
@@ -493,6 +494,35 @@ function irSetor(i){let r=_gRows[i];if(!r)return;$('gtip').style.display='none';
 // ===== Fluxo: entrega prevista (Compras) e aceite do recebimento (Almoxarifado) — tabela nfe_fluxo =====
 const MODO_RECEB=/recebimento/.test(location.pathname)||new URLSearchParams(location.search).get('modo')==='recebimento';
 let fluxo=null,abaReceb='chegar',ENT_PED={};
+// ── Medição de contrato (tabela medicoes_nota, vem do upload_compras.py) ──
+// Liga a nota à medição por: 1) filial + pedido (digitado pelo Compras, do NFe Master ou do rodapé);
+// 2) filial + CNPJ + nº da nota (6 últimos dígitos) com emissão até 45 dias de diferença — pega as NFS-e,
+//    que chegam no NFe Master sem pedido e com outra numeração (2600000000310 x 000000310 no Protheus).
+let MED_PED={},MED_NF={},MED_OK=false;
+const normPed=p=>String(p??'').replace(/\D/g,'').replace(/^0+/,'');
+const num6=v=>{let d=String(v??'').replace(/\D/g,'');return d?String(Number(d.slice(-6))):''};
+async function buscarMedicoes(){
+  let out=[],de=0;
+  for(;;){let{data,error}=await db.from('medicoes_nota').select('chave,filial,contrato,medicao,pedido,nota,fornecedor_cnpj,emissao_nf').order('chave').range(de,de+999);
+    if(error)return {ok:false};out=out.concat(data||[]);if(!data||data.length<1000)break;de+=1000}
+  return {ok:true,dados:out};
+}
+function montarMedicoes(r){
+  MED_PED={};MED_NF={};MED_OK=!!(r&&r.ok);if(!MED_OK)return;
+  r.dados.forEach(x=>{let f=String(x.filial||'').trim(),m={contrato:x.contrato,medicao:x.medicao,emissao_nf:x.emissao_nf};
+    let p=normPed(x.pedido);if(p)MED_PED[f+'|'+p]=m;
+    let c=chaveCnpj(x.fornecedor_cnpj),nn=num6(x.nota);if(c&&nn)(MED_NF[f+'|'+c+'|'+nn]=MED_NF[f+'|'+c+'|'+nn]||[]).push(m)});
+}
+function medicaoDa(n){
+  if(!MED_OK||!n)return null;let f=String(n.filial||'').trim();
+  for(let p of [(fluxo&&fluxo[n.id]||{}).pedido,n.pedido,n.pedido_cliente]){let k=normPed(p);if(k&&MED_PED[f+'|'+k])return Object.assign({via:'pedido',ped:k},MED_PED[f+'|'+k])}
+  let c=chaveCnpj(n.fornecedor_cnpj),nn=num6(n.numero);if(!c||!nn)return null;
+  let e=String(n.emissao||'').slice(0,10),l=MED_NF[f+'|'+c+'|'+nn]||[];
+  let m=l.find(x=>!x.emissao_nf||!e||Math.abs(new Date(x.emissao_nf)-new Date(e))<=45*864e5);
+  return m?Object.assign({via:'nota'},m):null;
+}
+function htmlMed(n){let m=medicaoDa(n);if(!m)return '';
+  return '<div class="herdado" style="color:#047857;font-weight:700" title="Medição de contrato · contrato '+esc(m.contrato)+' · ligada '+(m.via==='pedido'?'pelo pedido '+esc(m.ped):'pela nota lançada no Protheus (filial + CNPJ + nº)')+'">Med. '+esc(m.medicao)+'</div>'}
 // data de entrega: a que o Compras digitou ou, se não tiver, a data de entrega do pedido (Protheus)
 const entregaDe=n=>{let f=(fluxo&&fluxo[n.id])||{};return f.previsao_entrega||(ENT_PED[n.id]||{}).entrega||''};
 async function buscarFluxo(){
@@ -594,7 +624,7 @@ function renderReceb(){
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens">'+esc(n.numero)+tagServ(n)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||'—')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
         '<td>'+(setorDa(n).setor?'<span class="pill tag-setor" style="margin:0">'+esc(setorDa(n).setor)+'</span>':'<span class="herdado">—</span>')+'</td>'+
-        '<td style="font-family:ui-monospace,monospace">'+esc(f.pedido||n.pedido_cliente||'—')+(!f.pedido&&n.pedido_cliente?'<div class="cnpj" title="Pedido do cliente escrito no rodapé da nota">do rodapé</div>':'')+'</td><td style="font-size:12px;max-width:220px">'+esc(f.obs_compras||'')+'</td>'+
+        '<td style="font-family:ui-monospace,monospace">'+esc(f.pedido||n.pedido_cliente||'—')+(!f.pedido&&n.pedido_cliente?'<div class="cnpj" title="Pedido do cliente escrito no rodapé da nota">do rodapé</div>':'')+htmlMed(n)+'</td><td style="font-size:12px;max-width:220px">'+esc(f.obs_compras||'')+'</td>'+
         '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+acao+'</td></tr>'}).join('')+'</tbody></table>';
 }
 function iniciarModoReceb(){
@@ -617,7 +647,7 @@ async function abrirItens(id){
   let n=notas.find(x=>x.id===id);if(!n)return;
   $('pop-cab').innerHTML='<div style="font-size:16px;font-weight:800">'+(ehServ(n)?'NFS-e ':'NF ')+esc(n.numero)+tagServ(n)+(n.serie!=null?' / série '+esc(n.serie):'')+' · '+fmtR(n.valor_total)+'</div>'+
     '<div style="font-size:13px;margin-top:3px"><b>'+esc(n.fornecedor_nome||'')+'</b> <span class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</span></div>'+
-    '<div style="font-size:12px;color:#64748b;margin-top:4px">Emissão '+fmtData(n.emissao)+' · Filial '+esc(n.filial||'—')+' · '+esc(MANIF[n.manifestacao]||'sem manifestação')+(n.pedido?' · Pedido '+esc(n.pedido):'')+(n.em_tratativa?' · <b style="color:#b45309">Em tratativa'+(n.motivo_tratativa?': '+esc(n.motivo_tratativa):'')+'</b>':'')+'</div>'+
+    '<div style="font-size:12px;color:#64748b;margin-top:4px">Emissão '+fmtData(n.emissao)+' · Filial '+esc(n.filial||'—')+' · '+esc(MANIF[n.manifestacao]||'sem manifestação')+(n.pedido?' · Pedido '+esc(n.pedido):'')+(medicaoDa(n)?' · <b style="color:#047857">Medição '+esc(medicaoDa(n).medicao)+'</b> (contrato '+esc(medicaoDa(n).contrato)+')':'')+(n.em_tratativa?' · <b style="color:#b45309">Em tratativa'+(n.motivo_tratativa?': '+esc(n.motivo_tratativa):'')+'</b>':'')+'</div>'+
     (n.chave?'<div class="cnpj" style="margin-top:3px">Chave '+esc(n.chave)+'</div>':'')+
     (sd1&&sd1[n.id]?'<div style="margin-top:6px;font-size:12.5px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:6px 10px;color:#5b21b6"><b>Já lançada no Protheus (SD1)</b> sem passar pelo NFe Master: '+sd1[n.id].sd1_itens+' itens · '+fmtR(sd1[n.id].sd1_valor)+' · fornecedor '+esc(sd1[n.id].sd1_fornecedor||'')+'</div>':'');
   $('pop-corpo').innerHTML='<div class="msg-vazio">Carregando itens...</div>';$('pop-itens').style.display='block';
