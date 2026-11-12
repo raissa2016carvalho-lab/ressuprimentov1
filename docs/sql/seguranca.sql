@@ -1,0 +1,101 @@
+-- Segurança das tabelas (RLS) — em etapas
+-- ── Etapa 1 (10/11, aplicada): perfis e pedidos de troca de senha ────────────────────────
+-- As regras já existiam (perfil_ler; pedido_criar / pedido_admin_ler / pedido_admin_editar); faltava ligar a trava.
+alter table public.perfis_usuario enable row level security;
+alter table public.pedidos_redefinicao enable row level security;
+-- DESFAZER:
+-- alter table public.perfis_usuario disable row level security;
+-- alter table public.pedidos_redefinicao disable row level security;
+
+-- ── Etapa 2: tabelas do sistema ───────────────────────────────────────────────────────
+-- Grupo A: só quem está logado lê e grava (os syncs usam a chave secreta e não são afetados)
+alter table public.solicitacoes enable row level security;
+drop policy if exists logado_tudo on public.solicitacoes;
+create policy logado_tudo on public.solicitacoes for all to authenticated using (true) with check (true);
+alter table public.solicitacao_itens enable row level security;
+drop policy if exists logado_tudo on public.solicitacao_itens;
+create policy logado_tudo on public.solicitacao_itens for all to authenticated using (true) with check (true);
+alter table public.mobilizacoes enable row level security;
+drop policy if exists logado_tudo on public.mobilizacoes;
+create policy logado_tudo on public.mobilizacoes for all to authenticated using (true) with check (true);
+alter table public.mobilizacao_itens enable row level security;
+drop policy if exists logado_tudo on public.mobilizacao_itens;
+create policy logado_tudo on public.mobilizacao_itens for all to authenticated using (true) with check (true);
+alter table public.mobilizacao_estoque enable row level security;
+drop policy if exists logado_tudo on public.mobilizacao_estoque;
+create policy logado_tudo on public.mobilizacao_estoque for all to authenticated using (true) with check (true);
+alter table public.mobilizacao_composicao enable row level security;
+drop policy if exists logado_tudo on public.mobilizacao_composicao;
+create policy logado_tudo on public.mobilizacao_composicao for all to authenticated using (true) with check (true);
+alter table public.consolidados enable row level security;
+drop policy if exists logado_tudo on public.consolidados;
+create policy logado_tudo on public.consolidados for all to authenticated using (true) with check (true);
+alter table public.consolidado_scs enable row level security;
+drop policy if exists logado_tudo on public.consolidado_scs;
+create policy logado_tudo on public.consolidado_scs for all to authenticated using (true) with check (true);
+alter table public.sc_favoritas enable row level security;
+drop policy if exists logado_tudo on public.sc_favoritas;
+create policy logado_tudo on public.sc_favoritas for all to authenticated using (true) with check (true);
+alter table public.gerentes_cc enable row level security;
+drop policy if exists logado_tudo on public.gerentes_cc;
+create policy logado_tudo on public.gerentes_cc for all to authenticated using (true) with check (true);
+alter table public.registros_almoxarifado enable row level security;
+drop policy if exists logado_tudo on public.registros_almoxarifado;
+create policy logado_tudo on public.registros_almoxarifado for all to authenticated using (true) with check (true);
+alter table public.estoque enable row level security;
+drop policy if exists logado_tudo on public.estoque;
+create policy logado_tudo on public.estoque for all to authenticated using (true) with check (true);
+alter table public.devolucoes enable row level security;
+drop policy if exists logado_tudo on public.devolucoes;
+create policy logado_tudo on public.devolucoes for all to authenticated using (true) with check (true);
+-- Grupo B: todos leem (Formulário e Posição de estoque funcionam sem login); só quem está logado grava
+alter table public.centros_custo enable row level security;
+drop policy if exists leitura_publica on public.centros_custo;
+create policy leitura_publica on public.centros_custo for select to anon, authenticated using (true);
+drop policy if exists logado_grava on public.centros_custo;
+create policy logado_grava on public.centros_custo for all to authenticated using (true) with check (true);
+alter table public.cc_grupos enable row level security;
+drop policy if exists leitura_publica on public.cc_grupos;
+create policy leitura_publica on public.cc_grupos for select to anon, authenticated using (true);
+drop policy if exists logado_grava on public.cc_grupos;
+create policy logado_grava on public.cc_grupos for all to authenticated using (true) with check (true);
+alter table public.cc_pessoas enable row level security;
+drop policy if exists leitura_publica on public.cc_pessoas;
+create policy leitura_publica on public.cc_pessoas for select to anon, authenticated using (true);
+drop policy if exists logado_grava on public.cc_pessoas;
+create policy logado_grava on public.cc_pessoas for all to authenticated using (true) with check (true);
+alter table public.bases_status enable row level security;
+drop policy if exists leitura_publica on public.bases_status;
+create policy leitura_publica on public.bases_status for select to anon, authenticated using (true);
+drop policy if exists logado_grava on public.bases_status;
+create policy logado_grava on public.bases_status for all to authenticated using (true) with check (true);
+alter table public.ccs_publico enable row level security;
+drop policy if exists leitura_publica on public.ccs_publico;
+create policy leitura_publica on public.ccs_publico for select to anon, authenticated using (true);
+drop policy if exists logado_grava on public.ccs_publico;
+create policy logado_grava on public.ccs_publico for all to authenticated using (true) with check (true);
+alter table public.itens_publico enable row level security;
+drop policy if exists leitura_publica on public.itens_publico;
+create policy leitura_publica on public.itens_publico for select to anon, authenticated using (true);
+drop policy if exists logado_grava on public.itens_publico;
+create policy logado_grava on public.itens_publico for all to authenticated using (true) with check (true);
+-- DESFAZER etapa 2:
+-- alter table public.solicitacoes disable row level security;
+-- alter table public.solicitacao_itens disable row level security;
+-- alter table public.mobilizacoes disable row level security;
+-- alter table public.mobilizacao_itens disable row level security;
+-- alter table public.mobilizacao_estoque disable row level security;
+-- alter table public.mobilizacao_composicao disable row level security;
+-- alter table public.consolidados disable row level security;
+-- alter table public.consolidado_scs disable row level security;
+-- alter table public.sc_favoritas disable row level security;
+-- alter table public.gerentes_cc disable row level security;
+-- alter table public.registros_almoxarifado disable row level security;
+-- alter table public.estoque disable row level security;
+-- alter table public.devolucoes disable row level security;
+-- alter table public.centros_custo disable row level security;
+-- alter table public.cc_grupos disable row level security;
+-- alter table public.cc_pessoas disable row level security;
+-- alter table public.bases_status disable row level security;
+-- alter table public.ccs_publico disable row level security;
+-- alter table public.itens_publico disable row level security;
