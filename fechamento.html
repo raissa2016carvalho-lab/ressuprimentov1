@@ -1693,15 +1693,21 @@ const GRUPOS_COLS = [
 // A regra corrigida vale a partir de MES_REGRA_NOVA. Meses anteriores ficam como estavam (fechamentos já entregues):
 // só a grafia exata, e o que não tem coluna fica de fora (retorna null).
 const MES_REGRA_NOVA='202609';
+// A partir de MES_REGRA_NOVA, grupos sem coluna própria vão para a coluna que mais combina (pedido da Raissa, 12/11):
+// ARLA 32 (grupo COMBUSTIVEIS) -> óleo & lubrificantes; parafuso tensor da usina (ferragem de rede) -> materiais elétricos.
+// O certo é corrigir o grupo no cadastro do Protheus (B1_GRUPO); quando corrigir, isto deixa de ser usado sozinho.
+const GRUPO_AJUSTE = {
+  'COMBUSTIVEIS':                                'OLEO & LUBRIFICANTES',
+  'MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA': 'MATERIAIS ELETRICOS',
+};
 function _colGrupo(g,mes){
   if(String(mes||'')<MES_REGRA_NOVA){const c=GRUPO_DEPARA[g]||'OUTROS';return c==='OUTROS'?null:c}
   const k=String(g||'').toUpperCase().replace(/\s+/g,' ').trim();
-  return GRUPO_DEPARA[k]
-      || GRUPO_DEPARA[k.replace(/ E /g,' & ')]
-      || GRUPO_DEPARA[k.replace(/ & /g,' E ')]
-      || GRUPO_DEPARA[k.replace(/ & /g,' E ').replace('USINA FOTOVOLTAICA','USINAS FOTOVOLTAICA')]
-      || GRUPO_DEPARA[k.replace('USINA FOTOVOLTAICA','USINAS FOTOVOLTAICA')]
-      || 'OUTROS';
+  const usinas=x=>x.replace('USINA FOTOVOLTAICA','USINAS FOTOVOLTAICA');
+  const variantes=[k,k.replace(/ E /g,' & '),k.replace(/ & /g,' E '),usinas(k.replace(/ & /g,' E ')),usinas(k)];
+  for(const v of variantes)if(GRUPO_AJUSTE[v])return GRUPO_AJUSTE[v];
+  for(const v of variantes)if(GRUPO_DEPARA[v])return GRUPO_DEPARA[v];
+  return 'OUTROS';
 }
 
 // Cache dos dados de devolução
