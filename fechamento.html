@@ -1676,6 +1676,7 @@ const GRUPO_DEPARA = {
   'EQUIPAMENTOS & FERRAMENTAS / OFICINA':    'CONSUMO OFICINA',
   'MATERIAL PARA REVENDA - USINAS FOTOVOLTAICA': 'OUTROS',
   'MAQUINAS E EQUIPAMENTOS PESADOS':         'OUTROS',
+  'COMBUSTIVEIS':                            'OUTROS',
 };
 
 // Grupos colunas do comparativo (estilo amigo)
@@ -1683,8 +1684,20 @@ const GRUPOS_COLS = [
   'CONSUMO OFICINA','EPI/EPC','FARDAMENTO',
   'MATERIAIS DE CONSUMO ADM','MATERIAIS DE CONSUMO OBRA',
   'MATERIAIS ELETRICOS','PEÇAS VEICULARES','PNEUS',
-  'OLEO & LUBRIFICANTES','INFORMATICA'
+  'OLEO & LUBRIFICANTES','INFORMATICA','OUTROS'
 ];
+// Coluna do grupo. As tabelas escrevem o mesmo grupo de jeitos diferentes:
+// consumo "FARDAMENTOS & UNIFORMES" x devolução "FARDAMENTOS E UNIFORMES"; "USINAS" x "USINA".
+// Antes, a grafia com "E" caía fora das colunas e a devolução sumia da tela (out/26: R$ 11.738,18).
+function _colGrupo(g){
+  const k=String(g||'').toUpperCase().replace(/\s+/g,' ').trim();
+  return GRUPO_DEPARA[k]
+      || GRUPO_DEPARA[k.replace(/ E /g,' & ')]
+      || GRUPO_DEPARA[k.replace(/ & /g,' E ')]
+      || GRUPO_DEPARA[k.replace(/ & /g,' E ').replace('USINA FOTOVOLTAICA','USINAS FOTOVOLTAICA')]
+      || GRUPO_DEPARA[k.replace('USINA FOTOVOLTAICA','USINAS FOTOVOLTAICA')]
+      || 'OUTROS';
+}
 
 // Cache dos dados de devolução
 let _dadosDev = null;
@@ -1873,7 +1886,7 @@ async function renderComparativo(){
     const mapConsumo = {}; // consumo bruto
     const mapDev = {};     // devolucoes
     scpFilt.forEach(r => {
-      const col = GRUPO_DEPARA[r.grupo] || 'OUTROS';
+      const col = _colGrupo(r.grupo);
       if(!GRUPOS_COLS.includes(col)) return;
       if(!mapCC[r.cc]) mapCC[r.cc] = {};
       if(!mapConsumo[r.cc]) mapConsumo[r.cc] = {};
@@ -1883,7 +1896,7 @@ async function renderComparativo(){
 
     // Subtrair devoluções (mov_sd3_001) por CC + coluna amigo
     devData.forEach(r => {
-      const col = GRUPO_DEPARA[r.grupo] || 'OUTROS';
+      const col = _colGrupo(r.grupo);
       if(!GRUPOS_COLS.includes(col)) return;
       // Incluir CC mesmo que não tenha consumo SCP
       if(!mapCC[r.cc]) mapCC[r.cc] = {};
@@ -2100,7 +2113,7 @@ async function exportarExcel(){
     // Agregar consumo por CC + grupo amigo
     const mapCC={}, mapConsumo={}, mapDev={};
     scpResumo.forEach(r=>{
-      const col=GRUPO_DEPARA[r.grupo]||'OUTROS';
+      const col=_colGrupo(r.grupo);
       if(!GRUPOS_COLS.includes(col))return;
       if(!mapCC[r.cc])mapCC[r.cc]={};
       if(!mapConsumo[r.cc])mapConsumo[r.cc]={};
@@ -2109,7 +2122,7 @@ async function exportarExcel(){
     });
     // Subtrair devoluções
     devolucoes.forEach(r=>{
-      const col=GRUPO_DEPARA[r.grupo]||'OUTROS';
+      const col=_colGrupo(r.grupo);
       if(!GRUPOS_COLS.includes(col))return;
       if(!mapCC[r.cc])mapCC[r.cc]={};
       if(!mapConsumo[r.cc])mapConsumo[r.cc]={};
