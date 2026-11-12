@@ -38,31 +38,6 @@ Backup: `backup_mob_40_43_2026_10_27_mob`, `_itens`, `_estoque` (desfazer = volt
 - **SCs associadas** (em 23/10): #38 = 000117, #39 = 000114, #40 = 000125. Faltam 000121 e 000124 e a 2ª onda.
 - ⚠️ SCs 000114, 000117 e 000121 também estão ligadas às antigas #27 e #28 (risco de contar a mesma entrega duas vezes).
 
-## Marcar pedido como recebido manualmente (`pedido_recebido_manual`) — 12/11
-- No detalhe da mobilização, bloco **"Pedidos desta mobilização (N) · X sem entrada"** (abre sozinho se tiver pendente),
-  com cada PC, filial, SC e status. Botão **✓ Marcar recebido** (só admin; pede motivo opcional) e **Desfazer**.
-- O pedido marcado passa a valer como **"Recebido (manual)"** no % do card (`carregarResumosMob`) e nos itens do detalhe
-  (`renderDetalheMob`), igual a um recebido do Protheus. **Não altera o Protheus**: se o Protheus der entrada depois,
-  continua recebido; o "Desfazer" volta a seguir o status do Protheus.
-- A marcação é por **filial + nº do pedido** (vale para todas as mobilizações que usam o pedido). Grava quem marcou e quando.
-```sql
-create table public.pedido_recebido_manual (
-  filial text not null,
-  pc_numero text not null,
-  recebido_por text,
-  recebido_em timestamptz default now(),
-  motivo text,
-  mobilizacao_id bigint,
-  primary key (filial, pc_numero)
-);
-alter table public.pedido_recebido_manual enable row level security;
-create policy prm_ler on public.pedido_recebido_manual for select to anon, authenticated using (true);
-create policy prm_gravar on public.pedido_recebido_manual for insert to authenticated with check (true);
-create policy prm_alterar on public.pedido_recebido_manual for update to authenticated using (true) with check (true);
-create policy prm_apagar on public.pedido_recebido_manual for delete to authenticated using (true);
--- desfazer: drop table public.pedido_recebido_manual;
-```
-
 ## Mobilizações antigas (não mexer)
 #3, 4, 6, 9, 11, 13, 14, 15, 20, 24, 26, 27, 28, 29, 30. As #31–35 foram apagadas (backup guardado).
 
