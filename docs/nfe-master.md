@@ -145,6 +145,34 @@ create policy nfe_fluxo_apagar on public.nfe_fluxo for delete to authenticated u
 - Primeira leitura 2026: almoxarifado (emissão → pré-nota) média 7,7 d / mediana 3 d; fiscal média 1,1 d / mediana 0 d.
   Outubro/2026: 531 lançadas, 433 na meta (82%), 98 acima de 48 h úteis.
 
+## Medição de contrato ao lado do pedido (`medicoes_nota`) — 12/11
+- **Por quê**: no Protheus a medição (CND/CNE) gera o pedido de compra; o fiscal lança a nota amarrada a esse pedido
+  (`D1_PEDIDO`). A tela mostra **"Med. 003171"** embaixo do nº do pedido.
+- **Validação (DBeaver)**: NF 000000303 / filial 13 → pedido 274480 → medição 003171 (contrato 296, Adriana). Bateu com a
+  planilha de Cavas (NFs 300, 301, 302, 303). Nenhum pedido tem mais de uma medição (não duplica). Desde 2024, 96–99% das
+  medições com pedido acharam a nota; cerca de 2/3 das medições não geram pedido (aluguel, energia, água → título direto).
+- **Sync**: função `sync_medicoes()` dentro do `upload_compras.py` (não é processo novo). Lê `LWHCNE010` (medições com
+  pedido) × `LWHSD1010` (nota do pedido) + CNPJ do fornecedor (`LWHSA2001`). Upsert pela `chave`; apaga o que sumiu.
+- **Ligação na tela** (`medicaoDa()` em notas.html), nesta ordem:
+  1. filial + pedido — o digitado pelo Compras, senão o do NFe Master (`nfe_master.pedido`), senão o do rodapé;
+  2. filial + CNPJ + nº da nota (6 últimos dígitos) com emissão até 45 dias de diferença. Necessário porque as **NFS-e
+     chegam no NFe Master sem pedido** (0 de 5.892 em 2026) e com outra numeração (`2600000000310` × `000000310` na SD1).
+- Busca da tela também acha pelo nº da medição. Popup da nota mostra medição e contrato.
+```sql
+create table public.medicoes_nota (
+  chave text primary key,              -- filial|pedido|nota|serie|fornecedor|loja
+  filial text, contrato text, medicao text, pedido text,
+  nota text, serie text, fornecedor text, loja text, fornecedor_cnpj text,
+  emissao_nf date, valor_nf numeric,
+  atualizado_em timestamptz default now()
+);
+create index medicoes_nota_pedido on public.medicoes_nota (filial, pedido);
+alter table public.medicoes_nota enable row level security;
+create policy leitura_publica on public.medicoes_nota for select to anon, authenticated using (true);
+-- desfazer: drop table public.medicoes_nota;
+```
+Depois: copiar o `upload_compras.py` novo para `C:\painel-protheus` (manter as linhas de configuração) e rodar uma vez.
+
 ## Próximos passos
 2. Setor por fornecedor: tabela `fornecedor_setor` (cnpj → setor: compras, almoxarifado, fiscal, RH,
    frota, oficina…) preenchida pela Raissa no painel.

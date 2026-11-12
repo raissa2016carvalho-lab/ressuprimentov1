@@ -336,6 +336,66 @@ def sync_pedidos_grupo(conn):
     sb.table("pedidos_grupo").delete().lt("atualizado_em", inicio).execute()
     print("   OK: " + str(n))
 
+# ── SYNC MEDIÇÕES — medição de contrato x pedido gerado x nota lançada no Protheus ──
+# Alimenta o número da medição ao lado do pedido na tela de notas (notas.html).
+# Ligação: LWHCNE010 (itens da medição, CNE_PEDIDO) -> LWHSD1010 (nota amarrada ao pedido, D1_PEDIDO).
+# Conferido no DBeaver: nenhum pedido tem mais de uma medição; NF 303 / filial 13 -> pedido 274480 -> medição 003171.
+def sync_medicoes(conn):
+    print("\nLendo LWHCNE010 x LWHSD1010 para medicoes_nota...")
+    SQL = """
+        SELECT LTRIM(RTRIM(C.CNE_FILIAL)) AS filial,
+               LTRIM(RTRIM(C.CNE_CONTRA)) AS contrato,
+               LTRIM(RTRIM(C.CNE_NUMMED)) AS medicao,
+               LTRIM(RTRIM(C.CNE_PEDIDO)) AS pedido,
+               LTRIM(RTRIM(D.D1_DOC))     AS nota,
+               LTRIM(RTRIM(D.D1_SERIE))   AS serie,
+               LTRIM(RTRIM(D.D1_FORNECE)) AS fornecedor,
+               LTRIM(RTRIM(D.D1_LOJA))    AS loja,
+               MIN(D.D1_EMISSAO)          AS emissao_nf,
+               SUM(D.D1_TOTAL)            AS valor_nf
+        FROM (SELECT DISTINCT CNE_FILIAL, CNE_CONTRA, CNE_NUMMED, CNE_PEDIDO
+              FROM BEQ_LWH.dbo.LWHCNE010
+              WHERE LTRIM(RTRIM(ISNULL(CNE_PEDIDO,''))) <> '') C
+        LEFT JOIN BEQ_LWH.dbo.LWHSD1010 D
+               ON D.D1_FILIAL = C.CNE_FILIAL
+              AND D.D1_PEDIDO = C.CNE_PEDIDO
+        GROUP BY C.CNE_FILIAL, C.CNE_CONTRA, C.CNE_NUMMED, C.CNE_PEDIDO,
+                 D.D1_DOC, D.D1_SERIE, D.D1_FORNECE, D.D1_LOJA
+    """
+    inicio = datetime.utcnow().isoformat() + "+00:00"
+    df = pd.read_sql(SQL, conn)
+    print("   " + str(len(df)) + " linhas (medição x nota)")
+
+    # CNPJ do fornecedor (para ligar as NFS-e, que chegam no NFe Master sem pedido).
+    # O cadastro de fornecedores no BEQ_LWH é LWHSA2001 (em alguns lugares aparece LWHSA2010).
+    cnpj = {}
+    for tab in ("LWHSA2001", "LWHSA2010"):
+        try:
+            a = pd.read_sql("SELECT LTRIM(RTRIM(A2_COD)) AS cod, LTRIM(RTRIM(A2_LOJA)) AS loja, "
+                            "LTRIM(RTRIM(A2_CGC)) AS cgc FROM BEQ_LWH.dbo." + tab, conn)
+            cnpj = {(r.cod, r.loja): r.cgc for r in a.itertuples()}
+            print("   CNPJ dos fornecedores lido de " + tab + " (" + str(len(cnpj)) + ")")
+            break
+        except Exception as e:
+            print("   (sem " + tab + ": " + str(e).splitlines()[0][:120] + ")")
+    df["fornecedor_cnpj"] = [cnpj.get((f, l)) if f else None for f, l in zip(df["fornecedor"], df["loja"])]
+
+    df["emissao_nf"] = df["emissao_nf"].apply(fmt_date)
+    df["valor_nf"] = df["valor_nf"].apply(to_float)
+    for c in ["nota", "serie", "fornecedor", "loja"]:
+        df[c] = df[c].fillna("")
+    # chave única da linha (a mesma medição pode ter mais de uma nota no pedido)
+    df["chave"] = df["filial"] + "|" + df["pedido"] + "|" + df["nota"] + "|" + df["serie"] + "|" + df["fornecedor"] + "|" + df["loja"]
+    df = df.drop_duplicates(subset=["chave"], keep="last")
+    df["atualizado_em"] = inicio
+    df = df.where(pd.notnull(df), None)
+    registros = [{k: limpar(v) for k, v in r.items()} for r in df.to_dict(orient="records")]
+    print("Subindo medicoes_nota...")
+    n = upsert_em_lotes("medicoes_nota", registros, on_conflict="chave")
+    # apaga o que não existe mais (ex.: nota estornada, pedido trocado)
+    sb.table("medicoes_nota").delete().lt("atualizado_em", inicio).execute()
+    print("   OK: " + str(n))
+
 def sync_filiais(conn):
     print("\nLendo LWHSYS_COMPANY...")
     df = pd.read_sql(
@@ -358,6 +418,11 @@ def main():
     sync_scs(conn)
     sync_pedidos(conn)
     sync_pedidos_grupo(conn)
+    # medições: se a tabela ainda não foi criada no Supabase, avisa e segue (não derruba o resto)
+    try:
+        sync_medicoes(conn)
+    except Exception as e:
+        print("\n(não consegui atualizar medicoes_nota: " + str(e) + ")")
     conn.close()
     # atualiza as tabelas prontas da tela de Compras (mv_compras_sc / mv_compras_ped)
     try:
