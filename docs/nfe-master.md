@@ -153,6 +153,8 @@ create policy nfe_fluxo_apagar on public.nfe_fluxo for delete to authenticated u
   medições com pedido acharam a nota; cerca de 2/3 das medições não geram pedido (aluguel, energia, água → título direto).
 - **Sync**: função `sync_medicoes()` dentro do `upload_compras.py` (não é processo novo). Lê `LWHCNE010` (medições com
   pedido) × `LWHSD1010` (nota do pedido) + CNPJ do fornecedor (`LWHSA2001`). Upsert pela `chave`; apaga o que sumiu.
+  Só manda medição **com nota** ou com data (`CND_DTFIM`) **de 2025 em diante** (13/11: antes vinham ~40 mil medições
+  antigas sem nota e a tela de notas, que baixa a tabela inteira, ficava lenta).
 - **Ligação na tela** (`medicaoDa()` em notas.html), nesta ordem:
   1. filial + pedido — o digitado pelo Compras, senão o do NFe Master (`nfe_master.pedido`), senão o do rodapé;
   2. filial + CNPJ + nº da nota (6 últimos dígitos) com emissão até 45 dias de diferença. Necessário porque as **NFS-e
