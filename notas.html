@@ -124,7 +124,8 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 
 <div class="filtros-wrap">
   <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor, CNPJ, pedido ou texto do rodapé" oninput="pag=0;render();buscaRodape()"></div>
-  <div class="f-group so-notas"><label>Tipo</label><select id="f-tipo-nota" onchange="pag=0;render()"><option value="">NF-e e NFS-e</option><option value="NFE">Só NF-e (produto)</option><option value="NFSE">Só NFS-e (serviço)</option></select></div>
+  <div class="f-group so-notas"><label>Produto ou serviço</label><select id="f-tipo-nota" onchange="pag=0;render()"><option value="">Todos</option><option value="NFE">Produto (NF-e)</option><option value="NFSE">Serviço (NFS-e)</option></select></div>
+  <div class="f-group so-notas"><label>Medição</label><select id="f-med" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="com">Com medição</option><option value="sem">Sem medição</option></select></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="">Todas</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Lançada no Protheus?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já lançada</option><option value="nao">✗ Não — falta lançar</option></select></div>
@@ -304,8 +305,9 @@ function notasFiltradas(ignorarSetor){
     let fs=$('f-sd1').value;if(fs){let tem=lancada(n);if(fs==='sim'&&!tem)return false;if(fs==='nao'&&(tem||n.status_nfe==='C'))return false}
     if(fil.length&&!fil.includes(n.filial))return false;
     let tp=$('f-tipo-nota')?$('f-tipo-nota').value:'';if(tp==='NFSE'&&!ehServ(n))return false;if(tp==='NFE'&&ehServ(n))return false;
+    let fm=$('f-med')?$('f-med').value:'';if(fm){let tm=!!medicaoDa(n);if(fm==='com'&&!tm)return false;if(fm==='sem'&&tm)return false}
     let s=setorDa(n).setor;if(!ignorarSetor&&st.length&&!st.some(x=>x==='__sem'?!s:s===x))return false;
-    if(b){let nome=(n.fornecedor_nome||'').toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd)||String(n.pedido_cliente||'').includes(bd)||((medicaoDa(n)||{}).medicao||'').includes(bd)))&&!(RODAPE_IDS&&RODAPE_IDS.q===b&&RODAPE_IDS.ids.has(n.id)))return false}
+    if(b){let nome=((n.fornecedor_nome||'')+' '+(n.fornecedor_fantasia||'')).toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd)||String(n.pedido_cliente||'').includes(bd)||String(n.pedido||'').includes(bd)||String((fluxo&&fluxo[n.id]||{}).pedido||'').includes(bd)||((medicaoDa(n)||{}).medicao||'').includes(bd)))&&!(RODAPE_IDS&&RODAPE_IDS.q===b&&RODAPE_IDS.ids.has(n.id)))return false}
     return true;
   }).sort((a,b)=>String(b.emissao||'').localeCompare(String(a.emissao||'')));
 }
@@ -317,7 +319,8 @@ function fornFiltrados(){
 }
 
 function resumoNotas(){
-  let si=vals('f-status'),fil=vals('f-filial'),ns=notas.filter(n=>noPeriodo(n)&&passaStatus(n,si)&&passaManif(n,vals('f-manif'))&&(!fil.length||fil.includes(n.filial))),com=ns.filter(n=>setorDa(n).setor).length;
+  // cartões com os mesmos filtros da lista (busca, tipo, medição, lançada, paradas...), menos o setor, que é o assunto dos cartões
+  let si=vals('f-status'),ns=notasFiltradas(true),com=ns.filter(n=>setorDa(n).setor).length;
   let rotSt=si.length===1?({pend:'pendentes',3:'integradas',C:'canceladas'}[si[0]]||''):'';
   let pend=ns.filter(PEND).length,paradas=ns.filter(diasParada).length;
   $('resumo').innerHTML=
