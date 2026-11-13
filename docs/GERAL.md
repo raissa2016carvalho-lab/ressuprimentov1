@@ -20,7 +20,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | Página | Para quê | Login |
 |---|---|---|
 | `index.html` | Painel master: solicitações, acompanhamento, mobilização, consolidados, Visão Gerentes, configurações | Sim (admin / somente visualização pela tabela `perfis_usuario`) |
-| `gerente.html` | Link dos gerentes: avaliar solicitações dos seus CCs | Sim |
+| `gerente.html` | Link dos gerentes: avaliar solicitações dos seus CCs (admin em `perfis_usuario` vê todos os CCs, desde 13/11) | Sim |
 | `formulario.html` | Almoxarife pede material | Não |
 | `estoque.html`, `compras.html` | Painéis de consulta | Não |
 | `fechamento.html` (+ `login_fechamento.html`) | Fechamento de consumo | Sim |
