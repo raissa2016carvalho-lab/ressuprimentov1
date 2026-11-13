@@ -6,6 +6,7 @@ para a tabela faturamento_sf2 do Supabase. Usado no Comparativo mês a mês do p
 Salvar em: C:\\painel-protheus\\sync_faturamento.py
 1ª vez (carga completa):  py sync_faturamento.py --desde 20240101
 Depois (dia a dia):       py sync_faturamento.py          → refaz do 1º dia do mês passado até hoje
+Correção da nota duplicada (13/11/2026): rodar 1 vez  py sync_faturamento.py --desde 20250101
 
 Antes de rodar a 1ª vez: rodar docs/sql/faturamento.sql no Supabase (cria a tabela).
 """
@@ -89,11 +90,16 @@ def main():
     print(f"\n🔄 Faturamento (SF2) desde {desde[6:8]}/{desde[4:6]}/{desde[:4]} — {datetime.now():%d/%m/%Y %H:%M}")
 
     conn = conectar()
-    # LWHSF2001 vem com nomes próprios (Filial, Documento, Serie, Emissao, VlrBruto...) e uma linha por item:
-    # somamos os itens de cada nota. Emissao é texto (AAAAMMDD ou AAAA-MM-DD).
+    # LWHSF2001 vem com nomes próprios (Filial, Documento, Serie, Emissao, VlrBruto...). Quase sempre 1 linha por nota,
+    # mas algumas notas (filial 37, desde mai/2025) vêm com 1 linha por item repetindo o TOTAL da nota em cada linha:
+    # se todas as linhas da nota têm o mesmo valor, conta uma vez só; se os valores diferem, soma.
+    # Emissao é texto (AAAAMMDD ou AAAA-MM-DD).
     sql = (f"SELECT RTRIM(Filial) AS filial, RTRIM(Documento) AS doc, RTRIM(ISNULL(Serie,'')) AS serie, "
            f"RTRIM(ISNULL(Cliente,'')) AS cliente, RTRIM(ISNULL(Loja,'')) AS loja, MIN(Emissao) AS emissao, "
-           f"NULL AS tipo, SUM(ISNULL(VlrBruto,0)) AS valbrut, SUM(ISNULL(VlrBruto,0) - ISNULL(VlrIpi,0)) AS valmerc, NULL AS valfat "
+           f"NULL AS tipo, "
+           f"CASE WHEN COUNT(DISTINCT ISNULL(VlrBruto,0)) = 1 THEN MAX(ISNULL(VlrBruto,0)) ELSE SUM(ISNULL(VlrBruto,0)) END AS valbrut, "
+           f"CASE WHEN COUNT(DISTINCT ISNULL(VlrBruto,0) - ISNULL(VlrIpi,0)) = 1 THEN MAX(ISNULL(VlrBruto,0) - ISNULL(VlrIpi,0)) "
+           f"ELSE SUM(ISNULL(VlrBruto,0) - ISNULL(VlrIpi,0)) END AS valmerc, NULL AS valfat "
            f"FROM BEQ_LWH.dbo.{TABELA} "
            f"WHERE REPLACE(LEFT(Emissao,10),'-','') >= ? "
            f"GROUP BY RTRIM(Filial), RTRIM(Documento), RTRIM(ISNULL(Serie,'')), RTRIM(ISNULL(Cliente,'')), RTRIM(ISNULL(Loja,''))")

@@ -126,7 +126,7 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
     (`itens.preco`); itens antigos sem `qtd_almoxarife` usam quantidade + estoque central (`_qAlm`). Tela do gerente grava
     `solicitacoes.gerente_por/gerente_em`.
     **Compras rápido** publicado (resumo, listas e Comparativo no banco: `mv_compras_sc/ped/cmp`, `docs/sql/compras_*.sql`) +
-    **faturamento** SF2 (`LWHSF2001`, colunas Filial/Documento/Emissao/VlrBruto, 1 linha por item) em `faturamento_sf2`
+    **faturamento** SF2 (`LWHSF2001`, colunas Filial/Documento/Emissao/VlrBruto; 1 linha por nota, exceto filial 37 que repete o total da nota em cada item — o sync conta 1 vez, corrigido 13/11) em `faturamento_sf2`
     via `sync_faturamento.py`; barra verde atrás de cada mês. Pedidos voltaram a atualizar (09/11).
     **Menu**: um só card de Notas fiscais (recebimento e SLA dentro); Separação de mobilização publicada.
     `iniciar_syncs.bat` com 30 s entre os syncs + NFe Master `--loop` + faturamento. Usuário `nfe_leitura` tem limite de
