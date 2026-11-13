@@ -81,12 +81,16 @@ tr.abonar td{background:#f0fdf4}tr.descontar td{background:#fff7ed}
   <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
     <button class="btn" id="bt-lista" onclick="VISAO='lista';desenhar()">📋 Lista</button>
     <button class="btn" id="bt-analise" onclick="VISAO='analise';desenhar()">📊 Análise e gráficos</button>
+    <button class="btn" id="bt-hist" onclick="VISAO='hist';desenhar()" title="Quem mudou o quê, e quando — com botão para desfazer">🕘 Histórico</button>
+    <button class="btn" id="bt-desfazer" style="display:none;border-color:#ea580c;color:#ea580c" onclick="desfazerLote()">↩ Desfazer a última marcação em massa</button>
     <span style="flex:1"></span>
-    <button class="btn" onclick="exportar()" title="Arquivo para importar no Protheus: um CSV por centro de custo (com um CC escolhido no filtro, baixa só o dele)">⬇ Arquivo para o Protheus</button>
+    <button class="btn so-admin" onclick="abrirEmail()" title="Texto pronto para mandar aos gerentes: linhas de desconto e quanto já foi tratado, por gerente">📧 E-mail de acompanhamento</button>
+    <button class="btn so-admin" onclick="exportar()" title="Arquivo para importar no Protheus: um CSV por centro de custo (com um CC escolhido no filtro, baixa só o dele)">⬇ Arquivo para o Protheus</button>
   </div>
   <div id="aviso"></div>
   <div class="kpis" id="kpis"></div>
   <div id="analise" style="display:none"></div>
+  <div id="hist" style="display:none"></div>
   <div class="tab" id="caixa-lista"><table>
     <thead><tr>
       <th>Emissão</th><th>SA</th><th>Fil.</th><th>Matrícula</th><th>Nome</th><th>Produto</th>
@@ -98,6 +102,21 @@ tr.abonar td{background:#f0fdf4}tr.descontar td{background:#fff7ed}
   </table></div>
 </div>
 
+<div id="m-email" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:50;padding:20px;overflow:auto" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;border-radius:14px;max-width:900px;margin:20px auto;padding:18px 20px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <b style="font-size:15px;flex:1">E-mail de acompanhamento dos descontos</b>
+      <button class="btn" onclick="copiarEmail()" style="border-color:#1e40af;color:#1e40af">📋 Copiar e-mail</button>
+      <a class="btn" id="em-mailto" style="text-decoration:none">✉ Abrir no e-mail</a>
+      <button class="btn" onclick="$('m-email').style.display='none'">Fechar</button>
+    </div>
+    <div class="cz" style="margin-bottom:8px">"Copiar e-mail" leva a tabela formatada: cole no Outlook/Gmail. "Abrir no e-mail" já preenche os destinatários e o assunto (o corpo vai em texto simples).</div>
+    <div style="font-size:12.5px;margin-bottom:6px"><b>Para:</b> <span id="em-para"></span></div>
+    <div style="font-size:12.5px;margin-bottom:10px"><b>Assunto:</b> <span id="em-assunto"></span></div>
+    <div id="em-corpo" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;font-family:Arial,sans-serif;font-size:13px;color:#0f172a"></div>
+  </div>
+</div>
+
 <script>
 const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
 const $=id=>document.getElementById(id);
@@ -105,6 +124,7 @@ const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const fmtR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=d=>d?new Date(String(d).slice(0,10)+'T12:00').toLocaleDateString('pt-BR'):'–';
 const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+let ULT_LOTE=null,ULT_EXP=null,HIST=[];
 let userEmail='',isAdmin=false,MEUS_CC=null,DADOS=[],DEC={},NOME_CC={},ULT_FECHADO=null,FECHADO=false,VISAO='lista',GER_CC={};
 const MOTIVO={'1':'Perda','2':'Roubo','3':'Desgaste','4':'Defeito','5':'Admissional','6':'Mal uso','7':'Manutenção','8':'Transferência','9':'Consumo','A':'Mobilização','C':'Complementação'};
 // Período fechado = já foi integrado na folha: no Protheus, ZZA_INTEG = S (descontado) ou N (abonado).
@@ -129,7 +149,7 @@ async function carregar(){
   $('tb').innerHTML='<tr><td colspan="14" class="vazio">Carregando os descontos...</td></tr>';
   let [ini,fim]=$('f-per').value.split('|');
   FECHADO=!!(ULT_FECHADO&&fim<=ULT_FECHADO);
-  $('btns-massa').style.display=FECHADO?'none':'flex';
+  if($('btns-massa'))$('btns-massa').style.display=FECHADO?'none':'flex';
   try{
     DADOS=await todas(()=>{let q=db.from('descontos_epi').select('*').gte('datinc',ini).lte('datinc',fim).order('datinc').order('nome');if(MEUS_CC)q=q.in('cc',MEUS_CC);return q});
     DEC={};let ch=DADOS.map(d=>d.chave);
@@ -143,7 +163,7 @@ async function carregar(){
   fs.value=vf;fc.value=vc;
   $('aviso').innerHTML=!DADOS.length?'<div class="aviso">Nenhum desconto neste período. Se for o primeiro uso, rode o <b>sync_descontos_epi.py</b> no seu PC.</div>'
     :FECHADO?'<div class="aviso" style="background:#f1f5f9;color:#475569">🔒 Período fechado: já foi integrado na folha. <b>Descontado</b> = S no Protheus · <b>Abonado</b> = N. Só consulta.</div>':'';
-  desenhar();
+  HIST=[];desenhar();carregarExportacao();
 }
 const decDe=d=>FECHADO?(d.integrado==='S'?'descontar':'abonar'):((DEC[d.chave]||{}).decisao||(DEC[d.chave]||{}).gerente_decisao||'');
 const faltaPct=d=>Number(d.valor)>0?Math.min(1,Math.max(0,(Number(d.valor_desconto)||0)/Number(d.valor))):null;
@@ -159,7 +179,9 @@ function filtrados(){
 function desenhar(){
   $('bt-lista').style.borderColor=VISAO==='lista'?'#1e40af':'';$('bt-analise').style.borderColor=VISAO==='analise'?'#1e40af':'';
   $('caixa-lista').style.display=VISAO==='lista'?'':'none';$('analise').style.display=VISAO==='analise'?'':'none';
+  $('hist').style.display=VISAO==='hist'?'':'none';$('bt-hist').style.borderColor=VISAO==='hist'?'#1e40af':'';
   let L=filtrados();
+  if(VISAO==='hist'){desenharKpis(L);return desenharHist()}
   if(VISAO==='analise'){desenharKpis(L);return desenharAnalise(L)}
   desenharKpis(L);desenharLista(L);
 }
@@ -322,6 +344,10 @@ async function exportar(){
   let L=filtrados();if(!L.length)return alert('Nada para exportar com esses filtros.');
   let pend=L.filter(d=>!decDe(d)).length;
   if(pend&&!confirm(pend+' desconto(s) ainda sem decisão vão sair como DESCONTO (Abonado = N). Exportar assim mesmo?'))return;
+  try{let dsc=L.filter(d=>decDe(d)!=='abonar');
+    await db.from('descontos_exportacao').insert({periodo:$('f-per').value,filtro:[$('f-fil').value&&'filial '+$('f-fil').value,$('f-cc').value&&'CC '+$('f-cc').value].filter(Boolean).join(' · ')||null,
+      linhas:L.length,abonadas:L.filter(d=>decDe(d)==='abonar').length,descontadas:dsc.length,pendentes:pend,valor_descontado:dsc.reduce((s,d)=>s+(Number(d.valor_desconto)||0),0)});
+    carregarExportacao()}catch(e){}
   let ini=$('f-per').value.split('|')[0].replace(/-/g,''),porCC={};L.forEach(d=>{(porCC[d.cc||'SEMCC']=porCC[d.cc||'SEMCC']||[]).push(d)});
   let baixar=(blob,nome)=>{let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nome;a.click()};
   let ccs=Object.keys(porCC);
@@ -333,7 +359,7 @@ async function exportar(){
 // clicar na mesma decisão desfaz; clicar na outra troca
 async function decidir(chave,decisao){
   let atual=(DEC[chave]||{}).decisao;
-  let reg=atual===decisao?{chave,decisao:null,decidido_por:null,decidido_em:null}:{chave,decisao,decidido_por:userEmail,decidido_em:new Date().toISOString()};
+  let reg=atual===decisao?{chave,decisao:null,decidido_por:null,decidido_em:null,lote:null}:{chave,decisao,decidido_por:userEmail,decidido_em:new Date().toISOString(),lote:null};
   let{error}=await db.from('descontos_decisao').upsert(reg,{onConflict:'chave'});
   if(error)return alert('Não consegui salvar: '+error.message);
   DEC[chave]=Object.assign({},DEC[chave]||{},reg);
@@ -343,9 +369,101 @@ async function emMassa(decisao){
   let pend=filtrados().filter(d=>!decDe(d));
   if(!pend.length)return alert('Não há pendentes na lista filtrada.');
   if(!confirm(`Marcar ${decisao.toUpperCase()} em ${pend.length} desconto(s) pendente(s) da lista filtrada?`))return;
-  let agora=new Date().toISOString(),regs=pend.map(d=>({chave:d.chave,decisao,decidido_por:userEmail,decidido_em:agora}));
+  let agora=new Date().toISOString(),lote='massa-'+Date.now(),regs=pend.map(d=>({chave:d.chave,decisao,decidido_por:userEmail,decidido_em:agora,lote}));
   for(let i=0;i<regs.length;i+=500){let{error}=await db.from('descontos_decisao').upsert(regs.slice(i,i+500),{onConflict:'chave'});if(error)return alert('Não consegui salvar: '+error.message)}
-  regs.forEach(r=>DEC[r.chave]=Object.assign({},DEC[r.chave]||{},r));desenhar();
+  regs.forEach(r=>DEC[r.chave]=Object.assign({},DEC[r.chave]||{},r));
+  ULT_LOTE={lote,n:regs.length,decisao};try{sessionStorage.setItem('desc_ult_lote',JSON.stringify(ULT_LOTE))}catch(e){}
+  mostrarDesfazer();desenhar();
+}
+
+// ── Desfazer a última marcação em massa (volta cada linha para o que era antes, se ninguém mexeu depois) ──
+function mostrarDesfazer(){let b=$('bt-desfazer');if(!b)return;b.style.display=ULT_LOTE&&isAdmin?'':'none';
+  if(ULT_LOTE)b.textContent=`↩ Desfazer: ${ULT_LOTE.decisao==='abonar'?'Abonar':'Descontar'} em massa (${ULT_LOTE.n})`}
+async function desfazerLote(){
+  if(!ULT_LOTE)return;
+  if(!confirm(`Desfazer a marcação em massa de ${ULT_LOTE.n} desconto(s) como ${ULT_LOTE.decisao.toUpperCase()}?\nCada linha volta para a decisão que tinha antes (as que alguém já mudou depois ficam como estão).`))return;
+  let{data,error}=await db.from('descontos_decisao_hist').select('chave,decisao_ant,decisao_nova').eq('lote',ULT_LOTE.lote);
+  if(error)return alert('Não consegui ler o histórico: '+error.message);
+  let atual={},ch=(data||[]).map(h=>h.chave);
+  for(let i=0;i<ch.length;i+=200){let r=await db.from('descontos_decisao').select('chave,decisao,lote').in('chave',ch.slice(i,i+200));(r.data||[]).forEach(x=>atual[x.chave]=x)}
+  let regs=(data||[]).filter(h=>{let a=atual[h.chave];return a&&a.lote===ULT_LOTE.lote&&a.decisao===h.decisao_nova}).map(h=>({chave:h.chave,decisao:h.decisao_ant||null,lote:'desfeito-'+ULT_LOTE.lote}));
+  for(let i=0;i<regs.length;i+=500){let r=await db.from('descontos_decisao').upsert(regs.slice(i,i+500),{onConflict:'chave'});if(r.error)return alert('Não consegui desfazer: '+r.error.message)}
+  alert(`${regs.length} desconto(s) voltaram para a decisão anterior.`+(regs.length<(data||[]).length?`\n${(data||[]).length-regs.length} já tinham sido mudados depois e ficaram como estão.`:''));
+  ULT_LOTE=null;try{sessionStorage.removeItem('desc_ult_lote')}catch(e){}mostrarDesfazer();carregar();
+}
+
+// ── Última exportação do período: avisa se alguma decisão mudou depois do arquivo baixado ──
+async function carregarExportacao(){
+  try{let{data}=await db.from('descontos_exportacao').select('*').eq('periodo',$('f-per').value).order('em',{ascending:false}).limit(1);ULT_EXP=data&&data[0]||null}catch(e){ULT_EXP=null}
+  let el=$('aviso-exp');if(!el){el=document.createElement('div');el.id='aviso-exp';$('aviso').after(el)}
+  if(!ULT_EXP||FECHADO){el.innerHTML='';return}
+  let mud=DADOS.filter(d=>{let x=DEC[d.chave]||{};return [x.decidido_em,x.gerente_em].some(t=>t&&t>ULT_EXP.em)}).length;
+  el.innerHTML=`<div class="aviso" style="background:${mud?'#fee2e2':'#ecfdf5'};color:${mud?'#991b1b':'#065f46'}">⬇ Arquivo deste período baixado em <b>${new Date(ULT_EXP.em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</b> por ${esc(String(ULT_EXP.por||'').split('@')[0])}${ULT_EXP.filtro?' ('+esc(ULT_EXP.filtro)+')':''}: ${ULT_EXP.linhas} linhas, ${ULT_EXP.descontadas} a descontar.`+
+    (mud?` <b>${mud} decisão(ões) mudaram depois disso — baixe o arquivo de novo antes de importar no Protheus.</b>`:' Nada mudou depois.')+`</div>`;
+}
+
+// ── Histórico: quem mudou o quê, com desfazer por linha ──
+const _rot=v=>v==='abonar'?'<b style="color:#16a34a">Abonar</b>':v==='descontar'?'<b style="color:#ea580c">Descontar</b>':'<span class="cz">vazio</span>';
+async function desenharHist(){
+  let el=$('hist');
+  if(!HIST.length){el.innerHTML='<div class="vazio">Carregando o histórico...</div>';
+    let ch=DADOS.map(d=>d.chave),out=[];
+    for(let i=0;i<ch.length;i+=200){let{data,error}=await db.from('descontos_decisao_hist').select('*').in('chave',ch.slice(i,i+200));if(error){el.innerHTML='<div class="vazio">Não consegui ler: '+esc(error.message)+'</div>';return}out=out.concat(data||[])}
+    HIST=out.sort((a,b)=>b.em<a.em?-1:1);if(!HIST.length){el.innerHTML='<div class="vazio">Nenhuma mudança registrada neste período ainda (o histórico começou em 13/11/2026).</div>';HIST=[];return}}
+  let por={};DADOS.forEach(d=>por[d.chave]=d);
+  let filt=new Set(filtrados().map(d=>d.chave)),L=HIST.filter(h=>filt.has(h.chave));
+  el.innerHTML=`<div class="tab" style="max-height:calc(100vh - 290px)"><table><thead><tr><th>Quando</th><th>Quem</th><th>Funcionário</th><th>Produto</th><th>O que mudou</th><th>Antes</th><th>Depois</th><th></th></tr></thead><tbody>${
+    L.map(h=>{let d=por[h.chave]||{},campo=h.decisao_ant!==h.decisao_nova?'final':h.gerente_ant!==h.gerente_nova?'gerente':'obs',
+      a=campo==='final'?h.decisao_ant:campo==='gerente'?h.gerente_ant:h.obs_ant,n=campo==='final'?h.decisao_nova:campo==='gerente'?h.gerente_nova:h.obs_nova;
+      let pode=isAdmin&&!FECHADO&&campo==='final'&&((DEC[h.chave]||{}).decisao||null)===(n||null);
+      return `<tr><td style="white-space:nowrap">${new Date(h.em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td><td>${esc(String(h.por||'').split('@')[0])}</td>
+        <td>${esc(d.nome||'')}<div class="cz">${esc(d.matricula||'')}</div></td><td>${esc(d.descricao||'')}<div class="cz">SA ${esc(d.sa||'')}</div></td>
+        <td>${campo==='final'?'Decisão final':campo==='gerente'?'Resposta do gerente':'Justificativa'}${h.lote&&h.lote.startsWith('massa')?' <span class="cz">(em massa)</span>':h.lote&&h.lote.startsWith('desfeito')?' <span class="cz">(desfeito)</span>':''}</td>
+        <td>${campo==='obs'?esc(a||'–'):_rot(a)}</td><td>${campo==='obs'?esc(n||'–'):_rot(n)}</td>
+        <td>${pode?`<button class="btn" onclick="voltarDecisao('${esc(h.chave)}',${a?`'${a}'`:'null'})">↩ Voltar</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="8" class="vazio">Nenhuma mudança com esses filtros.</td></tr>'}</tbody></table></div>`;
+}
+async function voltarDecisao(chave,ant){
+  if(!confirm('Voltar esta decisão para '+(ant?ant.toUpperCase():'VAZIO (pendente)')+'?'))return;
+  let{error}=await db.from('descontos_decisao').upsert({chave,decisao:ant,lote:null},{onConflict:'chave'});
+  if(error)return alert('Não consegui: '+error.message);
+  DEC[chave]=Object.assign({},DEC[chave]||{},{decisao:ant});HIST=[];desenhar();
+}
+
+// ── E-mail de acompanhamento: por gerente, linhas geradas e quanto já foi tratado (período escolhido) ──
+let EMAIL_TXT='';
+const _nomeGer=e=>String(e).split('@')[0].split(/[._]/).filter(Boolean).map(p=>p[0].toUpperCase()+p.slice(1)).join(' ');
+function abrirEmail(){
+  let per=$('f-per'),rot=per.options[per.selectedIndex].text.replace(/ · .*/,''),hoje=new Date().toLocaleDateString('pt-BR');
+  let G={};
+  DADOS.forEach(d=>{let gs=GER_CC[String(d.cc||'').trim()]||['(sem gerente)'];
+    gs.forEach(e=>{let g=G[e]=G[e]||{ccs:new Set(),n:0,resp:0,ab:0,de:0,pend:0,vpend:0,vtot:0};
+      g.ccs.add(d.cc||'sem CC');g.n++;g.vtot+=Number(d.valor_desconto)||0;
+      let r=(DEC[d.chave]||{}).gerente_decisao,f=decDe(d);
+      if(r){g.resp++;r==='abonar'?g.ab++:g.de++}else if(f){g.resp++;f==='abonar'?g.ab++:g.de++}else{g.pend++;g.vpend+=Number(d.valor_desconto)||0}})});
+  let L=Object.entries(G).sort((a,b)=>(b[1].pend-a[1].pend)||(b[1].n-a[1].n));
+  let T=L.reduce((t,[,g])=>{for(let k of ['n','resp','ab','de','pend','vpend','vtot'])t[k]+=g[k];return t},{n:0,resp:0,ab:0,de:0,pend:0,vpend:0,vtot:0});
+  let pct=g=>g.n?Math.round(g.resp/g.n*100)+'%':'–';
+  let th='style="background:#1f3a68;color:#fff;padding:6px 10px;border:1px solid #cbd5e1;text-align:left;font-size:12px"',td='style="padding:5px 10px;border:1px solid #cbd5e1;font-size:12px"',tdn='style="padding:5px 10px;border:1px solid #cbd5e1;font-size:12px;text-align:right"';let tdp='style="padding:5px 10px;border:1px solid #cbd5e1;font-size:12px;text-align:right;color:#c2410c;font-weight:bold"';
+  let html=`<p style="margin:0 0 10px">Olá, gerentes!</p><p style="margin:0 0 10px">Segue a situação dos <b>descontos de EPI</b> do período da folha <b>${esc(rot)}</b>, atualizada em ${hoje}.</p>
+<p style="margin:0 0 10px">Por favor, entrem na tela do gerente (aba <b>Descontos de EPI</b>) e respondam <b>Abonar</b> ou <b>Descontar</b> nas linhas pendentes. O que ficar sem resposta até o fechamento da folha (dia 20) será <b>descontado</b>.</p>
+<table style="border-collapse:collapse;font-family:Arial,sans-serif"><tr><th ${th}>Gerente</th><th ${th}>CCs</th><th ${th}>Linhas geradas</th><th ${th}>Tratadas</th><th ${th}>Abonar</th><th ${th}>Descontar</th><th ${th}>Pendentes</th><th ${th}>% tratado</th><th ${th}>Valor pendente</th></tr>
+${L.map(([e,g])=>`<tr><td ${td}>${esc(e==='(sem gerente)'?e:_nomeGer(e))}</td><td ${tdn}>${g.ccs.size}</td><td ${tdn}>${g.n}</td><td ${tdn}>${g.resp}</td><td ${tdn}>${g.ab}</td><td ${tdn}>${g.de}</td><td ${g.pend?tdp:tdn}>${g.pend}</td><td ${tdn}>${pct(g)}</td><td ${tdn}>${fmtR(g.vpend)}</td></tr>`).join('')}
+<tr><td ${td}><b>Total</b></td><td ${tdn}></td><td ${tdn}><b>${T.n}</b></td><td ${tdn}><b>${T.resp}</b></td><td ${tdn}><b>${T.ab}</b></td><td ${tdn}><b>${T.de}</b></td><td ${tdn}><b>${T.pend}</b></td><td ${tdn}><b>${pct(T)}</b></td><td ${tdn}><b>${fmtR(T.vpend)}</b></td></tr></table>
+<p style="margin:6px 0 10px;font-size:11px;color:#64748b">Tratada = já tem resposta do gerente ou decisão do almoxarifado. Centro de custo com dois gerentes aparece para os dois.${L.some(([e])=>e==='(sem gerente)')?' "(sem gerente)" = desconto sem centro de custo ou com CC sem gerente cadastrado.':''}</p>
+<p style="margin:0 0 10px">Obrigada!</p>`;
+  let para=L.map(([e])=>e).filter(e=>e.includes('@'));
+  let assunto=`Descontos de EPI – ${rot} – ${T.pend} pendente(s) (${pct(T)} tratado) – ${hoje}`;
+  EMAIL_TXT=`Olá, gerentes!\n\nSituação dos descontos de EPI do período ${rot}, atualizada em ${hoje}.\nRespondam Abonar ou Descontar na tela do gerente (aba Descontos de EPI). O que ficar sem resposta até o dia 20 será descontado.\n\n`+
+    L.map(([e,g])=>`${e==='(sem gerente)'?e:_nomeGer(e)}: ${g.n} linhas, ${g.resp} tratadas (${pct(g)}), ${g.pend} pendentes (${fmtR(g.vpend)})`).join('\n')+
+    `\n\nTotal: ${T.n} linhas, ${T.resp} tratadas (${pct(T)}), ${T.pend} pendentes (${fmtR(T.vpend)}).\n\nObrigada!`;
+  $('em-para').textContent=para.join('; ');$('em-assunto').textContent=assunto;$('em-corpo').innerHTML=html;
+  $('em-mailto').href='mailto:'+para.join(';')+'?subject='+encodeURIComponent(assunto)+'&body='+encodeURIComponent(EMAIL_TXT);
+  $('m-email').style.display='block';
+}
+async function copiarEmail(){
+  let html=$('em-corpo').innerHTML;
+  try{await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([EMAIL_TXT],{type:'text/plain'})})]);alert('E-mail copiado. Cole no Outlook ou no Gmail.')}
+  catch(e){let r=document.createRange();r.selectNodeContents($('em-corpo'));let s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy');s.removeAllRanges();alert('E-mail copiado.')}
 }
 
 // ── Login: mesmo usuário do Painel principal. Administrador vê tudo; gerente vê só os CCs dele ──
@@ -359,6 +477,8 @@ async function liberar(email){
     MEUS_CC=[...new Set((data||[]).map(x=>String(x.cc).trim()))];
     if(!MEUS_CC.length)MEUS_CC=['__nenhum__'];
   }
+  document.querySelectorAll('.so-admin').forEach(b=>b.style.display=isAdmin?'':'none');if(!isAdmin)$('btns-massa').remove();
+  try{ULT_LOTE=JSON.parse(sessionStorage.getItem('desc_ult_lote')||'null')}catch(e){}mostrarDesfazer();
   document.body.classList.remove('bq-trancado');$('tela-login').style.display='none';
   try{let{data}=await db.from('descontos_epi').select('datinc').eq('integrado','S').order('datinc',{ascending:false}).limit(1);ULT_FECHADO=data&&data[0]?data[0].datinc:null}catch(e){}
   let pers=periodos(),aberto=pers.slice().reverse().find(p=>!ULT_FECHADO||p.fim>ULT_FECHADO);
