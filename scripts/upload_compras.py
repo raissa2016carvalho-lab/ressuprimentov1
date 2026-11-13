@@ -342,6 +342,10 @@ def sync_pedidos_grupo(conn):
 # Conferido no DBeaver: nenhum pedido tem mais de uma medição; NF 303 / filial 13 -> pedido 274480 -> medição 003171.
 def sync_medicoes(conn):
     print("\nLendo LWHCNE010 x LWHSD1010 para medicoes_nota...")
+    # M = data da medição (a visão LWHCND010 repete a medição por revisão/rateio: pega a maior data).
+    # WHERE: só o que a tela de notas usa = medição com nota, ou medição de 2025 em diante (a nota ainda pode chegar).
+    # Sem isso vinham ~40 mil medições antigas (2021-2023) sem nota e a tela ficava lenta.
+    # (Sem comentários "--" dentro do SQL: se o arquivo perder uma quebra de linha, o comentário engole o resto.)
     SQL = """
         SELECT LTRIM(RTRIM(C.CNE_FILIAL)) AS filial,
                LTRIM(RTRIM(C.CNE_CONTRA)) AS contrato,
@@ -359,15 +363,12 @@ def sync_medicoes(conn):
         LEFT JOIN BEQ_LWH.dbo.LWHSD1010 D
                ON D.D1_FILIAL = C.CNE_FILIAL
               AND D.D1_PEDIDO = C.CNE_PEDIDO
-        -- data da medição (a visão LWHCND010 repete a medição por revisão/rateio: pega a maior data)
         LEFT JOIN (SELECT CND_FILIAL, CND_CONTRA, CND_NUMMED, MAX(CND_DTFIM) AS DTFIM
                    FROM BEQ_LWH.dbo.LWHCND010
                    GROUP BY CND_FILIAL, CND_CONTRA, CND_NUMMED) M
                ON M.CND_FILIAL = C.CNE_FILIAL
               AND M.CND_CONTRA = C.CNE_CONTRA
               AND M.CND_NUMMED = C.CNE_NUMMED
-        -- só o que a tela de notas usa: medição com nota, ou medição de 2025 em diante (nota ainda pode chegar).
-        -- Sem isso vinham ~40 mil medições antigas (2021-2023) sem nota e a tela ficava lenta.
         WHERE D.D1_DOC IS NOT NULL OR ISNULL(M.DTFIM,'') >= '20250101'
         GROUP BY C.CNE_FILIAL, C.CNE_CONTRA, C.CNE_NUMMED, C.CNE_PEDIDO,
                  D.D1_DOC, D.D1_SERIE, D.D1_FORNECE, D.D1_LOJA
