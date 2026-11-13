@@ -155,6 +155,9 @@ create policy nfe_fluxo_apagar on public.nfe_fluxo for delete to authenticated u
   pedido) × `LWHSD1010` (nota do pedido) + CNPJ do fornecedor (`LWHSA2001`). Upsert pela `chave`; apaga o que sumiu.
   Só manda medição **com nota** ou com data (`CND_DTFIM`) **de 2025 em diante** (13/11: antes vinham ~40 mil medições
   antigas sem nota e a tela de notas, que baixa a tabela inteira, ficava lenta).
+  A ligação pedido → medição vem também do **pedido** (`LWHSC7010.C7_CONTRA` + `C7_MEDICAO`): a cópia da `LWHCNE010` no
+  BEQ_LWH está incompleta (13/11: filial 13, contrato 296 — medições 003205/003232/003257/003294/003360 só existem no pedido;
+  são as NFs 306–311 da Adriana, conferidas com a planilha de Cavas).
 - **Ligação na tela** (`medicaoDa()` em notas.html), nesta ordem:
   1. filial + pedido — o digitado pelo Compras, senão o do NFe Master (`nfe_master.pedido`), senão o do rodapé;
   2. filial + CNPJ + nº da nota (6 últimos dígitos) com emissão até 45 dias de diferença. Necessário porque as **NFS-e
