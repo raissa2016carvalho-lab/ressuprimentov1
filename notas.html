@@ -123,7 +123,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 </div>
 
 <div class="filtros-wrap">
-  <div class="f-group f-busca"><label>Buscar</label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor, CNPJ, pedido ou texto do rodapé" oninput="pag=0;render();buscaRodape()"></div>
+  <div class="f-group f-busca"><label>Buscar <label style="font-weight:400;margin-left:8px;cursor:pointer" title="Procurar o texto também nas informações complementares (rodapé) das notas"><input type="checkbox" id="f-rodape" style="vertical-align:middle" onchange="RODAPE_IDS=null;pag=0;buscaRodape();render()"> incluir rodapé</label></label><input id="f-busca" placeholder="🔍 Nº da nota, fornecedor, CNPJ, pedido ou medição" oninput="pag=0;render();buscaRodape()"></div>
   <div class="f-group so-notas"><label>Produto ou serviço</label><select id="f-tipo-nota" onchange="pag=0;render()"><option value="">Todos</option><option value="NFE">Produto (NF-e)</option><option value="NFSE">Serviço (NFS-e)</option></select></div>
   <div class="f-group so-notas"><label>Medição</label><select id="f-med" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="com">Com medição</option><option value="sem">Sem medição</option></select></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="">Todas</option></select></div>
@@ -289,14 +289,17 @@ function passaStatus(n,si){if(Array.isArray(si))return si.length?si.some(x=>pass
 let RODAPE_IDS=null,RODAPE_T=null;
 function buscaRodape(){
   clearTimeout(RODAPE_T);let b=$('f-busca').value.toLowerCase().trim();
-  if(b.length<3||/^\d+$/.test(b)){RODAPE_IDS=null;return}
+  if(b.length<3||/^\d+$/.test(b)||!($('f-rodape')&&$('f-rodape').checked)){RODAPE_IDS=null;return}
   RODAPE_T=setTimeout(async()=>{
     let{data,error}=await db.from('nfe_master').select('id').ilike('rodape','%'+b+'%').limit(3000);
     if(error||$('f-busca').value.toLowerCase().trim()!==b)return;
     RODAPE_IDS={q:b,ids:new Set((data||[]).map(r=>r.id))};pag=0;render();
   },500);
 }
+// notas que entraram na lista só porque o texto está no rodapé (ganham a etiqueta "achou no rodapé")
+let RODAPE_SO=new Set();
 function notasFiltradas(ignorarSetor){
+  RODAPE_SO=new Set();
   let b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),st=vals('f-setor'),fil=vals('f-filial'),si=vals('f-status');
   return notas.filter(n=>{
     if(!noPeriodo(n))return false;
@@ -307,7 +310,7 @@ function notasFiltradas(ignorarSetor){
     let tp=$('f-tipo-nota')?$('f-tipo-nota').value:'';if(tp==='NFSE'&&!ehServ(n))return false;if(tp==='NFE'&&ehServ(n))return false;
     let fm=$('f-med')?$('f-med').value:'';if(fm){let tm=!!medicaoDa(n);if(fm==='com'&&!tm)return false;if(fm==='sem'&&tm)return false}
     let s=setorDa(n).setor;if(!ignorarSetor&&st.length&&!st.some(x=>x==='__sem'?!s:s===x))return false;
-    if(b){let nome=((n.fornecedor_nome||'')+' '+(n.fornecedor_fantasia||'')).toLowerCase();if(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd)||String(n.pedido_cliente||'').includes(bd)||String(n.pedido||'').includes(bd)||String((fluxo&&fluxo[n.id]||{}).pedido||'').includes(bd)||((medicaoDa(n)||{}).medicao||'').includes(bd)))&&!(RODAPE_IDS&&RODAPE_IDS.q===b&&RODAPE_IDS.ids.has(n.id)))return false}
+    if(b){let nome=((n.fornecedor_nome||'')+' '+(n.fornecedor_fantasia||'')).toLowerCase();let achou=!(!nome.includes(b)&&!(bd&&(String(n.numero||'').includes(bd)||chaveCnpj(n.fornecedor_cnpj).includes(bd)||String(n.pedido_cliente||'').includes(bd)||String(n.pedido||'').includes(bd)||String((fluxo&&fluxo[n.id]||{}).pedido||'').includes(bd)||((medicaoDa(n)||{}).medicao||'').includes(bd))));if(!achou){if(RODAPE_IDS&&RODAPE_IDS.q===b&&RODAPE_IDS.ids.has(n.id))RODAPE_SO.add(n.id);else return false}}
     return true;
   }).sort((a,b)=>String(b.emissao||'').localeCompare(String(a.emissao||'')));
 }
@@ -360,7 +363,7 @@ function render(){
       return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
         '<td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
         '<td class="num" style="text-align:left">'+fmtData(n.emissao)+'</td>'+
-        '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+tagServ(n)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a></td>'+
+        '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+tagServ(n)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a>'+(RODAPE_SO.has(n.id)?'<div><span class="pill" style="background:#fef3c7;color:#92400e;font-size:10px" title="O texto buscado está no rodapé (informações complementares) desta nota, não no nome do fornecedor">achou no rodapé</span></div>':'')+'</td>'+
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
         (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
