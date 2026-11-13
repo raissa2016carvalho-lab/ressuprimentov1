@@ -352,7 +352,7 @@ function render(){
   let l=notasFiltradas(),parte=paginar(l);
   if(!parte.length){$('tabela').innerHTML='<div class="msg-vazio">Nenhuma nota com esses filtros.</div>';$('paginador').innerHTML='';atualizarBarra();return}
   let todasMarcadas=parte.every(n=>sel.has(n.id));
-  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th title="Data em que o material chegou de verdade. Lead time = da emissão do pedido até a entrega real">Entrega real</th><th>Pedido</th><th>Observação</th><th>Status</th></tr></thead><tbody>'+
+  $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th title="Data em que o material chegou de verdade. Lead time = da emissão do pedido até a entrega real">Entrega real</th><th>Pedido</th><th title="Medição de contrato que gerou o pedido desta nota">Medição</th><th>Observação</th><th>Status</th></tr></thead><tbody>'+
     parte.map(n=>{let s=setorDa(n),st=statusUnico(n);
       return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
         '<td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
@@ -361,7 +361,7 @@ function render(){
         '<td><select class="sel-setor'+(s.setor?'':' vazio')+'" onchange="salvarNotas(['+n.id+'],this.value,this)">'+opcSetor(s.origem==='nota'?s.setor:'')+'</select>'+
         (s.origem==='forn'?'<div class="herdado">do fornecedor: '+esc(s.setor)+'</div>':'')+'</td>'+
         '<td><div style="font-weight:600">'+esc(n.fornecedor_nome||n.fornecedor_fantasia||'—')+((setForn[chaveCnpj(n.fornecedor_cnpj)]||{}).setor?' <span class="pill tag-setor" title="Classificação do fornecedor">'+esc(setForn[chaveCnpj(n.fornecedor_cnpj)].setor)+'</span>':'')+'</div><div class="cnpj">'+fmtCnpj(n.fornecedor_cnpj)+'</div></td>'+
-        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlEntregaReal(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+htmlMed(n)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
+        '<td class="num">'+fmtR(n.valor_total)+'</td><td>'+htmlEntrega(n)+'</td><td>'+htmlEntregaReal(n)+'</td><td>'+htmlCampoFluxo(n,'pedido','Nº pedido',90)+'</td><td>'+htmlMedCol(n)+'</td><td>'+htmlCampoFluxo(n,'obs_compras','Observação',170)+'</td><td>'+st+'</td></tr>'}).join('')+'</tbody></table>';
   atualizarBarra();
 }
 
@@ -374,11 +374,11 @@ function exportarExcel(){
   let linhas=l.map(n=>{let f=(fluxo&&fluxo[n.id])||{},ped=ENT_PED[n.id]||{},rec=f.recebido_em?String(f.recebido_em).slice(0,10):'',real=f.entrega_real||rec||'',x=sd1&&sd1[n.id];
     return {'Filial':n.filial||'','Emissão':dt(n.emissao),'Nº nota':n.numero||'','Série':n.serie==null?'':n.serie,'Tipo':ehServ(n)?'NFS-e':'NF-e',
       'Setor':setorDa(n).setor||'','Fornecedor':n.fornecedor_nome||n.fornecedor_fantasia||'','CNPJ':fmtCnpj(n.fornecedor_cnpj),'Valor':Number(n.valor_total)||0,
-      'Entrega prevista':dt(f.previsao_entrega||ped.entrega),'Entrega real':dt(real),'Pedido':f.pedido||n.pedido_cliente||'','Observação':f.obs_compras||'',
+      'Entrega prevista':dt(f.previsao_entrega||ped.entrega),'Entrega real':dt(real),'Pedido':f.pedido||n.pedido_cliente||'','Medição':(medicaoDa(n)||{}).medicao||'','Contrato':(medicaoDa(n)||{}).contrato||'','Observação':f.obs_compras||'',
       'Status':txtStatus(n),'Lançada no Protheus':lancada(n)?'Sim':'Não','Data de lançamento (SD1)':x&&x.sd1_dtdigit?dt(x.sd1_dtdigit.slice(0,4)+'-'+x.sd1_dtdigit.slice(4,6)+'-'+x.sd1_dtdigit.slice(6,8)):'',
       'Dias parada':diasParada(n)||'','Chave':n.chave||''}});
   let ws=XLSX.utils.json_to_sheet(linhas,{cellDates:true,dateNF:'dd/mm/yyyy'});
-  ws['!cols']=[6,11,10,6,7,18,40,20,13,13,13,12,30,16,10,14,9,46].map(w=>({wch:w}));
+  ws['!cols']=[6,11,10,6,7,18,40,20,13,13,13,12,10,17,30,16,10,14,9,46].map(w=>({wch:w}));
   let rg=XLSX.utils.decode_range(ws['!ref']);
   for(let r=1;r<=rg.e.r;r++){let c=ws[XLSX.utils.encode_cell({r,c:8})];if(c)c.z='#,##0.00'}
   ws['!autofilter']={ref:ws['!ref']};
@@ -547,6 +547,8 @@ function medicaoDa(n){
   let m=l.find(x=>!x.emissao_nf||!e||Math.abs(new Date(x.emissao_nf)-new Date(e))<=45*864e5);
   return m?Object.assign({via:'nota'},m):null;
 }
+function htmlMedCol(n){let m=medicaoDa(n);if(!m)return '<span class="herdado">—</span>';
+  return '<span style="font-family:ui-monospace,monospace;font-weight:700;color:#047857" title="Ligada '+(m.via==='pedido'?'pelo pedido '+esc(m.ped):'pela nota lançada no Protheus (filial + CNPJ + nº)')+'">'+esc(m.medicao)+'</span><div class="herdado">contrato '+esc(String(m.contrato||'').replace(/^0+/,''))+'</div>'}
 function htmlMed(n){let m=medicaoDa(n);if(!m)return '';
   return '<div class="herdado" style="color:#047857;font-weight:700" title="Medição de contrato · contrato '+esc(m.contrato)+' · ligada '+(m.via==='pedido'?'pelo pedido '+esc(m.ped):'pela nota lançada no Protheus (filial + CNPJ + nº)')+'">Med. '+esc(m.medicao)+'</div>'}
 // data de entrega: a que o Compras digitou ou, se não tiver, a data de entrega do pedido (Protheus)

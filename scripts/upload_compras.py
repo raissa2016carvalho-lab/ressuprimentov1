@@ -342,34 +342,49 @@ def sync_pedidos_grupo(conn):
 # Conferido no DBeaver: nenhum pedido tem mais de uma medição; NF 303 / filial 13 -> pedido 274480 -> medição 003171.
 def sync_medicoes(conn):
     print("\nLendo LWHCNE010 x LWHSD1010 para medicoes_nota...")
+    # A ligação pedido -> medição vem de DOIS lugares (13/11):
+    #  1) LWHCNE010 (itens da medição, CNE_PEDIDO) + data da medição na LWHCND010 (maior data, a visão repete por revisão/rateio);
+    #  2) LWHSC7010 (o próprio pedido, C7_CONTRA + C7_MEDICAO). Necessário porque a cópia da CNE no BEQ_LWH está incompleta:
+    #     ex. filial 13, contrato 296: medições 003205/003232/003257/003294/003360 só aparecem no pedido (NFs 306-311 da Adriana).
+    # U junta as duas fontes; C agrupa de novo (sem isso a mesma medição vinda das duas fontes somaria a nota em dobro).
+    # WHERE: só o que a tela de notas usa = com nota, ou medição/pedido de 2025 em diante (a nota ainda pode chegar).
+    # (Sem comentários "--" dentro do SQL: se o arquivo perder uma quebra de linha, o comentário engole o resto.)
     SQL = """
-        SELECT LTRIM(RTRIM(C.CNE_FILIAL)) AS filial,
-               LTRIM(RTRIM(C.CNE_CONTRA)) AS contrato,
-               LTRIM(RTRIM(C.CNE_NUMMED)) AS medicao,
-               LTRIM(RTRIM(C.CNE_PEDIDO)) AS pedido,
+        SELECT C.FIL AS filial, C.CONTRA AS contrato, C.MED AS medicao, C.PED AS pedido,
                LTRIM(RTRIM(D.D1_DOC))     AS nota,
                LTRIM(RTRIM(D.D1_SERIE))   AS serie,
                LTRIM(RTRIM(D.D1_FORNECE)) AS fornecedor,
                LTRIM(RTRIM(D.D1_LOJA))    AS loja,
                MIN(D.D1_EMISSAO)          AS emissao_nf,
                SUM(D.D1_TOTAL)            AS valor_nf
-        FROM (SELECT DISTINCT CNE_FILIAL, CNE_CONTRA, CNE_NUMMED, CNE_PEDIDO
-              FROM BEQ_LWH.dbo.LWHCNE010
-              WHERE LTRIM(RTRIM(ISNULL(CNE_PEDIDO,''))) <> '') C
+        FROM (
+          SELECT FIL, PED, CONTRA, MED, MAX(DT) AS DT
+          FROM (
+            SELECT LTRIM(RTRIM(E.CNE_FILIAL)) AS FIL, LTRIM(RTRIM(E.CNE_PEDIDO)) AS PED,
+                   LTRIM(RTRIM(E.CNE_CONTRA)) AS CONTRA, LTRIM(RTRIM(E.CNE_NUMMED)) AS MED,
+                   ISNULL(MAX(M.DTFIM),'') AS DT
+            FROM BEQ_LWH.dbo.LWHCNE010 E
+            LEFT JOIN (SELECT CND_FILIAL, CND_CONTRA, CND_NUMMED, MAX(CND_DTFIM) AS DTFIM
+                       FROM BEQ_LWH.dbo.LWHCND010
+                       GROUP BY CND_FILIAL, CND_CONTRA, CND_NUMMED) M
+                   ON M.CND_FILIAL = E.CNE_FILIAL AND M.CND_CONTRA = E.CNE_CONTRA AND M.CND_NUMMED = E.CNE_NUMMED
+            WHERE LTRIM(RTRIM(ISNULL(E.CNE_PEDIDO,''))) <> ''
+            GROUP BY LTRIM(RTRIM(E.CNE_FILIAL)), LTRIM(RTRIM(E.CNE_PEDIDO)), LTRIM(RTRIM(E.CNE_CONTRA)), LTRIM(RTRIM(E.CNE_NUMMED))
+            UNION
+            SELECT LTRIM(RTRIM(P.C7_FILIAL)), LTRIM(RTRIM(P.C7_NUM)),
+                   LTRIM(RTRIM(P.C7_CONTRA)), LTRIM(RTRIM(P.C7_MEDICAO)),
+                   MAX(LEFT(REPLACE(P.C7_EMISSAO,'-',''),8))
+            FROM BEQ_LWH.dbo.LWHSC7010 P
+            WHERE LTRIM(RTRIM(ISNULL(P.C7_MEDICAO,''))) <> ''
+            GROUP BY LTRIM(RTRIM(P.C7_FILIAL)), LTRIM(RTRIM(P.C7_NUM)), LTRIM(RTRIM(P.C7_CONTRA)), LTRIM(RTRIM(P.C7_MEDICAO))
+          ) U
+          GROUP BY FIL, PED, CONTRA, MED
+        ) C
         LEFT JOIN BEQ_LWH.dbo.LWHSD1010 D
-               ON D.D1_FILIAL = C.CNE_FILIAL
-              AND D.D1_PEDIDO = C.CNE_PEDIDO
-        -- data da medição (a visão LWHCND010 repete a medição por revisão/rateio: pega a maior data)
-        LEFT JOIN (SELECT CND_FILIAL, CND_CONTRA, CND_NUMMED, MAX(CND_DTFIM) AS DTFIM
-                   FROM BEQ_LWH.dbo.LWHCND010
-                   GROUP BY CND_FILIAL, CND_CONTRA, CND_NUMMED) M
-               ON M.CND_FILIAL = C.CNE_FILIAL
-              AND M.CND_CONTRA = C.CNE_CONTRA
-              AND M.CND_NUMMED = C.CNE_NUMMED
-        -- só o que a tela de notas usa: medição com nota, ou medição de 2025 em diante (nota ainda pode chegar).
-        -- Sem isso vinham ~40 mil medições antigas (2021-2023) sem nota e a tela ficava lenta.
-        WHERE D.D1_DOC IS NOT NULL OR ISNULL(M.DTFIM,'') >= '20250101'
-        GROUP BY C.CNE_FILIAL, C.CNE_CONTRA, C.CNE_NUMMED, C.CNE_PEDIDO,
+               ON D.D1_FILIAL = C.FIL
+              AND D.D1_PEDIDO = C.PED
+        WHERE D.D1_DOC IS NOT NULL OR C.DT >= '20250101'
+        GROUP BY C.FIL, C.CONTRA, C.MED, C.PED,
                  D.D1_DOC, D.D1_SERIE, D.D1_FORNECE, D.D1_LOJA
     """
     inicio = datetime.utcnow().isoformat() + "+00:00"
@@ -396,6 +411,10 @@ def sync_medicoes(conn):
         df[c] = df[c].fillna("")
     # chave única da linha (a mesma medição pode ter mais de uma nota no pedido)
     df["chave"] = df["filial"] + "|" + df["pedido"] + "|" + df["nota"] + "|" + df["serie"] + "|" + df["fornecedor"] + "|" + df["loja"]
+    dup = df[df.duplicated(subset=["chave"], keep=False)]
+    if len(dup):
+        print("   aviso: " + str(dup["chave"].nunique()) + " pedido(s)/nota(s) com mais de uma medição (fica a última); ex.: "
+              + ", ".join(dup["chave"].unique()[:3]))
     df = df.drop_duplicates(subset=["chave"], keep="last")
     df["atualizado_em"] = inicio
     df = df.where(pd.notnull(df), None)
