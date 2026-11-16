@@ -119,6 +119,25 @@ canvas{max-height:220px}
 .cf-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:10px 24px 0}
 .cf-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
 .cf-det{margin:0 24px 16px}
+.cf-vis{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.cf-vis button{border:none;background:#fff;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--muted);font-family:var(--font)}
+.cf-vis button.on{background:var(--blue);color:#fff;font-weight:600}
+.mx-wrap{margin:16px 24px;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:calc(100vh - 260px)}
+.mx{border-collapse:separate;border-spacing:0;font-size:11.5px;width:max-content;min-width:100%}
+.mx th{position:sticky;top:0;background:var(--navy);color:#fff;font-weight:600;padding:6px 8px;text-align:right;white-space:nowrap;z-index:2;border-right:1px solid #334155}
+.mx thead tr:nth-child(2) th{top:27px;font-size:10px;font-weight:500;background:#1e293b}
+.mx th.mx-n,.mx td.mx-n{position:sticky;left:0;text-align:left;z-index:3;min-width:330px;max-width:420px}
+.mx th.mx-n{z-index:4}
+.mx td{padding:5px 8px;border-bottom:1px solid #eef2f7;text-align:right;white-space:nowrap;border-right:1px solid #f1f5f9}
+.mx td.mx-n{background:inherit;white-space:normal}
+.mx tr{background:#fff}
+.mx tr.l0{background:#eef4ff;font-weight:700}.mx tr.l1{background:#f8fafc;font-weight:600}.mx tr.l3{color:#475569;font-size:11px}
+.mx tr.tot{background:#0f172a;color:#fff;font-weight:700}.mx tr.tot td{border-color:#334155;position:sticky;top:54px;z-index:2;background:#0f172a;color:#fff}.mx tr.tot td.mx-n{z-index:3}
+.mx tr.clk{cursor:pointer}.mx tr.clk:hover td{background:#fff7ed}
+.mx .k{color:#c2410c}.mx .r{color:#15803d}.mx tr.tot .k{color:#fdba74}.mx tr.tot .r{color:#86efac}
+.mx .z{color:#cbd5e1}
+.mx .seta{display:inline-block;width:14px;color:var(--muted)}
+.mx td.sep,.mx th.sep{border-left:2px solid #cbd5e1}
 @media(max-width:750px){.cf-meses{padding:12px 16px;grid-template-columns:1fr}.cf-det{margin:0 16px 16px}.cf-dia{min-height:46px;font-size:9.5px}}
 @media(max-width:750px){.cmp-dd{position:static}.cmp-dd-panel{width:auto;left:16px;right:16px;top:auto;margin-top:4px}}
 </style>
@@ -416,9 +435,15 @@ canvas{max-height:220px}
         <div class="cmp-dd-list" id="cf-sku-list"></div>
       </div>
     </div>
+    <div class="cf-vis"><button id="cf-v-mx" class="on" onclick="cfVisao('mx')">▦ Matriz por cliente</button><button id="cf-v-cal" onclick="cfVisao('cal')">📅 Calendário</button></div>
+    <button class="btn-c" id="cf-mx-tudo" onclick="mxAbrirTudo()">Abrir/fechar tudo</button>
     <span id="cf-info" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
   </div>
   <div class="kpi-bar" id="kpi-cf"><div class="kpi"><div class="kpi-lbl">Abra a aba para carregar...</div></div></div>
+  <div id="mx-box"><div class="cf-leg"><span><b class="k" style="color:#c2410c">Cons.</b> = consumido (requisição entregue) · <b style="color:#15803d">Rec.</b> = recebido de fornecedor (sem transferência)</span>
+    <span>Clique no cliente → categoria → SKU → centro de custo. Recebimento não tem centro de custo (só até o SKU).</span></div>
+    <div class="mx-wrap"><table class="mx" id="mx"></table></div></div>
+  <div id="cal-box" style="display:none">
   <div class="cf-leg"><span><i style="background:#15803d"></i><b class="cf-r">+N</b> recebido de fornecedor (nota de entrada, sem transferência entre filiais)</span>
     <span><i style="background:#c2410c"></i><b class="cf-c">−N</b> consumido (requisição entregue)</span><span>Fundo mais escuro = dia com mais consumo · clique no dia para ver os itens</span></div>
   <div class="cf-meses" id="cf-meses"></div>
@@ -427,6 +452,7 @@ canvas{max-height:220px}
     <div class="ct-head"><span class="ct-title">Itens no período — recebido, consumido e estoque hoje</span><span id="cf-itens-n" style="font-size:11px;color:#cbd5e1"></span></div>
     <div class="ct-body" style="max-height:420px"><table><thead><tr><th>Código</th><th>Descrição</th><th class="r">Recebido</th><th class="r">Consumido</th><th class="r">Consumo médio/mês</th><th class="r">Estoque hoje</th><th class="r">Meses de estoque</th><th>Último recebimento</th><th>Último consumo</th></tr></thead><tbody id="tb-cf"></tbody></table></div>
   </div></div>
+  </div>
 </div>
 
 <!-- TELA COMPARATIVO MENSAL -->
@@ -1503,6 +1529,7 @@ function cfRender(){
     ||'<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:18px">Nenhum movimento no período.</td></tr>';
   if(CF.dia&&!ms.has(+CF.dia.slice(4,6)))CF.dia=null;
   cfDetalhe();
+  mxRender();
 }
 function cfDia(k){CF.dia=CF.dia===k?null:k;cfRender();if(CF.dia)document.getElementById('cf-det').scrollIntoView({behavior:'smooth',block:'nearest'})}
 function cfDetalhe(){
@@ -1516,6 +1543,83 @@ function cfDetalhe(){
 }
 window.cfAbrir=cfAbrir;window.cfCarregar=cfCarregar;window.cfRender=cfRender;window.cfToggle=cfToggle;window.cfLista=cfLista;window.cfMarca=cfMarca;
 window.cfMarcarEnc=cfMarcarEnc;window.cfLimpar=cfLimpar;window.cfDia=cfDia;
+
+// ── Matriz por cliente: cliente → categoria → SKU → CC; colunas = meses (consumo e recebimento), total, média e estoque ──
+const MX={dados:{},aberto:new Set(),visao:'mx'};
+const MX_CLI=[['ENEL','ENEL'],['COELBA','COELBA'],['COSERN','COSERN'],['CPFL','CPFL'],['EQUATORIAL','EQUATORIAL'],['SANEAGO','SANEAGO'],['NEOENERGIA','BRASÍLIA'],['BRASILIA','BRASÍLIA'],[' BEQ','B&Q'],['B&Q','B&Q'],['BEQ','B&Q']];
+const MX_ORD=['ENEL','COELBA','COSERN','CPFL'];
+function mxCliente(n){n=' '+(n||'').toUpperCase();for(const [k,v] of MX_CLI)if(n.includes(k))return v;return 'OUTROS (ADM, supervisão...)'}
+function mxCat(n){n=(n||'').toUpperCase();
+  if(n.includes('RETARDANTE')||n.includes('INERENTE')||n.includes('ANTI CHAMA'))return 'Retardante';
+  if(n.includes('JEANS'))return 'Calça jeans';
+  if(n.includes('JAQUETA'))return 'Jaqueta';
+  if(['GOLA CARECA','POLO','PROMOCIONAL','PERSONALIZADA','MOLETOM',' UV','SUPERV','MALHA','LEITURISTA'].some(k=>n.includes(k)))return 'Malha / institucional';
+  if(['BRIM','CONVENCIONAL','CEDRO'].some(k=>n.includes(k)))return 'Convencional (brim)';
+  return 'Outros';}
+function cfVisao(v){MX.visao=v;document.getElementById('mx-box').style.display=v==='mx'?'':'none';document.getElementById('cal-box').style.display=v==='cal'?'':'none';
+  document.getElementById('cf-v-mx').classList.toggle('on',v==='mx');document.getElementById('cf-v-cal').classList.toggle('on',v==='cal');
+  document.getElementById('cf-mx-tudo').style.display=v==='mx'?'':'none';mxRender()}
+async function mxCarregar(ano){
+  if(MX.dados[ano]||MX.carregando===ano)return;MX.carregando=ano;
+  document.getElementById('mx').innerHTML='<tr><td style="padding:20px;color:var(--muted)">Carregando a matriz de '+ano+'...</td></tr>';
+  try{MX.dados[ano]=await rpc('fardamento_matriz',{p_ano:ano})}catch(e){document.getElementById('mx').innerHTML='<tr><td style="padding:20px;color:var(--red)">Não consegui carregar: '+cmpEsc(e.message||e)+'</td></tr>';MX.carregando=null;return}
+  MX.carregando=null;mxRender();
+}
+function mxAbrirTudo(){
+  const d=MX.dados[CF.ano];if(!d)return;
+  if(MX.aberto.size)MX.aberto.clear();else MX.abrirTudo=true;   // abre clientes e categorias (SKU → CC continua no clique)
+  mxRender();
+}
+function mxClique(k){MX.aberto.has(k)?MX.aberto.delete(k):MX.aberto.add(k);mxRender()}
+function mxRender(){
+  if(MX.visao!=='mx'||!CF.ano)return;
+  const d=MX.dados[CF.ano];if(!d){mxCarregar(CF.ano);return}
+  const meses=cfMeses(),ms=new Set(meses),sel=CF.sel,pega=c=>!sel.size||sel.has(c),nome=c=>(d.nomes||{})[c]||CF.nome[c]||'';
+  const hoje=new Date(),mAt=CF.ano===hoje.getFullYear()?hoje.getMonth()+1:12,mDec=meses.filter(m=>m<=mAt).length||1;
+  const novo=()=>({k:{},r:{},f:{}});
+  const T=novo(),arv={};
+  const soma=(o,campo,m,q)=>{o[campo][m]=(o[campo][m]||0)+q};
+  const no=(c)=>{const n=nome(c),cl=mxCliente(n),ca=mxCat(n);
+    const A=arv[cl]=arv[cl]||{t:novo(),f:{}},B=A.f[ca]=A.f[ca]||{t:novo(),f:{}},C=B.f[c]=B.f[c]||{t:novo(),f:{}};return[A,B,C]};
+  (d.cons||[]).forEach(([mes,c,cc,q])=>{const m=+mes.slice(4,6);if(!ms.has(m)||!pega(c))return;q=+q||0;
+    const [A,B,C]=no(c);[T,A.t,B.t,C.t].forEach(o=>soma(o,'k',m,q));const D=C.f[cc]=C.f[cc]||{t:novo()};soma(D.t,'k',m,q)});
+  (d.rec||[]).forEach(([mes,c,q])=>{const m=+mes.slice(4,6);if(!ms.has(m)||!pega(c))return;q=+q||0;
+    const [A,B,C]=no(c);[T,A.t,B.t,C.t].forEach(o=>soma(o,'r',m,q))});
+  const est=d.estoque||{},tot=o=>Object.values(o).reduce((s,v)=>s+v,0);
+  Object.keys(est).forEach(c=>{if(pega(c)&&+est[c])no(c)});   // SKU com estoque e sem movimento no período também aparece
+  const estDe=(lista)=>lista.reduce((s,c)=>s+(+est[c]||0),0);
+  const fmt=(v,cls)=>v?`<span class="${cls}">${cfN(v)}</span>`:'<span class="z">·</span>';
+  const celulas=(t,semRec,estQ)=>{let h='';meses.forEach((m,i)=>{h+=`<td class="${i===0?'':'sep'}">${fmt(t.k[m],'k')}</td><td>${semRec?'<span class="z">–</span>':fmt(t.r[m],'r')}</td>`});
+    const tk=tot(t.k),tr=tot(t.r);
+    return h+`<td class="sep">${fmt(tk,'k')}</td><td>${semRec?'<span class="z">–</span>':fmt(tr,'r')}</td><td class="sep">${tk?(tk/mDec).toLocaleString('pt-BR',{maximumFractionDigits:1}):'<span class="z">·</span>'}</td><td class="sep">${estQ==null?'<span class="z">–</span>':'<b>'+cfN(estQ)+'</b>'}</td>`};
+  // cabeçalho
+  let h=`<thead><tr><th class="mx-n" rowspan="2">Cliente / categoria / SKU / centro de custo</th>${meses.map((m,i)=>`<th colspan="2" class="${i?'sep':''}" style="text-align:center">${CF_MES[m-1].slice(0,3)}/${String(CF.ano).slice(2)}</th>`).join('')}
+    <th colspan="2" class="sep" style="text-align:center">Total</th><th class="sep" rowspan="2">Média/mês<br><span style="font-weight:400;font-size:10px">consumo (${mDec} ${mDec>1?'meses':'mês'})</span></th><th class="sep" rowspan="2">Estoque<br>hoje</th></tr>
+    <tr>${meses.map((m,i)=>`<th class="${i?'sep':''}">Cons.</th><th>Rec.</th>`).join('')}<th class="sep">Cons.</th><th>Rec.</th></tr></thead><tbody>`;
+  const chaves=[];
+  const todosSkus=[];Object.values(arv).forEach(A=>Object.values(A.f).forEach(B=>Object.keys(B.f).forEach(c=>todosSkus.push(c))));
+  h+=`<tr class="tot"><td class="mx-n">Total geral</td>${celulas(T,false,estDe(todosSkus))}</tr>`;
+  const ordCli=Object.keys(arv).sort((a,b)=>{const ia=MX_ORD.indexOf(a),ib=MX_ORD.indexOf(b);if(ia>=0||ib>=0)return(ia<0?99:ia)-(ib<0?99:ib);return tot(arv[b].t.k)-tot(arv[a].t.k)});
+  if(MX.abrirTudo){ordCli.forEach(cl=>{MX.aberto.add('c|'+cl);Object.keys(arv[cl].f).forEach(ca=>MX.aberto.add('c|'+cl+'|'+ca))});MX.abrirTudo=false}
+  ordCli.forEach(cl=>{const A=arv[cl],ka='c|'+cl;chaves.push(ka);const abA=MX.aberto.has(ka);
+    const skA=Object.values(A.f).flatMap(B=>Object.keys(B.f));
+    h+=`<tr class="l0 clk" onclick="mxClique('${cmpEsc(ka)}')"><td class="mx-n"><span class="seta">${abA?'▾':'▸'}</span>${cmpEsc(cl)} <span style="font-weight:400;color:var(--muted);font-size:10.5px">${skA.length} SKUs</span></td>${celulas(A.t,false,estDe(skA))}</tr>`;
+    if(!abA)return;
+    Object.keys(A.f).sort((a,b)=>tot(A.f[b].t.k)-tot(A.f[a].t.k)).forEach(ca=>{const B=A.f[ca],kb=ka+'|'+ca;chaves.push(kb);const abB=MX.aberto.has(kb),skB=Object.keys(B.f);
+      h+=`<tr class="l1 clk" onclick="mxClique('${cmpEsc(kb)}')"><td class="mx-n" style="padding-left:24px"><span class="seta">${abB?'▾':'▸'}</span>${cmpEsc(ca)} <span style="font-weight:400;color:var(--muted);font-size:10.5px">${skB.length} SKUs</span></td>${celulas(B.t,false,estDe(skB))}</tr>`;
+      if(!abB)return;
+      skB.sort((a,b)=>tot(B.f[b].t.k)-tot(B.f[a].t.k)||tot(B.f[b].t.r)-tot(B.f[a].t.r)).forEach(c=>{const C=B.f[c],kc=kb+'|'+c;chaves.push(kc);const abC=MX.aberto.has(kc),nCC=Object.keys(C.f).length;
+        h+=`<tr class="l2${nCC?' clk':''}" ${nCC?`onclick="mxClique('${cmpEsc(kc)}')"`:''}><td class="mx-n" style="padding-left:44px"><span class="seta">${nCC?(abC?'▾':'▸'):''}</span><b>${cmpEsc(c)}</b> ${cmpEsc(nome(c))}</td>${celulas(C.t,false,+est[c]||0)}</tr>`;
+        if(!abC)return;
+        Object.keys(C.f).sort((a,b)=>tot(C.f[b].t.k)-tot(C.f[a].t.k)).forEach(cc=>{const nm=(d.ccs||{})[cc]||'';
+          h+=`<tr class="l3"><td class="mx-n" style="padding-left:68px">${cmpEsc(cc)}${nm?' — '+cmpEsc(String(nm).trim()):''}</td>${celulas(C.f[cc].t,true,null)}</tr>`});
+      });
+    });
+  });
+  MX.ultimasChaves=chaves;
+  document.getElementById('mx').innerHTML=h+'</tbody>'+(ordCli.length?'':'<tbody><tr><td class="mx-n" style="padding:18px;color:var(--muted)">Nenhum movimento no período.</td></tr></tbody>');
+}
+window.cfVisao=cfVisao;window.mxClique=mxClique;window.mxAbrirTudo=mxAbrirTudo;window.mxRender=mxRender;
 </script>
 </body>
 </html>

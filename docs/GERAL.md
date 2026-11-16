@@ -92,7 +92,7 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
 | Gerente que avaliou (09/11) | `solicitacoes.gerente_por`, `gerente_em` | `alter table solicitacoes drop column gerente_por, drop column gerente_em;` |
 | Faturamento (09/11) | `faturamento_sf2`, função `faturamento_mensal` | fim de `docs/sql/faturamento.sql` |
 | Descontos — segurança (13/11, aplicado) | `descontos_decisao_hist` (histórico de toda mudança, com lote), `descontos_exportacao`, coluna `descontos_decisao.lote`, gatilhos `descontos_decisao_guarda` (só admin muda a decisão final; gerente só responde nos CCs dele; quem gravou = login) e `descontos_decisao_log`; `gerentes_cc` só admin altera | fim de `docs/sql/descontos_seguranca.sql` |
-| Calendário de fardamento (16/11, aplicado) | `mv_fardamento_dia` (dia × item: recebido de fornecedor sem transferência — TES 041/042/043 e fornecedores da própria empresa — e consumido da SCP), função `fardamento_calendario(ano)`; `atualizar_compras()` atualiza a visão; índices `movimentos_entrada(dtdigit)` e `(tes)` | fim de `docs/sql/fardamento_calendario.sql` |
+| Calendário e matriz de fardamento (16/11, aplicado) | `mv_fardamento_cc` (mês × item × CC de consumo) + função `fardamento_matriz(ano)`; `mv_fardamento_dia` (dia × item: recebido de fornecedor sem transferência — TES 041/042/043 e fornecedores da própria empresa — e consumido da SCP), função `fardamento_calendario(ano)`; `atualizar_compras()` atualiza a visão; índices `movimentos_entrada(dtdigit)` e `(tes)` | fim de `docs/sql/fardamento_calendario.sql` |
 | Comparativo rápido (09/11) | `mv_compras_cmp`, `compras_cmp_base`, `compras_cmp_opcoes`; `atualizar_compras` atualiza as 3 | fim de `docs/sql/compras_comparativo.sql` |
 
 ### Backups guardados
