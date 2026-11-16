@@ -77,6 +77,19 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   color:var(--text);min-width:110px;max-width:190px;transition:border-color .15s;
   font-family:inherit;
 }
+.ms{position:relative}
+.ms-btn{border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;background:var(--surface);height:32px;color:var(--text);
+  min-width:150px;max-width:220px;text-align:left;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms-btn.on{border-color:var(--primary);color:var(--primary);font-weight:600}
+.ms-panel{display:none;position:absolute;top:36px;left:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 10px 30px rgba(15,23,42,.15);padding:8px;width:280px;max-width:calc(100vw - 32px)}
+.ms-panel.open{display:block}
+.ms-acoes{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 4px 6px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.ms-acoes a{color:var(--primary);text-decoration:none;font-weight:600}
+.ms-list{max-height:300px;overflow:auto}
+.ms-list label{display:flex;gap:8px;align-items:center;font-size:12.5px;padding:5px 4px;border-radius:6px;cursor:pointer}
+.f-group .ms-list input{width:15px;height:15px;min-width:0;max-width:none;padding:0;margin:0;border-radius:3px;flex:none}
+.ms-list label:hover{background:var(--bg,#f1f5f9)}
 .f-group select:focus,.f-group input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(30,64,175,.12)}
 .btn-aplicar{
   background:var(--primary);color:#fff;border:none;border-radius:8px;padding:0 16px;height:32px;
@@ -199,7 +212,7 @@ tr:last-child td{border-bottom:none}
   .filtros,.abas{padding-left:16px;padding-right:16px}
   .content{padding:16px}
   .f-group{flex:1 1 140px}
-  .f-group select,.f-group input{max-width:none;width:100%}
+  .f-group select,.f-group input,.ms-btn{max-width:none;width:100%}
 }
 
 /* topo no padrão B&Q (escuro) */
@@ -333,35 +346,13 @@ tr:last-child td{border-bottom:none}
 <div class="filtros">
   <div class="f-group">
     <label>Filial</label>
-    <select id="f-filial">
-      <option value="">Todas as filiais</option>
-      <option value="01">01 — Matriz</option>
-      <option value="03">03 — Pau dos Ferros</option>
-      <option value="04">04 — Itapipoca</option>
-      <option value="06">06 — Currais Novos</option>
-      <option value="07">07 — Sobral</option>
-      <option value="08">08 — Aparecida de Goiânia</option>
-      <option value="09">09 — Maracanau</option>
-      <option value="10">10 — Mossoro</option>
-      <option value="11">11 — Anapolis</option>
-      <option value="13">13 — Alagoinhas</option>
-      <option value="14">14 — Ribeira do Pombal</option>
-      <option value="15">15 — Paulo Afonso</option>
-      <option value="22">22 — Goiania</option>
-      <option value="23">23 — Baturite</option>
-      <option value="24">24 — Morrinhos</option>
-      <option value="25">25 — Cascavel</option>
-      <option value="27">27 — Caucaia</option>
-      <option value="29">29 — Horizonte</option>
-      <option value="34">34 — Senhor do Bonfim</option>
-      <option value="36">36 — Luziania</option>
-      <option value="37">37 — Divinopolis</option>
-      <option value="40">40 — Garanhuns</option>
-      <option value="41">41 — Floriano</option>
-      <option value="42">42 — Livramento</option>
-      <option value="43">43 — Hortolandia</option>
-      <option value="44">44 — Brumado</option>
-    </select>
+    <div class="ms" id="f-filial-ms">
+      <button type="button" class="ms-btn" id="f-filial-btn" onclick="filToggle(event)">Todas as filiais ▾</button>
+      <div class="ms-panel" id="f-filial-panel" onclick="event.stopPropagation()">
+        <div class="ms-acoes"><a href="javascript:void(0)" onclick="filTodas(true)">Marcar todas</a><a href="javascript:void(0)" onclick="filTodas(false)">Limpar (todas)</a></div>
+        <div class="ms-list" id="f-filial-list"></div>
+      </div>
+    </div>
   </div>
   <div class="f-group">
     <label>Grupo</label>
@@ -580,15 +571,31 @@ function _expandirCache(compacto){
   }));
 }
 
+// ── Filial: dá para marcar várias (nenhuma marcada = todas) ──
+let _filSel=new Set(),_filOpcoes=[];
+const filNome=f=>{const n=_nomesFiliais[String(f).replace(/^0+/,'')]||'';return f+(n?' — '+n:'')};
+function filDesenhar(){
+  const el=document.getElementById('f-filial-list');if(!el)return;
+  el.innerHTML=_filOpcoes.map(f=>`<label><input type="checkbox" value="${f}" ${_filSel.has(f)?'checked':''} onchange="filMarca(this.value,this.checked)"> ${filNome(f)}</label>`).join('');
+  const b=document.getElementById('f-filial-btn');
+  b.textContent=(_filSel.size===0?'Todas as filiais':_filSel.size===1?filNome([..._filSel][0]):_filSel.size+' filiais')+' ▾';
+  b.title=_filSel.size?[..._filSel].sort().map(filNome).join('\n'):'Todas as filiais';
+  b.classList.toggle('on',_filSel.size>0);
+}
+function filMarca(f,on){on?_filSel.add(f):_filSel.delete(f);filDesenhar()}
+function filTodas(on){_filSel=new Set(on?_filOpcoes:[]);filDesenhar()}
+function filToggle(e){e.stopPropagation();document.getElementById('f-filial-panel').classList.toggle('open')}
+document.addEventListener('click',()=>{const p=document.getElementById('f-filial-panel');if(p&&p.classList.contains('open')){p.classList.remove('open');aplicarFiltros()}});
+window.filMarca=filMarca;window.filTodas=filTodas;window.filToggle=filToggle;
+// lista das filiais marcadas (vazia = todas) e filtro para as consultas no banco
+const filLista=()=>[..._filSel];
+const filQ=q=>_filSel.size?q.in('filial',filLista()):q;
+
 function popularSelects(todos){
   // filiais a partir dos dados (filial nova aparece sozinha)
-  const selFil=document.getElementById('f-filial');
-  if(selFil){
-    const atual=selFil.value;
-    const fils=[...new Set(todos.map(r=>String(r.filial||'').trim()).filter(Boolean))].sort();
-    selFil.innerHTML='<option value="">Todas as filiais</option>'+fils.map(f=>{const n=_nomesFiliais[f.replace(/^0+/,'')]||'';return`<option value="${f}">${f}${n?' — '+n:''}</option>`}).join('');
-    if(fils.includes(atual))selFil.value=atual;
-  }
+  _filOpcoes=[...new Set(todos.map(r=>String(r.filial||'').trim()).filter(Boolean))].sort();
+  [..._filSel].forEach(f=>{if(!_filOpcoes.includes(f))_filSel.delete(f)});
+  filDesenhar();
   const grupos=[...new Set(todos.map(r=>r.grupo).filter(Boolean))].sort();
   const selGrupo=document.getElementById('f-grupo');
   selGrupo.innerHTML='<option value="">Todos os grupos</option>'+grupos.map(g=>`<option value="${g}">${g}</option>`).join('');
@@ -612,7 +619,6 @@ function atualizarMeses(){
 }
 
 function aplicarFiltros(){
-  const filial=document.getElementById('f-filial').value;
   const grupo=document.getElementById('f-grupo').value;
   const cc=document.getElementById('f-cc').value;
   const periodo=document.getElementById('f-periodo').value;
@@ -622,7 +628,7 @@ function aplicarFiltros(){
 
   _devResumoCache=null; // invalidar cache de devoluções ao refiltrar
   _filtrados=_dados.filter(r=>{
-    if(filial&&r.filial!==filial)return false;
+    if(_filSel.size&&!_filSel.has(r.filial))return false;
     if(grupo&&r.grupo!==grupo)return false;
     if(cc&&r.cc!==cc)return false;
     if(mes&&r.mes!==mes)return false;
@@ -695,7 +701,6 @@ async function renderResumo(){
   const valPorMes=meses.map(m=>_filtrados.filter(r=>r.mes===m).reduce((a,r)=>a+metrica(r),0));
 
   // ── Buscar devoluções (mov_sd3_001) para o gráfico lado a lado ──
-  const filialFiltro=document.getElementById('f-filial')?.value||'';
   const ccFiltro=document.getElementById('f-cc')?.value||'';
   if(!_devResumoCache){
     try{
@@ -703,7 +708,7 @@ async function renderResumo(){
       let todos=[],off=0;
       for(;;){
         let q=db.from('mov_sd3_001').select('mes,valor_total,quantidade,filial,cc').neq('cc','122010102').order('id').range(off,off+999);
-        if(filialFiltro) q=q.eq('filial',filialFiltro);
+        q=filQ(q);
         if(ccFiltro) q=q.eq('cc',ccFiltro);
         const{data,error}=await q;
         if(error||!data||!data.length)break;
@@ -715,7 +720,7 @@ async function renderResumo(){
     }catch(e){_devResumoCache=[];}
   }
   let devFilt=_devResumoCache;
-  if(filialFiltro) devFilt=devFilt.filter(r=>r.filial===filialFiltro);
+  if(_filSel.size) devFilt=devFilt.filter(r=>_filSel.has(r.filial));
   if(ccFiltro) devFilt=devFilt.filter(r=>r.cc===ccFiltro);
   const devPorMes=meses.map(m=>devFilt.filter(r=>r.mes===m).reduce((a,r)=>a+(semValor?(r.quantidade||0):(r.valor_total||0)),0));
   const totalDev=devPorMes.reduce((a,v)=>a+v,0);
@@ -1476,7 +1481,6 @@ async function renderAuditoria(){
   const content=document.getElementById('content');
   content.innerHTML='<div class="loading"><span class="spinner"></span>Carregando auditoria...</div>';
 
-  const filial=document.getElementById('f-filial')?.value||'';
   const grupo=document.getElementById('f-grupo')?.value||'';
   const cc=document.getElementById('f-cc')?.value||'';
   const periodo=document.getElementById('f-periodo')?.value||'';
@@ -1495,7 +1499,7 @@ async function renderAuditoria(){
     let q=db.from('consumo_scp')
       .select('produto,descricao,filial,mes,quantidade,custo_unit,valor_total,custo_fonte')
       .order('chave').range(off,off+999);
-    if(filial) q=q.eq('filial',filial);
+    q=filQ(q);
     if(grupo) q=q.eq('grupo',grupo);
     if(cc) q=q.eq('cc',cc);
     if(mesesFilt.length===1) q=q.eq('mes',mesesFilt[0]);
@@ -1981,7 +1985,7 @@ async function renderComparativo(){
 
 
 async function exportarExcel(){
-  const filial=document.getElementById('f-filial').value;
+  const filial=_filSel.size>3?_filSel.size+'filiais':filLista().sort().join('-');
   const grupo=document.getElementById('f-grupo').value;
   const cc=document.getElementById('f-cc').value;
   const periodo=document.getElementById('f-periodo').value;
@@ -2011,7 +2015,7 @@ async function exportarExcel(){
         .order('chave').range(off,off+999);
       if(mes) q=q.eq('mes',mes);
       else if(periodo!=='todos') q=q.like('mes',periodo+'%');
-      if(filial) q=q.eq('filial',filial);
+      q=filQ(q);
       if(grupo)  q=q.eq('grupo',grupo);
       if(cc)     q=q.eq('cc',cc);
       const{data,error}=await q;
@@ -2032,7 +2036,7 @@ async function exportarExcel(){
         .order('id').range(off2,off2+999);
       if(mes) q=q.eq('mes',mes);
       else if(periodo!=='todos') q=q.like('mes',periodo+'%');
-      if(filial) q=q.eq('filial',filial);
+      q=filQ(q);
       if(grupo)  q=q.eq('grupo',grupo);
       if(cc)     q=q.eq('cc',cc);
       const{data,error}=await q;
@@ -2116,7 +2120,7 @@ async function exportarExcel(){
     const scpResumo=_dados.filter(r=>{
       if(mes&&r.mes!==mes)return false;
       else if(!mes&&periodo!=='todos'&&!r.mes.startsWith(periodo))return false;
-      if(filial&&r.filial!==filial)return false;
+      if(_filSel.size&&!_filSel.has(r.filial))return false;
       if(grupo&&r.grupo!==grupo)return false;
       if(cc&&r.cc!==cc)return false;
       return true;
