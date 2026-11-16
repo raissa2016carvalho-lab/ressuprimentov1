@@ -430,9 +430,13 @@ canvas{max-height:220px}
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><span class="fl">Observação da SC</span>
       <input class="sbox" id="sc-obs" style="flex:1;min-width:260px" oninput="scResumo()"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><span class="fl">Solicitante</span>
+      <input class="sbox" id="sc-nome" placeholder="Seu nome (aparece na solicitação)" style="width:260px"></div>
     <div id="sc-resumo" style="font-size:12px"></div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-      <button class="btn-f" onclick="scBaixar()">⬇ Baixar Excel para o Protheus</button>
+    <div id="sc-feito" style="display:none;margin-top:10px;background:#dcfce7;color:#166534;border-radius:8px;padding:8px 12px;font-size:12.5px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn-c" onclick="scBaixar()">⬇ Baixar Excel para o Protheus</button>
+      <button class="btn-f" id="sc-btn-criar" onclick="scCriar()">✅ Criar solicitações no Ressuprimento</button>
     </div>
   </div>
 </div>
@@ -1498,14 +1502,43 @@ async function scAbrir(){
   if(!SC.rat[FC.ano]){try{SC.rat[FC.ano]=await rpc('farda_rateio',{p_ano:FC.ano})}catch(e){return alert('Não consegui carregar o consumo por centro de custo: '+(e.message||e))}}
   const cli=document.getElementById('fc-cli').value;
   document.getElementById('sc-obs').value='RESSUPRIMENTO DE FARDAMENTO'+(cli?' '+cli:'')+' - '+({1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'}[SC.meses]);
+  try{document.getElementById('sc-nome').value=localStorage.getItem('sc_nome')||''}catch(e){}
+  const bt=document.getElementById('sc-btn-criar');bt.disabled=false;bt.style.opacity='';document.getElementById('sc-feito').style.display='none';
   document.getElementById('sc-modal').style.display='block';scResumo();
 }
+// cria uma solicitação por centro de custo na aba de Ressuprimento (mesma função do formulário: criar_solicitacao)
+async function scCriar(){
+  const out=SC.linhas;if(!out.length)return alert('Nada a comprar com esses filtros.');
+  const nome=document.getElementById('sc-nome').value.trim();if(!nome){alert('Preencha o solicitante.');document.getElementById('sc-nome').focus();return}
+  try{localStorage.setItem('sc_nome',nome)}catch(e){}
+  const obs=document.getElementById('sc-obs').value.trim(),porCC={};out.forEach(x=>(porCC[x.cc]=porCC[x.cc]||[]).push(x));
+  const ccs=Object.keys(porCC).sort(),pecas=out.reduce((s,x)=>s+x.qt,0);
+  if(!confirm(`Criar ${ccs.length} solicitação(ões) no Ressuprimento — uma por centro de custo — com ${fcN(pecas)} peças?\n\n"${obs}"\n\nElas entram como PENDENTES para o gerente de cada centro de custo.`))return;
+  const bt=document.getElementById('sc-btn-criar');bt.disabled=true;bt.style.opacity='.5';
+  const feitos=[],erros=[];
+  for(const cc of ccs){
+    const itens=porCC[cc].map(x=>({codigo:x.c,descricao:x.n,quantidade:x.qt,qtd_sugerida:x.qt,consumo_medio:Math.round(x.medCC*100)/100}));
+    try{const id=await rpc('criar_solicitacao',{p_cc:cc,p_nome:nome,p_matricula:'',p_justificativa:obs,p_filial:SC.ccFil[cc]||'',p_periodo_meses:SC.meses,p_itens:itens});feitos.push([cc,id])}
+    catch(e){erros.push(cc+': '+(e.message||e))}
+    bt.textContent=`Criando... ${feitos.length+erros.length}/${ccs.length}`;
+  }
+  bt.textContent='✅ Criar solicitações no Ressuprimento';
+  const el=document.getElementById('sc-feito');el.style.display='block';
+  el.style.background=erros.length?'#fee2e2':'#dcfce7';el.style.color=erros.length?'#991b1b':'#166534';
+  el.innerHTML=`<b>${feitos.length} solicitação(ões) criada(s)</b>${feitos.length?': '+feitos.map(([cc,id])=>`#${id} (CC ${cmpEsc(cc)})`).join(', '):''}.`+
+    (erros.length?`<br>Não consegui criar ${erros.length}: ${erros.map(cmpEsc).join(' · ')}`:' Elas já aparecem na aba de Ressuprimento do painel principal, pendentes para o gerente.');
+  if(erros.length){bt.disabled=false;bt.style.opacity=''}
+}
+window.scCriar=scCriar;
 function scPer(m){const o=document.getElementById('sc-obs'),ant={1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'}[SC.meses],nov={1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'}[m];
   SC.meses=m;o.value=o.value.replace(ant,nov);document.querySelectorAll('#sc-per button').forEach(b=>b.classList.toggle('on',+b.dataset.m===m));scResumo()}
 function scCalc(){
   const d=FC.dados[FC.ano],R=SC.rat[FC.ano],nome=c=>(d.nomes||{})[c]||'';
   const consTodas=document.getElementById('fc-cons').value==='todas',pf=f=>!FC.fil.size||FC.fil.has(f);
-  const porSku={};R.cons.forEach(([f,c,cc,q])=>{if(!(consTodas||pf(f)))return;(porSku[c]=porSku[c]||{})[cc]=(porSku[c][cc]||0)+(+q||0)});
+  const porSku={},ccFil={};R.cons.forEach(([f,c,cc,q])=>{if(!(consTodas||pf(f)))return;(porSku[c]=porSku[c]||{})[cc]=(porSku[c][cc]||0)+(+q||0);
+    const m=ccFil[cc]=ccFil[cc]||{};m[f]=(m[f]||0)+(+q||0)});
+  SC.ccFil={};Object.entries(ccFil).forEach(([cc,m])=>{SC.ccFil[cc]=Object.entries(m).sort((a,b)=>b[1]-a[1])[0][0]});
+  const div=+document.getElementById('fc-div').value||1;
   const out=[];let semCC=0;
   (FC.lin||[]).filter(r=>r.med>0).forEach(r=>{
     const tot=Math.ceil(r.med*SC.meses);if(tot<=0)return;
@@ -1514,7 +1547,7 @@ function scCalc(){
     // maior resto: a soma dos CCs fica igual ao total do SKU
     let parts=ccs.map(([cc,q])=>{const x=tot*q/base;return{cc,q,pct:q/base,qt:Math.floor(x),resto:x-Math.floor(x)}});
     let falta=tot-parts.reduce((s,p)=>s+p.qt,0);parts.sort((a,b)=>b.resto-a.resto).forEach(p=>{if(falta>0){p.qt++;falta--}});
-    parts.filter(p=>p.qt>0).forEach(p=>out.push({c:r.c,n:nome(r.c),cc:p.cc,ccn:(R.ccs||{})[p.cc]||'',pct:p.pct,qt:p.qt,tot,med:r.med}));
+    parts.filter(p=>p.qt>0).forEach(p=>out.push({c:r.c,n:nome(r.c),cc:p.cc,ccn:(R.ccs||{})[p.cc]||'',pct:p.pct,qt:p.qt,tot,med:r.med,medCC:p.q/div}));
   });
   SC.linhas=out;SC.semCC=semCC;return out;
 }
