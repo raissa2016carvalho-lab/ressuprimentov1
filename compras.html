@@ -122,22 +122,46 @@ canvas{max-height:220px}
 .cf-vis{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden}
 .cf-vis button{border:none;background:#fff;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--muted);font-family:var(--font)}
 .cf-vis button.on{background:var(--blue);color:#fff;font-weight:600}
-.mx-wrap{margin:16px 24px;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:calc(100vh - 260px)}
-.mx{border-collapse:separate;border-spacing:0;font-size:11.5px;width:max-content;min-width:100%}
-.mx th{position:sticky;top:0;background:var(--navy);color:#fff;font-weight:600;padding:6px 8px;text-align:right;white-space:nowrap;z-index:2;border-right:1px solid #334155}
-.mx thead tr:nth-child(2) th{top:27px;font-size:10px;font-weight:500;background:#1e293b}
-.mx th.mx-n,.mx td.mx-n{position:sticky;left:0;text-align:left;z-index:3;min-width:330px;max-width:420px}
-.mx th.mx-n{z-index:4}
-.mx td{padding:5px 8px;border-bottom:1px solid #eef2f7;text-align:right;white-space:nowrap;border-right:1px solid #f1f5f9}
-.mx td.mx-n{background:inherit;white-space:normal}
+.mx-wrap{margin:14px 24px 20px;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:calc(100vh - 250px);box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.mx{border-collapse:separate;border-spacing:0;font-size:12px;width:100%;font-variant-numeric:tabular-nums}
+.mx th{position:sticky;top:0;background:#0f172a;color:#e2e8f0;font-weight:600;padding:7px 8px;text-align:right;white-space:nowrap;z-index:2;font-size:11px}
+.mx thead tr:nth-child(2) th{top:29px;font-size:10px;font-weight:500;background:#1e293b;color:#94a3b8;padding:4px 8px}
+.mx th.mx-n,.mx td.mx-n{position:sticky;left:0;text-align:left;z-index:3;width:clamp(190px,26vw,360px);min-width:clamp(190px,26vw,360px);max-width:clamp(190px,26vw,360px)}
+.mx th.mx-n{z-index:5;font-size:11px}
+.mx td{padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;white-space:nowrap;min-width:46px}
+.mx td.mx-n{background:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:1px 0 0 #e2e8f0}
 .mx tr{background:#fff}
-.mx tr.l0{background:#eef4ff;font-weight:700}.mx tr.l1{background:#f8fafc;font-weight:600}.mx tr.l3{color:#475569;font-size:11px}
-.mx tr.tot{background:#0f172a;color:#fff;font-weight:700}.mx tr.tot td{border-color:#334155;position:sticky;top:54px;z-index:2;background:#0f172a;color:#fff}.mx tr.tot td.mx-n{z-index:3}
-.mx tr.clk{cursor:pointer}.mx tr.clk:hover td{background:#fff7ed}
-.mx .k{color:#c2410c}.mx .r{color:#15803d}.mx tr.tot .k{color:#fdba74}.mx tr.tot .r{color:#86efac}
-.mx .z{color:#cbd5e1}
-.mx .seta{display:inline-block;width:14px;color:var(--muted)}
-.mx td.sep,.mx th.sep{border-left:2px solid #cbd5e1}
+.mx tbody tr:hover td{background:#f8fafc}
+.mx tr.l0{background:#fff}.mx tr.l0 td{border-top:1px solid #e2e8f0;font-weight:700;font-size:12.5px;padding-top:9px;padding-bottom:9px}
+.mx tr.l0 td.mx-n{border-left:4px solid var(--cor,#1e40af)}
+.mx tr.l1{background:#fbfcfe}.mx tr.l1 td{font-weight:600}
+.mx tr.l1 td.mx-n,.mx tr.l2 td.mx-n,.mx tr.l3 td.mx-n{border-left:4px solid var(--cor,#1e40af)}
+.mx tr.l2 td{font-size:11.5px}.mx tr.l3 td{font-size:11px;color:#64748b;background:#fcfcfd}
+.mx tr.tot td{background:#eef2ff;color:#1e293b;font-weight:800;position:sticky;top:54px;z-index:2;border-bottom:2px solid #c7d2fe}
+.mx tr.tot td.mx-n{z-index:4}
+.mx tr.clk{cursor:pointer}
+.mx .k{color:#c2410c}.mx .r{color:#15803d}
+.mx .z{color:#e2e8f0}
+.mx .seta{display:inline-block;width:14px;color:#94a3b8;font-size:10px}
+.mx .qtd{font-weight:400;color:#94a3b8;font-size:10.5px;margin-left:4px}
+.mx td.sep,.mx th.sep{border-left:1px solid #e2e8f0}.mx thead th.sep{border-left:1px solid #334155}
+.mx td.fim,.mx th.fim{background:#f8fafc}.mx thead th.fim{background:#111827}.mx tr.tot td.fim{background:#e0e7ff}
+.mx-dica{display:none;font-size:11px;color:var(--muted);margin:0 24px}
+.mx th.mx-n{white-space:normal}
+.mx tr.l2 td.mx-n,.mx tr.l3 td.mx-n{white-space:normal;line-height:1.25}
+.mx .nm{display:flex;align-items:flex-start}
+.mx .nm .seta{flex:none;padding-top:1px}
+.mx .sku{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mx .sku b{color:#334155;font-weight:700;margin-right:3px}
+@media(max-width:900px){
+  .mx-wrap{margin:10px 12px 16px;max-height:calc(100vh - 220px)}
+  .mx{font-size:11px}.mx td{padding:5px 6px;min-width:40px}
+  .mx th.mx-n,.mx td.mx-n{width:150px;min-width:150px;max-width:150px}
+  .mx .qtd{display:none}.mx tr.l0 td{font-size:11.5px}
+  .mx-dica{display:block}
+  .mx .sku{-webkit-line-clamp:4;word-break:break-word}
+  .mx .sku b{display:block;font-size:10px;color:#64748b;font-weight:600}
+}
 @media(max-width:750px){.cf-meses{padding:12px 16px;grid-template-columns:1fr}.cf-det{margin:0 16px 16px}.cf-dia{min-height:46px;font-size:9.5px}}
 @media(max-width:750px){.cmp-dd{position:static}.cmp-dd-panel{width:auto;left:16px;right:16px;top:auto;margin-top:4px}}
 </style>
@@ -437,11 +461,15 @@ canvas{max-height:220px}
     </div>
     <div class="cf-vis"><button id="cf-v-mx" class="on" onclick="cfVisao('mx')">▦ Matriz por cliente</button><button id="cf-v-cal" onclick="cfVisao('cal')">📅 Calendário</button></div>
     <button class="btn-c" id="cf-mx-tudo" onclick="mxAbrirTudo()">Abrir/fechar tudo</button>
+    <select id="cf-mx-mostrar" onchange="mxRender()" title="Menos colunas: bom para tela menor e celular">
+      <option value="ambos">Mostrar: consumo e recebimento</option><option value="k">Mostrar: só consumo</option><option value="r">Mostrar: só recebimento</option>
+    </select>
     <span id="cf-info" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
   </div>
   <div class="kpi-bar" id="kpi-cf"><div class="kpi"><div class="kpi-lbl">Abra a aba para carregar...</div></div></div>
   <div id="mx-box"><div class="cf-leg"><span><b class="k" style="color:#c2410c">Cons.</b> = consumido (requisição entregue) · <b style="color:#15803d">Rec.</b> = recebido de fornecedor (sem transferência)</span>
     <span>Clique no cliente → categoria → SKU → centro de custo. Recebimento não tem centro de custo (só até o SKU).</span></div>
+    <div class="mx-dica">Arraste a tabela para o lado para ver os outros meses.</div>
     <div class="mx-wrap"><table class="mx" id="mx"></table></div></div>
   <div id="cal-box" style="display:none">
   <div class="cf-leg"><span><i style="background:#15803d"></i><b class="cf-r">+N</b> recebido de fornecedor (nota de entrada, sem transferência entre filiais)</span>
@@ -1548,6 +1576,7 @@ window.cfMarcarEnc=cfMarcarEnc;window.cfLimpar=cfLimpar;window.cfDia=cfDia;
 const MX={dados:{},aberto:new Set(),visao:'mx'};
 const MX_CLI=[['ENEL','ENEL'],['COELBA','COELBA'],['COSERN','COSERN'],['CPFL','CPFL'],['EQUATORIAL','EQUATORIAL'],['SANEAGO','SANEAGO'],['NEOENERGIA','BRASÍLIA'],['BRASILIA','BRASÍLIA'],[' BEQ','B&Q'],['B&Q','B&Q'],['BEQ','B&Q']];
 const MX_ORD=['ENEL','COELBA','COSERN','CPFL'];
+const MX_COR={'ENEL':'#2563eb','COELBA':'#16a34a','COSERN':'#0891b2','CPFL':'#7c3aed','B&Q':'#0f172a','EQUATORIAL':'#ea580c','SANEAGO':'#0d9488','BRASÍLIA':'#ca8a04'};
 function mxCliente(n){n=' '+(n||'').toUpperCase();for(const [k,v] of MX_CLI)if(n.includes(k))return v;return 'OUTROS (ADM, supervisão...)'}
 function mxCat(n){n=(n||'').toUpperCase();
   if(n.includes('RETARDANTE')||n.includes('INERENTE')||n.includes('ANTI CHAMA'))return 'Retardante';
@@ -1558,7 +1587,7 @@ function mxCat(n){n=(n||'').toUpperCase();
   return 'Outros';}
 function cfVisao(v){MX.visao=v;document.getElementById('mx-box').style.display=v==='mx'?'':'none';document.getElementById('cal-box').style.display=v==='cal'?'':'none';
   document.getElementById('cf-v-mx').classList.toggle('on',v==='mx');document.getElementById('cf-v-cal').classList.toggle('on',v==='cal');
-  document.getElementById('cf-mx-tudo').style.display=v==='mx'?'':'none';mxRender()}
+  document.getElementById('cf-mx-tudo').style.display=v==='mx'?'':'none';document.getElementById('cf-mx-mostrar').style.display=v==='mx'?'':'none';mxRender()}
 async function mxCarregar(ano){
   if(MX.dados[ano]||MX.carregando===ano)return;MX.carregando=ano;
   document.getElementById('mx').innerHTML='<tr><td style="padding:20px;color:var(--muted)">Carregando a matriz de '+ano+'...</td></tr>';
@@ -1586,16 +1615,28 @@ function mxRender(){
   (d.rec||[]).forEach(([mes,c,q])=>{const m=+mes.slice(4,6);if(!ms.has(m)||!pega(c))return;q=+q||0;
     const [A,B,C]=no(c);[T,A.t,B.t,C.t].forEach(o=>soma(o,'r',m,q))});
   const est=d.estoque||{},tot=o=>Object.values(o).reduce((s,v)=>s+v,0);
+  // no celular o nome do SKU sai sem o que já está nas linhas de cima (cliente, "retardante", "tec inerente")
+  const estreito=window.matchMedia('(max-width:900px)').matches;
+  const curto=(n,cl)=>{if(!estreito)return n;let t=' '+n+' ';
+    [cl,'B&Q','BEQ','RETARDANTE','TEC INERENTE','INERENTE','OPERACAO','OPERAÇÃO'].forEach(w=>{if(w&&w.length>2)t=t.split(' '+w+' ').join(' ')});
+    return t.replace(/\s+/g,' ').trim()};
   Object.keys(est).forEach(c=>{if(pega(c)&&+est[c])no(c)});   // SKU com estoque e sem movimento no período também aparece
   const estDe=(lista)=>lista.reduce((s,c)=>s+(+est[c]||0),0);
   const fmt=(v,cls)=>v?`<span class="${cls}">${cfN(v)}</span>`:'<span class="z">·</span>';
-  const celulas=(t,semRec,estQ)=>{let h='';meses.forEach((m,i)=>{h+=`<td class="${i===0?'':'sep'}">${fmt(t.k[m],'k')}</td><td>${semRec?'<span class="z">–</span>':fmt(t.r[m],'r')}</td>`});
+  const mo=document.getElementById('cf-mx-mostrar').value,vK=mo!=='r',vR=mo!=='k',nSub=(vK?1:0)+(vR?1:0);
+  const rc=(v,semRec)=>semRec?'<span class="z">–</span>':fmt(v,'r');
+  const celulas=(t,semRec,estQ)=>{let h='';meses.forEach((m,i)=>{
+      if(vK)h+=`<td class="${i?'sep':''}">${fmt(t.k[m],'k')}</td>`;
+      if(vR)h+=`<td class="${!vK&&i?'sep':''}">${rc(t.r[m],semRec)}</td>`});
     const tk=tot(t.k),tr=tot(t.r);
-    return h+`<td class="sep">${fmt(tk,'k')}</td><td>${semRec?'<span class="z">–</span>':fmt(tr,'r')}</td><td class="sep">${tk?(tk/mDec).toLocaleString('pt-BR',{maximumFractionDigits:1}):'<span class="z">·</span>'}</td><td class="sep">${estQ==null?'<span class="z">–</span>':'<b>'+cfN(estQ)+'</b>'}</td>`};
+    if(vK)h+=`<td class="sep fim">${fmt(tk,'k')}</td>`;
+    if(vR)h+=`<td class="fim${vK?'':' sep'}">${rc(tr,semRec)}</td>`;
+    return h+`<td class="sep fim">${tk?(tk/mDec).toLocaleString('pt-BR',{maximumFractionDigits:1}):'<span class="z">·</span>'}</td><td class="sep fim">${estQ==null?'<span class="z">–</span>':'<b>'+cfN(estQ)+'</b>'}</td>`};
   // cabeçalho
-  let h=`<thead><tr><th class="mx-n" rowspan="2">Cliente / categoria / SKU / centro de custo</th>${meses.map((m,i)=>`<th colspan="2" class="${i?'sep':''}" style="text-align:center">${CF_MES[m-1].slice(0,3)}/${String(CF.ano).slice(2)}</th>`).join('')}
-    <th colspan="2" class="sep" style="text-align:center">Total</th><th class="sep" rowspan="2">Média/mês<br><span style="font-weight:400;font-size:10px">consumo (${mDec} ${mDec>1?'meses':'mês'})</span></th><th class="sep" rowspan="2">Estoque<br>hoje</th></tr>
-    <tr>${meses.map((m,i)=>`<th class="${i?'sep':''}">Cons.</th><th>Rec.</th>`).join('')}<th class="sep">Cons.</th><th>Rec.</th></tr></thead><tbody>`;
+  const sub=()=>(vK?'<th class="SEP">Cons.</th>':'')+(vR?`<th class="${vK?'':'SEP'}">Rec.</th>`:'');
+  let h=`<thead><tr><th class="mx-n" rowspan="2">Cliente › categoria › SKU › CC</th>${meses.map((m,i)=>`<th colspan="${nSub}" class="${i?'sep':''}" style="text-align:center">${CF_MES[m-1].slice(0,3)}/${String(CF.ano).slice(2)}</th>`).join('')}
+    <th colspan="${nSub}" class="sep fim" style="text-align:center">Total</th><th class="sep fim" rowspan="2" title="Consumo do período ÷ ${mDec} ${mDec>1?'meses':'mês'}">Média<br>/mês</th><th class="sep fim" rowspan="2">Estoque<br>hoje</th></tr>
+    <tr>${meses.map((m,i)=>sub().replace(/SEP/g,i?'sep':'')).join('')}${sub().replace(/SEP/g,'sep fim').replace('<th class="">','<th class="fim">')}</tr></thead><tbody>`;
   const chaves=[];
   const todosSkus=[];Object.values(arv).forEach(A=>Object.values(A.f).forEach(B=>Object.keys(B.f).forEach(c=>todosSkus.push(c))));
   h+=`<tr class="tot"><td class="mx-n">Total geral</td>${celulas(T,false,estDe(todosSkus))}</tr>`;
@@ -1603,16 +1644,17 @@ function mxRender(){
   if(MX.abrirTudo){ordCli.forEach(cl=>{MX.aberto.add('c|'+cl);Object.keys(arv[cl].f).forEach(ca=>MX.aberto.add('c|'+cl+'|'+ca))});MX.abrirTudo=false}
   ordCli.forEach(cl=>{const A=arv[cl],ka='c|'+cl;chaves.push(ka);const abA=MX.aberto.has(ka);
     const skA=Object.values(A.f).flatMap(B=>Object.keys(B.f));
-    h+=`<tr class="l0 clk" onclick="mxClique('${cmpEsc(ka)}')"><td class="mx-n"><span class="seta">${abA?'▾':'▸'}</span>${cmpEsc(cl)} <span style="font-weight:400;color:var(--muted);font-size:10.5px">${skA.length} SKUs</span></td>${celulas(A.t,false,estDe(skA))}</tr>`;
+    const cor=MX_COR[cl]||'#94a3b8';
+    h+=`<tr class="l0 clk" style="--cor:${cor}" onclick="mxClique('${cmpEsc(ka)}')"><td class="mx-n" title="${cmpEsc(cl)}"><span class="seta">${abA?'▾':'▸'}</span>${cmpEsc(cl)}<span class="qtd">${skA.length} SKUs</span></td>${celulas(A.t,false,estDe(skA))}</tr>`;
     if(!abA)return;
     Object.keys(A.f).sort((a,b)=>tot(A.f[b].t.k)-tot(A.f[a].t.k)).forEach(ca=>{const B=A.f[ca],kb=ka+'|'+ca;chaves.push(kb);const abB=MX.aberto.has(kb),skB=Object.keys(B.f);
-      h+=`<tr class="l1 clk" onclick="mxClique('${cmpEsc(kb)}')"><td class="mx-n" style="padding-left:24px"><span class="seta">${abB?'▾':'▸'}</span>${cmpEsc(ca)} <span style="font-weight:400;color:var(--muted);font-size:10.5px">${skB.length} SKUs</span></td>${celulas(B.t,false,estDe(skB))}</tr>`;
+      h+=`<tr class="l1 clk" style="--cor:${cor}" onclick="mxClique('${cmpEsc(kb)}')"><td class="mx-n" style="padding-left:20px" title="${cmpEsc(ca)}"><span class="seta">${abB?'▾':'▸'}</span>${cmpEsc(ca)}<span class="qtd">${skB.length} SKUs</span></td>${celulas(B.t,false,estDe(skB))}</tr>`;
       if(!abB)return;
       skB.sort((a,b)=>tot(B.f[b].t.k)-tot(B.f[a].t.k)||tot(B.f[b].t.r)-tot(B.f[a].t.r)).forEach(c=>{const C=B.f[c],kc=kb+'|'+c;chaves.push(kc);const abC=MX.aberto.has(kc),nCC=Object.keys(C.f).length;
-        h+=`<tr class="l2${nCC?' clk':''}" ${nCC?`onclick="mxClique('${cmpEsc(kc)}')"`:''}><td class="mx-n" style="padding-left:44px"><span class="seta">${nCC?(abC?'▾':'▸'):''}</span><b>${cmpEsc(c)}</b> ${cmpEsc(nome(c))}</td>${celulas(C.t,false,+est[c]||0)}</tr>`;
+        h+=`<tr class="l2${nCC?' clk':''}" style="--cor:${cor}" ${nCC?`onclick="mxClique('${cmpEsc(kc)}')"`:''}><td class="mx-n" style="padding-left:34px" title="${cmpEsc(c+' '+nome(c))}"><div class="nm"><span class="seta">${nCC?(abC?'▾':'▸'):''}</span><span class="sku"><b>${cmpEsc(c)}</b>${cmpEsc(curto(nome(c),cl))}</span></div></td>${celulas(C.t,false,+est[c]||0)}</tr>`;
         if(!abC)return;
         Object.keys(C.f).sort((a,b)=>tot(C.f[b].t.k)-tot(C.f[a].t.k)).forEach(cc=>{const nm=(d.ccs||{})[cc]||'';
-          h+=`<tr class="l3"><td class="mx-n" style="padding-left:68px">${cmpEsc(cc)}${nm?' — '+cmpEsc(String(nm).trim()):''}</td>${celulas(C.f[cc].t,true,null)}</tr>`});
+          h+=`<tr class="l3" style="--cor:${cor}"><td class="mx-n" style="padding-left:50px" title="${cmpEsc(cc+' '+String(nm||'').trim())}"><span class="sku">${cmpEsc(cc)}${nm?' — '+cmpEsc(String(nm).trim()):''}</span></td>${celulas(C.f[cc].t,true,null)}</tr>`});
       });
     });
   });
