@@ -147,6 +147,33 @@ canvas{max-height:220px}
 .mx td.sep,.mx th.sep{border-left:1px solid #e2e8f0}.mx thead th.sep{border-left:1px solid #334155}
 .mx td.fim,.mx th.fim{background:#f8fafc}.mx thead th.fim{background:#111827}.mx tr.tot td.fim{background:#e0e7ff}
 .mx-dica{display:none;font-size:11px;color:var(--muted);margin:0 24px}
+.rs-wrap{padding:14px 24px 24px;display:flex;flex-direction:column;gap:14px}
+.rs-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.rs-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;border-top:5px solid var(--st);box-shadow:0 1px 3px rgba(15,23,42,.05);transition:.15s}
+.rs-card:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(15,23,42,.1)}.rs-card.on{outline:2px solid var(--blue)}
+.rs-card h3{font-size:13px;font-weight:800;color:#0f172a;display:flex;justify-content:space-between;align-items:center}
+.rs-big{font-size:26px;font-weight:800;color:var(--st);line-height:1.1;margin-top:6px}
+.rs-sub{font-size:11px;color:var(--muted)}
+.rs-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.rs-chip{font-size:10.5px;font-weight:700;border-radius:99px;padding:2px 8px}
+.c-v{background:#dcfce7;color:#166534}.c-a{background:#fef9c3;color:#854d0e}.c-r{background:#fee2e2;color:#991b1b}.c-c{background:#f1f5f9;color:#475569}
+.rs-ult{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-size:11px;color:#334155}
+.rs-box{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.rs-box-h{background:#0f172a;color:#fff;padding:9px 14px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.rs-box-h select{font-size:11px;padding:3px 6px}
+.rs-tab{width:100%;border-collapse:collapse;font-size:12px}
+.rs-tab th{background:#f8fafc;color:#64748b;font-size:10.5px;font-weight:600;text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);position:sticky;top:0}
+.rs-tab td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.rs-tab td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rs-bar{position:relative;height:12px;width:150px;background:#f1f5f9;border-radius:99px;overflow:hidden}
+.rs-bar i{position:absolute;top:0;bottom:0;left:0}
+.rs-bar .b1{background:#16a34a}.rs-bar .b2{background:repeating-linear-gradient(45deg,#86efac 0 4px,#bbf7d0 4px 8px)}
+.rs-bar .meta{position:absolute;top:-2px;bottom:-2px;width:2px;background:#0f172a;left:66.6%}
+.rs-dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px;margin-right:6px}
+.rs-duas{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.rs-scroll{max-height:420px;overflow:auto}
+.rs-atr{color:#b91c1c;font-weight:700}
+@media(max-width:900px){.rs-wrap{padding:10px 12px}.rs-duas{grid-template-columns:1fr}.rs-bar{width:90px}.rs-tab .hm{display:none}}
 .mx th.mx-n{white-space:normal}
 .mx tr.l2 td.mx-n,.mx tr.l3 td.mx-n{white-space:normal;line-height:1.25}
 .mx .nm{display:flex;align-items:flex-start}
@@ -436,7 +463,7 @@ canvas{max-height:220px}
 <!-- TELA CALENDÁRIO DE FARDAMENTO -->
 <div id="screen-calfarda" class="screen">
   <div class="cmp-barra" style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-    <span class="fl">Ano</span>
+    <span id="cf-per-box" style="display:contents"><span class="fl">Ano</span>
     <select id="cf-ano" onchange="cfCarregar()"></select>
     <span class="fl">Período</span>
     <select id="cf-per" onchange="cfRender()">
@@ -445,7 +472,7 @@ canvas{max-height:220px}
       <option value="t1">1º trimestre</option><option value="t2">2º trimestre</option><option value="t3">3º trimestre</option><option value="t4">4º trimestre</option>
       <option value="m1">Janeiro</option><option value="m2">Fevereiro</option><option value="m3">Março</option><option value="m4">Abril</option><option value="m5">Maio</option><option value="m6">Junho</option>
       <option value="m7">Julho</option><option value="m8">Agosto</option><option value="m9">Setembro</option><option value="m10">Outubro</option><option value="m11">Novembro</option><option value="m12">Dezembro</option>
-    </select>
+    </select></span>
     <span class="fl">Item (SKU)</span>
     <div class="cmp-dd">
       <button class="btn-c" id="cf-sku-btn" onclick="cfToggle(event)">Todos os itens ▾</button>
@@ -459,7 +486,7 @@ canvas{max-height:220px}
         <div class="cmp-dd-list" id="cf-sku-list"></div>
       </div>
     </div>
-    <div class="cf-vis"><button id="cf-v-mx" class="on" onclick="cfVisao('mx')">▦ Matriz por cliente</button><button id="cf-v-cal" onclick="cfVisao('cal')">📅 Calendário</button></div>
+    <div class="cf-vis"><button id="cf-v-rs" class="on" onclick="cfVisao('rs')">🚦 Ressuprimento</button><button id="cf-v-mx" onclick="cfVisao('mx')">▦ Matriz por cliente</button><button id="cf-v-cal" onclick="cfVisao('cal')">📅 Calendário</button></div>
     <button class="btn-c" id="cf-mx-tudo" onclick="mxAbrirTudo()">Abrir/fechar tudo</button>
     <select id="cf-mx-mostrar" onchange="mxRender()" title="Menos colunas: bom para tela menor e celular">
       <option value="ambos">Mostrar: consumo e recebimento</option><option value="k">Mostrar: só consumo</option><option value="r">Mostrar: só recebimento</option>
@@ -467,7 +494,8 @@ canvas{max-height:220px}
     <span id="cf-info" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
   </div>
   <div class="kpi-bar" id="kpi-cf"><div class="kpi"><div class="kpi-lbl">Abra a aba para carregar...</div></div></div>
-  <div id="mx-box"><div class="cf-leg"><span><b class="k" style="color:#c2410c">Cons.</b> = consumido (requisição entregue) · <b style="color:#15803d">Rec.</b> = recebido de fornecedor (sem transferência)</span>
+  <div id="rs-box"></div>
+  <div id="mx-box" style="display:none"><div class="cf-leg"><span><b class="k" style="color:#c2410c">Cons.</b> = consumido (requisição entregue) · <b style="color:#15803d">Rec.</b> = recebido de fornecedor (sem transferência)</span>
     <span>Clique no cliente → categoria → SKU → centro de custo. Recebimento não tem centro de custo (só até o SKU).</span></div>
     <div class="mx-dica">Arraste a tabela para o lado para ver os outros meses.</div>
     <div class="mx-wrap"><table class="mx" id="mx"></table></div></div>
@@ -1459,6 +1487,7 @@ const cfN=v=>Math.round(Number(v)||0).toLocaleString('pt-BR');
 const cfR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const cfD=d=>d?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'–';
 function cfAbrir(){
+  setTimeout(()=>cfVisao(MX.visao),0);
   const sa=document.getElementById('cf-ano');
   if(!sa.options.length){const a=new Date().getFullYear();[a,a-1].forEach(x=>sa.add(new Option(x,x)));
     const m=new Date().getMonth()+1;document.getElementById('cf-per').value='t'+Math.ceil(m/3);
@@ -1558,6 +1587,7 @@ function cfRender(){
   if(CF.dia&&!ms.has(+CF.dia.slice(4,6)))CF.dia=null;
   cfDetalhe();
   mxRender();
+  if(MX.visao==='rs')rsRender();
 }
 function cfDia(k){CF.dia=CF.dia===k?null:k;cfRender();if(CF.dia)document.getElementById('cf-det').scrollIntoView({behavior:'smooth',block:'nearest'})}
 function cfDetalhe(){
@@ -1573,7 +1603,7 @@ window.cfAbrir=cfAbrir;window.cfCarregar=cfCarregar;window.cfRender=cfRender;win
 window.cfMarcarEnc=cfMarcarEnc;window.cfLimpar=cfLimpar;window.cfDia=cfDia;
 
 // ── Matriz por cliente: cliente → categoria → SKU → CC; colunas = meses (consumo e recebimento), total, média e estoque ──
-const MX={dados:{},aberto:new Set(),visao:'mx'};
+const MX={dados:{},aberto:new Set(),visao:'rs'};
 const MX_CLI=[['ENEL','ENEL'],['COELBA','COELBA'],['COSERN','COSERN'],['CPFL','CPFL'],['EQUATORIAL','EQUATORIAL'],['SANEAGO','SANEAGO'],['NEOENERGIA','BRASÍLIA'],['BRASILIA','BRASÍLIA'],[' BEQ','B&Q'],['B&Q','B&Q'],['BEQ','B&Q']];
 const MX_ORD=['ENEL','COELBA','COSERN','CPFL'];
 const MX_COR={'ENEL':'#2563eb','COELBA':'#16a34a','COSERN':'#0891b2','CPFL':'#7c3aed','B&Q':'#0f172a','EQUATORIAL':'#ea580c','SANEAGO':'#0d9488','BRASÍLIA':'#ca8a04'};
@@ -1586,7 +1616,9 @@ function mxCat(n){n=(n||'').toUpperCase();
   if(['BRIM','CONVENCIONAL','CEDRO'].some(k=>n.includes(k)))return 'Convencional (brim)';
   return 'Outros';}
 function cfVisao(v){MX.visao=v;document.getElementById('mx-box').style.display=v==='mx'?'':'none';document.getElementById('cal-box').style.display=v==='cal'?'':'none';
-  document.getElementById('cf-v-mx').classList.toggle('on',v==='mx');document.getElementById('cf-v-cal').classList.toggle('on',v==='cal');
+  document.getElementById('rs-box').style.display=v==='rs'?'':'none';document.getElementById('kpi-cf').style.display=v==='rs'?'none':'';
+  document.getElementById('cf-per-box').style.display=v==='rs'?'none':'contents';document.getElementById('cf-v-rs').classList.toggle('on',v==='rs');
+  document.getElementById('cf-v-mx').classList.toggle('on',v==='mx');document.getElementById('cf-v-cal').classList.toggle('on',v==='cal');if(v==='rs')rsRender();
   document.getElementById('cf-mx-tudo').style.display=v==='mx'?'':'none';document.getElementById('cf-mx-mostrar').style.display=v==='mx'?'':'none';mxRender()}
 async function mxCarregar(ano){
   if(MX.dados[ano]||MX.carregando===ano)return;MX.carregando=ano;
@@ -1662,6 +1694,85 @@ function mxRender(){
   document.getElementById('mx').innerHTML=h+'</tbody>'+(ordCli.length?'':'<tbody><tr><td class="mx-n" style="padding:18px;color:var(--muted)">Nenhum movimento no período.</td></tr></tbody>');
 }
 window.cfVisao=cfVisao;window.mxClique=mxClique;window.mxAbrirTudo=mxAbrirTudo;window.mxRender=mxRender;
+
+// ── Ressuprimento: semáforo sem estoque (reposição dos últimos 90 dias + pedidos a caminho × consumo de 90 dias) ──
+const RS={dados:null,cli:null,risco:'risco',carregando:false};
+const rsDia=d=>d?new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8)):null;
+const rsDias=(a,b)=>Math.round((rsDia(b)-rsDia(a))/864e5);
+const rsCor={v:'#16a34a',a:'#ca8a04',r:'#dc2626',c:'#94a3b8'};
+async function rsCarregar(){
+  if(RS.dados||RS.carregando)return;RS.carregando=true;
+  document.getElementById('rs-box').innerHTML='<div class="rs-wrap"><div class="rs-sub">Carregando o ressuprimento...</div></div>';
+  try{RS.dados=await rpc('fardamento_ressup',{})}catch(e){document.getElementById('rs-box').innerHTML='<div class="rs-wrap" style="color:var(--red)">Não consegui carregar: '+cmpEsc(e.message||e)+'</div>';RS.carregando=false;return}
+  RS.carregando=false;rsRender();
+}
+function rsCliente(c){RS.cli=RS.cli===c?null:c;rsRender()}
+function rsRender(){
+  if(MX.visao!=='rs')return;const d=RS.dados;if(!d){rsCarregar();return}
+  const hoje=d.hoje,sel=CF.sel,pega=c=>!sel.size||sel.has(c);
+  const sk=(d.skus||[]).filter(x=>pega(x[0])).map(([c,n,k90,r90,cam,prev,atr,ur,qur,uk])=>{
+    k90=+k90||0;r90=+r90||0;cam=+cam||0;const rep=k90>0?(r90+cam)/k90:null;
+    const st=k90<=0?'c':rep>=1?'v':rep>=0.7?'a':'r';
+    return{c,n:n||'',cl:mxCliente(n),cat:mxCat(n),k90,r90,cam,prev,atr:+atr||0,ur,qur:+qur||0,uk,rep,st,med:k90/3,dsr:ur?rsDias(ur,hoje):null,semPed:cam<=0&&(rep==null||rep<1)&&k90>0}});
+  // cartões por cliente
+  const G={};sk.forEach(x=>{const g=G[x.cl]=G[x.cl]||{k:0,r:0,cam:0,atr:0,v:0,a:0,r_:0,n:0,kr:0};g.k+=x.k90;g.r+=x.r90;g.cam+=x.cam;g.atr+=x.atr;g.n++;
+    if(x.st==='v')g.v++;if(x.st==='a')g.a++;if(x.st==='r'){g.r_++;g.kr+=x.k90}});
+  const recs=(d.recebidos||[]).filter(r=>pega(r[4]));
+  const ultCli={};recs.forEach(([dt,fil,num,forn,c,q])=>{const cl=mxCliente((sk.find(x=>x.c===c)||{}).n||((d.skus||[]).find(x=>x[0]===c)||[])[1]);const u=ultCli[cl];
+    if(!u||dt>u.dt)ultCli[cl]={dt,num,fil,q:+q||0};else if(dt===u.dt&&num===u.num)u.q+=+q||0});
+  const ordCli=Object.keys(G).sort((a,b)=>{const ia=MX_ORD.indexOf(a),ib=MX_ORD.indexOf(b);if(ia>=0||ib>=0)return(ia<0?99:ia)-(ib<0?99:ib);return G[b].k-G[a].k});
+  const stDe=rep=>rep==null?'c':rep>=1?'v':rep>=0.7?'a':'r';
+  const pct=v=>v==null?'–':Math.round(v*100)+'%';
+  // cor do cliente = quanto do consumo está em itens vermelhos (sobra de um item não esconde a falta de outro)
+  const stCli=g=>g.k<=0?'c':g.kr/g.k>0.2?'r':g.kr/g.k>0.05||g.a?'a':'v';
+  const cards=ordCli.map(cl=>{const g=G[cl],rep=g.k>0?(g.r+g.cam)/g.k:null,st=stCli(g),u=ultCli[cl],pr=g.k>0?g.kr/g.k:0;
+    return `<div class="rs-card${RS.cli===cl?' on':''}" style="--st:${rsCor[st]}" onclick="rsCliente('${cmpEsc(cl)}')">
+      <h3><span>${cmpEsc(cl)}</span><span class="rs-dot" style="background:${rsCor[st]}"></span></h3>
+      <div class="rs-big">${g.r_} <span style="font-size:13px;font-weight:700">em risco</span></div>
+      <div class="rs-sub">${g.k>0?Math.round(pr*100)+'% do consumo em itens vermelhos · reposição geral '+pct(rep):'sem consumo nos últimos 90 dias'}</div>
+      <div class="rs-chips">${g.a?`<span class="rs-chip c-a">${g.a} atenção</span>`:''}<span class="rs-chip c-v">${g.v} ok</span>${g.atr?`<span class="rs-chip c-r">🚚 ${cfN(g.atr)} pç atrasadas</span>`:''}</div>
+      <div class="rs-ult">${u?`✅ Último recebimento: <b>${cfD(u.dt)}</b> · PC ${cmpEsc(u.num)} · ${cfN(u.q)} pç`:'Sem recebimento nos últimos 120 dias'}<br>🚚 A caminho: <b>${cfN(g.cam)}</b> pç · consumo ${cfN(g.k/3)}/mês</div></div>`}).join('');
+  // itens em risco
+  const fil=x=>(!RS.cli||x.cl===RS.cli);
+  let L=sk.filter(fil);if(RS.risco==='risco')L=L.filter(x=>x.st==='r'||x.st==='a');
+  const ordSt={r:0,a:1,v:2,c:3};L.sort((a,b)=>ordSt[a.st]-ordSt[b.st]||b.k90-a.k90);
+  const barra=x=>{if(!x.k90)return'<span class="rs-sub">sem consumo</span>';const W=1.5,a=Math.min(x.r90/x.k90,W)/W*100,b=Math.min((x.r90+x.cam)/x.k90,W)/W*100;
+    return `<div class="rs-bar" title="Recebido 90 dias ${cfN(x.r90)} · a caminho ${cfN(x.cam)} · consumo 90 dias ${cfN(x.k90)} (traço = 100%)"><i class="b2" style="width:${b}%"></i><i class="b1" style="width:${a}%"></i><span class="meta"></span></div>`};
+  const linhas=L.slice(0,300).map(x=>`<tr><td><span class="rs-dot" style="background:${rsCor[x.st]}"></span></td>
+    <td style="min-width:220px"><b>${cmpEsc(x.c)}</b> ${cmpEsc(x.n)}<div class="rs-sub">${cmpEsc(x.cl)} · ${cmpEsc(x.cat)}</div></td>
+    <td>${barra(x)}</td><td class="n"><b style="color:${rsCor[x.st]}">${pct(x.rep)}</b></td>
+    <td class="n">${cfN(x.med)}</td><td class="n hm">${cfN(x.r90)}</td>
+    <td class="n">${x.cam?cfN(x.cam)+(x.prev?`<div class="rs-sub${x.atr?' rs-atr':''}">${x.atr?'atrasado · ':''}prev. ${cfD(x.prev)}</div>`:''):(x.semPed?'<span class="rs-chip c-r">⚠ sem pedido</span>':'–')}</td>
+    <td class="n hm">${x.ur?cfD(x.ur)+`<div class="rs-sub">${x.dsr} dias · ${cfN(x.qur)} pç</div>`:'<span class="rs-sub">sem receb.</span>'}</td></tr>`).join('')
+    ||'<tr><td colspan="8" style="padding:18px;color:var(--muted);text-align:center">Nenhum item nessa situação. 🎉</td></tr>';
+  // últimos recebidos (por pedido)
+  const P={};recs.forEach(([dt,fil,num,forn,c,q])=>{const k=dt+'|'+fil+'|'+num;const x=P[k]=P[k]||{dt,fil,num,forn,q:0,itens:new Set(),cls:new Set()};x.q+=+q||0;x.itens.add(c);
+    const nm=((d.skus||[]).find(s=>s[0]===c)||[])[1];x.cls.add(mxCliente(nm))});
+  let PR=Object.values(P);if(RS.cli)PR=PR.filter(x=>x.cls.has(RS.cli));PR.sort((a,b)=>b.dt.localeCompare(a.dt));
+  const recHtml=PR.slice(0,25).map(x=>`<tr><td class="n" style="text-align:left"><b>${cfD(x.dt)}</b></td><td>PC ${cmpEsc(x.num)}<div class="rs-sub">filial ${cmpEsc(x.fil)} · forn. ${cmpEsc(x.forn||'')}</div></td>
+    <td>${[...x.cls].map(c=>`<span class="rs-chip c-c" style="border-left:3px solid ${MX_COR[c]||'#94a3b8'}">${cmpEsc(c)}</span>`).join(' ')}</td><td class="n"><b>${cfN(x.q)}</b><div class="rs-sub">${x.itens.size} SKUs</div></td></tr>`).join('')
+    ||'<tr><td colspan="4" style="padding:14px;color:var(--muted)">Nenhum recebimento nos últimos 120 dias.</td></tr>';
+  // a caminho (por pedido)
+  const C={};(d.caminho||[]).filter(r=>pega(r[5])).forEach(([fil,num,forn,emi,ent,c,q,stt])=>{const k=fil+'|'+num;const x=C[k]=C[k]||{fil,num,forn,emi,ent,q:0,st:stt,itens:new Set(),cls:new Set()};
+    x.q+=+q||0;x.itens.add(c);if(ent&&(!x.ent||ent<x.ent))x.ent=ent;const nm=((d.skus||[]).find(s=>s[0]===c)||[])[1];x.cls.add(mxCliente(nm))});
+  let CA=Object.values(C);if(RS.cli)CA=CA.filter(x=>x.cls.has(RS.cli));CA.forEach(x=>x.atr=x.ent&&x.ent<hoje?rsDias(x.ent,hoje):0);CA.sort((a,b)=>b.atr-a.atr||(a.ent||'').localeCompare(b.ent||''));
+  const camHtml=CA.slice(0,40).map(x=>`<tr><td>PC ${cmpEsc(x.num)}<div class="rs-sub">filial ${cmpEsc(x.fil)} · forn. ${cmpEsc(x.forn||'')} · ${cmpEsc(x.st)}</div></td>
+    <td>${[...x.cls].map(c=>`<span class="rs-chip c-c" style="border-left:3px solid ${MX_COR[c]||'#94a3b8'}">${cmpEsc(c)}</span>`).join(' ')}</td>
+    <td class="n" style="text-align:left">${x.ent?cfD(x.ent):'–'}${x.atr?`<div class="rs-atr">🔴 ${x.atr} dias de atraso</div>`:''}</td><td class="n"><b>${cfN(x.q)}</b><div class="rs-sub">${x.itens.size} SKUs</div></td></tr>`).join('')
+    ||'<tr><td colspan="4" style="padding:14px;color:var(--muted)">Nenhum pedido a caminho.</td></tr>';
+  const nR=sk.filter(x=>fil(x)&&x.st==='r').length,nA=sk.filter(x=>fil(x)&&x.st==='a').length;
+  document.getElementById('rs-box').innerHTML=`<div class="rs-wrap">
+    <div class="rs-sub">Por item: 🟢 reposição de 100% ou mais · 🟡 70% a 99% · 🔴 abaixo de 70%. Cartão do cliente: 🔴 mais de 20% do consumo em itens vermelhos · 🟡 de 5% a 20% (ou itens em atenção). Não usa o estoque do sistema: compara o que chegou nos últimos 90 dias + o que está a caminho com o consumo dos últimos 90 dias. Clique no cliente para filtrar.</div>
+    <div class="rs-cards">${cards}</div>
+    <div class="rs-box"><div class="rs-box-h"><span>Itens ${RS.cli?'de '+cmpEsc(RS.cli)+' ':''}— ${nR} em risco · ${nA} atenção</span>
+      <select onchange="RS.risco=this.value;rsRender()"><option value="risco"${RS.risco==='risco'?' selected':''}>Só vermelho e amarelo</option><option value="todos"${RS.risco==='todos'?' selected':''}>Todos</option></select></div>
+      <div class="rs-scroll"><table class="rs-tab"><thead><tr><th></th><th>SKU</th><th>Recebido + a caminho × consumo</th><th style="text-align:right">Reposição</th><th style="text-align:right">Consumo/mês</th><th class="hm" style="text-align:right">Recebido 90d</th><th style="text-align:right">A caminho</th><th class="hm" style="text-align:right">Último receb.</th></tr></thead><tbody>${linhas}</tbody></table></div></div>
+    <div class="rs-duas">
+      <div class="rs-box"><div class="rs-box-h"><span>✅ Últimos pedidos recebidos</span><span style="font-weight:400;text-transform:none">data da nota</span></div><div class="rs-scroll"><table class="rs-tab"><tbody>${recHtml}</tbody></table></div></div>
+      <div class="rs-box"><div class="rs-box-h"><span>🚚 A caminho</span><span style="font-weight:400;text-transform:none">atrasados primeiro</span></div><div class="rs-scroll"><table class="rs-tab"><tbody>${camHtml}</tbody></table></div></div>
+    </div></div>`;
+}
+window.rsCliente=rsCliente;window.rsRender=rsRender;window.RS=RS;
 </script>
 </body>
 </html>
