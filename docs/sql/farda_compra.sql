@@ -53,3 +53,19 @@ $$;
 --              drop materialized view public.mv_fardamento_ped, public.mv_fardamento_cc, public.mv_fardamento_dia;
 -- DESFAZER esta aba: drop function public.farda_compra(int); drop materialized view public.mv_farda_compra, public.mv_farda_cons;
 --                    (e tirar as duas linhas do atualizar_compras)
+
+-- ── SC com rateio (16/11, aplicado): consumo de fardamento por filial × SKU × CC × mês, para dividir a compra pelos CCs ──
+create materialized view if not exists public.mv_farda_cons_cc as
+select trim(filial) fil, trim(produto) c, coalesce(nullif(trim(cc),''),'') cc, mes, sum(quantidade) q
+from consumo_scp where grupo ilike 'FARDAMENTO%' and mes >= '202501' group by 1,2,3,4;
+create unique index if not exists mv_farda_cons_cc_pk on public.mv_farda_cons_cc (fil, c, cc, mes);
+create or replace function public.farda_rateio(p_ano int)
+returns json language sql stable security definer set search_path = public as $$
+  with k as (select fil, c, cc, sum(q) q from mv_farda_cons_cc where mes between p_ano::text||'01' and p_ano::text||'12' group by 1,2,3)
+  select json_build_object(
+    'cons', (select coalesce(json_agg(json_build_array(fil, c, cc, q)), '[]'::json) from k where q > 0),
+    'ccs',  (select coalesce(json_object_agg(cc::text, trim(nome)), '{}'::json) from centros_custo where cc::text in (select distinct cc from k)))
+$$;
+grant execute on function public.farda_rateio(int) to anon, authenticated;
+-- atualizar_compras() também faz: refresh materialized view concurrently public.mv_farda_cons_cc;
+-- DESFAZER: drop function public.farda_rateio(int); drop materialized view public.mv_farda_cons_cc; (e tirar a linha do atualizar_compras)
