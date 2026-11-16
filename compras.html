@@ -102,6 +102,23 @@ canvas{max-height:220px}
 .cmp-red{color:var(--green);font-weight:600} .cmp-up{color:var(--red);font-weight:600}
 .cmp-note{font-size:11px;color:var(--muted);padding:0 24px 0}
 .cmp-barra{position:relative}
+.fc-bar{background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:8px 10px;flex-wrap:wrap;align-items:center}
+.fc-wrap{margin:14px 24px 20px;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:calc(100vh - 250px)}
+.fc{border-collapse:separate;border-spacing:0;font-size:12px;width:100%;font-variant-numeric:tabular-nums}
+.fc th{position:sticky;top:0;background:#0f172a;color:#e2e8f0;font-weight:600;padding:7px 8px;text-align:right;white-space:nowrap;z-index:2;font-size:11px;border-left:1px solid #1e293b}
+.fc th.nm,.fc td.nm{position:sticky;left:0;text-align:left;z-index:3;min-width:clamp(200px,28vw,380px);max-width:clamp(200px,28vw,380px);white-space:normal}
+.fc th.nm{z-index:4}
+.fc td{padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;white-space:nowrap;border-left:1px solid #f8fafc}
+.fc td.nm{background:#fff;box-shadow:1px 0 0 #e2e8f0;line-height:1.25}
+.fc tbody tr:hover td{background:#f8fafc}
+.fc .cl{display:block;font-size:10px;color:#94a3b8}
+.fc th.tt,.fc td.tt{background:#f1f5f9;font-weight:700}.fc thead th.tt{background:#1e293b}
+.fc th.cs,.fc td.cs{border-left:2px solid #cbd5e1}.fc thead th.cs{border-left:2px solid #475569}
+.fc .neg{color:#b91c1c;font-weight:700}.fc .pos{color:#15803d;font-weight:700}.fc .z{color:#cbd5e1}
+.fc tfoot td{position:sticky;bottom:0;background:#eef2ff;font-weight:800;border-top:2px solid #c7d2fe;z-index:2}
+.fc tfoot td.nm{z-index:4;background:#eef2ff}
+.fc-nota{font-size:11px;color:var(--muted);padding:8px 24px 0}
+@media(max-width:900px){.fc-bar{padding:10px 12px}.fc-wrap{margin:10px 12px}.fc{font-size:11px}.fc th.nm,.fc td.nm{min-width:160px;max-width:160px}.fc-nota{padding:8px 12px 0}}
 @media(max-width:750px){.cmp-dd{position:static}.cmp-dd-panel{width:auto;left:16px;right:16px;top:auto;margin-top:4px}}
 </style>
 <link rel="stylesheet" href="/padrao.css"></head>
@@ -133,6 +150,7 @@ canvas{max-height:220px}
   <button class="tab" onclick="showScreen('detalhamento',this,'DETALHAMENTO SC × PEDIDO')">Detalhamento</button>
   <button class="tab" onclick="showScreen('comparativo',this,'COMPARATIVO MENSAL')">Comparativo Mensal</button>
   <button class="tab" onclick="showScreen('precos',this,'VARIAÇÃO DE PREÇO')">Variação de Preço</button>
+  <button class="tab" onclick="showScreen('farda',this,'FARDAMENTO — COMPRA × CONSUMO')">Fardamento</button>
 </div>
 
 <div class="filters">
@@ -369,6 +387,25 @@ canvas{max-height:220px}
       <div style="padding:8px 14px"><div class="pag" id="pg-pre"></div></div>
     </div>
   </div>
+</div>
+
+<!-- TELA FARDAMENTO: compra (por mês de emissão do PC) × consumo, com status de SC/PC e estoque -->
+<div id="screen-farda" class="screen">
+  <div class="fc-bar">
+    <span class="fl">Ano</span><select id="fc-ano" onchange="fcCarregar()"></select>
+    <span class="fl">Filial</span><div class="cmp-dd" id="fc-dd-fil"></div>
+    <span class="fl">Status SC</span><div class="cmp-dd" id="fc-dd-sc"></div>
+    <span class="fl">Status PC</span><div class="cmp-dd" id="fc-dd-pc"></div>
+    <span class="fl">Cliente</span><select id="fc-cli" onchange="fcRender()"><option value="">Todos</option></select>
+    <input class="sbox" id="fc-busca" placeholder="Buscar item (ex.: CALCA ENEL 42)..." oninput="fcRender()" style="width:220px">
+    <span class="fl">Média ÷</span><select id="fc-div" onchange="fcRender()" title="Consumo do ano dividido por quantos meses"></select>
+    <span class="fl">Consumo de</span><select id="fc-cons" onchange="fcRender()"><option value="todas">todas as filiais</option><option value="fil">só as filiais escolhidas</option></select>
+    <label style="font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center"><input type="checkbox" id="fc-semcompra" checked onchange="fcRender()"> itens consumidos sem compra no ano</label>
+    <button class="btn-c" onclick="fcExcel()">⬇ Excel</button>
+    <span id="fc-info" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
+  </div>
+  <div class="fc-nota" id="fc-nota"></div>
+  <div class="fc-wrap"><table class="fc" id="fc-tab"><tbody><tr><td style="padding:20px;color:var(--muted)">Abra a aba para carregar...</td></tr></tbody></table></div>
 </div>
 
 <!-- TELA COMPARATIVO MENSAL -->
@@ -612,13 +649,14 @@ async function showScreen(n,btn,title){
   document.getElementById("screen-"+n).classList.add("active");
   btn.classList.add("active");
   document.getElementById("tela-title").textContent=title;
-  document.querySelector(".filters").style.display = n==="comparativo" ? "none" : "";
+  document.querySelector(".filters").style.display = (n==="comparativo"||n==="farda") ? "none" : "";
   // na aba Detalhamento os filtros dela ficam na mesma barra do topo
   document.getElementById("det-filtros").style.display = n==="detalhamento" ? "contents" : "none";
   document.getElementById("det-count").style.display = n==="detalhamento" ? "" : "none";
   if(n==="comparativo") renderComparativo();
   if(n==="detalhamento") renderDetTable();
   if(n==="precos") renderPrecos();
+  if(n==="farda") fcAbrir();
 }
 function fmtD(s){
   if(!s) return"–";
@@ -1338,6 +1376,91 @@ function cmpClicaFilial(f){ cmpMarcaDd("fil",f,!CMP_DD.fil.sel.has(f)); }
 
 function renderAll(){renderSCs();renderPedidos();renderIndicadores();renderDetTable();renderPrecos();}
 document.addEventListener("DOMContentLoaded",carregar);
+
+// ── Fardamento: compra por mês de emissão do PC (filtros de status de SC/PC), consumo do ano, média, compra trimestral/semestral e estoque ──
+const FC={dados:{},ano:null,fil:new Set(['01']),sc:null,pc:null,lin:[]};
+const FC_MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const FC_SC_PADRAO=['Solicitação Bloqueada','Solicitação em Processo de Cotação','Solicitação Pendente','Solicitação Totalmente Atendida'];
+const FC_PC_PADRAO=['Em aprovação','Pendente','Recebido','(vazio)'];
+const fcN=v=>{v=Math.round(Number(v)||0);return v.toLocaleString('pt-BR')};
+function fcCliente(n){n=' '+(n||'').toUpperCase();for(const [k,v] of [['ENEL','ENEL'],['COELBA','COELBA'],['COSERN','COSERN'],['CPFL','CPFL'],['EQUATORIAL','EQUATORIAL'],['SANEAGO','SANEAGO'],['NEOENERGIA','BRASÍLIA'],['BRASILIA','BRASÍLIA'],[' BEQ','B&Q'],['B&Q','B&Q']])if(n.includes(k))return v;return 'OUTROS'}
+// caixa de várias opções (nenhuma marcada = todas)
+function fcDD(id,itens,sel,todos){
+  const el=document.getElementById(id);
+  const rotulo=()=>sel.size===0?todos:sel.size===1?[...sel][0]:sel.size+' marcados';
+  el.innerHTML=`<button class="btn-c" onclick="event.stopPropagation();this.nextElementSibling.classList.toggle('open')">${cmpEsc(rotulo())} ▾</button>
+    <div class="cmp-dd-panel" onclick="event.stopPropagation()" style="width:300px">
+      <div style="display:flex;gap:6px"><button class="btn-c" data-a="todos">Marcar todos</button><button class="btn-c" data-a="nenhum">Limpar (todos)</button></div>
+      <div class="cmp-dd-list">${itens.map(([v,t])=>`<label><input type="checkbox" value="${cmpEsc(v)}" ${sel.has(v)?'checked':''}> ${cmpEsc(t)}</label>`).join('')}</div></div>`;
+  const b=el.querySelector('button');b.style.borderColor=b.style.color=sel.size?'var(--blue)':'';
+  el.querySelectorAll('input[type=checkbox]').forEach(i=>i.onchange=()=>{i.checked?sel.add(i.value):sel.delete(i.value);b.textContent=rotulo()+' ▾';b.style.borderColor=b.style.color=sel.size?'var(--blue)':'';fcRender()});
+  el.querySelector('[data-a=todos]').onclick=()=>{itens.forEach(([v])=>sel.add(v));fcDD(id,itens,sel,todos);el.querySelector('.cmp-dd-panel').classList.add('open');fcRender()};
+  el.querySelector('[data-a=nenhum]').onclick=()=>{sel.clear();fcDD(id,itens,sel,todos);el.querySelector('.cmp-dd-panel').classList.add('open');fcRender()};
+}
+function fcAbrir(){
+  const sa=document.getElementById('fc-ano');
+  if(!sa.options.length){const a=new Date().getFullYear();[a,a-1].forEach(x=>sa.add(new Option(x,x)));
+    const dv=document.getElementById('fc-div');for(let i=1;i<=12;i++)dv.add(new Option(i+(i>1?' meses':' mês'),i));
+    document.addEventListener('click',()=>document.querySelectorAll('#screen-farda .cmp-dd-panel').forEach(p=>p.classList.remove('open')));}
+  fcCarregar();
+}
+async function fcCarregar(){
+  const ano=+document.getElementById('fc-ano').value;
+  if(!FC.dados[ano]){
+    document.getElementById('fc-tab').innerHTML='<tbody><tr><td style="padding:20px;color:var(--muted)">Carregando '+ano+'...</td></tr></tbody>';
+    try{FC.dados[ano]=await rpc('farda_compra',{p_ano:ano})}catch(e){document.getElementById('fc-tab').innerHTML='<tbody><tr><td style="padding:20px;color:var(--red)">Não consegui carregar: '+cmpEsc(e.message||e)+'</td></tr></tbody>';return}
+  }
+  FC.ano=ano;const d=FC.dados[ano];
+  // meses para a média: meses fechados do ano (no ano atual, até o mês anterior)
+  const h=new Date();document.getElementById('fc-div').value=ano===h.getFullYear()?Math.max(1,h.getMonth()):12;
+  const fils=[...new Set([...d.compra.map(x=>x[0]),...d.consumo.map(x=>x[0]),...d.estoque.map(x=>x[0])])].sort();
+  fcDD('fc-dd-fil',fils.map(f=>[f,f+((d.filiais||{})[f]?' — '+String(d.filiais[f]).replace(/^FILIAL /,''):'')]),FC.fil,'Todas');
+  const scs=[...new Set(d.compra.map(x=>x[3]))].sort(),pcs=[...new Set(d.compra.map(x=>x[4]))].sort();
+  if(!FC.sc){FC.sc=new Set(FC_SC_PADRAO.filter(x=>scs.includes(x)));FC.pc=new Set(FC_PC_PADRAO.filter(x=>pcs.includes(x)))}
+  fcDD('fc-dd-sc',scs.map(x=>[x,x]),FC.sc,'Todos');fcDD('fc-dd-pc',pcs.map(x=>[x,x]),FC.pc,'Todos');
+  const cl=document.getElementById('fc-cli'),atual=cl.value;cl.innerHTML='<option value="">Todos</option>'+['ENEL','COELBA','COSERN','CPFL','B&Q','EQUATORIAL','SANEAGO','BRASÍLIA','OUTROS'].map(c=>`<option>${c}</option>`).join('');cl.value=atual;
+  const em=d.estoque_em?new Date(d.estoque_em):null;
+  document.getElementById('fc-info').textContent='Consumo até '+(d.consumo_ate?d.consumo_ate.slice(6,8)+'/'+d.consumo_ate.slice(4,6)+'/'+d.consumo_ate.slice(0,4):'–')+(em?' · estoque de '+em.toLocaleDateString('pt-BR'):'');
+  fcRender();
+}
+function fcRender(){
+  const d=FC.dados[FC.ano];if(!d)return;
+  const nome=c=>(d.nomes||{})[c]||'',fil=FC.fil,pf=f=>!fil.size||fil.has(f);
+  const q=document.getElementById('fc-busca').value.trim().toUpperCase().split(/\s+/).filter(Boolean),cli=document.getElementById('fc-cli').value;
+  const okItem=c=>{const n=(c+' '+nome(c)).toUpperCase();return q.every(t=>n.includes(t))&&(!cli||fcCliente(nome(c))===cli)};
+  const div=+document.getElementById('fc-div').value||1,consTodas=document.getElementById('fc-cons').value==='todas';
+  const R={};const lin=c=>R[c]=R[c]||{c,m:Array(12).fill(0),tp:0,k:0,ef:0,et:0};
+  d.compra.forEach(([f,c,mes,sc,pc,qq])=>{if(!pf(f)||(FC.sc.size&&!FC.sc.has(sc))||(FC.pc.size&&!FC.pc.has(pc))||!okItem(c))return;const r=lin(c),m=+mes.slice(4,6)-1;r.m[m]+=+qq||0;r.tp+=+qq||0});
+  const semCompra=document.getElementById('fc-semcompra').checked;
+  d.consumo.forEach(([f,c,mes,qq])=>{if(!(consTodas||pf(f))||!okItem(c))return;if(!R[c]&&!semCompra)return;lin(c).k+=+qq||0});
+  d.estoque.forEach(([f,c,qq])=>{if(!R[c])return;R[c].et+=+qq||0;if(pf(f))R[c].ef+=+qq||0});
+  const L=Object.values(R).filter(r=>r.tp||r.k).sort((a,b)=>nome(a.c).localeCompare(nome(b.c),'pt-BR'));
+  const meses=[];for(let i=0;i<12;i++)if(L.some(r=>r.m[i]))meses.push(i);
+  L.forEach(r=>{r.dif=r.tp-r.k;r.med=r.k/div;r.tri=r.med*3;r.sem=r.med*6});
+  FC.lin=L;FC.meses=meses;
+  const fmt=v=>v?fcN(v):'<span class="z">·</span>',dif=v=>v?`<span class="${v<0?'neg':'pos'}">${v>0?'+':''}${fcN(v)}</span>`:'<span class="z">–</span>';
+  const T={m:Array(12).fill(0),tp:0,k:0,med:0,tri:0,sem:0,ef:0,et:0};L.forEach(r=>{meses.forEach(i=>T.m[i]+=r.m[i]);['tp','k','med','tri','sem','ef','et'].forEach(k=>T[k]+=r[k])});
+  const filTxt=fil.size?[...fil].join(', '):'todas';
+  let h=`<thead><tr><th class="nm">Item (${L.length})</th>${meses.map(i=>`<th>${FC_MES[i]}/${String(FC.ano).slice(2)}</th>`).join('')}
+    <th class="tt cs">Total<br>pedido</th><th class="cs">Consumido<br>${FC.ano}</th><th>Dif.</th><th>Média<br>consumo</th><th>Compra<br>trimestral</th><th>Compra<br>semestral</th>
+    <th class="cs">Estoque<br>filial ${cmpEsc(filTxt)}</th><th>Estoque<br>todas</th></tr></thead><tbody>`;
+  h+=L.map(r=>`<tr><td class="nm">${cmpEsc(nome(r.c)||r.c)}<span class="cl">${cmpEsc(r.c)} · ${fcCliente(nome(r.c))}</span></td>${meses.map(i=>`<td>${fmt(r.m[i])}</td>`).join('')}
+    <td class="tt cs">${fmt(r.tp)}</td><td class="cs">${fmt(r.k)}</td><td>${dif(r.dif)}</td><td>${r.med?r.med.toLocaleString('pt-BR',{maximumFractionDigits:0}):'<span class="z">·</span>'}</td>
+    <td>${fmt(r.tri)}</td><td>${fmt(r.sem)}</td><td class="cs"><b>${fmt(r.ef)}</b></td><td>${fmt(r.et)}</td></tr>`).join('')||`<tr><td class="nm" style="padding:18px;color:var(--muted)">Nenhum item com esses filtros.</td></tr>`;
+  h+=`</tbody><tfoot><tr><td class="nm">Total geral</td>${meses.map(i=>`<td>${fcN(T.m[i])}</td>`).join('')}<td class="tt cs">${fcN(T.tp)}</td><td class="cs">${fcN(T.k)}</td><td>${dif(T.tp-T.k)}</td>
+    <td>${fcN(T.med)}</td><td>${fcN(T.tri)}</td><td>${fcN(T.sem)}</td><td class="cs">${fcN(T.ef)}</td><td>${fcN(T.et)}</td></tr></tfoot>`;
+  document.getElementById('fc-tab').innerHTML=h;
+  document.getElementById('fc-nota').innerHTML=`Meses = quantidade pedida pela data de emissão do PC (SC sem PC entra pela data da SC), com os status de SC e PC escolhidos. Consumido = requisições de ${consTodas?'<b>todas as filiais</b>':'<b>filial '+cmpEsc(filTxt)+'</b>'} no ano. Dif. = pedido − consumido. Média = consumido ÷ ${div} ${div>1?'meses':'mês'}. Compra trimestral = média × 3 · semestral = média × 6. Estoque = saldo do sistema hoje.`;
+}
+function fcExcel(){
+  const L=FC.lin||[],d=FC.dados[FC.ano];if(!L.length)return alert('Nada para exportar.');
+  const nome=c=>(d.nomes||{})[c]||'',num=v=>(Math.round((Number(v)||0)*10)/10).toString().replace('.',',');
+  const cab=['Código','Descrição','Cliente',...FC.meses.map(i=>FC_MES[i]+'/'+FC.ano),'Total pedido','Consumido '+FC.ano,'Dif','Média consumo','Compra trimestral','Compra semestral','Estoque filial','Estoque todas'];
+  const linhas=L.map(r=>[r.c,nome(r.c),fcCliente(nome(r.c)),...FC.meses.map(i=>num(r.m[i])),num(r.tp),num(r.k),num(r.dif),num(r.med),num(r.tri),num(r.sem),num(r.ef),num(r.et)]);
+  const csv='﻿'+[cab,...linhas].map(l=>l.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='fardamento_compra_consumo_'+FC.ano+'.csv';a.click();
+}
+window.fcAbrir=fcAbrir;window.fcCarregar=fcCarregar;window.fcRender=fcRender;window.fcExcel=fcExcel;
 </script>
 </body>
 </html>
