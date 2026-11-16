@@ -102,6 +102,24 @@ canvas{max-height:220px}
 .cmp-red{color:var(--green);font-weight:600} .cmp-up{color:var(--red);font-weight:600}
 .cmp-note{font-size:11px;color:var(--muted);padding:0 24px 0}
 .cmp-barra{position:relative}
+.cf-meses{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;padding:16px 24px}
+.cf-mes{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.cf-mes-h{background:var(--navy);color:#fff;padding:9px 12px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cf-mes-h b{font-size:13px}.cf-mes-h span{font-size:11px;color:#cbd5e1;white-space:nowrap}
+.cf-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:8px}
+.cf-sem{font-size:10px;font-weight:700;color:var(--muted);text-align:center;padding:2px 0}
+.cf-dia{min-height:54px;border:1px solid var(--border);border-radius:6px;padding:3px 4px;font-size:10.5px;cursor:pointer;display:flex;flex-direction:column;gap:1px;position:relative}
+.cf-dia:hover{border-color:var(--blue)}
+.cf-dia.vazio{border:none;cursor:default;background:none}
+.cf-dia.fora{opacity:.35}
+.cf-dia.hoje{outline:2px solid var(--blue);outline-offset:-1px}
+.cf-dia.sel{box-shadow:0 0 0 2px var(--blue) inset}
+.cf-n{font-weight:700;color:var(--muted);font-size:10px}
+.cf-r{color:#15803d;font-weight:700}.cf-c{color:#c2410c;font-weight:700}
+.cf-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:10px 24px 0}
+.cf-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.cf-det{margin:0 24px 16px}
+@media(max-width:750px){.cf-meses{padding:12px 16px;grid-template-columns:1fr}.cf-det{margin:0 16px 16px}.cf-dia{min-height:46px;font-size:9.5px}}
 @media(max-width:750px){.cmp-dd{position:static}.cmp-dd-panel{width:auto;left:16px;right:16px;top:auto;margin-top:4px}}
 </style>
 <link rel="stylesheet" href="/padrao.css"></head>
@@ -133,6 +151,7 @@ canvas{max-height:220px}
   <button class="tab" onclick="showScreen('detalhamento',this,'DETALHAMENTO SC × PEDIDO')">Detalhamento</button>
   <button class="tab" onclick="showScreen('comparativo',this,'COMPARATIVO MENSAL')">Comparativo Mensal</button>
   <button class="tab" onclick="showScreen('precos',this,'VARIAÇÃO DE PREÇO')">Variação de Preço</button>
+  <button class="tab" onclick="showScreen('calfarda',this,'CALENDÁRIO DE FARDAMENTO')">Calendário Fardamento</button>
 </div>
 
 <div class="filters">
@@ -369,6 +388,45 @@ canvas{max-height:220px}
       <div style="padding:8px 14px"><div class="pag" id="pg-pre"></div></div>
     </div>
   </div>
+</div>
+
+<!-- TELA CALENDÁRIO DE FARDAMENTO -->
+<div id="screen-calfarda" class="screen">
+  <div class="cmp-barra" style="background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <span class="fl">Ano</span>
+    <select id="cf-ano" onchange="cfCarregar()"></select>
+    <span class="fl">Período</span>
+    <select id="cf-per" onchange="cfRender()">
+      <option value="ano">Ano todo</option>
+      <option value="s1">1º semestre</option><option value="s2">2º semestre</option>
+      <option value="t1">1º trimestre</option><option value="t2">2º trimestre</option><option value="t3">3º trimestre</option><option value="t4">4º trimestre</option>
+      <option value="m1">Janeiro</option><option value="m2">Fevereiro</option><option value="m3">Março</option><option value="m4">Abril</option><option value="m5">Maio</option><option value="m6">Junho</option>
+      <option value="m7">Julho</option><option value="m8">Agosto</option><option value="m9">Setembro</option><option value="m10">Outubro</option><option value="m11">Novembro</option><option value="m12">Dezembro</option>
+    </select>
+    <span class="fl">Item (SKU)</span>
+    <div class="cmp-dd">
+      <button class="btn-c" id="cf-sku-btn" onclick="cfToggle(event)">Todos os itens ▾</button>
+      <div class="cmp-dd-panel" id="cf-sku-panel" onclick="event.stopPropagation()" style="width:440px">
+        <input class="sbox" id="cf-sku-busca" placeholder="Código ou descrição (ex.: CALCA ENEL 42)..." oninput="cfLista()" style="width:100%">
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn-c" onclick="cfMarcarEnc()">Marcar os encontrados</button>
+          <button class="btn-c" onclick="cfLimpar()">Limpar (todos)</button>
+          <label style="font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center"><input type="checkbox" id="cf-so-mov" checked onchange="cfLista()"> só com movimento ou estoque</label>
+        </div>
+        <div class="cmp-dd-list" id="cf-sku-list"></div>
+      </div>
+    </div>
+    <span id="cf-info" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
+  </div>
+  <div class="kpi-bar" id="kpi-cf"><div class="kpi"><div class="kpi-lbl">Abra a aba para carregar...</div></div></div>
+  <div class="cf-leg"><span><i style="background:#15803d"></i><b class="cf-r">+N</b> recebido de fornecedor (nota de entrada, sem transferência entre filiais)</span>
+    <span><i style="background:#c2410c"></i><b class="cf-c">−N</b> consumido (requisição entregue)</span><span>Fundo mais escuro = dia com mais consumo · clique no dia para ver os itens</span></div>
+  <div class="cf-meses" id="cf-meses"></div>
+  <div class="cf-det" id="cf-det"></div>
+  <div class="cf-det"><div class="ct">
+    <div class="ct-head"><span class="ct-title">Itens no período — recebido, consumido e estoque hoje</span><span id="cf-itens-n" style="font-size:11px;color:#cbd5e1"></span></div>
+    <div class="ct-body" style="max-height:420px"><table><thead><tr><th>Código</th><th>Descrição</th><th class="r">Recebido</th><th class="r">Consumido</th><th class="r">Consumo médio/mês</th><th class="r">Estoque hoje</th><th class="r">Meses de estoque</th><th>Último recebimento</th><th>Último consumo</th></tr></thead><tbody id="tb-cf"></tbody></table></div>
+  </div></div>
 </div>
 
 <!-- TELA COMPARATIVO MENSAL -->
@@ -612,13 +670,14 @@ async function showScreen(n,btn,title){
   document.getElementById("screen-"+n).classList.add("active");
   btn.classList.add("active");
   document.getElementById("tela-title").textContent=title;
-  document.querySelector(".filters").style.display = n==="comparativo" ? "none" : "";
+  document.querySelector(".filters").style.display = (n==="comparativo"||n==="calfarda") ? "none" : "";
   // na aba Detalhamento os filtros dela ficam na mesma barra do topo
   document.getElementById("det-filtros").style.display = n==="detalhamento" ? "contents" : "none";
   document.getElementById("det-count").style.display = n==="detalhamento" ? "" : "none";
   if(n==="comparativo") renderComparativo();
   if(n==="detalhamento") renderDetTable();
   if(n==="precos") renderPrecos();
+  if(n==="calfarda") cfAbrir();
 }
 function fmtD(s){
   if(!s) return"–";
@@ -1338,6 +1397,125 @@ function cmpClicaFilial(f){ cmpMarcaDd("fil",f,!CMP_DD.fil.sel.has(f)); }
 
 function renderAll(){renderSCs();renderPedidos();renderIndicadores();renderDetTable();renderPrecos();}
 document.addEventListener("DOMContentLoaded",carregar);
+
+// ── Calendário de fardamento: recebido de fornecedor × consumido por dia, estoque hoje (função fardamento_calendario) ──
+const CF={ano:null,dados:{},itens:[],nome:{},est:{},sel:new Set(),dia:null};
+const CF_MES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const cfN=v=>Math.round(Number(v)||0).toLocaleString('pt-BR');
+const cfR=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const cfD=d=>d?d.slice(6,8)+'/'+d.slice(4,6)+'/'+d.slice(0,4):'–';
+function cfAbrir(){
+  const sa=document.getElementById('cf-ano');
+  if(!sa.options.length){const a=new Date().getFullYear();[a,a-1].forEach(x=>sa.add(new Option(x,x)));
+    const m=new Date().getMonth()+1;document.getElementById('cf-per').value='t'+Math.ceil(m/3);
+    document.addEventListener('click',()=>document.getElementById('cf-sku-panel').classList.remove('open'));}
+  cfCarregar();
+}
+async function cfCarregar(){
+  const ano=+document.getElementById('cf-ano').value;
+  if(!CF.dados[ano]){
+    document.getElementById('kpi-cf').innerHTML='<div class="kpi"><div class="kpi-lbl">Carregando o calendário de '+ano+'...</div></div>';
+    document.getElementById('cf-meses').innerHTML='';
+    try{CF.dados[ano]=await rpc('fardamento_calendario',{p_ano:ano})}
+    catch(e){document.getElementById('kpi-cf').innerHTML='<div class="kpi"><div class="kpi-lbl" style="color:var(--red)">Não consegui carregar: '+cmpEsc(e.message||e)+'</div></div>';return}
+  }
+  CF.ano=ano;const d=CF.dados[ano];
+  CF.itens=(d.itens||[]).map(([c,n])=>({c,n:String(n||'').trim()}));CF.nome={};CF.itens.forEach(i=>CF.nome[i.c]=i.n);
+  CF.est={};(d.estoque||[]).forEach(([c,q,v])=>CF.est[c]={q:+q||0,v:+v||0});
+  CF.mov=new Set((d.dias||[]).map(x=>x[1]));
+  const dh=x=>{const t=new Date(x);return t.toLocaleDateString('pt-BR')+' '+t.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})};
+  document.getElementById('cf-info').textContent='Consumo até '+cfD(d.consumo_ate)+' · entradas até '+cfD(d.entrada_ate)+
+    (d.calc_em?' · calendário atualizado '+dh(d.calc_em):'')+(d.estoque_em?' · estoque de '+dh(d.estoque_em):'');
+  cfLista();cfRender();
+}
+// SKU: marcar vários (nenhum = todos)
+function cfToggle(e){e.stopPropagation();document.getElementById('cf-sku-panel').classList.toggle('open')}
+function cfEncontrados(){
+  const q=document.getElementById('cf-sku-busca').value.trim().toLowerCase().split(/\s+/).filter(Boolean),so=document.getElementById('cf-so-mov').checked;
+  return CF.itens.filter(i=>(!so||CF.mov.has(i.c)||CF.est[i.c]||CF.sel.has(i.c))&&q.every(t=>(i.c+' '+i.n).toLowerCase().includes(t)));
+}
+function cfLista(){
+  const L=cfEncontrados();
+  document.getElementById('cf-sku-list').innerHTML=L.slice(0,400).map(i=>`<label><input type="checkbox" ${CF.sel.has(i.c)?'checked':''} onchange="cfMarca('${cmpEsc(i.c)}',this.checked)"> <span><b>${cmpEsc(i.c)}</b> ${cmpEsc(i.n)}</span></label>`).join('')
+    +(L.length>400?`<div style="font-size:11px;color:var(--muted);padding:4px">+${L.length-400} itens — refine a busca</div>`:'')||'<div style="font-size:11px;color:var(--muted);padding:4px">Nenhum item.</div>';
+  const b=document.getElementById('cf-sku-btn');
+  b.textContent=(CF.sel.size===0?'Todos os itens':CF.sel.size===1?[...CF.sel][0]+' — '+(CF.nome[[...CF.sel][0]]||'').slice(0,28):CF.sel.size+' itens')+' ▾';
+  b.style.borderColor=b.style.color=CF.sel.size?'var(--blue)':'';
+}
+function cfMarca(c,on){on?CF.sel.add(c):CF.sel.delete(c);cfLista();cfRender()}
+function cfMarcarEnc(){cfEncontrados().forEach(i=>CF.sel.add(i.c));cfLista();cfRender()}
+function cfLimpar(){CF.sel.clear();document.getElementById('cf-sku-busca').value='';cfLista();cfRender()}
+function cfMeses(){
+  const p=document.getElementById('cf-per').value;
+  if(p==='ano')return[1,2,3,4,5,6,7,8,9,10,11,12];
+  if(p[0]==='s')return p==='s1'?[1,2,3,4,5,6]:[7,8,9,10,11,12];
+  if(p[0]==='t'){const t=+p.slice(1);return[3*t-2,3*t-1,3*t]}
+  return[+p.slice(1)];
+}
+function cfRender(){
+  if(!CF.ano||!CF.dados[CF.ano])return;
+  const meses=cfMeses(),ms=new Set(meses),ano=CF.ano,sel=CF.sel,pega=c=>!sel.size||sel.has(c);
+  // por dia e por item, dentro do período
+  const dia={},item={};
+  (CF.dados[ano].dias||[]).forEach(([d,c,rq,kq])=>{
+    if(!pega(c)||!ms.has(+d.slice(4,6)))return;
+    const x=dia[d]=dia[d]||{r:0,k:0};x.r+=+rq||0;x.k+=+kq||0;
+    const y=item[c]=item[c]||{r:0,k:0,ur:null,uk:null};y.r+=+rq||0;y.k+=+kq||0;
+    if(rq>0&&(!y.ur||d>y.ur))y.ur=d;if(kq>0&&(!y.uk||d>y.uk))y.uk=d;
+  });
+  const TR=Object.values(dia).reduce((s,x)=>s+x.r,0),TK=Object.values(dia).reduce((s,x)=>s+x.k,0);
+  // meses decorridos no período (para a média): até o mês atual, se for o ano corrente
+  const hoje=new Date(),mAt=ano===hoje.getFullYear()?hoje.getMonth()+1:12,mDec=meses.filter(m=>m<=mAt).length||1;
+  const media=TK/mDec;
+  let EQ=0,EV=0;Object.entries(CF.est).forEach(([c,e])=>{if(pega(c)){EQ+=e.q;EV+=e.v}});
+  const cob=media>0?EQ/media:null,dif=TR-TK;
+  document.getElementById('kpi-cf').innerHTML=`
+    <div class="kpi"><div class="kpi-val green">${cfN(TR)}</div><div class="kpi-lbl">Recebido no período (pç)</div></div>
+    <div class="kpi"><div class="kpi-val orange" style="color:#c2410c">${cfN(TK)}</div><div class="kpi-lbl">Consumido no período (pç)</div></div>
+    <div class="kpi"><div class="kpi-val ${dif<0?'red':'green'}">${dif>0?'+':''}${cfN(dif)}</div><div class="kpi-lbl">Recebido − consumido</div></div>
+    <div class="kpi"><div class="kpi-val">${cfN(media)}</div><div class="kpi-lbl">Consumo médio/mês (${mDec} ${mDec>1?'meses':'mês'})</div></div>
+    <div class="kpi"><div class="kpi-val blue">${cfN(EQ)}</div><div class="kpi-lbl">Estoque hoje (pç)</div></div>
+    <div class="kpi"><div class="kpi-val">${cfR(EV)}</div><div class="kpi-lbl">Valor do estoque hoje</div></div>
+    <div class="kpi"><div class="kpi-val ${cob!=null&&cob<1?'red':''}">${cob==null?'–':cob.toLocaleString('pt-BR',{maximumFractionDigits:1})}</div><div class="kpi-lbl">Meses de estoque (estoque ÷ média)</div></div>`;
+  // calendário
+  const maxK=Math.max(1,...Object.values(dia).map(x=>x.k)),hj=hoje.getFullYear()*10000+(hoje.getMonth()+1)*100+hoje.getDate();
+  document.getElementById('cf-meses').innerHTML=meses.map(m=>{
+    const pri=new Date(ano,m-1,1),nd=new Date(ano,m,0).getDate(),off=pri.getDay();
+    let mr=0,mk=0,cel='';
+    for(let i=0;i<off;i++)cel+='<div class="cf-dia vazio"></div>';
+    for(let dd=1;dd<=nd;dd++){
+      const k=''+ano+String(m).padStart(2,'0')+String(dd).padStart(2,'0'),x=dia[k],num=+k;mr+=x?x.r:0;mk+=x?x.k:0;
+      const a=x&&x.k?0.08+0.42*(x.k/maxK):0;
+      cel+=`<div class="cf-dia${num===hj?' hoje':''}${num>hj?' fora':''}${CF.dia===k?' sel':''}" style="${a?'background:rgba(234,88,12,'+a.toFixed(2)+')':''}" onclick="cfDia('${k}')" title="${dd}/${m}/${ano}${x?' · recebido '+cfN(x.r)+' · consumido '+cfN(x.k):''}">
+        <span class="cf-n">${dd}</span>${x&&x.r?`<span class="cf-r">+${cfN(x.r)}</span>`:''}${x&&x.k?`<span class="cf-c">−${cfN(x.k)}</span>`:''}</div>`;
+    }
+    return `<div class="cf-mes"><div class="cf-mes-h"><b>${CF_MES[m-1]} ${ano}</b><span><b class="cf-r" style="color:#86efac">+${cfN(mr)}</b> · <b style="color:#fdba74">−${cfN(mk)}</b></span></div>
+      <div class="cf-grid">${['D','S','T','Q','Q','S','S'].map(w=>`<div class="cf-sem">${w}</div>`).join('')}${cel}</div></div>`;
+  }).join('');
+  // tabela de itens do período (com estoque dos itens sem movimento quando há SKU marcado)
+  const cods=new Set(Object.keys(item));if(sel.size)sel.forEach(c=>cods.add(c));
+  const L=[...cods].map(c=>{const y=item[c]||{r:0,k:0},e=CF.est[c]||{q:0},mm=y.k/mDec;return{c,n:CF.nome[c]||'',r:y.r,k:y.k,mm,q:e.q,cob:mm>0?e.q/mm:null,ur:y.ur,uk:y.uk}})
+    .sort((a,b)=>b.k-a.k||b.r-a.r);
+  document.getElementById('cf-itens-n').textContent=L.length+' itens';
+  document.getElementById('tb-cf').innerHTML=L.map(i=>`<tr><td>${cmpEsc(i.c)}</td><td style="white-space:normal;min-width:240px">${cmpEsc(i.n)}</td><td class="r cf-r">${i.r?cfN(i.r):'–'}</td><td class="r cf-c">${i.k?cfN(i.k):'–'}</td>
+    <td class="r">${i.mm?i.mm.toLocaleString('pt-BR',{maximumFractionDigits:1}):'–'}</td><td class="r"><b>${cfN(i.q)}</b></td>
+    <td class="r" style="${i.cob!=null&&i.cob<1?'color:var(--red);font-weight:700':''}">${i.cob==null?'–':i.cob.toLocaleString('pt-BR',{maximumFractionDigits:1})}</td><td>${cfD(i.ur)}</td><td>${cfD(i.uk)}</td></tr>`).join('')
+    ||'<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:18px">Nenhum movimento no período.</td></tr>';
+  if(CF.dia&&!ms.has(+CF.dia.slice(4,6)))CF.dia=null;
+  cfDetalhe();
+}
+function cfDia(k){CF.dia=CF.dia===k?null:k;cfRender();if(CF.dia)document.getElementById('cf-det').scrollIntoView({behavior:'smooth',block:'nearest'})}
+function cfDetalhe(){
+  const el=document.getElementById('cf-det');if(!CF.dia){el.innerHTML='';return}
+  const sel=CF.sel,L=(CF.dados[CF.ano].dias||[]).filter(([d,c])=>d===CF.dia&&(!sel.size||sel.has(c))).sort((a,b)=>(b[3]-a[3])||(b[2]-a[2]));
+  const tr=L.reduce((s,x)=>s+(+x[2]||0),0),tk=L.reduce((s,x)=>s+(+x[3]||0),0);
+  el.innerHTML=`<div class="ct"><div class="ct-head"><span class="ct-title">Dia ${cfD(CF.dia)} — recebido ${cfN(tr)} · consumido ${cfN(tk)}</span><button class="btn-c" style="padding:3px 10px" onclick="cfDia('${CF.dia}')">Fechar</button></div>
+    <div class="ct-body" style="max-height:300px"><table><thead><tr><th>Código</th><th>Descrição</th><th class="r">Recebido</th><th class="r">Consumido</th><th class="r">Estoque hoje</th></tr></thead><tbody>${
+    L.map(([d,c,rq,kq])=>`<tr><td>${cmpEsc(c)}</td><td style="white-space:normal">${cmpEsc(CF.nome[c]||'')}</td><td class="r cf-r">${+rq?cfN(rq):'–'}</td><td class="r cf-c">${+kq?cfN(kq):'–'}</td><td class="r">${cfN((CF.est[c]||{}).q)}</td></tr>`).join('')
+    ||'<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:14px">Sem movimento neste dia.</td></tr>'}</tbody></table></div></div>`;
+}
+window.cfAbrir=cfAbrir;window.cfCarregar=cfCarregar;window.cfRender=cfRender;window.cfToggle=cfToggle;window.cfLista=cfLista;window.cfMarca=cfMarca;
+window.cfMarcarEnc=cfMarcarEnc;window.cfLimpar=cfLimpar;window.cfDia=cfDia;
 </script>
 </body>
 </html>
