@@ -69,3 +69,7 @@ $$;
 grant execute on function public.farda_rateio(int) to anon, authenticated;
 -- atualizar_compras() também faz: refresh materialized view concurrently public.mv_farda_cons_cc;
 -- DESFAZER: drop function public.farda_rateio(int); drop materialized view public.mv_farda_cons_cc; (e tirar a linha do atualizar_compras)
+
+-- 16/11 (aplicado): a tela foi para fardamento.html (aba 👕 Fardamento do index.html) e farda_compra(ano) passou a devolver também
+-- 'pend' = a chegar, de qualquer ano: PC Pendente / Em aprovação, ou SC Pendente / Em Processo de Cotação / Bloqueada ainda sem PC,
+-- por filial × SKU. A compra trimestral/semestral da tela = ⌈média × 3 ou 6⌉ − a chegar. Excel de SC: C1_XTIPOSC = 006.

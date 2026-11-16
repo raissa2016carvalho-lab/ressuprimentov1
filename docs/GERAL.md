@@ -20,6 +20,7 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | Página | Para quê | Login |
 |---|---|---|
 | `index.html` | Painel master: solicitações, acompanhamento, mobilização, consolidados, Visão Gerentes, configurações | Sim (admin / somente visualização pela tabela `perfis_usuario`) |
+| `fardamento.html` | Fardamento — compra × consumo (abre na aba 👕 Fardamento do `index.html`): pedidos por mês com status SC/PC, consumo, a chegar, compra trimestral/semestral líquida, estoque, pop-up do rateio por CC e Excel de SC (tipo 006) | Não (chave pública; dentro do painel, que tem login) |
 | `gerente.html` | Link dos gerentes: avaliar solicitações dos seus CCs (admin em `perfis_usuario` vê todos os CCs, desde 13/11) | Sim |
 | `formulario.html` | Almoxarife pede material | Não |
 | `estoque.html`, `compras.html` | Painéis de consulta | Não |
@@ -93,7 +94,7 @@ Visual padrão (29/10): `padrao.css` + logo `logo-bq.png` / `logo-bq-branco.png`
 | Faturamento (09/11) | `faturamento_sf2`, função `faturamento_mensal` | fim de `docs/sql/faturamento.sql` |
 | Descontos — segurança (13/11, aplicado) | `descontos_decisao_hist` (histórico de toda mudança, com lote), `descontos_exportacao`, coluna `descontos_decisao.lote`, gatilhos `descontos_decisao_guarda` (só admin muda a decisão final; gerente só responde nos CCs dele; quem gravou = login) e `descontos_decisao_log`; `gerentes_cc` só admin altera | fim de `docs/sql/descontos_seguranca.sql` |
 | Pedido recebido à mão (16/11, aplicado) | `pedidos_recebido_manual` (filial + pedido) + gatilho em `sc_pedidos_v2` que mantém "Recebido" mesmo quando o sync regrava Pendente/Em aprovação. Marcados: filial 39 — 000269, 000235, 000270 | `docs/sql/pedidos_recebido_manual.sql` |
-| Aba Fardamento do Compras (16/11, aplicado) | SC com rateio: `mv_farda_cons_cc` + `farda_rateio(ano)`; `mv_farda_compra` (filial × SKU × mês × status SC/PC), `mv_farda_cons` (consumo filial × SKU × mês), função `farda_compra(ano)`; `atualizar_compras()` atualiza | `docs/sql/farda_compra.sql` |
+| Fardamento — `fardamento.html` (16/11, aplicado; saiu do Compras e foi para o Ressuprimento) | SC com rateio: `mv_farda_cons_cc` + `farda_rateio(ano)`; `mv_farda_compra` (filial × SKU × mês × status SC/PC), `mv_farda_cons` (consumo filial × SKU × mês), função `farda_compra(ano)`; `atualizar_compras()` atualiza | `docs/sql/farda_compra.sql` |
 | Comparativo rápido (09/11) | `mv_compras_cmp`, `compras_cmp_base`, `compras_cmp_opcoes`; `atualizar_compras` atualiza as 3 | fim de `docs/sql/compras_comparativo.sql` |
 
 ### Backups guardados
