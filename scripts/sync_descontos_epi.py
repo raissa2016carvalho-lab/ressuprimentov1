@@ -175,7 +175,7 @@ OUTER APPLY (SELECT TOP 1 R.NOME, R.CCUSTO, R.DESC_CC, R.DESFUNCAO
             "chave": chave, "filial": txt(r["filial"]), "sa": txt(r["sa"]),
             "emissao": data_iso(r["emissao"]) or datinc, "datinc": datinc,
             "matricula": txt(r["matricula"]), "nome": txt(r["nome"]) or txt(r["nomfun"]) or None,
-            "funcao": txt(r["funcao"]) or None, "cc": txt(r["cc"]) or None, "cc_func": txt(r["cc_func"]) or None,
+            "funcao": txt(r["funcao"]) or None, "cc": txt(r["cc"]) or txt(r["cc_func"]) or None,   # SA sem CC (ou sem o produto): usa o CC do funcionário "cc_func": txt(r["cc_func"]) or None,
             "desc_cc": txt(r["desc_cc"]) or None, "produto": txt(r["produto"]),
             "descricao": txt(r["descri"]) or txt(r["desc_zza"]) or None, "quantidade": num(r["quant"]),
             "motivo": txt(r["motivo"]) or None, "observacao": txt(r["obs"]) or None, "solicitante": txt(r["solic"]) or None,
