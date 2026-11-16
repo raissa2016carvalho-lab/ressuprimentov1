@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compras — B&Q</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
@@ -102,6 +103,28 @@ canvas{max-height:220px}
 .cmp-red{color:var(--green);font-weight:600} .cmp-up{color:var(--red);font-weight:600}
 .cmp-note{font-size:11px;color:var(--muted);padding:0 24px 0}
 .cmp-barra{position:relative}
+.fc-bar{background:#fff;padding:10px 24px;border-bottom:1px solid var(--border);display:flex;gap:8px 10px;flex-wrap:wrap;align-items:center}
+.fc-wrap{margin:14px 24px 20px;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:calc(100vh - 250px)}
+.fc{border-collapse:separate;border-spacing:0;font-size:12px;width:100%;font-variant-numeric:tabular-nums}
+.fc th{position:sticky;top:0;background:#0f172a;color:#e2e8f0;font-weight:600;padding:7px 8px;text-align:right;white-space:nowrap;z-index:2;font-size:11px;border-left:1px solid #1e293b}
+.fc th.nm,.fc td.nm{position:sticky;left:0;text-align:left;z-index:3;min-width:clamp(200px,28vw,380px);max-width:clamp(200px,28vw,380px);white-space:normal}
+.fc th.nm{z-index:4}
+.fc td{padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:right;white-space:nowrap;border-left:1px solid #f8fafc}
+.fc td.nm{background:#fff;box-shadow:1px 0 0 #e2e8f0;line-height:1.25}
+.fc tbody tr:hover td{background:#f8fafc}
+.fc .cl{display:block;font-size:10px;color:#94a3b8}
+.fc th.tt,.fc td.tt{background:#f1f5f9;font-weight:700}.fc thead th.tt{background:#1e293b}
+.fc th.cs,.fc td.cs{border-left:2px solid #cbd5e1}.fc thead th.cs{border-left:2px solid #475569}
+.fc .neg{color:#b91c1c;font-weight:700}.fc .pos{color:#15803d;font-weight:700}.fc .z{color:#cbd5e1}
+.fc tfoot td{position:sticky;bottom:0;background:#eef2ff;font-weight:800;border-top:2px solid #c7d2fe;z-index:2}
+.fc tfoot td.nm{z-index:4;background:#eef2ff}
+.fc-nota{font-size:11px;color:var(--muted);padding:8px 24px 0}
+.cf-vis{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.cf-vis button{border:none;background:#fff;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--muted);font-family:var(--font)}
+.cf-vis button.on{background:var(--blue);color:#fff;font-weight:600}
+.sc-t{width:100%;border-collapse:collapse}.sc-t th{background:#f8fafc;color:#64748b;font-size:10.5px;text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+.sc-t td{padding:5px 8px;border-bottom:1px solid #f1f5f9}.sc-t td.n{text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:900px){.fc-bar{padding:10px 12px}.fc-wrap{margin:10px 12px}.fc{font-size:11px}.fc th.nm,.fc td.nm{min-width:160px;max-width:160px}.fc-nota{padding:8px 12px 0}}
 @media(max-width:750px){.cmp-dd{position:static}.cmp-dd-panel{width:auto;left:16px;right:16px;top:auto;margin-top:4px}}
 </style>
 <link rel="stylesheet" href="/padrao.css"></head>
@@ -133,6 +156,7 @@ canvas{max-height:220px}
   <button class="tab" onclick="showScreen('detalhamento',this,'DETALHAMENTO SC × PEDIDO')">Detalhamento</button>
   <button class="tab" onclick="showScreen('comparativo',this,'COMPARATIVO MENSAL')">Comparativo Mensal</button>
   <button class="tab" onclick="showScreen('precos',this,'VARIAÇÃO DE PREÇO')">Variação de Preço</button>
+  <button class="tab" onclick="showScreen('farda',this,'FARDAMENTO — COMPRA × CONSUMO')">Fardamento</button>
 </div>
 
 <div class="filters">
@@ -367,6 +391,52 @@ canvas{max-height:220px}
       </div>
       <div style="padding:8px 14px;font-size:10.5px;color:var(--muted)">Preço unitário = valor do item no pedido ÷ quantidade. Período, grupo e filial seguem os filtros do topo. Preço fora do padrão do item (mais de 5× abaixo ou acima do preço do meio — ex.: R$ 0,01 de base de troca, garantia ou unidade diferente) não entra na conta e aparece marcado no histórico. Serviços (grupos 3xxx e 4xxx) ficam fora, a não ser que marque "Incluir serviços".</div>
       <div style="padding:8px 14px"><div class="pag" id="pg-pre"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- TELA FARDAMENTO: compra (por mês de emissão do PC) × consumo, com status de SC/PC e estoque -->
+<div id="screen-farda" class="screen">
+  <div class="fc-bar">
+    <span class="fl">Ano</span><select id="fc-ano" onchange="fcCarregar()"></select>
+    <span class="fl">Filial</span><div class="cmp-dd" id="fc-dd-fil"></div>
+    <span class="fl">Status SC</span><div class="cmp-dd" id="fc-dd-sc"></div>
+    <span class="fl">Status PC</span><div class="cmp-dd" id="fc-dd-pc"></div>
+    <span class="fl">Cliente</span><select id="fc-cli" onchange="fcRender()"><option value="">Todos</option></select>
+    <input class="sbox" id="fc-busca" placeholder="Buscar item (ex.: CALCA ENEL 42)..." oninput="fcRender()" style="width:220px">
+    <span class="fl">Média ÷</span><select id="fc-div" onchange="fcRender()" title="Consumo do ano dividido por quantos meses"></select>
+    <span class="fl">Consumo de</span><select id="fc-cons" onchange="fcRender()"><option value="todas">todas as filiais</option><option value="fil">só as filiais escolhidas</option></select>
+    <label style="font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center"><input type="checkbox" id="fc-semcompra" checked onchange="fcRender()"> itens consumidos sem compra no ano</label>
+    <button class="btn-c" onclick="fcExcel()">⬇ Excel</button>
+    <button class="btn-f" onclick="scAbrir()" title="SC para subir no Protheus: quantidade = média × meses, dividida pelos centros de custo na proporção do consumo">🧾 Gerar SC com rateio</button>
+    <span id="fc-info" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
+  </div>
+  <div class="fc-nota" id="fc-nota"></div>
+  <div class="fc-wrap"><table class="fc" id="fc-tab"><tbody><tr><td style="padding:20px;color:var(--muted)">Abra a aba para carregar...</td></tr></tbody></table></div>
+</div>
+
+<div id="sc-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:60;overflow:auto;padding:20px" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;border-radius:14px;max-width:820px;margin:10px auto;padding:18px 20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <b style="font-size:15px">🧾 SC com rateio por centro de custo</b>
+      <button class="btn-c" onclick="document.getElementById('sc-modal').style.display='none'">Fechar</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin:6px 0 12px" id="sc-escopo"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <span class="fl">Comprar para</span>
+      <div class="cf-vis" id="sc-per">
+        <button data-m="1" onclick="scPer(1)">Mensal (×1)</button><button data-m="3" class="on" onclick="scPer(3)">Trimestral (×3)</button><button data-m="6" onclick="scPer(6)">Semestral (×6)</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><span class="fl">Observação da SC</span>
+      <input class="sbox" id="sc-obs" style="flex:1;min-width:260px" oninput="scResumo()"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><span class="fl">Solicitante</span>
+      <input class="sbox" id="sc-nome" placeholder="Seu nome (aparece na solicitação)" style="width:260px"></div>
+    <div id="sc-resumo" style="font-size:12px"></div>
+    <div id="sc-feito" style="display:none;margin-top:10px;background:#dcfce7;color:#166534;border-radius:8px;padding:8px 12px;font-size:12.5px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn-c" onclick="scBaixar()">⬇ Baixar Excel para o Protheus</button>
+      <button class="btn-f" id="sc-btn-criar" onclick="scCriar()">✅ Criar solicitações no Ressuprimento</button>
     </div>
   </div>
 </div>
@@ -612,13 +682,14 @@ async function showScreen(n,btn,title){
   document.getElementById("screen-"+n).classList.add("active");
   btn.classList.add("active");
   document.getElementById("tela-title").textContent=title;
-  document.querySelector(".filters").style.display = n==="comparativo" ? "none" : "";
+  document.querySelector(".filters").style.display = (n==="comparativo"||n==="farda") ? "none" : "";
   // na aba Detalhamento os filtros dela ficam na mesma barra do topo
   document.getElementById("det-filtros").style.display = n==="detalhamento" ? "contents" : "none";
   document.getElementById("det-count").style.display = n==="detalhamento" ? "" : "none";
   if(n==="comparativo") renderComparativo();
   if(n==="detalhamento") renderDetTable();
   if(n==="precos") renderPrecos();
+  if(n==="farda") fcAbrir();
 }
 function fmtD(s){
   if(!s) return"–";
@@ -1338,6 +1409,179 @@ function cmpClicaFilial(f){ cmpMarcaDd("fil",f,!CMP_DD.fil.sel.has(f)); }
 
 function renderAll(){renderSCs();renderPedidos();renderIndicadores();renderDetTable();renderPrecos();}
 document.addEventListener("DOMContentLoaded",carregar);
+
+// ── Fardamento: compra por mês de emissão do PC (filtros de status de SC/PC), consumo do ano, média, compra trimestral/semestral e estoque ──
+const FC={dados:{},ano:null,fil:new Set(['01']),sc:null,pc:null,lin:[]};
+const FC_MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const FC_SC_PADRAO=['Solicitação Bloqueada','Solicitação em Processo de Cotação','Solicitação Pendente','Solicitação Totalmente Atendida'];
+const FC_PC_PADRAO=['Em aprovação','Pendente','Recebido','(vazio)'];
+const fcN=v=>{v=Math.round(Number(v)||0);return v.toLocaleString('pt-BR')};
+function fcCliente(n){n=' '+(n||'').toUpperCase();for(const [k,v] of [['ENEL','ENEL'],['COELBA','COELBA'],['COSERN','COSERN'],['CPFL','CPFL'],['EQUATORIAL','EQUATORIAL'],['SANEAGO','SANEAGO'],['NEOENERGIA','BRASÍLIA'],['BRASILIA','BRASÍLIA'],[' BEQ','B&Q'],['B&Q','B&Q']])if(n.includes(k))return v;return 'OUTROS'}
+// caixa de várias opções (nenhuma marcada = todas)
+function fcDD(id,itens,sel,todos){
+  const el=document.getElementById(id);
+  const rotulo=()=>sel.size===0?todos:sel.size===1?[...sel][0]:sel.size+' marcados';
+  el.innerHTML=`<button class="btn-c" onclick="event.stopPropagation();this.nextElementSibling.classList.toggle('open')">${cmpEsc(rotulo())} ▾</button>
+    <div class="cmp-dd-panel" onclick="event.stopPropagation()" style="width:300px">
+      <div style="display:flex;gap:6px"><button class="btn-c" data-a="todos">Marcar todos</button><button class="btn-c" data-a="nenhum">Limpar (todos)</button></div>
+      <div class="cmp-dd-list">${itens.map(([v,t])=>`<label><input type="checkbox" value="${cmpEsc(v)}" ${sel.has(v)?'checked':''}> ${cmpEsc(t)}</label>`).join('')}</div></div>`;
+  const b=el.querySelector('button');b.style.borderColor=b.style.color=sel.size?'var(--blue)':'';
+  el.querySelectorAll('input[type=checkbox]').forEach(i=>i.onchange=()=>{i.checked?sel.add(i.value):sel.delete(i.value);b.textContent=rotulo()+' ▾';b.style.borderColor=b.style.color=sel.size?'var(--blue)':'';fcRender()});
+  el.querySelector('[data-a=todos]').onclick=()=>{itens.forEach(([v])=>sel.add(v));fcDD(id,itens,sel,todos);el.querySelector('.cmp-dd-panel').classList.add('open');fcRender()};
+  el.querySelector('[data-a=nenhum]').onclick=()=>{sel.clear();fcDD(id,itens,sel,todos);el.querySelector('.cmp-dd-panel').classList.add('open');fcRender()};
+}
+function fcAbrir(){
+  const sa=document.getElementById('fc-ano');
+  if(!sa.options.length){const a=new Date().getFullYear();[a,a-1].forEach(x=>sa.add(new Option(x,x)));
+    const dv=document.getElementById('fc-div');for(let i=1;i<=12;i++)dv.add(new Option(i+(i>1?' meses':' mês'),i));
+    document.addEventListener('click',()=>document.querySelectorAll('#screen-farda .cmp-dd-panel').forEach(p=>p.classList.remove('open')));}
+  fcCarregar();
+}
+async function fcCarregar(){
+  const ano=+document.getElementById('fc-ano').value;
+  if(!FC.dados[ano]){
+    document.getElementById('fc-tab').innerHTML='<tbody><tr><td style="padding:20px;color:var(--muted)">Carregando '+ano+'...</td></tr></tbody>';
+    try{FC.dados[ano]=await rpc('farda_compra',{p_ano:ano})}catch(e){document.getElementById('fc-tab').innerHTML='<tbody><tr><td style="padding:20px;color:var(--red)">Não consegui carregar: '+cmpEsc(e.message||e)+'</td></tr></tbody>';return}
+  }
+  FC.ano=ano;const d=FC.dados[ano];
+  // meses para a média: meses fechados do ano (no ano atual, até o mês anterior)
+  const h=new Date();document.getElementById('fc-div').value=ano===h.getFullYear()?Math.max(1,h.getMonth()):12;
+  const fils=[...new Set([...d.compra.map(x=>x[0]),...d.consumo.map(x=>x[0]),...d.estoque.map(x=>x[0])])].sort();
+  fcDD('fc-dd-fil',fils.map(f=>[f,f+((d.filiais||{})[f]?' — '+String(d.filiais[f]).replace(/^FILIAL /,''):'')]),FC.fil,'Todas');
+  const scs=[...new Set(d.compra.map(x=>x[3]))].sort(),pcs=[...new Set(d.compra.map(x=>x[4]))].sort();
+  if(!FC.sc){FC.sc=new Set(FC_SC_PADRAO.filter(x=>scs.includes(x)));FC.pc=new Set(FC_PC_PADRAO.filter(x=>pcs.includes(x)))}
+  fcDD('fc-dd-sc',scs.map(x=>[x,x]),FC.sc,'Todos');fcDD('fc-dd-pc',pcs.map(x=>[x,x]),FC.pc,'Todos');
+  const cl=document.getElementById('fc-cli'),atual=cl.value;cl.innerHTML='<option value="">Todos</option>'+['ENEL','COELBA','COSERN','CPFL','B&Q','EQUATORIAL','SANEAGO','BRASÍLIA','OUTROS'].map(c=>`<option>${c}</option>`).join('');cl.value=atual;
+  const em=d.estoque_em?new Date(d.estoque_em):null;
+  document.getElementById('fc-info').textContent='Consumo até '+(d.consumo_ate?d.consumo_ate.slice(6,8)+'/'+d.consumo_ate.slice(4,6)+'/'+d.consumo_ate.slice(0,4):'–')+(em?' · estoque de '+em.toLocaleDateString('pt-BR'):'');
+  fcRender();
+}
+function fcRender(){
+  const d=FC.dados[FC.ano];if(!d)return;
+  const nome=c=>(d.nomes||{})[c]||'',fil=FC.fil,pf=f=>!fil.size||fil.has(f);
+  const q=document.getElementById('fc-busca').value.trim().toUpperCase().split(/\s+/).filter(Boolean),cli=document.getElementById('fc-cli').value;
+  const okItem=c=>{const n=(c+' '+nome(c)).toUpperCase();return q.every(t=>n.includes(t))&&(!cli||fcCliente(nome(c))===cli)};
+  const div=+document.getElementById('fc-div').value||1,consTodas=document.getElementById('fc-cons').value==='todas';
+  const R={};const lin=c=>R[c]=R[c]||{c,m:Array(12).fill(0),tp:0,k:0,ef:0,et:0};
+  d.compra.forEach(([f,c,mes,sc,pc,qq])=>{if(!pf(f)||(FC.sc.size&&!FC.sc.has(sc))||(FC.pc.size&&!FC.pc.has(pc))||!okItem(c))return;const r=lin(c),m=+mes.slice(4,6)-1;r.m[m]+=+qq||0;r.tp+=+qq||0});
+  const semCompra=document.getElementById('fc-semcompra').checked;
+  d.consumo.forEach(([f,c,mes,qq])=>{if(!(consTodas||pf(f))||!okItem(c))return;if(!R[c]&&!semCompra)return;lin(c).k+=+qq||0});
+  d.estoque.forEach(([f,c,qq])=>{if(!R[c])return;R[c].et+=+qq||0;if(pf(f))R[c].ef+=+qq||0});
+  const L=Object.values(R).filter(r=>r.tp||r.k).sort((a,b)=>nome(a.c).localeCompare(nome(b.c),'pt-BR'));
+  const meses=[];for(let i=0;i<12;i++)if(L.some(r=>r.m[i]))meses.push(i);
+  L.forEach(r=>{r.dif=r.tp-r.k;r.med=r.k/div;r.tri=r.med*3;r.sem=r.med*6});
+  FC.lin=L;FC.meses=meses;
+  const fmt=v=>v?fcN(v):'<span class="z">·</span>',dif=v=>v?`<span class="${v<0?'neg':'pos'}">${v>0?'+':''}${fcN(v)}</span>`:'<span class="z">–</span>';
+  const T={m:Array(12).fill(0),tp:0,k:0,med:0,tri:0,sem:0,ef:0,et:0};L.forEach(r=>{meses.forEach(i=>T.m[i]+=r.m[i]);['tp','k','med','tri','sem','ef','et'].forEach(k=>T[k]+=r[k])});
+  const filTxt=fil.size?[...fil].join(', '):'todas';
+  let h=`<thead><tr><th class="nm">Item (${L.length})</th>${meses.map(i=>`<th>${FC_MES[i]}/${String(FC.ano).slice(2)}</th>`).join('')}
+    <th class="tt cs">Total<br>pedido</th><th class="cs">Consumido<br>${FC.ano}</th><th>Dif.</th><th>Média<br>consumo</th><th>Compra<br>trimestral</th><th>Compra<br>semestral</th>
+    <th class="cs">Estoque<br>filial ${cmpEsc(filTxt)}</th><th>Estoque<br>todas</th></tr></thead><tbody>`;
+  h+=L.map(r=>`<tr><td class="nm">${cmpEsc(nome(r.c)||r.c)}<span class="cl">${cmpEsc(r.c)} · ${fcCliente(nome(r.c))}</span></td>${meses.map(i=>`<td>${fmt(r.m[i])}</td>`).join('')}
+    <td class="tt cs">${fmt(r.tp)}</td><td class="cs">${fmt(r.k)}</td><td>${dif(r.dif)}</td><td>${r.med?r.med.toLocaleString('pt-BR',{maximumFractionDigits:0}):'<span class="z">·</span>'}</td>
+    <td>${fmt(r.tri)}</td><td>${fmt(r.sem)}</td><td class="cs"><b>${fmt(r.ef)}</b></td><td>${fmt(r.et)}</td></tr>`).join('')||`<tr><td class="nm" style="padding:18px;color:var(--muted)">Nenhum item com esses filtros.</td></tr>`;
+  h+=`</tbody><tfoot><tr><td class="nm">Total geral</td>${meses.map(i=>`<td>${fcN(T.m[i])}</td>`).join('')}<td class="tt cs">${fcN(T.tp)}</td><td class="cs">${fcN(T.k)}</td><td>${dif(T.tp-T.k)}</td>
+    <td>${fcN(T.med)}</td><td>${fcN(T.tri)}</td><td>${fcN(T.sem)}</td><td class="cs">${fcN(T.ef)}</td><td>${fcN(T.et)}</td></tr></tfoot>`;
+  document.getElementById('fc-tab').innerHTML=h;
+  document.getElementById('fc-nota').innerHTML=`Meses = quantidade pedida pela data de emissão do PC (SC sem PC entra pela data da SC), com os status de SC e PC escolhidos. Consumido = requisições de ${consTodas?'<b>todas as filiais</b>':'<b>filial '+cmpEsc(filTxt)+'</b>'} no ano. Dif. = pedido − consumido. Média = consumido ÷ ${div} ${div>1?'meses':'mês'}. Compra trimestral = média × 3 · semestral = média × 6. Estoque = saldo do sistema hoje.`;
+}
+function fcExcel(){
+  const L=FC.lin||[],d=FC.dados[FC.ano];if(!L.length)return alert('Nada para exportar.');
+  const nome=c=>(d.nomes||{})[c]||'',num=v=>(Math.round((Number(v)||0)*10)/10).toString().replace('.',',');
+  const cab=['Código','Descrição','Cliente',...FC.meses.map(i=>FC_MES[i]+'/'+FC.ano),'Total pedido','Consumido '+FC.ano,'Dif','Média consumo','Compra trimestral','Compra semestral','Estoque filial','Estoque todas'];
+  const linhas=L.map(r=>[r.c,nome(r.c),fcCliente(nome(r.c)),...FC.meses.map(i=>num(r.m[i])),num(r.tp),num(r.k),num(r.dif),num(r.med),num(r.tri),num(r.sem),num(r.ef),num(r.et)]);
+  const csv='﻿'+[cab,...linhas].map(l=>l.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='fardamento_compra_consumo_'+FC.ano+'.csv';a.click();
+}
+window.fcAbrir=fcAbrir;window.fcCarregar=fcCarregar;window.fcRender=fcRender;window.fcExcel=fcExcel;
+
+// ── SC com rateio: qtd do SKU = ⌈média × meses⌉, dividida pelos CCs na proporção do consumo do ano (mesmo filtro da tabela) ──
+const SC={rat:{},meses:3,linhas:[],semCC:0};
+async function scAbrir(){
+  const L=(FC.lin||[]).filter(r=>r.med>0);if(!L.length)return alert('Nenhum item com consumo nos filtros atuais.');
+  if(!SC.rat[FC.ano]){try{SC.rat[FC.ano]=await rpc('farda_rateio',{p_ano:FC.ano})}catch(e){return alert('Não consegui carregar o consumo por centro de custo: '+(e.message||e))}}
+  const cli=document.getElementById('fc-cli').value;
+  document.getElementById('sc-obs').value='RESSUPRIMENTO DE FARDAMENTO'+(cli?' '+cli:'')+' - '+({1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'}[SC.meses]);
+  try{document.getElementById('sc-nome').value=localStorage.getItem('sc_nome')||''}catch(e){}
+  const bt=document.getElementById('sc-btn-criar');bt.disabled=false;bt.style.opacity='';document.getElementById('sc-feito').style.display='none';
+  document.getElementById('sc-modal').style.display='block';scResumo();
+}
+// cria uma solicitação por centro de custo na aba de Ressuprimento (mesma função do formulário: criar_solicitacao)
+async function scCriar(){
+  const out=SC.linhas;if(!out.length)return alert('Nada a comprar com esses filtros.');
+  const nome=document.getElementById('sc-nome').value.trim();if(!nome){alert('Preencha o solicitante.');document.getElementById('sc-nome').focus();return}
+  try{localStorage.setItem('sc_nome',nome)}catch(e){}
+  const obs=document.getElementById('sc-obs').value.trim(),porCC={};out.forEach(x=>(porCC[x.cc]=porCC[x.cc]||[]).push(x));
+  const ccs=Object.keys(porCC).sort(),pecas=out.reduce((s,x)=>s+x.qt,0);
+  if(!confirm(`Criar ${ccs.length} solicitação(ões) no Ressuprimento — uma por centro de custo — com ${fcN(pecas)} peças?\n\n"${obs}"\n\nElas entram como PENDENTES para o gerente de cada centro de custo.`))return;
+  const bt=document.getElementById('sc-btn-criar');bt.disabled=true;bt.style.opacity='.5';
+  const feitos=[],erros=[];
+  for(const cc of ccs){
+    const itens=porCC[cc].map(x=>({codigo:x.c,descricao:x.n,quantidade:x.qt,qtd_sugerida:x.qt,consumo_medio:Math.round(x.medCC*100)/100}));
+    try{const id=await rpc('criar_solicitacao',{p_cc:cc,p_nome:nome,p_matricula:'',p_justificativa:obs,p_filial:SC.ccFil[cc]||'',p_periodo_meses:SC.meses,p_itens:itens});feitos.push([cc,id])}
+    catch(e){erros.push(cc+': '+(e.message||e))}
+    bt.textContent=`Criando... ${feitos.length+erros.length}/${ccs.length}`;
+  }
+  bt.textContent='✅ Criar solicitações no Ressuprimento';
+  const el=document.getElementById('sc-feito');el.style.display='block';
+  el.style.background=erros.length?'#fee2e2':'#dcfce7';el.style.color=erros.length?'#991b1b':'#166534';
+  el.innerHTML=`<b>${feitos.length} solicitação(ões) criada(s)</b>${feitos.length?': '+feitos.map(([cc,id])=>`#${id} (CC ${cmpEsc(cc)})`).join(', '):''}.`+
+    (erros.length?`<br>Não consegui criar ${erros.length}: ${erros.map(cmpEsc).join(' · ')}`:' Elas já aparecem na aba de Ressuprimento do painel principal, pendentes para o gerente.');
+  if(erros.length){bt.disabled=false;bt.style.opacity=''}
+}
+window.scCriar=scCriar;
+function scPer(m){const o=document.getElementById('sc-obs'),ant={1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'}[SC.meses],nov={1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'}[m];
+  SC.meses=m;o.value=o.value.replace(ant,nov);document.querySelectorAll('#sc-per button').forEach(b=>b.classList.toggle('on',+b.dataset.m===m));scResumo()}
+function scCalc(){
+  const d=FC.dados[FC.ano],R=SC.rat[FC.ano],nome=c=>(d.nomes||{})[c]||'';
+  const consTodas=document.getElementById('fc-cons').value==='todas',pf=f=>!FC.fil.size||FC.fil.has(f);
+  const porSku={},ccFil={};R.cons.forEach(([f,c,cc,q])=>{if(!(consTodas||pf(f)))return;(porSku[c]=porSku[c]||{})[cc]=(porSku[c][cc]||0)+(+q||0);
+    const m=ccFil[cc]=ccFil[cc]||{};m[f]=(m[f]||0)+(+q||0)});
+  SC.ccFil={};Object.entries(ccFil).forEach(([cc,m])=>{SC.ccFil[cc]=Object.entries(m).sort((a,b)=>b[1]-a[1])[0][0]});
+  const div=+document.getElementById('fc-div').value||1;
+  const out=[];let semCC=0;
+  (FC.lin||[]).filter(r=>r.med>0).forEach(r=>{
+    const tot=Math.ceil(r.med*SC.meses);if(tot<=0)return;
+    const pc=porSku[r.c]||{};if(pc[''])semCC+=pc[''];
+    const ccs=Object.entries(pc).filter(([cc,q])=>cc&&q>0);const base=ccs.reduce((s,[,q])=>s+q,0);if(!base)return;
+    // maior resto: a soma dos CCs fica igual ao total do SKU
+    let parts=ccs.map(([cc,q])=>{const x=tot*q/base;return{cc,q,pct:q/base,qt:Math.floor(x),resto:x-Math.floor(x)}});
+    let falta=tot-parts.reduce((s,p)=>s+p.qt,0);parts.sort((a,b)=>b.resto-a.resto).forEach(p=>{if(falta>0){p.qt++;falta--}});
+    parts.filter(p=>p.qt>0).forEach(p=>out.push({c:r.c,n:nome(r.c),cc:p.cc,ccn:(R.ccs||{})[p.cc]||'',pct:p.pct,qt:p.qt,tot,med:r.med,medCC:p.q/div}));
+  });
+  SC.linhas=out;SC.semCC=semCC;return out;
+}
+function scResumo(){
+  const out=scCalc(),R=SC.rat[FC.ano];
+  const fil=FC.fil.size?[...FC.fil].join(', '):'todas',cli=document.getElementById('fc-cli').value||'todos os clientes';
+  document.getElementById('sc-escopo').innerHTML=`Itens da tabela filtrada (<b>${cmpEsc(cli)}</b>, filial ${cmpEsc(fil)}): quantidade = média de consumo × <b>${SC.meses}</b> (arredondada para cima), dividida pelos centros de custo na proporção do consumo de ${FC.ano} (${document.getElementById('fc-cons').value==='todas'?'todas as filiais':'filiais escolhidas'}). Uma SC por centro de custo.`;
+  const G={};out.forEach(x=>{const g=G[x.cc]=G[x.cc]||{cc:x.cc,n:x.ccn,qt:0,sk:0};g.qt+=x.qt;g.sk++});
+  const L=Object.values(G).sort((a,b)=>b.qt-a.qt),T=L.reduce((s,g)=>s+g.qt,0),nSku=new Set(out.map(x=>x.c)).size;
+  document.getElementById('sc-resumo').innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px"><span><b>${nSku}</b> SKUs</span><span><b>${L.length}</b> centros de custo (= ${L.length} SCs)</span><span><b>${fcN(T)}</b> peças</span></div>
+    ${SC.semCC?`<div style="background:#fef3c7;color:#92400e;border-radius:8px;padding:6px 10px;margin-bottom:8px">${fcN(SC.semCC)} peças de consumo sem centro de custo ficaram fora da proporção.</div>`:''}
+    <div style="max-height:330px;overflow:auto;border:1px solid var(--border);border-radius:8px"><table class="sc-t"><thead><tr><th>Centro de custo</th><th style="text-align:right">SKUs</th><th style="text-align:right">Peças</th><th style="text-align:right">% das peças</th></tr></thead><tbody>
+    ${L.map(g=>`<tr><td><b>${cmpEsc(g.cc)}</b> ${cmpEsc(g.n)}</td><td class="n">${g.sk}</td><td class="n"><b>${fcN(g.qt)}</b></td><td class="n">${T?(g.qt/T*100).toFixed(1).replace('.',','):'0'}%</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted);padding:12px">Nada a comprar.</td></tr>'}
+    </tbody></table></div>`;
+}
+function scBaixar(){
+  const out=SC.linhas;if(!out.length)return alert('Nada a comprar com esses filtros.');
+  if(!window.XLSX)return alert('Não consegui carregar o gerador de Excel. Atualize a página (Ctrl+F5) e tente de novo.');
+  const obs=document.getElementById('sc-obs').value.trim();
+  const porCC={};out.forEach(x=>(porCC[x.cc]=porCC[x.cc]||[]).push(x));
+  const ccs=Object.keys(porCC).sort(),linhas=[];
+  ccs.forEach((cc,ic)=>{const its=porCC[cc].sort((a,b)=>a.n.localeCompare(b.n,'pt-BR')),dig=its.length>99?4:2;
+    its.forEach((x,i)=>linhas.push({C1_XTIPOSC:'004',C1_ITEM:String(i+1).padStart(dig,'0'),C1_PRODUTO:x.c,C1_DESCRI:x.n,C1_QUANT:x.qt,C1_CC:cc,C1_OBS:obs,C1_ESTOQUE:'S'}));
+    if(ic<ccs.length-1)linhas.push({C1_XTIPOSC:'',C1_ITEM:'',C1_PRODUTO:'',C1_DESCRI:'',C1_QUANT:'',C1_CC:'',C1_OBS:'',C1_ESTOQUE:''});
+  });
+  const conf=out.slice().sort((a,b)=>a.n.localeCompare(b.n,'pt-BR')||b.qt-a.qt).map(x=>({Código:x.c,Descrição:x.n,'Média consumo/mês':Math.round(x.med*10)/10,
+    ['Total a comprar (×'+SC.meses+')']:x.tot,'Centro de custo':x.cc,'Nome do CC':x.ccn,'% do consumo do SKU':Math.round(x.pct*1000)/10,'Qtd no CC':x.qt}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(linhas),'SC');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(conf),'Rateio (conferência)');
+  const cli=(document.getElementById('fc-cli').value||'todos').replace(/[^A-Z0-9]/gi,''),per={1:'mensal',3:'trimestral',6:'semestral'}[SC.meses];
+  XLSX.writeFile(wb,'SC_fardamento_'+cli+'_'+per+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+window.scAbrir=scAbrir;window.scPer=scPer;window.scResumo=scResumo;window.scBaixar=scBaixar;
 </script>
 </body>
 </html>
