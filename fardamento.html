@@ -227,7 +227,7 @@ function fcExcel(){
 }
 
 // ── Excel de SC com rateio: compra líquida (média × meses − a chegar) dividida pelos CCs; padrão de importação do Protheus ──
-const SC={meses:3,linhas:[]};
+const SC={meses:3,linhas:[],visao:'sku',skus:[]};
 const SC_PER={1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'};
 function scAbrir(){
   if(!(FC.lin||[]).some(r=>r.med>0))return alert('Nenhum item com consumo nos filtros atuais.');
@@ -241,15 +241,34 @@ function scCalc(){
     fcRateio(r.c,tot).filter(p=>p.qt>0).forEach(p=>out.push({c:r.c,n:(d.nomes||{})[r.c]||'',cc:p.cc,ccn:p.n,pct:p.pct,qt:p.qt,tot,med:r.med,ac:r.ac}))});
   return SC.linhas=out;
 }
+// conferência do desconto por SKU: bruto (⌈média × meses⌉) − a chegar = a comprar
+function scSkus(){
+  const d=FC.dados[FC.ano],ncc={};SC.linhas.forEach(x=>ncc[x.c]=(ncc[x.c]||0)+1);
+  return SC.skus=(FC.lin||[]).filter(r=>r.med>0).map(r=>{const bruto=Math.ceil(r.med*SC.meses),liq=Math.max(0,bruto-r.ac);
+    return{c:r.c,n:(d.nomes||{})[r.c]||'',med:r.med,bruto,ac:r.ac,liq,ncc:ncc[r.c]||0}}).sort((a,b)=>b.liq-a.liq||b.bruto-a.bruto);
+}
+function scVisao(v){SC.visao=v;scResumo()}
 function scResumo(){
-  const out=scCalc(),fil=FC.fil.size?[...FC.fil].join(', '):'todas',cli=$('fc-cli').value||'todos os clientes';
-  $('sc-escopo').innerHTML=`Itens da tabela filtrada (<b>${esc(cli)}</b>, filial ${esc(fil)}): quantidade = média × <b>${SC.meses}</b> (para cima) <b>− o que está a chegar</b>, dividida pelos centros de custo na proporção do consumo de ${FC.ano}. Uma SC por centro de custo.`;
+  const out=scCalc(),S=scSkus(),fil=FC.fil.size?[...FC.fil].join(', '):'todas',cli=$('fc-cli').value||'todos os clientes';
+  $('sc-escopo').innerHTML=`Itens da tabela filtrada (<b>${esc(cli)}</b>, filial ${esc(fil)}): quantidade = média × <b>${SC.meses}</b> (para cima) <b>− o que está a chegar</b> (PC pendente ou em aprovação, ou SC pendente sem PC), dividida pelos centros de custo na proporção do consumo de ${FC.ano}. Uma SC por centro de custo.`;
   const G={};out.forEach(x=>{const g=G[x.cc]=G[x.cc]||{cc:x.cc,n:x.ccn,qt:0,sk:0};g.qt+=x.qt;g.sk++});
   const L=Object.values(G).sort((a,b)=>b.qt-a.qt),T=L.reduce((s,g)=>s+g.qt,0),nSku=new Set(out.map(x=>x.c)).size;
-  $('sc-resumo').innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px"><span><b>${nSku}</b> SKUs</span><span><b>${L.length}</b> centros de custo (= ${L.length} SCs)</span><span><b>${fcN(T)}</b> peças</span></div>
-    <div style="flex:1;min-height:90px;overflow:auto;border:1px solid var(--border);border-radius:8px"><table class="t2"><thead><tr><th>Centro de custo</th><th class="n">SKUs</th><th class="n">Peças</th><th class="n">% das peças</th></tr></thead><tbody>
+  const TB=S.reduce((s,x)=>s+x.bruto,0),TA=S.reduce((s,x)=>s+Math.min(x.ac,x.bruto),0),TL=S.reduce((s,x)=>s+x.liq,0),cob=S.filter(x=>x.liq===0).length;
+  const conta=`<div style="flex:none;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12.5px">
+      <span>Média × ${SC.meses}: <b>${fcN(TB)}</b></span><span style="color:var(--muted)">−</span>
+      <span style="color:#c2410c">a chegar: <b>${fcN(TA)}</b></span><span style="color:var(--muted)">=</span>
+      <span style="color:#1e40af">a comprar: <b>${fcN(TL)}</b> peças</span>
+      <span style="margin-left:auto;color:var(--muted)">${nSku} SKUs · ${L.length} centros de custo (= ${L.length} SCs)${cob?` · <span style="color:#15803d">${cob} SKU${cob>1?'s':''} já coberto${cob>1?'s':''} pelo que está a chegar</span>`:''}</span></div>
+    <div class="vis" style="flex:none;align-self:flex-start;margin-bottom:8px"><button class="${SC.visao==='sku'?'on':''}" onclick="scVisao('sku')">Por SKU (conferir o desconto)</button><button class="${SC.visao==='cc'?'on':''}" onclick="scVisao('cc')">Por centro de custo</button></div>`;
+  const porSku=`<table class="t2"><thead><tr><th>SKU</th><th class="n">Média/mês</th><th class="n">Média × ${SC.meses}</th><th class="n">A chegar</th><th class="n">A comprar</th><th class="n">CCs</th></tr></thead><tbody>
+    ${S.map(x=>`<tr${x.liq===0?' style="background:#f0fdf4"':''}><td><b>${esc(x.c)}</b> ${esc(x.n)}</td><td class="n">${x.med.toLocaleString('pt-BR',{maximumFractionDigits:1})}</td><td class="n">${fcN(x.bruto)}</td>
+      <td class="n" style="color:#c2410c">${x.ac?'− '+fcN(Math.min(x.ac,x.bruto))+(x.ac>x.bruto?`<div style="font-size:10px;color:var(--muted)">tem ${fcN(x.ac)} a chegar</div>`:''):'–'}</td>
+      <td class="n">${x.liq?`<b style="color:#1e40af">${fcN(x.liq)}</b>`:'<span style="color:#15803d;font-weight:600">coberto ✓</span>'}</td><td class="n">${x.ncc||'–'}</td></tr>`).join('')}
+    </tbody><tfoot><tr style="font-weight:800;background:#eef2ff"><td>Total</td><td></td><td class="n">${fcN(TB)}</td><td class="n" style="color:#c2410c">− ${fcN(TA)}</td><td class="n" style="color:#1e40af">${fcN(TL)}</td><td></td></tr></tfoot></table>`;
+  const porCC=`<table class="t2"><thead><tr><th>Centro de custo</th><th class="n">SKUs</th><th class="n">Peças</th><th class="n">% das peças</th></tr></thead><tbody>
     ${L.map(g=>`<tr><td><b>${esc(g.cc)}</b> ${esc(g.n)}</td><td class="n">${g.sk}</td><td class="n"><b>${fcN(g.qt)}</b></td><td class="n">${T?(g.qt/T*100).toFixed(1).replace('.',','):'0'}%</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted);padding:12px">Nada a comprar: o que está a chegar já cobre o período.</td></tr>'}
-    </tbody></table></div>`;
+    </tbody></table>`;
+  $('sc-resumo').innerHTML=conta+`<div style="flex:1;min-height:90px;overflow:auto;border:1px solid var(--border);border-radius:8px">${SC.visao==='sku'?porSku:porCC}</div>`;
 }
 function scBaixar(){
   const out=SC.linhas;if(!out.length)return alert('Nada a comprar com esses filtros.');
@@ -260,11 +279,13 @@ function scBaixar(){
     its.forEach((x,i)=>linhas.push({C1_XTIPOSC:'006',C1_ITEM:String(i+1).padStart(dig,'0'),C1_PRODUTO:x.c,C1_DESCRI:x.n,C1_QUANT:x.qt,C1_CC:cc,C1_OBS:obs,C1_ESTOQUE:'S'}));
     if(ic<ccs.length-1)linhas.push({C1_XTIPOSC:'',C1_ITEM:'',C1_PRODUTO:'',C1_DESCRI:'',C1_QUANT:'',C1_CC:'',C1_OBS:'',C1_ESTOQUE:''});
   });
-  const conf=out.slice().sort((a,b)=>a.n.localeCompare(b.n,'pt-BR')||b.qt-a.qt).map(x=>({Código:x.c,Descrição:x.n,'Média consumo/mês':Math.round(x.med*10)/10,'A chegar':x.ac,
-    ['A comprar (×'+SC.meses+' − a chegar)']:x.tot,'Centro de custo':x.cc,'Nome do CC':x.ccn,'% do consumo do SKU':Math.round(x.pct*1000)/10,'Qtd no CC':x.qt}));
+  const conf=out.slice().sort((a,b)=>a.n.localeCompare(b.n,'pt-BR')||b.qt-a.qt).map(x=>({Código:x.c,Descrição:x.n,'Média consumo/mês':Math.round(x.med*10)/10,
+    ['Média × '+SC.meses]:Math.ceil(x.med*SC.meses),'A chegar (descontado)':x.ac,['A comprar (×'+SC.meses+' − a chegar)']:x.tot,'Centro de custo':x.cc,'Nome do CC':x.ccn,'% do consumo do SKU':Math.round(x.pct*1000)/10,'Qtd no CC':x.qt}));
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(linhas),'SC');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(conf),'Rateio (conferência)');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet((SC.skus||[]).map(x=>({Código:x.c,Descrição:x.n,'Média consumo/mês':Math.round(x.med*10)/10,
+    ['Média × '+SC.meses]:x.bruto,'A chegar (descontado)':Math.min(x.ac,x.bruto),'A comprar':x.liq,'Situação':x.liq?'comprar':'coberto pelo que está a chegar'}))),'Desconto por SKU');
   const cli=($('fc-cli').value||'todos').replace(/[^A-Z0-9]/gi,'');
   XLSX.writeFile(wb,'SC_fardamento_'+cli+'_'+SC_PER[SC.meses].toLowerCase()+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
