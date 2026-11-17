@@ -38,6 +38,9 @@ select:focus,.sbox:focus{border-color:var(--blue)}
 .fc th.cp,.fc td.cp{background:#eff6ff}.fc thead th.cp{background:#1e3a8a}
 .fc td.clk{cursor:pointer;text-decoration:underline dotted #93c5fd;text-underline-offset:3px}
 .fc td.clk:hover{background:#dbeafe!important}
+.fc .km{display:block;font-size:9.5px;color:#a3a3a3;line-height:1.1;margin-top:1px}
+.fc .km::before{content:'cons. ';font-size:8.5px;color:#c4c4c4}
+.fc tfoot .km{color:#64748b}
 .fc .neg{color:#b91c1c;font-weight:700}.fc .pos{color:#15803d;font-weight:700}.fc .z{color:#cbd5e1}
 .fc tfoot td{position:sticky;bottom:0;background:#eef2ff;font-weight:800;border-top:2px solid #c7d2fe;z-index:2}
 .fc tfoot td.nm{z-index:4;background:#eef2ff}
@@ -144,8 +147,9 @@ async function fcCarregar(){
   const ano=+$('fc-ano').value;
   if(!FC.dados[ano]){
     $('fc-tab').innerHTML='<tbody><tr><td style="padding:20px;color:var(--muted)">Carregando '+ano+'...</td></tr></tbody>';
-    try{const [d,r]=await Promise.all([rpc('farda_compra',{p_ano:ano}),rpc('farda_rateio',{p_ano:ano})]);FC.dados[ano]=d;FC.rat[ano]=r}
-    catch(e){$('fc-tab').innerHTML='<tbody><tr><td style="padding:20px;color:var(--red)">Não consegui carregar: '+esc(e.message||e)+'</td></tr></tbody>';return}
+    try{FC.dados[ano]=await rpc('farda_compra',{p_ano:ano})}
+    catch(e){$('fc-tab').innerHTML='<tbody><tr><td style="padding:20px;color:var(--red)">Não consegui carregar: '+esc(e.message||e)+
+      '<div style="color:var(--muted);margin-top:6px">Se os syncs estiverem rodando, o banco fica lento por alguns minutos. <button class="btn-c" onclick="fcCarregar()">Tentar de novo</button></div></td></tr></tbody>';return}
   }
   FC.ano=ano;const d=FC.dados[ano],h=new Date();
   $('fc-div').value=ano===h.getFullYear()?Math.max(1,h.getMonth()):12;   // meses fechados do ano
@@ -175,38 +179,50 @@ function fcRender(){
   const q=$('fc-busca').value.trim().toUpperCase().split(/\s+/).filter(Boolean),cli=$('fc-cli').value;
   const okItem=c=>{const n=(c+' '+nome(c)).toUpperCase();return q.every(t=>n.includes(t))&&(!cli||fcCliente(nome(c))===cli)};
   const div=+$('fc-div').value||1,consTodas=$('fc-cons').value==='todas';
-  const R={},lin=c=>R[c]=R[c]||{c,m:Array(12).fill(0),tp:0,k:0,ac:0,ef:0,et:0};
+  const R={},lin=c=>R[c]=R[c]||{c,m:Array(12).fill(0),km:Array(12).fill(0),tp:0,k:0,ac:0,ef:0,et:0};
   d.compra.forEach(([f,c,mes,sc,pc,qq])=>{if(!pf(f)||(FC.sc.size&&!FC.sc.has(sc))||(FC.pc.size&&!FC.pc.has(pc))||!okItem(c))return;const r=lin(c),m=+mes.slice(4,6)-1;r.m[m]+=+qq||0;r.tp+=+qq||0});
   const semCompra=$('fc-semcompra').checked;
-  d.consumo.forEach(([f,c,mes,qq])=>{if(!(consTodas||pf(f))||!okItem(c))return;if(!R[c]&&!semCompra)return;lin(c).k+=+qq||0});
+  d.consumo.forEach(([f,c,mes,qq])=>{if(!(consTodas||pf(f))||!okItem(c))return;if(!R[c]&&!semCompra)return;const r=lin(c);r.k+=+qq||0;r.km[+mes.slice(4,6)-1]+=+qq||0});
   (d.pend||[]).forEach(([f,c,qq])=>{if(R[c]&&pf(f))R[c].ac+=+qq||0});
   d.estoque.forEach(([f,c,qq])=>{if(!R[c])return;R[c].et+=+qq||0;if(pf(f))R[c].ef+=+qq||0});
   const L=Object.values(R).filter(r=>r.tp||r.k).sort((a,b)=>nome(a.c).localeCompare(nome(b.c),'pt-BR'));
-  const meses=[];for(let i=0;i<12;i++)if(L.some(r=>r.m[i]))meses.push(i);
+  const meses=[];for(let i=0;i<12;i++)if(L.some(r=>r.m[i]||r.km[i]))meses.push(i);
   // compra líquida = ⌈média × meses⌉ − o que está a chegar (nunca negativa)
   L.forEach(r=>{r.dif=r.tp-r.k;r.med=r.k/div;r.tri=Math.max(0,Math.ceil(r.med*3)-r.ac);r.sem=Math.max(0,Math.ceil(r.med*6)-r.ac);r.men=Math.max(0,Math.ceil(r.med)-r.ac)});
   FC.lin=L;FC.meses=meses;
+  // mês: pedido em cima; consumo do mês discreto embaixo (mês só com consumo mostra só o consumo)
+  const mesCel=(p,k,tot)=>`<td title="Pedido ${fcN(p)} · consumo ${fcN(k)}">${p?fcN(p):(k?'':'<span class="z">·</span>')}${k?`<span class="km">${p?'':''}${fcN(k)}</span>`:''}</td>`;
   const fmt=v=>v?fcN(v):'<span class="z">·</span>',dif=v=>v?`<span class="${v<0?'neg':'pos'}">${v>0?'+':''}${fcN(v)}</span>`:'<span class="z">–</span>';
-  const T={m:Array(12).fill(0),tp:0,k:0,med:0,ac:0,tri:0,sem:0,ef:0,et:0};L.forEach(r=>{meses.forEach(i=>T.m[i]+=r.m[i]);['tp','k','med','ac','tri','sem','ef','et'].forEach(k=>T[k]+=r[k])});
+  const T={m:Array(12).fill(0),km:Array(12).fill(0),tp:0,k:0,med:0,ac:0,tri:0,sem:0,ef:0,et:0};L.forEach(r=>{meses.forEach(i=>{T.m[i]+=r.m[i];T.km[i]+=r.km[i]});['tp','k','med','ac','tri','sem','ef','et'].forEach(k=>T[k]+=r[k])});
   const filTxt=fil.size?[...fil].join(', '):'todas';
   let h=`<thead><tr><th class="nm">Item (${L.length})</th>${meses.map(i=>`<th>${FC_MES[i]}/${String(FC.ano).slice(2)}</th>`).join('')}
     <th class="tt cs">Total<br>pedido</th><th class="cs">Consumido<br>${FC.ano}</th><th>Dif.</th><th>Média<br>consumo</th>
     <th class="ac cs" title="PC Pendente / Em aprovação, ou SC pendente ainda sem PC (filial ${esc(filTxt)})">A chegar<br>(pendente)</th>
     <th class="cp" title="⌈média × 3⌉ − a chegar · clique para ver o rateio por centro de custo">Compra<br>trimestral</th><th class="cp" title="⌈média × 6⌉ − a chegar · clique para ver o rateio por centro de custo">Compra<br>semestral</th>
     <th class="cs">Estoque<br>filial ${esc(filTxt)}</th><th>Estoque<br>todas</th></tr></thead><tbody>`;
-  h+=L.map((r,ix)=>`<tr><td class="nm">${esc(nome(r.c)||r.c)}<span class="cl">${esc(r.c)} · ${fcCliente(nome(r.c))}</span></td>${meses.map(i=>`<td>${fmt(r.m[i])}</td>`).join('')}
+  h+=L.map((r,ix)=>`<tr><td class="nm">${esc(nome(r.c)||r.c)}<span class="cl">${esc(r.c)} · ${fcCliente(nome(r.c))}</span></td>${meses.map(i=>mesCel(r.m[i],r.km[i])).join('')}
     <td class="tt cs">${fmt(r.tp)}</td><td class="cs">${fmt(r.k)}</td><td>${dif(r.dif)}</td><td>${r.med?r.med.toLocaleString('pt-BR',{maximumFractionDigits:0}):'<span class="z">·</span>'}</td>
     <td class="ac cs">${fmt(r.ac)}</td>
     <td class="cp${r.tri?' clk':''}" ${r.tri?`onclick="fcPop(event,${ix},3)"`:''}><b>${fmt(r.tri)}</b></td><td class="cp${r.sem?' clk':''}" ${r.sem?`onclick="fcPop(event,${ix},6)"`:''}><b>${fmt(r.sem)}</b></td>
     <td class="cs"><b>${fmt(r.ef)}</b></td><td>${fmt(r.et)}</td></tr>`).join('')||`<tr><td class="nm" style="padding:18px;color:var(--muted)">Nenhum item com esses filtros.</td></tr>`;
-  h+=`</tbody><tfoot><tr><td class="nm">Total geral</td>${meses.map(i=>`<td>${fcN(T.m[i])}</td>`).join('')}<td class="tt cs">${fcN(T.tp)}</td><td class="cs">${fcN(T.k)}</td><td>${dif(T.tp-T.k)}</td>
+  h+=`</tbody><tfoot><tr><td class="nm">Total geral</td>${meses.map(i=>mesCel(T.m[i],T.km[i],1)).join('')}<td class="tt cs">${fcN(T.tp)}</td><td class="cs">${fcN(T.k)}</td><td>${dif(T.tp-T.k)}</td>
     <td>${fcN(T.med)}</td><td class="ac cs">${fcN(T.ac)}</td><td class="cp">${fcN(T.tri)}</td><td class="cp">${fcN(T.sem)}</td><td class="cs">${fcN(T.ef)}</td><td>${fcN(T.et)}</td></tr></tfoot>`;
   $('fc-tab').innerHTML=h;$('pop').style.display='none';setTimeout(fcAltura,0);
-  $('fc-nota').innerHTML=`Meses = quantidade pedida pela emissão do PC (SC sem PC pela data da SC), com os status escolhidos. Consumido = requisições de ${consTodas?'<b>todas as filiais</b>':'<b>filial '+esc(filTxt)+'</b>'} no ano. Média = consumido ÷ ${div} ${div>1?'meses':'mês'}. <b>A chegar</b> = PC pendente ou em aprovação, ou SC pendente sem PC. <b>Compra trimestral / semestral = média × 3 / × 6 − a chegar</b> (clique no número para ver o rateio por centro de custo).`;
+  $('fc-nota').innerHTML=`Meses = quantidade pedida pela emissão do PC (SC sem PC pela data da SC), com os status escolhidos; embaixo, em cinza, o consumo do mês. Consumido = requisições de ${consTodas?'<b>todas as filiais</b>':'<b>filial '+esc(filTxt)+'</b>'} no ano. Média = consumido ÷ ${div} ${div>1?'meses':'mês'}. <b>A chegar</b> = PC pendente ou em aprovação, ou SC pendente sem PC. <b>Compra trimestral / semestral = média × 3 / × 6 − a chegar</b> (clique no número para ver o rateio por centro de custo).`;
 }
 // pop-up do rateio de um SKU
-function fcPop(ev,ix,m){
-  ev.stopPropagation();const r=FC.lin[ix],tot=m===3?r.tri:r.sem,d=FC.dados[FC.ano];
+// consumo por centro de custo (para o rateio): só carrega quando precisa (pop-up ou gerar SC)
+async function fcGarantirRateio(){
+  if(FC.rat[FC.ano])return true;
+  try{FC.rat[FC.ano]=await rpc('farda_rateio',{p_ano:FC.ano});return true}
+  catch(e){alert('Não consegui carregar o consumo por centro de custo (o banco pode estar ocupado com os syncs). Tente de novo em alguns minutos.\n\n'+(e.message||e));return false}
+}
+async function fcPop(ev,ix,m){
+  ev.stopPropagation();const td=ev.target.closest('td');
+  if(!FC.rat[FC.ano]){const pp=$('pop');pp.innerHTML='<div class="ph"><span>Carregando o rateio...</span></div>';pp.style.display='block';
+    const b0=td.getBoundingClientRect();pp.style.left=Math.max(12,Math.min(b0.right-pp.offsetWidth,innerWidth-pp.offsetWidth-12))+'px';pp.style.top=(b0.bottom+6)+'px';
+    if(!await fcGarantirRateio()){pp.style.display='none';return}}
+  const r=FC.lin[ix],tot=m===3?r.tri:r.sem,d=FC.dados[FC.ano];ev={target:td,stopPropagation(){}};
   const P=fcRateio(r.c,tot),pop=$('pop');
   pop.innerHTML=`<div class="ph"><span>${esc((d.nomes||{})[r.c]||r.c)}<br><span style="font-weight:400;color:#94a3b8">Compra ${m===3?'trimestral':'semestral'}: ${fcN(tot)} pç = ⌈${(r.med).toLocaleString('pt-BR',{maximumFractionDigits:1})} × ${m}⌉ − ${fcN(r.ac)} a chegar</span></span><button onclick="document.getElementById('pop').style.display='none'">✕</button></div>
     <table class="t2"><thead><tr><th>Centro de custo</th><th class="n">Consumo ${FC.ano}</th><th class="n">%</th><th class="n">Qtd</th></tr></thead><tbody>
@@ -230,8 +246,9 @@ function fcExcel(){
 //    dividida pelos CCs na proporção do consumo; padrão de importação do Protheus ──
 const SC={meses:3,linhas:[],visao:'sku',skus:[],desEst:true,edit:{}};   // edit: quantidade final digitada, por "meses|código"
 const SC_PER={1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'};
-function scAbrir(){
+async function scAbrir(){
   if(!(FC.lin||[]).some(r=>r.med>0))return alert('Nenhum item com consumo nos filtros atuais.');
+  if(!await fcGarantirRateio())return;
   const cli=$('fc-cli').value;$('sc-obs').value='RESSUPRIMENTO DE FARDAMENTO'+(cli?' '+cli:'')+' - '+SC_PER[SC.meses];
   $('sc-modal').style.display='block';scResumo();
 }
