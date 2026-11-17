@@ -81,8 +81,8 @@ select:focus,.sbox:focus{border-color:var(--blue)}
 
 <div id="pop"></div>
 
-<div id="sc-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:60;padding:12px" onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:#fff;border-radius:14px;max-width:820px;margin:0 auto;padding:16px 20px;max-height:calc(100vh - 24px);display:flex;flex-direction:column">
+<div id="sc-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:60;padding:8px" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;border-radius:12px;width:100%;height:calc(100vh - 16px);margin:0 auto;padding:14px 20px;display:flex;flex-direction:column">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <b style="font-size:15px">🧾 Excel de SC com rateio por centro de custo</b>
       <button class="btn-c" onclick="document.getElementById('sc-modal').style.display='none'">Fechar</button>
@@ -269,7 +269,7 @@ function scSkus(){
     const sug=Math.max(0,Math.ceil(cob-Math.max(0,prev))),k=SC.meses+'|'+r.c,ed=SC.edit[k];
     // quando acaba o que tem (estoque + a chegar), no ritmo do consumo médio
     const acaba=new Date(dHoje.getTime()+((est0+ac)/r.med)*30.44*864e5);
-    return{c:r.c,n:(d.nomes||{})[r.c]||'',med:r.med,ef:r.ef,est0,ac,consAte,prev,cob,sug,acaba,falta:prev<0,
+    return{c:r.c,n:(d.nomes||{})[r.c]||'',med:r.med,ef:r.ef,est0,ac,consAte,prev,cob,sug,acaba,falta:prev<=-0.5,
       fin:ed!=null?ed:sug,editado:ed!=null&&ed!==sug,k}}).sort((a,b)=>(b.falta-a.falta)||b.fin-a.fin||b.cob-a.cob);
 }
 function scCalc(S){
@@ -315,7 +315,7 @@ function scResumo(){
       ${SC.desEst?`<td class="n" style="color:#7c3aed">${x.est0?nn(x.est0):'–'}</td>`:''}
       <td class="n" style="color:#c2410c">${x.ac?nn(x.ac):'–'}</td>
       <td class="n" style="color:var(--muted)">${x.consAte?'− '+nn(x.consAte):'–'}</td>
-      <td class="n">${x.falta?`<span style="color:#b91c1c;font-weight:700">falta ${nn(-x.prev)}</span><div style="font-size:10px;color:#b91c1c">acaba ~${dd(x.acaba)}</div>`:`<b>${nn(x.prev)}</b>`}</td>
+      <td class="n">${x.falta?`<span style="color:#b91c1c;font-weight:700">falta ${nn(-x.prev)}</span><div style="font-size:10px;color:#b91c1c">acaba ~${dd(x.acaba)}</div>`:`<b>${nn(Math.max(0,x.prev))}</b>`}</td>
       <td class="n">${nn(x.cob)}</td>
       <td class="n">${x.sug?nn(x.sug):'<span style="color:#15803d;font-weight:600">coberto ✓</span>'}</td>
       <td class="n" style="white-space:nowrap"><input type="number" min="0" step="1" value="${x.fin}" onchange="scEdita('${esc(x.k)}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"
