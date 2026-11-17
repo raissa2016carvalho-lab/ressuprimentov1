@@ -315,7 +315,7 @@ function scResumo(){
       ${SC.desEst?`<td class="n" style="color:#7c3aed">${x.est0?nn(x.est0):'–'}</td>`:''}
       <td class="n" style="color:#c2410c">${x.ac?nn(x.ac):'–'}</td>
       <td class="n" style="color:var(--muted)">${x.consAte?'− '+nn(x.consAte):'–'}</td>
-      <td class="n">${x.falta?`<span style="color:#b91c1c;font-weight:700">falta ${nn(-x.prev)}</span><div style="font-size:10px;color:#b91c1c">acaba ~${dd(x.acaba)}</div>`:`<b>${nn(x.prev)}</b>`}</td>
+      <td class="n">${x.falta?`<span style="color:#b91c1c;font-weight:700">falta ${nn(-x.prev)}</span><div style="font-size:10px;color:#b91c1c">acaba ~${dd(x.acaba)}</div>`:`<b>${nn(Math.max(0,x.prev))}</b>`}</td>
       <td class="n">${nn(x.cob)}</td>
       <td class="n">${x.sug?nn(x.sug):'<span style="color:#15803d;font-weight:600">coberto ✓</span>'}</td>
       <td class="n" style="white-space:nowrap"><input type="number" min="0" step="1" value="${x.fin}" onchange="scEdita('${esc(x.k)}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"
