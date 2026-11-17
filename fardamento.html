@@ -89,8 +89,11 @@ select:focus,.sbox:focus{border-color:var(--blue)}
     </div>
     <div style="font-size:12px;color:var(--muted);margin:6px 0 12px" id="sc-escopo"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-      <span class="fl">Comprar para</span>
-      <div class="vis" id="sc-per"><button data-m="1" onclick="scPer(1)">Mensal (×1)</button><button data-m="3" class="on" onclick="scPer(3)">Trimestral (×3)</button><button data-m="6" onclick="scPer(6)">Semestral (×6)</button></div>
+      <span class="fl">Chegar em</span>
+      <input type="date" id="sc-chegada" class="sbox" onchange="SC.chegada=this.value;scResumo()" title="Data em que você quer que o material chegue">
+      <span id="sc-dias" style="font-size:11.5px;color:var(--muted)"></span>
+      <span style="display:flex;gap:8px;align-items:center;margin-left:6px"><span class="fl">Cobrir depois da chegada</span>
+      <div class="vis" id="sc-per"><button data-m="1" onclick="scPer(1)">Mensal (×1)</button><button data-m="3" class="on" onclick="scPer(3)">Trimestral (×3)</button><button data-m="6" onclick="scPer(6)">Semestral (×6)</button></div></span>
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap"><span class="fl">Observação da SC</span>
       <input class="sbox" id="sc-obs" style="flex:1;min-width:260px"></div>
@@ -244,26 +247,34 @@ function fcExcel(){
 
 // ── Excel de SC com rateio: quantidade = média × meses − a chegar − estoque das filiais escolhidas (ou a que você digitar),
 //    dividida pelos CCs na proporção do consumo; padrão de importação do Protheus ──
-const SC={meses:3,linhas:[],visao:'sku',skus:[],desEst:true,edit:{}};   // edit: quantidade final digitada, por "meses|código"
+const SC={meses:3,linhas:[],visao:'sku',skus:[],desEst:true,edit:{},chegada:null};   // edit: quantidade final digitada, por "meses|código"
 const SC_PER={1:'MENSAL',3:'TRIMESTRAL',6:'SEMESTRAL'};
 async function scAbrir(){
   if(!(FC.lin||[]).some(r=>r.med>0))return alert('Nenhum item com consumo nos filtros atuais.');
   if(!await fcGarantirRateio())return;
   const cli=$('fc-cli').value;$('sc-obs').value='RESSUPRIMENTO DE FARDAMENTO'+(cli?' '+cli:'')+' - '+SC_PER[SC.meses];
+  if(!SC.chegada){const t=new Date();t.setDate(t.getDate()+30);SC.chegada=t.toISOString().slice(0,10)}   // padrão: daqui a 30 dias
+  $('sc-chegada').value=SC.chegada;$('sc-chegada').min=new Date().toISOString().slice(0,10);
   $('sc-modal').style.display='block';scResumo();
 }
 function scPer(m){const o=$('sc-obs');o.value=o.value.replace(SC_PER[SC.meses],SC_PER[m]);SC.meses=m;document.querySelectorAll('#sc-per button').forEach(b=>b.classList.toggle('on',+b.dataset.m===m));scResumo()}
-// por SKU: bruto (⌈média × meses⌉) − a chegar − estoque = sugerido; quantidade final = sugerido ou o que foi digitado
+// por SKU, com a data de chegada:
+//   previsto na chegada = estoque hoje + a chegar − consumo médio até a chegada (negativo = falta antes de chegar)
+//   sugerido = cobertura depois da chegada (média × meses) − o que ainda houver na chegada; quantidade final = sugerido ou o digitado
+function scMesesAte(){const h=new Date();h.setHours(0,0,0,0);const c=SC.chegada?new Date(SC.chegada+'T00:00'):h;return Math.max(0,(c-h)/864e5)/30.44}
 function scSkus(){
-  const d=FC.dados[FC.ano];
+  const d=FC.dados[FC.ano],m0=scMesesAte(),dHoje=new Date();
   return SC.skus=(FC.lin||[]).filter(r=>r.med>0).map(r=>{
-    const bruto=Math.ceil(r.med*SC.meses),ac=Math.min(r.ac,bruto),est=SC.desEst?Math.max(0,Math.min(r.ef,bruto-ac)):0;
-    const sug=Math.max(0,bruto-ac-est),k=SC.meses+'|'+r.c,ed=SC.edit[k];
-    return{c:r.c,n:(d.nomes||{})[r.c]||'',med:r.med,bruto,ac,acTot:r.ac,ef:r.ef,est,sug,fin:ed!=null?ed:sug,editado:ed!=null&&ed!==sug,k}}).sort((a,b)=>b.fin-a.fin||b.bruto-a.bruto);
+    const est0=SC.desEst?Math.max(0,r.ef):0,ac=r.ac,consAte=r.med*m0,prev=est0+ac-consAte,cob=Math.ceil(r.med*SC.meses);
+    const sug=Math.max(0,Math.ceil(cob-Math.max(0,prev))),k=SC.meses+'|'+r.c,ed=SC.edit[k];
+    // quando acaba o que tem (estoque + a chegar), no ritmo do consumo médio
+    const acaba=new Date(dHoje.getTime()+((est0+ac)/r.med)*30.44*864e5);
+    return{c:r.c,n:(d.nomes||{})[r.c]||'',med:r.med,ef:r.ef,est0,ac,consAte,prev,cob,sug,acaba,falta:prev<0,
+      fin:ed!=null?ed:sug,editado:ed!=null&&ed!==sug,k}}).sort((a,b)=>(b.falta-a.falta)||b.fin-a.fin||b.cob-a.cob);
 }
 function scCalc(S){
   const out=[];
-  S.forEach(x=>{if(x.fin<=0)return;fcRateio(x.c,x.fin).filter(p=>p.qt>0).forEach(p=>out.push({c:x.c,n:x.n,cc:p.cc,ccn:p.n,pct:p.pct,qt:p.qt,tot:x.fin,med:x.med,ac:x.ac,est:x.est,sug:x.sug}))});
+  S.forEach(x=>{if(x.fin<=0)return;fcRateio(x.c,x.fin).filter(p=>p.qt>0).forEach(p=>out.push({c:x.c,n:x.n,cc:p.cc,ccn:p.n,pct:p.pct,qt:p.qt,tot:x.fin}))});
   const ncc={};out.forEach(x=>ncc[x.c]=(ncc[x.c]||0)+1);S.forEach(x=>x.ncc=ncc[x.c]||0);
   return SC.linhas=out;
 }
@@ -275,34 +286,44 @@ function scVoltaTudo(){Object.keys(SC.edit).forEach(k=>{if(k.startsWith(SC.meses
 function scDesEst(v){SC.desEst=v;scResumo()}
 function scResumo(){
   const S=scSkus(),out=scCalc(S),fil=FC.fil.size?[...FC.fil].join(', '):'todas',cli=$('fc-cli').value||'todos os clientes';
-  $('sc-escopo').innerHTML=`Itens da tabela filtrada (<b>${esc(cli)}</b>, filial ${esc(fil)}): quantidade = média × <b>${SC.meses}</b> (para cima) <b>− o que está a chegar</b> (PC pendente ou em aprovação, ou SC pendente sem PC)${SC.desEst?` <b>− o estoque da filial ${esc(fil)}</b>`:''}. A quantidade final pode ser alterada; ela é dividida pelos centros de custo na proporção do consumo de ${FC.ano}. Uma SC por centro de custo.`;
+  const m0=scMesesAte(),dias=Math.round(m0*30.44),dChe=SC.chegada?SC.chegada.split('-').reverse().join('/'):'–';
+  $('sc-dias').textContent=dias?`faltam ${dias} dias (≈ ${m0.toLocaleString('pt-BR',{maximumFractionDigits:1})} ${m0>=1.95?'meses':'mês'})`:'hoje';
+  $('sc-escopo').innerHTML=`Itens da tabela filtrada (<b>${esc(cli)}</b>, filial ${esc(fil)}). <b>Previsto na chegada</b> = ${SC.desEst?'estoque da filial '+esc(fil)+' + ':''}a chegar (PC pendente ou em aprovação, ou SC pendente sem PC) − consumo médio até ${dChe}. <b>Sugerido</b> = consumo de ${SC.meses} ${SC.meses>1?'meses':'mês'} depois da chegada − o que ainda houver na chegada. A quantidade final pode ser alterada; ela é dividida pelos centros de custo na proporção do consumo de ${FC.ano}.`;
   const G={};out.forEach(x=>{const g=G[x.cc]=G[x.cc]||{cc:x.cc,n:x.ccn,qt:0,sk:0};g.qt+=x.qt;g.sk++});
   const L=Object.values(G).sort((a,b)=>b.qt-a.qt),T=L.reduce((s,g)=>s+g.qt,0),nSku=new Set(out.map(x=>x.c)).size;
-  const sm=k=>S.reduce((s,x)=>s+x[k],0),TB=sm('bruto'),TA=sm('ac'),TE=sm('est'),TS=sm('sug'),TF=sm('fin');
-  const cob=S.filter(x=>x.sug===0).length,ned=S.filter(x=>x.editado).length;
-  const conta=`<div style="flex:none;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12.5px">
-      <span>Média × ${SC.meses}: <b>${fcN(TB)}</b></span><span style="color:var(--muted)">−</span>
-      <span style="color:#c2410c">a chegar: <b>${fcN(TA)}</b></span>
-      ${SC.desEst?`<span style="color:var(--muted)">−</span><span style="color:#7c3aed">estoque: <b>${fcN(TE)}</b></span>`:''}
-      <span style="color:var(--muted)">=</span><span>sugerido: <b>${fcN(TS)}</b></span>
-      ${ned?`<span style="color:var(--muted)">→</span><span style="color:#1e40af">final (com ${ned} ajuste${ned>1?'s':''}): <b>${fcN(TF)}</b></span>`:''}
-      <span style="margin-left:auto;color:var(--muted)">${nSku} SKUs · ${L.length} centros de custo (= ${L.length} SCs)${cob?` · <span style="color:#15803d">${cob} SKU${cob>1?'s':''} já coberto${cob>1?'s':''}</span>`:''}</span></div>
+  const sm=f=>S.reduce((s,x)=>s+f(x),0),TE=sm(x=>x.est0),TA=sm(x=>x.ac),TK=sm(x=>x.consAte),TP=sm(x=>Math.max(0,x.prev)),TC=sm(x=>x.cob),TS=sm(x=>x.sug),TF=sm(x=>x.fin);
+  const nFalta=S.filter(x=>x.falta).length,cobertos=S.filter(x=>x.sug===0).length,ned=S.filter(x=>x.editado).length;
+  const nn=v=>fcN(v);
+  const conta=`<div style="flex:none;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12.5px;display:flex;flex-direction:column;gap:4px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);min-width:118px">Até chegar (${dChe}):</span>
+        ${SC.desEst?`<span style="color:#7c3aed">estoque <b>${nn(TE)}</b></span><span style="color:var(--muted)">+</span>`:''}<span style="color:#c2410c">a chegar <b>${nn(TA)}</b></span>
+        <span style="color:var(--muted)">−</span><span>consumo ≈ <b>${nn(TK)}</b></span><span style="color:var(--muted)">→</span><span>sobra na chegada <b>${nn(TP)}</b></span>
+        ${nFalta?`<span style="color:#b91c1c;font-weight:700">· ${nFalta} SKU${nFalta>1?'s':''} acaba${nFalta>1?'m':''} antes de chegar</span>`:''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);min-width:118px">Depois da chegada:</span>
+        <span>consumo de ${SC.meses} ${SC.meses>1?'meses':'mês'} <b>${nn(TC)}</b></span><span style="color:var(--muted)">−</span><span>sobra na chegada</span><span style="color:var(--muted)">=</span>
+        <span>sugerido <b>${nn(TS)}</b></span>${ned?`<span style="color:var(--muted)">→</span><span style="color:#1e40af">final (com ${ned} ajuste${ned>1?'s':''}) <b>${nn(TF)}</b></span>`:''}
+        <span style="margin-left:auto;color:var(--muted)">${nSku} SKUs · ${L.length} centros de custo (= ${L.length} SCs)${cobertos?` · <span style="color:#15803d">${cobertos} coberto${cobertos>1?'s':''}</span>`:''}</span></div></div>
     <div style="flex:none;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <div class="vis"><button class="${SC.visao==='sku'?'on':''}" onclick="scVisao('sku')">Por SKU (conferir e ajustar)</button><button class="${SC.visao==='cc'?'on':''}" onclick="scVisao('cc')">Por centro de custo</button></div>
-      <label style="font-size:12px;display:flex;gap:5px;align-items:center"><input type="checkbox" ${SC.desEst?'checked':''} onchange="scDesEst(this.checked)"> descontar o estoque da filial ${esc(fil)}</label>
+      <label style="font-size:12px;display:flex;gap:5px;align-items:center"><input type="checkbox" ${SC.desEst?'checked':''} onchange="scDesEst(this.checked)"> contar o estoque da filial ${esc(fil)}</label>
       ${ned?`<button class="btn-c" onclick="scVoltaTudo()">↺ Voltar tudo ao sugerido</button>`:''}</div>`;
-  const porSku=`<table class="t2"><thead><tr><th>SKU</th><th class="n">Média/mês</th><th class="n">Média × ${SC.meses}</th><th class="n">A chegar</th><th class="n">Estoque<br>filial ${esc(fil)}</th><th class="n">Sugerido</th><th class="n">Quantidade<br>final</th><th class="n">CCs</th></tr></thead><tbody>
+  const dd=d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+  const porSku=`<table class="t2"><thead><tr><th>SKU</th><th class="n">Média/<br>mês</th>${SC.desEst?`<th class="n">Estoque<br>hoje</th>`:''}<th class="n">A<br>chegar</th>
+      <th class="n">Consumo até<br>${dChe}</th><th class="n">Previsto na<br>chegada</th><th class="n">Consumo<br>${SC.meses} ${SC.meses>1?'meses':'mês'}</th><th class="n">Sugerido</th><th class="n">Quantidade<br>final</th><th class="n">CCs</th></tr></thead><tbody>
     ${S.map(x=>`<tr${x.fin===0?' style="background:#f0fdf4"':x.editado?' style="background:#eff6ff"':''}><td><b>${esc(x.c)}</b> ${esc(x.n)}</td>
-      <td class="n">${x.med.toLocaleString('pt-BR',{maximumFractionDigits:1})}</td><td class="n">${fcN(x.bruto)}</td>
-      <td class="n" style="color:#c2410c">${x.ac?'− '+fcN(x.ac)+(x.acTot>x.bruto?`<div style="font-size:10px;color:var(--muted)">tem ${fcN(x.acTot)} a chegar</div>`:''):'–'}</td>
-      <td class="n" style="color:#7c3aed">${SC.desEst?(x.est?'− '+fcN(x.est):'–')+(x.ef>x.est&&x.ef>0?`<div style="font-size:10px;color:var(--muted)">tem ${fcN(x.ef)}</div>`:''):`<span style="color:var(--muted)">${x.ef?fcN(x.ef):'–'}</span>`}</td>
-      <td class="n">${x.sug?fcN(x.sug):'<span style="color:#15803d;font-weight:600">coberto ✓</span>'}</td>
+      <td class="n">${x.med.toLocaleString('pt-BR',{maximumFractionDigits:1})}</td>
+      ${SC.desEst?`<td class="n" style="color:#7c3aed">${x.est0?nn(x.est0):'–'}</td>`:''}
+      <td class="n" style="color:#c2410c">${x.ac?nn(x.ac):'–'}</td>
+      <td class="n" style="color:var(--muted)">${x.consAte?'− '+nn(x.consAte):'–'}</td>
+      <td class="n">${x.falta?`<span style="color:#b91c1c;font-weight:700">falta ${nn(-x.prev)}</span><div style="font-size:10px;color:#b91c1c">acaba ~${dd(x.acaba)}</div>`:`<b>${nn(x.prev)}</b>`}</td>
+      <td class="n">${nn(x.cob)}</td>
+      <td class="n">${x.sug?nn(x.sug):'<span style="color:#15803d;font-weight:600">coberto ✓</span>'}</td>
       <td class="n" style="white-space:nowrap"><input type="number" min="0" step="1" value="${x.fin}" onchange="scEdita('${esc(x.k)}',this.value)" onkeydown="if(event.key==='Enter')this.blur()"
         style="width:72px;text-align:right;border:1px solid ${x.editado?'#1e40af':'var(--border)'};border-radius:6px;padding:4px 6px;font-weight:700;color:${x.editado?'#1e40af':'inherit'};font-family:inherit">
-        ${x.editado?`<button class="btn-c" title="Voltar ao sugerido (${fcN(x.sug)})" style="padding:2px 6px;margin-left:2px" onclick="scVolta('${esc(x.k)}')">↺</button>`:''}</td>
+        ${x.editado?`<button class="btn-c" title="Voltar ao sugerido (${nn(x.sug)})" style="padding:2px 6px;margin-left:2px" onclick="scVolta('${esc(x.k)}')">↺</button>`:''}</td>
       <td class="n">${x.ncc||'–'}</td></tr>`).join('')}
-    </tbody><tfoot><tr style="font-weight:800;background:#eef2ff"><td>Total</td><td></td><td class="n">${fcN(TB)}</td><td class="n" style="color:#c2410c">− ${fcN(TA)}</td>
-      <td class="n" style="color:#7c3aed">${SC.desEst?'− '+fcN(TE):''}</td><td class="n">${fcN(TS)}</td><td class="n" style="color:#1e40af">${fcN(TF)}</td><td></td></tr></tfoot></table>`;
+    </tbody><tfoot><tr style="font-weight:800;background:#eef2ff"><td>Total</td><td></td>${SC.desEst?`<td class="n" style="color:#7c3aed">${nn(TE)}</td>`:''}<td class="n" style="color:#c2410c">${nn(TA)}</td>
+      <td class="n">− ${nn(TK)}</td><td class="n">${nn(TP)}</td><td class="n">${nn(TC)}</td><td class="n">${nn(TS)}</td><td class="n" style="color:#1e40af">${nn(TF)}</td><td></td></tr></tfoot></table>`;
   const porCC=`<table class="t2"><thead><tr><th>Centro de custo</th><th class="n">SKUs</th><th class="n">Peças</th><th class="n">% das peças</th></tr></thead><tbody>
     ${L.map(g=>`<tr><td><b>${esc(g.cc)}</b> ${esc(g.n)}</td><td class="n">${g.sk}</td><td class="n"><b>${fcN(g.qt)}</b></td><td class="n">${T?(g.qt/T*100).toFixed(1).replace('.',','):'0'}%</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted);padding:12px">Nada a comprar: o que está a chegar e o estoque já cobrem o período.</td></tr>'}
     </tbody></table>`;
@@ -322,8 +343,10 @@ function scBaixar(){
   const conf=out.slice().sort((a,b)=>a.n.localeCompare(b.n,'pt-BR')||b.qt-a.qt).map(x=>({Código:x.c,Descrição:x.n,'Quantidade final do SKU':x.tot,
     'Centro de custo':x.cc,'Nome do CC':x.ccn,'% do consumo do SKU':Math.round(x.pct*1000)/10,'Qtd no CC':x.qt}));
   const fil=FC.fil.size?[...FC.fil].join(', '):'todas';
-  const sku=(SC.skus||[]).map(x=>({Código:x.c,Descrição:x.n,'Média consumo/mês':Math.round(x.med*10)/10,['Média × '+SC.meses]:x.bruto,'A chegar (descontado)':x.ac,
-    ['Estoque filial '+fil+(SC.desEst?' (descontado)':' (não descontado)')]:SC.desEst?x.est:x.ef,'Sugerido':x.sug,'Quantidade final':x.fin,'Ajustado à mão':x.editado?'sim':''}));
+  const dChe=SC.chegada?SC.chegada.split('-').reverse().join('/'):'';
+  const sku=(SC.skus||[]).map(x=>({Código:x.c,Descrição:x.n,'Média consumo/mês':Math.round(x.med*10)/10,['Estoque hoje filial '+fil]:SC.desEst?x.est0:'(não contado)','A chegar':x.ac,
+    ['Consumo até '+dChe]:Math.round(x.consAte),'Previsto na chegada':Math.round(x.prev),'Acaba em (estimativa)':x.falta?x.acaba.toLocaleDateString('pt-BR'):'',
+    ['Consumo de '+SC.meses+' mês(es) após a chegada']:x.cob,'Sugerido':x.sug,'Quantidade final':x.fin,'Ajustado à mão':x.editado?'sim':''}));
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(linhas),'SC');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(sku),'Conferência por SKU');
