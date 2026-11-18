@@ -99,6 +99,10 @@ def tabela_com(conn, coluna, prefixo):
                      "WHERE COLUMN_NAME = ? AND TABLE_NAME LIKE ? GROUP BY TABLE_NAME ORDER BY TABLE_NAME",
                      conn, params=[coluna, f"%{prefixo}%"])
     if df.empty:
+        # tenta qualquer tabela com essa coluna (o nome pode não seguir o padrão)
+        df = pd.read_sql("SELECT TABLE_NAME, COUNT(*) n FROM BEQ_LWH.INFORMATION_SCHEMA.COLUMNS "
+                         "WHERE COLUMN_NAME = ? GROUP BY TABLE_NAME ORDER BY TABLE_NAME", conn, params=[coluna])
+    if df.empty:
         return None, set()
     # prefere a tabela da empresa 01 (…010) quando houver mais de uma
     nomes = [txt(x) for x in df["TABLE_NAME"]]
@@ -230,11 +234,12 @@ FROM BEQ_LWH.dbo.{t_sb9} WHERE B9_DATA >= ?{dl(c_sb9)}""", conn, params=[ini9])
         print(f"  SB9: {len(r9)} saldos iniciais")
         enviar(sb, "kardex_sb9", list(r9.values()), "filial,produto,armazem,data")
 
-    # SB2 — saldo atual
+    # SB2 — saldo atual (só o que tem quantidade ou valor; antes vinham 1,8 milhão de linhas zeradas)
+    sb.table("kardex_sb2").delete().neq("filial", "@@").execute()
     if t_sb2:
         df = pd.read_sql(f"""
 SELECT RTRIM(B2_FILIAL) fil, RTRIM(B2_COD) prod, RTRIM(B2_LOCAL) arm, B2_QATU q, B2_VATU1 v, B2_CM1 cm
-FROM BEQ_LWH.dbo.{t_sb2} WHERE 1=1{dl(c_sb2)}""", conn)
+FROM BEQ_LWH.dbo.{t_sb2} WHERE (B2_QATU <> 0 OR B2_VATU1 <> 0){dl(c_sb2)}""", conn)
         r2 = {}
         for _, r in df.iterrows():
             k = (txt(r["fil"]), txt(r["prod"]), txt(r["arm"]))
