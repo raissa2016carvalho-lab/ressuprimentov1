@@ -51,9 +51,9 @@ table.itens td.cod{width:120px}table.itens td.qt{width:100px}table.itens td.x{wi
 .tag{display:inline-block;font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}
 .tag.blq{background:#fee2e2;color:#b91c1c}.tag.ok{background:#dcfce7;color:#15803d}
 .sug div.bloq{color:#94a3b8}
-.obs-geral{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px}
-.obs-geral>div{flex:1;min-width:220px}
-.obs-geral .dica{min-height:0}
+.rep{background:none;border:none;color:#1e40af;font-size:11.5px;font-weight:600;padding:3px 0 0;cursor:pointer}
+.rep:hover{text-decoration:underline}
+.rep-ok{font-size:11.5px;color:#16a34a;font-weight:600;padding-top:3px}
 .modal-fundo{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
 .modal{background:#fff;border-radius:14px;max-width:460px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .modal h3{margin:0 0 12px;font-size:16px}
@@ -116,10 +116,6 @@ table.lista td.r{text-align:right}
 
     <div class="card">
       <h3>Itens</h3>
-      <div class="obs-geral">
-        <div><label for="obs-geral">Observação para todos os itens (opcional)</label><input id="obs-geral" maxlength="250" placeholder="Ex.: reposição mensal da equipe X"><div class="dica" id="d-obs"></div></div>
-        <button class="btn3" onclick="replicarObs()">⇩ Replicar em todos os itens</button>
-      </div>
       <table class="itens">
         <thead><tr><th></th><th>Descrição</th><th>Código</th><th>Quantidade</th><th>Observação</th><th></th></tr></thead>
         <tbody id="itens"></tbody>
@@ -245,10 +241,10 @@ function novaLinha(foco){
     <td class="desc"><div class="desc-wrap"><input id="ds${id}" placeholder="Digite a descrição do item" autocomplete="off"><div class="sug" id="sg${id}"></div></div><div class="sem-cod oculto" id="sc${id}">Sem código: escolha uma descrição da lista</div><div class="st-item oculto" id="st${id}"></div></td>
     <td class="cod"><input id="cd${id}" readonly placeholder="Automático"></td>
     <td class="qt"><input id="qt${id}" type="number" min="0" step="any" inputmode="decimal" placeholder="Qtd"></td>
-    <td class="obs"><input id="ob${id}" maxlength="250" placeholder="Observação (opcional)" value="${esc(obsReplicada)}"></td>
+    <td class="obs"><input id="ob${id}" maxlength="250" placeholder="Observação (opcional)" value="${esc(obsReplicada)}"><button class="rep oculto" id="rp${id}" onclick="replicarObs()">⇩ Replicar para os demais itens</button></td>
     <td class="x"><button title="Tirar item" onclick="tirarLinha(${id})">✕</button></td>`;
   $('itens').appendChild(tr);
-  numerar();
+  numerar(); atualizarRep();
   const ln = () => linhas.find(l => l.id === id);
   const ds = $('ds' + id);
   let t = null, at = -1, res = [];
@@ -286,7 +282,7 @@ function novaLinha(foco){
   ds.addEventListener('blur', () => setTimeout(() => { $('sg' + id).classList.remove('on'); marcaSemCod(id, true); }, 150));
   $('qt' + id).addEventListener('input', e => ln().qtd = e.target.value);
   $('qt' + id).addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('ob' + id).focus(); } });
-  $('ob' + id).addEventListener('input', e => ln().obs = e.target.value);
+  $('ob' + id).addEventListener('input', e => { ln().obs = e.target.value; if(linhas[0] && linhas[0].id === id) obsReplicada = ''; atualizarRep(); });
   $('ob' + id).addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); if(id === linhas[linhas.length - 1].id) novaLinha(true); } });
   if(foco) ds.focus();
 }
@@ -301,19 +297,24 @@ function mostrarStatus(id){
   el.className = 'st-item ' + (l.bloqueado ? 'blq' : 'ok');
   el.textContent = l.bloqueado ? '🔒 Item bloqueado no Protheus' : '✓ Item ativo';
 }
-/* observação: replicar a mesma em todos os itens (e nos que forem incluídos depois) */
+/* observação: quem preenche a do 1º item pode replicar para os demais (e para os que forem incluídos depois) */
+function atualizarRep(){
+  linhas.forEach((l, i) => { const b = $('rp' + l.id); if(!b) return;
+    b.classList.toggle('oculto', !(i === 0 && l.obs.trim() && linhas.length > 1 && l.obs.trim() !== obsReplicada)); });
+}
 function replicarObs(){
-  const v = $('obs-geral').value.trim();
+  const v = (linhas[0] && linhas[0].obs || '').trim(); if(!v) return;
   obsReplicada = v;
   linhas.forEach(l => { l.obs = v; const el = $('ob' + l.id); if(el) el.value = v; });
-  const d = $('d-obs');
-  d.textContent = v ? 'Observação colocada em todos os itens. Ainda dá para mudar item por item.' : 'Observação apagada de todos os itens.';
-  d.className = 'dica ok';
+  atualizarRep();
+  const b = $('rp' + linhas[0].id), ok = document.createElement('div');
+  ok.className = 'rep-ok'; ok.textContent = '✓ Replicado para os demais itens';
+  b.after(ok); setTimeout(() => ok.remove(), 2500);
 }
 function tirarLinha(id){
   if(linhas.length === 1){ linhas[0] = { id: linhas[0].id, codigo: '', descricao: '', unidade: '', qtd: '', obs: obsReplicada, bloqueado: null };
     ['ds','cd','qt'].forEach(p => $(p + id).value = ''); $('ob' + id).value = obsReplicada; marcaSemCod(id); mostrarStatus(id); return; }
-  linhas = linhas.filter(l => l.id !== id); $('ln' + id).remove(); numerar();
+  linhas = linhas.filter(l => l.id !== id); $('ln' + id).remove(); numerar(); atualizarRep();
 }
 function numerar(){ [...$('itens').children].forEach((tr, i) => tr.querySelector('.n').textContent = i + 1); }
 
@@ -365,8 +366,8 @@ async function confirmarEnvio(){
 }
 function novoFormulario(){
   ultimoId = null; linhas = []; obsReplicada = ''; ccAuto = '';
-  ['f-filial','f-mat','f-nome','f-cc','obs-geral'].forEach(i => $(i).value = '');
-  ['d-mat','d-cc','d-obs'].forEach(i => { $(i).textContent = ''; $(i).className = 'dica'; });
+  ['f-filial','f-mat','f-nome','f-cc'].forEach(i => $(i).value = '');
+  ['d-mat','d-cc'].forEach(i => { $(i).textContent = ''; $(i).className = 'dica'; });
   $('itens').innerHTML = ''; novaLinha(false); mostraErro(''); aba('novo'); window.scrollTo(0, 0);
 }
 
