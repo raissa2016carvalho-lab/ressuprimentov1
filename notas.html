@@ -287,7 +287,7 @@ function agrupar(){
 const MANIF={'210210':'Ciência da operação','210200':'Confirmação da operação','210220':'Desconhecimento','210240':'Operação não realizada'};
 function passaManif(n,m){if(n&&n.modelo==='NFSE')return true;   // nota de serviço não tem manifestação do destinatário
   if(Array.isArray(m))return !m.length||m.some(x=>passaManif(n,x));if(!m)return true;if(m==='__sem')return !n.manifestacao;return n.manifestacao===m}
-function passaStatus(n,si){if(Array.isArray(si))return si.length?si.some(x=>passaStatus(n,x)):passaStatus(n,'');if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(n.status_nfe==='C')return false;return !si||n.status_integracao===si}
+function passaStatus(n,si){if(Array.isArray(si))return si.length?si.some(x=>passaStatus(n,x)):passaStatus(n,'');if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(!si)return true;if(n.status_nfe==='C')return false;return n.status_integracao===si}
 // busca no texto do rodapé (feita no banco, para não baixar o rodapé de todas as notas)
 let RODAPE_IDS=null,RODAPE_T=null;
 function buscaRodape(){
