@@ -41,6 +41,7 @@ select:focus,.sbox:focus{border-color:var(--blue)}
 .fc .km{display:block;font-size:9.5px;color:#a3a3a3;line-height:1.1;margin-top:1px}
 .fc .km::before{content:'cons. ';font-size:8.5px;color:#c4c4c4}
 .fc tfoot .km{color:#64748b}
+.fc .man{color:#7c3aed;font-size:10px;font-weight:700;margin-left:3px;cursor:help}
 .fc .neg{color:#b91c1c;font-weight:700}.fc .pos{color:#15803d;font-weight:700}.fc .z{color:#cbd5e1}
 .fc tfoot td{position:sticky;bottom:0;background:#eef2ff;font-weight:800;border-top:2px solid #c7d2fe;z-index:2}
 .fc tfoot td.nm{z-index:4;background:#eef2ff}
@@ -163,7 +164,9 @@ async function fcCarregar(){
   fcDD('dd-sc',scs.map(x=>[x,x]),FC.sc,'Todos');fcDD('dd-pc',pcs.map(x=>[x,x]),FC.pc,'Todos');
   const cl=$('fc-cli'),at=cl.value;cl.innerHTML='<option value="">Todos</option>'+['ENEL','COELBA','COSERN','CPFL','B&Q','EQUATORIAL','SANEAGO','BRASÍLIA','OUTROS'].map(c=>`<option>${c}</option>`).join('');cl.value=at;
   const em=d.estoque_em?new Date(d.estoque_em):null,ca=d.consumo_ate;
-  $('fc-info').textContent='Consumo até '+(ca?ca.slice(6,8)+'/'+ca.slice(4,6)+'/'+ca.slice(0,4):'–')+(em?' · estoque de '+em.toLocaleDateString('pt-BR'):'');
+  const man=d.estoque_manual||[],mdt=man.map(x=>String(x[4])).sort().pop();
+  $('fc-info').textContent='Consumo até '+(ca?ca.slice(6,8)+'/'+ca.slice(4,6)+'/'+ca.slice(0,4):'–')+(em?' · estoque de '+em.toLocaleDateString('pt-BR'):'')+
+    (man.length?' · ✎ contagem manual em '+man.length+' itens ('+[...new Set(man.map(x=>'filial '+x[0]))].join(', ')+', '+mdt.slice(8,10)+'/'+mdt.slice(5,7)+')':'');
   fcRender();
 }
 // rateio de um SKU pelos CCs (proporção do consumo do ano; maior resto: a soma fecha com o total)
@@ -188,6 +191,8 @@ function fcRender(){
   d.consumo.forEach(([f,c,mes,qq])=>{if(!(consTodas||pf(f))||!okItem(c))return;if(!R[c]&&!semCompra)return;const r=lin(c);r.k+=+qq||0;r.km[+mes.slice(4,6)-1]+=+qq||0});
   (d.pend||[]).forEach(([f,c,qq])=>{if(R[c]&&pf(f))R[c].ac+=+qq||0});
   d.estoque.forEach(([f,c,qq])=>{if(!R[c])return;R[c].et+=+qq||0;if(pf(f))R[c].ef+=+qq||0});
+  // contagem manual (farda_estoque_manual): marca o estoque da filial que veio dela
+  (d.estoque_manual||[]).forEach(([f,c,arm,qq,dt])=>{if(!R[c]||!pf(f))return;const t=`Filial ${f}, armazém ${arm==='*'?'todos':arm}: ${fcN(+qq)} (contagem de ${String(dt).slice(8,10)}/${String(dt).slice(5,7)})`;R[c].man=(R[c].man?R[c].man+'\n':'')+t});
   const L=Object.values(R).filter(r=>r.tp||r.k).sort((a,b)=>nome(a.c).localeCompare(nome(b.c),'pt-BR'));
   const meses=[];for(let i=0;i<12;i++)if(L.some(r=>r.m[i]||r.km[i]))meses.push(i);
   // compra líquida = ⌈média × meses⌉ − o que está a chegar (nunca negativa)
@@ -207,7 +212,7 @@ function fcRender(){
     <td class="tt cs">${fmt(r.tp)}</td><td class="cs">${fmt(r.k)}</td><td>${dif(r.dif)}</td><td>${r.med?r.med.toLocaleString('pt-BR',{maximumFractionDigits:0}):'<span class="z">·</span>'}</td>
     <td class="ac cs">${fmt(r.ac)}</td>
     <td class="cp${r.tri?' clk':''}" ${r.tri?`onclick="fcPop(event,${ix},3)"`:''}><b>${fmt(r.tri)}</b></td><td class="cp${r.sem?' clk':''}" ${r.sem?`onclick="fcPop(event,${ix},6)"`:''}><b>${fmt(r.sem)}</b></td>
-    <td class="cs"><b>${fmt(r.ef)}</b></td><td>${fmt(r.et)}</td></tr>`).join('')||`<tr><td class="nm" style="padding:18px;color:var(--muted)">Nenhum item com esses filtros.</td></tr>`;
+    <td class="cs"><b>${fmt(r.ef)}</b>${r.man?`<span class="man" title="${esc('Inclui contagem manual\n'+r.man)}">✎</span>`:''}</td><td>${fmt(r.et)}</td></tr>`).join('')||`<tr><td class="nm" style="padding:18px;color:var(--muted)">Nenhum item com esses filtros.</td></tr>`;
   h+=`</tbody><tfoot><tr><td class="nm">Total geral</td>${meses.map(i=>mesCel(T.m[i],T.km[i],1)).join('')}<td class="tt cs">${fcN(T.tp)}</td><td class="cs">${fcN(T.k)}</td><td>${dif(T.tp-T.k)}</td>
     <td>${fcN(T.med)}</td><td class="ac cs">${fcN(T.ac)}</td><td class="cp">${fcN(T.tri)}</td><td class="cp">${fcN(T.sem)}</td><td class="cs">${fcN(T.ef)}</td><td>${fcN(T.et)}</td></tr></tfoot>`;
   $('fc-tab').innerHTML=h;$('pop').style.display='none';setTimeout(fcAltura,0);
@@ -269,7 +274,7 @@ function scSkus(){
     const sug=Math.max(0,Math.ceil(cob-Math.max(0,prev))),k=SC.meses+'|'+r.c,ed=SC.edit[k];
     // quando acaba o que tem (estoque + a chegar), no ritmo do consumo médio
     const acaba=new Date(dHoje.getTime()+((est0+ac)/r.med)*30.44*864e5);
-    return{c:r.c,n:(d.nomes||{})[r.c]||'',med:r.med,ef:r.ef,est0,ac,consAte,prev,cob,sug,acaba,falta:prev<=-0.5,
+    return{c:r.c,n:(d.nomes||{})[r.c]||'',med:r.med,ef:r.ef,man:r.man,est0,ac,consAte,prev,cob,sug,acaba,falta:prev<=-0.5,
       fin:ed!=null?ed:sug,editado:ed!=null&&ed!==sug,k}}).sort((a,b)=>(b.falta-a.falta)||b.fin-a.fin||b.cob-a.cob);
 }
 function scCalc(S){
@@ -312,7 +317,7 @@ function scResumo(){
       <th class="n">Consumo até<br>${dChe}</th><th class="n">Previsto na<br>chegada</th><th class="n">Consumo<br>${SC.meses} ${SC.meses>1?'meses':'mês'}</th><th class="n">Sugerido</th><th class="n">Quantidade<br>final</th><th class="n">CCs</th></tr></thead><tbody>
     ${S.map(x=>`<tr${x.fin===0?' style="background:#f0fdf4"':x.editado?' style="background:#eff6ff"':''}><td><b>${esc(x.c)}</b> ${esc(x.n)}</td>
       <td class="n">${x.med.toLocaleString('pt-BR',{maximumFractionDigits:1})}</td>
-      ${SC.desEst?`<td class="n" style="color:#7c3aed">${x.est0?nn(x.est0):'–'}</td>`:''}
+      ${SC.desEst?`<td class="n" style="color:#7c3aed">${x.est0?nn(x.est0):'–'}${x.man?`<span title="${esc('Inclui contagem manual\n'+x.man)}" style="font-size:10px;font-weight:700;margin-left:3px;cursor:help">✎</span>`:''}</td>`:''}
       <td class="n" style="color:#c2410c">${x.ac?nn(x.ac):'–'}</td>
       <td class="n" style="color:var(--muted)">${x.consAte?'− '+nn(x.consAte):'–'}</td>
       <td class="n">${x.falta?`<span style="color:#b91c1c;font-weight:700">falta ${nn(-x.prev)}</span><div style="font-size:10px;color:#b91c1c">acaba ~${dd(x.acaba)}</div>`:`<b>${nn(Math.max(0,x.prev))}</b>`}</td>
