@@ -78,5 +78,9 @@ timeout /t 30 /nobreak >nul
 
 REM ── NOVO: FUNCIONÁRIOS SRA (nome e CC pela matrícula no "Abrir SC") ───────
 start "sync_funcionarios" python sync_funcionarios.py
+timeout /t 30 /nobreak >nul
+
+REM ── NOVO: BLOQUEIO DE PRODUTOS SB1 (aviso de item bloqueado no "Abrir SC") ─
+start "sync_itens_bloqueio" python sync_itens_bloqueio.py
 
 echo Todos os syncs iniciados!

@@ -3,7 +3,7 @@
 -- Desfazer:
 --   drop function if exists sc_abertura_criar(jsonb), sc_abertura_ler(bigint), sc_abertura_listar(text,int),
 --                          sc_funcionario(text,text), sc_buscar_itens(text);
---   drop table if exists sc_abertura_itens, sc_abertura, funcionarios;
+--   drop table if exists sc_abertura_itens, sc_abertura, funcionarios, itens_bloqueio;
 --   drop index if exists itens_descricao_trgm, descontos_epi_matricula;
 
 -- Cadastro de funcionários (LWHSRA001), alimentado por scripts/sync_funcionarios.py
@@ -69,15 +69,26 @@ returns json language sql stable security definer set search_path = public as $$
   where length(regexp_replace(coalesce(p_matricula,''), '\D', '', 'g')) between 3 and 6;
 $$;
 
-create or replace function sc_buscar_itens(p_q text)
-returns table(codigo text, descricao text, unidade text)
+-- Bloqueio do produto (SB1.B1_MSBLQL), alimentado por scripts/sync_itens_bloqueio.py
+create table if not exists itens_bloqueio (
+  codigo text primary key,
+  bloqueado boolean not null,
+  atualizado_em timestamptz default now()
+);
+alter table itens_bloqueio enable row level security;
+revoke all on itens_bloqueio from anon, authenticated;
+
+drop function if exists sc_buscar_itens(text);
+create function sc_buscar_itens(p_q text)
+returns table(codigo text, descricao text, unidade text, bloqueado boolean)
 language sql stable security definer set search_path = public as $$
   with q as (select upper(trim(coalesce(p_q,''))) as t)
-  select i.codigo, i.descricao, i.unidade
-    from itens i, q
+  select i.codigo, i.descricao, i.unidade, b.bloqueado
+    from itens i cross join q
+    left join itens_bloqueio b on b.codigo = i.codigo
    where length(q.t) >= 2
      and (i.codigo like q.t || '%' or i.descricao ilike '%' || replace(q.t, ' ', '%') || '%')
-   order by (i.codigo = q.t) desc, (upper(i.descricao) like q.t || '%') desc, length(i.descricao), i.descricao
+   order by (i.codigo = q.t) desc, coalesce(b.bloqueado, false), (upper(i.descricao) like q.t || '%') desc, length(i.descricao), i.descricao
    limit 20;
 $$;
 

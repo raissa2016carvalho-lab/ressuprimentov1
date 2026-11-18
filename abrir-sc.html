@@ -46,6 +46,21 @@ table.itens td.cod{width:120px}table.itens td.qt{width:100px}table.itens td.x{wi
 .sug small{color:#64748b;font-family:ui-monospace,monospace;margin-right:6px}
 .sug .vazio{color:#94a3b8;cursor:default}
 .sem-cod{font-size:11px;color:#b45309;margin-top:3px}
+.st-item{font-size:11px;font-weight:600;margin-top:3px}
+.st-item.blq{color:#dc2626}.st-item.ok{color:#16a34a}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.tag.blq{background:#fee2e2;color:#b91c1c}.tag.ok{background:#dcfce7;color:#15803d}
+.sug div.bloq{color:#94a3b8}
+.obs-geral{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px}
+.obs-geral>div{flex:1;min-width:220px}
+.obs-geral .dica{min-height:0}
+.modal-fundo{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:#fff;border-radius:14px;max-width:460px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h3{margin:0 0 12px;font-size:16px}
+.modal ul{margin:0 0 14px;padding-left:18px;font-size:13.5px;color:#334155;line-height:1.7}
+.modal .aviso{background:#fef3c7;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:10px}
+.modal .aviso.blq{background:#fee2e2;color:#991b1b}
+.modal .acoes{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px}
 .rodape{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
 .msg{border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:12px}
 .msg.erro{background:#fee2e2;color:#991b1b}
@@ -101,6 +116,10 @@ table.lista td.r{text-align:right}
 
     <div class="card">
       <h3>Itens</h3>
+      <div class="obs-geral">
+        <div><label for="obs-geral">Observação para todos os itens (opcional)</label><input id="obs-geral" maxlength="250" placeholder="Ex.: reposição mensal da equipe X"><div class="dica" id="d-obs"></div></div>
+        <button class="btn3" onclick="replicarObs()">⇩ Replicar em todos os itens</button>
+      </div>
       <table class="itens">
         <thead><tr><th></th><th>Descrição</th><th>Código</th><th>Quantidade</th><th>Observação</th><th></th></tr></thead>
         <tbody id="itens"></tbody>
@@ -108,6 +127,18 @@ table.lista td.r{text-align:right}
       <div class="rodape">
         <button class="btn2" onclick="novaLinha(true)">＋ Adicionar item</button>
         <button class="btn" id="b-enviar" onclick="enviar()">Enviar formulário</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRMAÇÃO -->
+  <div id="confirma" class="modal-fundo oculto" onclick="if(event.target===this)fecharConfirma()">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cf-tit">
+      <h3 id="cf-tit">Tem certeza que quer enviar?</h3>
+      <div id="cf-corpo"></div>
+      <div class="acoes">
+        <button class="btn3" onclick="fecharConfirma()">Voltar e revisar</button>
+        <button class="btn" id="cf-sim" onclick="confirmarEnvio()">Sim, enviar</button>
       </div>
     </div>
   </div>
@@ -142,8 +173,7 @@ const db = window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.c
 const TIPO_SC = '004';            // C1_XTIPOSC do Excel de importação
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const guarda = { get(k){ try{ return localStorage.getItem(k) }catch(e){ return null } }, set(k,v){ try{ localStorage.setItem(k,v) }catch(e){} } };
-let FILIAIS = [], CCS = {}, linhas = [], seq = 0, ultimoId = null;
+let FILIAIS = [], CCS = {}, linhas = [], seq = 0, ultimoId = null, obsReplicada = '', pendente = null;
 
 async function rpc(nome, args, tent = 2){
   for(let i = 0; ; i++){
@@ -169,8 +199,6 @@ async function rpc(nome, args, tent = 2){
   $('f-filial').innerHTML = '<option value="">Selecione</option>' + op;
   $('l-filial').innerHTML = '<option value="">Todas</option>' + op;
   $('l-cc').innerHTML = Object.entries(CCS).map(([c, n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join('');
-  const fil = guarda.get('abrirsc_filial'); if(fil){ $('f-filial').value = fil; $('l-filial').value = fil; }
-  const mat = guarda.get('abrirsc_mat'); if(mat){ $('f-mat').value = mat; buscarMat(); }
 })();
 
 function aba(q){
@@ -211,13 +239,13 @@ function mostrarCC(){
 /* ── itens ── */
 function novaLinha(foco){
   const id = ++seq;
-  linhas.push({ id, codigo: '', descricao: '', unidade: '', qtd: '', obs: '' });
+  linhas.push({ id, codigo: '', descricao: '', unidade: '', qtd: '', obs: obsReplicada, bloqueado: null });
   const tr = document.createElement('tr'); tr.id = 'ln' + id;
   tr.innerHTML = `<td class="n"></td>
-    <td class="desc"><div class="desc-wrap"><input id="ds${id}" placeholder="Digite a descrição do item" autocomplete="off"><div class="sug" id="sg${id}"></div></div><div class="sem-cod oculto" id="sc${id}">Sem código: escolha uma descrição da lista</div></td>
+    <td class="desc"><div class="desc-wrap"><input id="ds${id}" placeholder="Digite a descrição do item" autocomplete="off"><div class="sug" id="sg${id}"></div></div><div class="sem-cod oculto" id="sc${id}">Sem código: escolha uma descrição da lista</div><div class="st-item oculto" id="st${id}"></div></td>
     <td class="cod"><input id="cd${id}" readonly placeholder="Automático"></td>
     <td class="qt"><input id="qt${id}" type="number" min="0" step="any" inputmode="decimal" placeholder="Qtd"></td>
-    <td class="obs"><input id="ob${id}" maxlength="250" placeholder="Observação (opcional)"></td>
+    <td class="obs"><input id="ob${id}" maxlength="250" placeholder="Observação (opcional)" value="${esc(obsReplicada)}"></td>
     <td class="x"><button title="Tirar item" onclick="tirarLinha(${id})">✕</button></td>`;
   $('itens').appendChild(tr);
   numerar();
@@ -225,7 +253,7 @@ function novaLinha(foco){
   const ds = $('ds' + id);
   let t = null, at = -1, res = [];
   ds.addEventListener('input', () => {
-    const l = ln(); l.descricao = ds.value; l.codigo = ''; l.unidade = ''; $('cd' + id).value = ''; marcaSemCod(id);
+    const l = ln(); l.descricao = ds.value; l.codigo = ''; l.unidade = ''; l.bloqueado = null; $('cd' + id).value = ''; marcaSemCod(id); mostrarStatus(id);
     clearTimeout(t); t = setTimeout(async () => {
       const q = ds.value.trim(); const sg = $('sg' + id);
       if(q.length < 2){ sg.classList.remove('on'); return; }
@@ -233,7 +261,7 @@ function novaLinha(foco){
         res = await rpc('sc_buscar_itens', { p_q: q }) || [];
         if(ds.value.trim() !== q) return;
         at = -1;
-        sg.innerHTML = res.length ? res.map((r, i) => `<div data-i="${i}"><small>${esc(r.codigo)}</small>${esc(r.descricao)}${r.unidade ? ` <small>(${esc(r.unidade)})</small>` : ''}</div>`).join('')
+        sg.innerHTML = res.length ? res.map((r, i) => `<div data-i="${i}"${r.bloqueado ? ' class="bloq"' : ''}><small>${esc(r.codigo)}</small>${esc(r.descricao)}${r.unidade ? ` <small>(${esc(r.unidade)})</small>` : ''}${tagBloq(r.bloqueado)}</div>`).join('')
                                   : '<div class="vazio">Nenhum item cadastrado com essa descrição</div>';
         sg.classList.add('on');
         sg.querySelectorAll('div[data-i]').forEach(dv => dv.onmousedown = ev => { ev.preventDefault(); escolher(+dv.dataset.i); });
@@ -242,8 +270,8 @@ function novaLinha(foco){
   });
   function escolher(i){
     const r = res[i]; if(!r) return;
-    const l = ln(); l.codigo = r.codigo; l.descricao = r.descricao; l.unidade = r.unidade || '';
-    ds.value = r.descricao; $('cd' + id).value = r.codigo; $('sg' + id).classList.remove('on'); marcaSemCod(id);
+    const l = ln(); l.codigo = r.codigo; l.descricao = r.descricao; l.unidade = r.unidade || ''; l.bloqueado = r.bloqueado ?? null;
+    ds.value = r.descricao; $('cd' + id).value = r.codigo; $('sg' + id).classList.remove('on'); marcaSemCod(id); mostrarStatus(id);
     $('qt' + id).focus();
   }
   ds.addEventListener('keydown', ev => {
@@ -266,9 +294,25 @@ function marcaSemCod(id, saiu){
   const l = linhas.find(x => x.id === id); if(!l) return;
   $('sc' + id).classList.toggle('oculto', !(saiu && l.descricao.trim() && !l.codigo));
 }
+function tagBloq(b){ return b === true ? '<span class="tag blq">Bloqueado</span>' : b === false ? '<span class="tag ok">Ativo</span>' : ''; }
+function mostrarStatus(id){
+  const l = linhas.find(x => x.id === id), el = $('st' + id); if(!l || !el) return;
+  if(!l.codigo || l.bloqueado === null){ el.className = 'st-item oculto'; return; }
+  el.className = 'st-item ' + (l.bloqueado ? 'blq' : 'ok');
+  el.textContent = l.bloqueado ? '🔒 Item bloqueado no Protheus' : '✓ Item ativo';
+}
+/* observação: replicar a mesma em todos os itens (e nos que forem incluídos depois) */
+function replicarObs(){
+  const v = $('obs-geral').value.trim();
+  obsReplicada = v;
+  linhas.forEach(l => { l.obs = v; const el = $('ob' + l.id); if(el) el.value = v; });
+  const d = $('d-obs');
+  d.textContent = v ? 'Observação colocada em todos os itens. Ainda dá para mudar item por item.' : 'Observação apagada de todos os itens.';
+  d.className = 'dica ok';
+}
 function tirarLinha(id){
-  if(linhas.length === 1){ linhas[0] = { id: linhas[0].id, codigo: '', descricao: '', unidade: '', qtd: '', obs: '' };
-    ['ds','cd','qt','ob'].forEach(p => $(p + id).value = ''); marcaSemCod(id); return; }
+  if(linhas.length === 1){ linhas[0] = { id: linhas[0].id, codigo: '', descricao: '', unidade: '', qtd: '', obs: obsReplicada, bloqueado: null };
+    ['ds','cd','qt'].forEach(p => $(p + id).value = ''); $('ob' + id).value = obsReplicada; marcaSemCod(id); mostrarStatus(id); return; }
   linhas = linhas.filter(l => l.id !== id); $('ln' + id).remove(); numerar();
 }
 function numerar(){ [...$('itens').children].forEach((tr, i) => tr.querySelector('.n').textContent = i + 1); }
@@ -286,15 +330,31 @@ async function enviar(){
   const semQtd = itens.filter(l => !(Number(String(l.qtd).replace(',', '.')) > 0));
   if(semQtd.length) return mostraErro('Preencha a quantidade de todos os itens (item: ' + (semQtd[0].descricao || 'sem descrição') + ').');
   if(itens.some(l => !l.descricao.trim())) return mostraErro('Tem item sem descrição.');
-  const semCod = itens.filter(l => !l.codigo);
-  if(semCod.length && !confirm(semCod.length + ' item(ns) sem código cadastrado (descrição digitada sem escolher da lista). Enviar assim mesmo?')) return;
+  const semCod = itens.filter(l => !l.codigo), bloq = itens.filter(l => l.bloqueado === true);
+  const nf = FILIAIS.find(f => f.filial === filial);
+  $('cf-corpo').innerHTML =
+    `<ul><li>Filial: <b>${esc(filial)}${nf ? ' — ' + esc((nf.nome_filial || '').replace(/^FILIAL\s+/i, '')) : ''}</b></li>
+      <li>Solicitante: <b>${esc($('f-nome').value || 'matrícula ' + mat)}</b></li>
+      <li>Centro de custo: <b>${esc(cc)}${CCS[cc] ? ' — ' + esc(CCS[cc]) : ''}</b></li>
+      <li><b>${itens.length}</b> ${itens.length === 1 ? 'item' : 'itens'}</li></ul>` +
+    (bloq.length ? `<div class="aviso blq">🔒 ${bloq.length} ${bloq.length === 1 ? 'item está bloqueado' : 'itens estão bloqueados'} no Protheus: ${bloq.map(l => esc(l.descricao)).join('; ')}</div>` : '') +
+    (semCod.length ? `<div class="aviso">${semCod.length} ${semCod.length === 1 ? 'item está' : 'itens estão'} sem código (descrição digitada sem escolher da lista).</div>` : '') +
+    '<div style="font-size:12.5px;color:#64748b">Depois de enviado, o formulário não pode ser alterado.</div>';
+  pendente = { filial, mat, cc, itens };
+  $('confirma').classList.remove('oculto'); $('cf-sim').focus();
+}
+function fecharConfirma(){ $('confirma').classList.add('oculto'); pendente = null; }
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !$('confirma').classList.contains('oculto')) fecharConfirma(); });
+async function confirmarEnvio(){
+  if(!pendente) return;
+  const { filial, mat, cc, itens } = pendente;
+  $('confirma').classList.add('oculto'); pendente = null;
   const b = $('b-enviar'); b.disabled = true; b.textContent = 'Enviando...';
   try{
     const id = await rpc('sc_abertura_criar', { p: {
       filial, matricula: mat, nome: $('f-nome').value, cc,
       itens: itens.map(l => ({ codigo: l.codigo, descricao: l.descricao.trim(), quantidade: Number(String(l.qtd).replace(',', '.')), observacao: l.obs.trim() }))
     } }, 0);
-    guarda.set('abrirsc_filial', filial); guarda.set('abrirsc_mat', mat);
     ultimoId = id;
     $('ok-num').textContent = 'Nº ' + id;
     $('ok-txt').textContent = itens.length + (itens.length === 1 ? ' item' : ' itens') + ' · filial ' + filial + ' · CC ' + cc + (CCS[cc] ? ' — ' + CCS[cc] : '');
@@ -304,7 +364,10 @@ async function enviar(){
   b.disabled = false; b.textContent = 'Enviar formulário';
 }
 function novoFormulario(){
-  ultimoId = null; linhas = []; $('itens').innerHTML = ''; novaLinha(false); mostraErro(''); aba('novo');
+  ultimoId = null; linhas = []; obsReplicada = ''; ccAuto = '';
+  ['f-filial','f-mat','f-nome','f-cc','obs-geral'].forEach(i => $(i).value = '');
+  ['d-mat','d-cc','d-obs'].forEach(i => { $(i).textContent = ''; $(i).className = 'dica'; });
+  $('itens').innerHTML = ''; novaLinha(false); mostraErro(''); aba('novo'); window.scrollTo(0, 0);
 }
 
 /* ── Excel no formato de importação de SC do Protheus ── */
