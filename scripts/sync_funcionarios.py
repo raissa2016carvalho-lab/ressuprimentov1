@@ -43,7 +43,38 @@ def txt(v):
     return "" if s in ("nan", "None", "NaT") else s
 
 
+def config_dos_outros_scripts():
+    """Se a configuração acima ainda está com XXXX, copia as linhas de outro sync da mesma pasta."""
+    import ast, os
+    g = globals()
+    if all(str(g.get(n)) != "XXXX" for n in ("SERVIDOR", "USUARIO", "SENHA", "RESSUP_URL", "RESSUP_KEY")):
+        return
+    pasta = os.path.dirname(os.path.abspath(__file__))
+    for nome in ("sync_descontos_epi.py", "sync_faturamento.py", "sync_movimentos_entrada.py", "upload_compras.py"):
+        arq = os.path.join(pasta, nome)
+        if not os.path.exists(arq):
+            continue
+        try:
+            arvore = ast.parse(open(arq, encoding="utf-8", errors="ignore").read())
+        except Exception:
+            continue
+        achou = {}
+        for no in arvore.body:
+            if isinstance(no, ast.Assign) and len(no.targets) == 1 and isinstance(no.targets[0], ast.Name) \
+                    and isinstance(no.value, ast.Constant) and isinstance(no.value.value, str) and no.value.value != "XXXX":
+                achou[no.targets[0].id] = no.value.value
+        if not all(k in achou for k in ("SERVIDOR", "USUARIO", "SENHA")):
+            continue
+        for k, v in achou.items():
+            if k in ("SERVIDOR", "PORTA", "BANCO", "USUARIO", "SENHA") or "URL" in k or "KEY" in k:
+                if str(g.get(k, "XXXX")) == "XXXX":
+                    g[k] = v
+        print(f"  (configuração copiada de {nome})")
+        return
+
+
 def main():
+    config_dos_outros_scripts()
     g = globals()
     url = next((g[n] for n in ("RESSUP_URL", "SUPABASE_URL", "SB_URL", "URL") if n in g and str(g[n]) != "XXXX"), None)
     key = next((g[n] for n in ("RESSUP_KEY", "SUPABASE_KEY", "SUPABASE_SERVICE_KEY", "SERVICE_KEY", "SB_KEY", "KEY") if n in g and str(g[n]) != "XXXX"), None)
