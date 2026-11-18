@@ -74,5 +74,9 @@ timeout /t 30 /nobreak >nul
 
 REM ── NOVO: FATURAMENTO SF2 (Comparativo do Compras; roda uma vez) ──────────
 start "sync_faturamento" python sync_faturamento.py
+timeout /t 30 /nobreak >nul
+
+REM ── NOVO: FUNCIONÁRIOS SRA (nome e CC pela matrícula no "Abrir SC") ───────
+start "sync_funcionarios" python sync_funcionarios.py
 
 echo Todos os syncs iniciados!

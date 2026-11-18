@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Abrir SC</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="/padrao.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:#0f172a;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+.page{max-width:1080px;margin:0 auto;padding:20px 16px 60px}
+.abas{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.aba{border:1px solid #e2e8f0;background:#fff;color:#475569;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.aba.on{background:#1e40af;border-color:#1e40af;color:#fff}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:14px}
+.card h3{margin:0 0 14px;font-size:14px}
+label{display:block;font-size:12px;font-weight:600;color:#64748b;margin:0 0 5px}
+input,select{width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;font:inherit;font-size:13.5px;outline:none;color:#0f172a}
+input:focus,select:focus{border-color:#1e40af}
+input[readonly]{background:#f8fafc;color:#334155}
+.grid{display:grid;grid-template-columns:200px 160px 1fr 1fr;gap:12px}
+@media(max-width:860px){.grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.grid{grid-template-columns:1fr}}
+.dica{font-size:11.5px;color:#64748b;margin-top:4px;min-height:15px}
+.dica.erro{color:#dc2626}.dica.ok{color:#16a34a}
+button{font-family:inherit;cursor:pointer}
+.btn{background:#1e40af;color:#fff;border:none;border-radius:9px;padding:11px 20px;font-size:14px;font-weight:700}
+.btn:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed}
+.btn2{background:#fff;color:#1e40af;border:1px solid #1e40af;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600}
+.btn3{background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600}
+table.itens{width:100%;border-collapse:collapse;font-size:13px}
+table.itens th{text-align:left;font-size:11.5px;color:#64748b;font-weight:600;padding:6px 6px;border-bottom:2px solid #e2e8f0;background:#f8fafc}
+table.itens td{padding:6px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+table.itens td.n{color:#94a3b8;font-weight:700;padding-top:16px;width:28px}
+table.itens td.cod{width:120px}table.itens td.qt{width:100px}table.itens td.x{width:36px;padding-top:12px}
+.x button{background:none;border:none;color:#94a3b8;font-size:18px;line-height:1}
+.x button:hover{color:#dc2626}
+.desc-wrap{position:relative}
+.sug{position:absolute;left:0;right:0;top:100%;z-index:30;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.15);max-height:290px;overflow:auto;display:none;margin-top:3px}
+.sug.on{display:block}
+.sug div{padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid #f1f5f9}
+.sug div:last-child{border-bottom:none}
+.sug div.at,.sug div:hover{background:#eff6ff}
+.sug small{color:#64748b;font-family:ui-monospace,monospace;margin-right:6px}
+.sug .vazio{color:#94a3b8;cursor:default}
+.sem-cod{font-size:11px;color:#b45309;margin-top:3px}
+.rodape{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+.msg{border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:12px}
+.msg.erro{background:#fee2e2;color:#991b1b}
+.sucesso{text-align:center;padding:30px 18px}
+.sucesso .num{font-size:40px;font-weight:800;color:#1e40af;margin:6px 0}
+.sucesso p{color:#475569;font-size:13.5px;margin:4px 0 18px}
+.sucesso .acoes{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+table.lista{width:100%;border-collapse:collapse;font-size:13px}
+table.lista th{text-align:left;font-size:11.5px;color:#64748b;font-weight:600;padding:8px;border-bottom:2px solid #e2e8f0}
+table.lista td{padding:8px;border-bottom:1px solid #f1f5f9}
+table.lista td.r{text-align:right}
+.filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.filtros>div{min-width:180px}
+.det td{background:#f8fafc;font-size:12.5px}
+.oculto{display:none!important}
+@media(max-width:700px){
+  table.itens thead{display:none}
+  table.itens tr{display:grid;grid-template-columns:1fr 100px 36px;gap:6px;padding:10px 0;border-bottom:1px solid #e2e8f0}
+  table.itens td{border:none;padding:0}
+  table.itens td.n{display:none}
+  table.itens td.desc{grid-column:1/3}
+  table.itens td.x{grid-column:3;grid-row:1;padding-top:8px}
+  table.itens td.cod{grid-column:1;width:auto}
+  table.itens td.qt{grid-column:2;width:auto}
+  table.itens td.obs{grid-column:1/3}
+}
+</style>
+</head>
+<body>
+<div class="bq-topo">
+  <span class="bq-marca">B<b>&amp;</b>Q</span>
+  <div><h1>Abrir SC</h1><div class="bq-sub">Formulário de solicitação de compra</div></div>
+</div>
+
+<div class="page">
+  <div class="abas">
+    <button class="aba on" id="aba-novo" onclick="ultimoId !== null && !$('v-ok').classList.contains('oculto') ? novoFormulario() : aba('novo')">Novo formulário</button>
+    <button class="aba" id="aba-lista" onclick="aba('lista')">Formulários enviados</button>
+  </div>
+
+  <!-- NOVO -->
+  <div id="v-novo">
+    <div id="msg"></div>
+    <div class="card">
+      <h3>Solicitante</h3>
+      <div class="grid">
+        <div><label for="f-filial">Filial</label><select id="f-filial"><option value="">Carregando...</option></select></div>
+        <div><label for="f-mat">Matrícula</label><input id="f-mat" inputmode="numeric" maxlength="6" placeholder="Ex.: 023045" autocomplete="off"><div class="dica" id="d-mat"></div></div>
+        <div><label for="f-nome">Nome</label><input id="f-nome" readonly placeholder="Aparece ao digitar a matrícula"></div>
+        <div><label for="f-cc">Centro de custo</label><input id="f-cc" list="l-cc" placeholder="Código do CC" autocomplete="off"><datalist id="l-cc"></datalist><div class="dica" id="d-cc"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Itens</h3>
+      <table class="itens">
+        <thead><tr><th></th><th>Descrição</th><th>Código</th><th>Quantidade</th><th>Observação</th><th></th></tr></thead>
+        <tbody id="itens"></tbody>
+      </table>
+      <div class="rodape">
+        <button class="btn2" onclick="novaLinha(true)">＋ Adicionar item</button>
+        <button class="btn" id="b-enviar" onclick="enviar()">Enviar formulário</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUCESSO -->
+  <div id="v-ok" class="card sucesso oculto">
+    <div style="font-size:13px;color:#64748b;font-weight:600">Formulário enviado</div>
+    <div class="num" id="ok-num"></div>
+    <p id="ok-txt"></p>
+    <div class="acoes">
+      <button class="btn" id="ok-excel">⬇ Baixar arquivo e anexar ao GLPI</button>
+      <button class="btn2" onclick="novoFormulario()">Novo formulário</button>
+    </div>
+  </div>
+
+  <!-- LISTA -->
+  <div id="v-lista" class="oculto">
+    <div class="card">
+      <div class="filtros">
+        <div><label for="l-filial">Filial</label><select id="l-filial"></select></div>
+        <div><label for="l-num">Nº do formulário</label><input id="l-num" inputmode="numeric" placeholder="Buscar nº"></div>
+        <button class="btn3" onclick="carregarLista()">↻ Atualizar</button>
+      </div>
+      <div id="lista"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const db = window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const TIPO_SC = '004';            // C1_XTIPOSC do Excel de importação
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const guarda = { get(k){ try{ return localStorage.getItem(k) }catch(e){ return null } }, set(k,v){ try{ localStorage.setItem(k,v) }catch(e){} } };
+let FILIAIS = [], CCS = {}, linhas = [], seq = 0, ultimoId = null;
+
+async function rpc(nome, args, tent = 2){
+  for(let i = 0; ; i++){
+    const { data, error } = await db.rpc(nome, args);
+    if(!error) return data;
+    if(i >= tent || /inválid|Informe|Inclua|Máximo|sem descrição/i.test(error.message)) throw error;
+    await new Promise(r => setTimeout(r, 600 * (i + 1)));
+  }
+}
+
+/* ── início ── */
+(async function(){
+  novaLinha(false);
+  try{
+    const [{ data: fil }, { data: ccs }] = await Promise.all([
+      db.from('filiais').select('filial,nome_filial').order('filial'),
+      db.from('centros_custo').select('cc,nome,status').order('cc')
+    ]);
+    FILIAIS = fil || [];
+    (ccs || []).forEach(c => CCS[String(c.cc).trim()] = (c.nome || '').replace(/\s+/g, ' ').trim());
+  }catch(e){}
+  const op = FILIAIS.map(f => `<option value="${esc(f.filial)}">${esc(f.filial)} — ${esc((f.nome_filial || '').replace(/^FILIAL\s+/i, ''))}</option>`).join('');
+  $('f-filial').innerHTML = '<option value="">Selecione</option>' + op;
+  $('l-filial').innerHTML = '<option value="">Todas</option>' + op;
+  $('l-cc').innerHTML = Object.entries(CCS).map(([c, n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join('');
+  const fil = guarda.get('abrirsc_filial'); if(fil){ $('f-filial').value = fil; $('l-filial').value = fil; }
+  const mat = guarda.get('abrirsc_mat'); if(mat){ $('f-mat').value = mat; buscarMat(); }
+})();
+
+function aba(q){
+  $('aba-novo').classList.toggle('on', q === 'novo');
+  $('aba-lista').classList.toggle('on', q === 'lista');
+  $('v-novo').classList.toggle('oculto', q !== 'novo' || ultimoId !== null);
+  $('v-ok').classList.toggle('oculto', q !== 'novo' || ultimoId === null);
+  $('v-lista').classList.toggle('oculto', q !== 'lista');
+  if(q === 'lista') carregarLista();
+}
+
+/* ── matrícula → nome e CC ── */
+let tMat = null, ccAuto = '';
+$('f-mat').addEventListener('input', () => { $('f-mat').value = $('f-mat').value.replace(/\D/g, ''); clearTimeout(tMat); tMat = setTimeout(buscarMat, 450); });
+$('f-filial').addEventListener('change', () => { if($('f-mat').value) buscarMat(); });
+async function buscarMat(){
+  const m = $('f-mat').value.trim(), d = $('d-mat');
+  if(m.length < 3){ $('f-nome').value = ''; d.textContent = ''; d.className = 'dica'; return; }
+  d.textContent = 'Procurando...'; d.className = 'dica';
+  try{
+    const r = await rpc('sc_funcionario', { p_filial: $('f-filial').value || null, p_matricula: m });
+    if(m !== $('f-mat').value.trim()) return;
+    if(!r){ $('f-nome').value = ''; d.textContent = 'Matrícula não encontrada. Confira o número.'; d.className = 'dica erro'; return; }
+    $('f-nome').value = r.nome || '';
+    d.textContent = r.desligado ? 'Atenção: funcionário desligado no cadastro.' : (r.funcao || 'Encontrado');
+    d.className = 'dica ' + (r.desligado ? 'erro' : 'ok');
+    // preenche o CC se estiver vazio ou se foi o automático anterior
+    if(r.cc && (!$('f-cc').value || $('f-cc').value === ccAuto)){ $('f-cc').value = r.cc; ccAuto = r.cc; mostrarCC(); }
+  }catch(e){ d.textContent = 'Não consegui consultar agora. Tente de novo.'; d.className = 'dica erro'; }
+}
+$('f-cc').addEventListener('input', mostrarCC);
+function mostrarCC(){
+  const c = $('f-cc').value.trim(), d = $('d-cc');
+  d.textContent = c ? (CCS[c] || (Object.keys(CCS).length ? 'CC não encontrado no cadastro' : '')) : '';
+  d.className = 'dica' + (c && !CCS[c] && Object.keys(CCS).length ? ' erro' : '');
+}
+
+/* ── itens ── */
+function novaLinha(foco){
+  const id = ++seq;
+  linhas.push({ id, codigo: '', descricao: '', unidade: '', qtd: '', obs: '' });
+  const tr = document.createElement('tr'); tr.id = 'ln' + id;
+  tr.innerHTML = `<td class="n"></td>
+    <td class="desc"><div class="desc-wrap"><input id="ds${id}" placeholder="Digite a descrição do item" autocomplete="off"><div class="sug" id="sg${id}"></div></div><div class="sem-cod oculto" id="sc${id}">Sem código: escolha uma descrição da lista</div></td>
+    <td class="cod"><input id="cd${id}" readonly placeholder="Automático"></td>
+    <td class="qt"><input id="qt${id}" type="number" min="0" step="any" inputmode="decimal" placeholder="Qtd"></td>
+    <td class="obs"><input id="ob${id}" maxlength="250" placeholder="Observação (opcional)"></td>
+    <td class="x"><button title="Tirar item" onclick="tirarLinha(${id})">✕</button></td>`;
+  $('itens').appendChild(tr);
+  numerar();
+  const ln = () => linhas.find(l => l.id === id);
+  const ds = $('ds' + id);
+  let t = null, at = -1, res = [];
+  ds.addEventListener('input', () => {
+    const l = ln(); l.descricao = ds.value; l.codigo = ''; l.unidade = ''; $('cd' + id).value = ''; marcaSemCod(id);
+    clearTimeout(t); t = setTimeout(async () => {
+      const q = ds.value.trim(); const sg = $('sg' + id);
+      if(q.length < 2){ sg.classList.remove('on'); return; }
+      try{
+        res = await rpc('sc_buscar_itens', { p_q: q }) || [];
+        if(ds.value.trim() !== q) return;
+        at = -1;
+        sg.innerHTML = res.length ? res.map((r, i) => `<div data-i="${i}"><small>${esc(r.codigo)}</small>${esc(r.descricao)}${r.unidade ? ` <small>(${esc(r.unidade)})</small>` : ''}</div>`).join('')
+                                  : '<div class="vazio">Nenhum item cadastrado com essa descrição</div>';
+        sg.classList.add('on');
+        sg.querySelectorAll('div[data-i]').forEach(dv => dv.onmousedown = ev => { ev.preventDefault(); escolher(+dv.dataset.i); });
+      }catch(e){}
+    }, 300);
+  });
+  function escolher(i){
+    const r = res[i]; if(!r) return;
+    const l = ln(); l.codigo = r.codigo; l.descricao = r.descricao; l.unidade = r.unidade || '';
+    ds.value = r.descricao; $('cd' + id).value = r.codigo; $('sg' + id).classList.remove('on'); marcaSemCod(id);
+    $('qt' + id).focus();
+  }
+  ds.addEventListener('keydown', ev => {
+    const sg = $('sg' + id), itens = [...sg.querySelectorAll('div[data-i]')];
+    if(!sg.classList.contains('on') || !itens.length) return;
+    if(ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
+      ev.preventDefault(); at = (at + (ev.key === 'ArrowDown' ? 1 : -1) + itens.length) % itens.length;
+      itens.forEach((d, k) => d.classList.toggle('at', k === at)); itens[at].scrollIntoView({ block: 'nearest' });
+    } else if(ev.key === 'Enter'){ ev.preventDefault(); escolher(at < 0 ? 0 : at); }
+    else if(ev.key === 'Escape'){ sg.classList.remove('on'); }
+  });
+  ds.addEventListener('blur', () => setTimeout(() => { $('sg' + id).classList.remove('on'); marcaSemCod(id, true); }, 150));
+  $('qt' + id).addEventListener('input', e => ln().qtd = e.target.value);
+  $('qt' + id).addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('ob' + id).focus(); } });
+  $('ob' + id).addEventListener('input', e => ln().obs = e.target.value);
+  $('ob' + id).addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); if(id === linhas[linhas.length - 1].id) novaLinha(true); } });
+  if(foco) ds.focus();
+}
+function marcaSemCod(id, saiu){
+  const l = linhas.find(x => x.id === id); if(!l) return;
+  $('sc' + id).classList.toggle('oculto', !(saiu && l.descricao.trim() && !l.codigo));
+}
+function tirarLinha(id){
+  if(linhas.length === 1){ linhas[0] = { id: linhas[0].id, codigo: '', descricao: '', unidade: '', qtd: '', obs: '' };
+    ['ds','cd','qt','ob'].forEach(p => $(p + id).value = ''); marcaSemCod(id); return; }
+  linhas = linhas.filter(l => l.id !== id); $('ln' + id).remove(); numerar();
+}
+function numerar(){ [...$('itens').children].forEach((tr, i) => tr.querySelector('.n').textContent = i + 1); }
+
+/* ── enviar ── */
+function mostraErro(t){ $('msg').innerHTML = t ? `<div class="msg erro">${esc(t)}</div>` : ''; if(t) window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function enviar(){
+  mostraErro('');
+  const filial = $('f-filial').value, mat = $('f-mat').value.trim(), cc = $('f-cc').value.trim();
+  if(!filial) return mostraErro('Selecione a filial.');
+  if(mat.length < 3) return mostraErro('Digite a matrícula.');
+  if(!cc) return mostraErro('Informe o centro de custo.');
+  const itens = linhas.filter(l => l.descricao.trim() || l.qtd);
+  if(!itens.length) return mostraErro('Inclua pelo menos um item.');
+  const semQtd = itens.filter(l => !(Number(String(l.qtd).replace(',', '.')) > 0));
+  if(semQtd.length) return mostraErro('Preencha a quantidade de todos os itens (item: ' + (semQtd[0].descricao || 'sem descrição') + ').');
+  if(itens.some(l => !l.descricao.trim())) return mostraErro('Tem item sem descrição.');
+  const semCod = itens.filter(l => !l.codigo);
+  if(semCod.length && !confirm(semCod.length + ' item(ns) sem código cadastrado (descrição digitada sem escolher da lista). Enviar assim mesmo?')) return;
+  const b = $('b-enviar'); b.disabled = true; b.textContent = 'Enviando...';
+  try{
+    const id = await rpc('sc_abertura_criar', { p: {
+      filial, matricula: mat, nome: $('f-nome').value, cc,
+      itens: itens.map(l => ({ codigo: l.codigo, descricao: l.descricao.trim(), quantidade: Number(String(l.qtd).replace(',', '.')), observacao: l.obs.trim() }))
+    } }, 0);
+    guarda.set('abrirsc_filial', filial); guarda.set('abrirsc_mat', mat);
+    ultimoId = id;
+    $('ok-num').textContent = 'Nº ' + id;
+    $('ok-txt').textContent = itens.length + (itens.length === 1 ? ' item' : ' itens') + ' · filial ' + filial + ' · CC ' + cc + (CCS[cc] ? ' — ' + CCS[cc] : '');
+    $('ok-excel').onclick = () => baixarExcel(id);
+    aba('novo'); window.scrollTo(0, 0);
+  }catch(e){ mostraErro('Não foi possível enviar: ' + (e.message || e)); }
+  b.disabled = false; b.textContent = 'Enviar formulário';
+}
+function novoFormulario(){
+  ultimoId = null; linhas = []; $('itens').innerHTML = ''; novaLinha(false); mostraErro(''); aba('novo');
+}
+
+/* ── Excel no formato de importação de SC do Protheus ── */
+async function baixarExcel(id){
+  try{
+    const f = await rpc('sc_abertura_ler', { p_id: id });
+    if(!f) return alert('Formulário ' + id + ' não encontrado.');
+    if(typeof XLSX === 'undefined') return alert('A biblioteca do Excel não carregou. Recarregue a página.');
+    const dig = f.itens.length > 99 ? 3 : 2;
+    const rows = f.itens.map((it, i) => ({
+      C1_XTIPOSC: TIPO_SC, C1_ITEM: String(i + 1).padStart(dig, '0'), C1_PRODUTO: it.codigo || '',
+      C1_DESCRI: it.descricao || '', C1_QUANT: Number(it.quantidade) || 0, C1_CC: f.cc,
+      C1_OBS: it.observacao || '', C1_ESTOQUE: 'S'
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ['C1_XTIPOSC','C1_ITEM','C1_PRODUTO','C1_DESCRI','C1_QUANT','C1_CC','C1_OBS','C1_ESTOQUE'] });
+    ws['!cols'] = [{wch:11},{wch:8},{wch:12},{wch:60},{wch:10},{wch:12},{wch:40},{wch:11}];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'SC');
+    const dt = new Date(f.criado_em).toLocaleDateString('pt-BR').replace(/\//g, '-');
+    XLSX.writeFile(wb, `SC_formulario_${f.id}_filial${f.filial}_${dt}.xlsx`);
+  }catch(e){ alert('Não foi possível gerar o Excel: ' + (e.message || e)); }
+}
+
+/* ── formulários enviados ── */
+$('l-filial').addEventListener('change', carregarLista);
+let tNum = null; $('l-num').addEventListener('input', () => { clearTimeout(tNum); tNum = setTimeout(carregarLista, 400); });
+async function carregarLista(){
+  const el = $('lista'); el.innerHTML = '<div style="color:#64748b;font-size:13px;padding:10px">Carregando...</div>';
+  try{
+    const num = $('l-num').value.replace(/\D/g, '');
+    let lista;
+    if(num){ const f = await rpc('sc_abertura_ler', { p_id: Number(num) });
+      lista = f ? [{ id: f.id, filial: f.filial, nome: f.nome, cc: f.cc, criado_em: f.criado_em, itens: f.itens.length }] : []; }
+    else lista = await rpc('sc_abertura_listar', { p_filial: $('l-filial').value || null, p_limite: 100 }) || [];
+    if(!lista.length){ el.innerHTML = '<div style="color:#64748b;font-size:13px;padding:10px">Nenhum formulário encontrado.</div>'; return; }
+    el.innerHTML = `<table class="lista"><thead><tr><th>Nº</th><th>Data</th><th>Filial</th><th>Solicitante</th><th>CC</th><th class="r">Itens</th><th></th></tr></thead><tbody>` +
+      lista.map(f => `<tr id="lf${f.id}"><td><b>${f.id}</b></td><td>${new Date(f.criado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
+        <td>${esc(f.filial)}</td><td>${esc(f.nome || '')}</td><td title="${esc(CCS[f.cc] || '')}">${esc(f.cc)}</td><td class="r">${f.itens}</td>
+        <td style="white-space:nowrap;text-align:right"><button class="btn3" onclick="verItens(${f.id})">Ver itens</button> <button class="btn3" onclick="baixarExcel(${f.id})">⬇ Excel</button></td></tr>`).join('') +
+      '</tbody></table>';
+  }catch(e){ el.innerHTML = '<div class="msg erro">Não consegui carregar a lista. Tente de novo.</div>'; }
+}
+async function verItens(id){
+  const ab = $('det' + id); if(ab){ ab.remove(); return; }
+  const f = await rpc('sc_abertura_ler', { p_id: id }); if(!f) return;
+  const tr = document.createElement('tr'); tr.id = 'det' + id; tr.className = 'det';
+  tr.innerHTML = `<td colspan="7"><table class="lista"><thead><tr><th>Item</th><th>Código</th><th>Descrição</th><th class="r">Qtd</th><th>Observação</th></tr></thead><tbody>` +
+    f.itens.map(it => `<tr><td>${it.item}</td><td>${esc(it.codigo || '—')}</td><td>${esc(it.descricao)}</td><td class="r">${Number(it.quantidade).toLocaleString('pt-BR')}</td><td>${esc(it.observacao || '')}</td></tr>`).join('') +
+    '</tbody></table></td>';
+  $('lf' + id).after(tr);
+}
+</script>
+</body>
+</html>
