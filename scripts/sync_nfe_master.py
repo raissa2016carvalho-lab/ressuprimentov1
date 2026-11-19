@@ -4,6 +4,7 @@ sync_nfe_master.py — copia as NF-e do NFe Master (HMIT) para o Supabase (tabel
 Roda no computador da Raissa (o banco do NFe Master está na rede interna: 192.168.1.13).
 - 1ª vez: carrega as notas emitidas desde DESDE.
 - Depois: só as notas incluídas/alteradas nos últimos 3 dias (upsert pelo id; nunca apaga a tabela).
+  Se o sync ficou parado mais que isso, revisa desde a última vez que rodou (+2 dias de folga).
 
 Uso:
   python sync_nfe_master.py              -> roda uma vez
@@ -283,11 +284,21 @@ def rodar(desde=None):
         r = sb.table("sync_log").select("atualizado_em").eq("chave", "nfe_master").execute()
         ultimo = r.data[0]["atualizado_em"] if r.data else None
     extra = ""
+    dias = DIAS_REVISAO
     if ultimo:
+        # se o sync ficou parado (PC desligado, janela fechada), revisa desde a última vez que rodou + 2 dias de folga,
+        # para não perder as notas que entraram no NFe Master nesse intervalo
+        try:
+            parado = datetime.datetime.now() - datetime.datetime.fromisoformat(str(ultimo)[:19])
+            dias = max(DIAS_REVISAO, parado.days + 2)
+        except Exception:
+            pass
+        if dias > DIAS_REVISAO:
+            print(f"O sync ficou parado {dias - 2} dia(s): revisando os últimos {dias} dias.", flush=True)
         filtro = ("greatest(n.dataalteracao, n.datainclusao, p.dataalteracao, p.datainclusao) "
-                  f">= now() - interval '{DIAS_REVISAO} days'")
+                  f">= now() - interval '{dias} days'")
         # nota que ganhou pré-nota nos últimos dias também volta (a pré-nota não muda a data de alteração)
-        extra = f" or pr.prenota >= now() - interval '{DIAS_REVISAO} days'"
+        extra = f" or pr.prenota >= now() - interval '{dias} days'"
     else:
         d = desde or DESDE
         filtro = f"n.dataemissao >= '{d[:4]}-{d[4:6]}-{d[6:8]}'"
@@ -302,7 +313,7 @@ def rodar(desde=None):
     itens = _enviar(sb, con, "nfe_master_itens", SQL_ITENS.format(filtro=filtro), "itens")
     # notas de serviço (NFS-e): mesmo período, pelas datas da própria NFS-e
     print("Agora as notas de serviço (NFS-e)...", flush=True)
-    filtro_nfse = (f"greatest(n.dataalteracao, n.datainclusao) >= now() - interval '{DIAS_REVISAO} days'" if ultimo
+    filtro_nfse = (f"greatest(n.dataalteracao, n.datainclusao) >= now() - interval '{dias} days'" if ultimo
                    else f"n.dtemissaonfse >= '{(desde or DESDE)[:4]}-{(desde or DESDE)[4:6]}-{(desde or DESDE)[6:8]}'")
     try:
         nfse = _enviar(sb, con, "nfe_master", SQL_NFSE.format(filtro=filtro_nfse), "notas de serviço")
