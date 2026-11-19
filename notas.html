@@ -195,11 +195,20 @@ const chaveCnpj=c=>String(c||'').replace(/\D/g,'');
 const fmtData=d=>d?new Date(d).toLocaleDateString('pt-BR'):'—';
 const opcSetor=v=>'<option value="">— escolher —</option>'+SETORES.map(x=>'<option'+(x===v?' selected':'')+'>'+esc(x)+'</option>').join('');
 
-async function buscarTudo(tabela,colunas){
+async function buscarTudo(tabela,colunas,progresso){
   let out=[],de=0;
   for(;;){let{data,error}=await db.from(tabela).select(colunas).order('id',{ascending:true}).range(de,de+999);
-    if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break;de+=1000}
+    if(error)throw error;out=out.concat(data||[]);if(progresso)progresso(out.length);if(!data||data.length<1000)break;de+=1000}
   return out;
+}
+// barrinha de progresso do carregamento das notas (a lista vem de 1.000 em 1.000)
+function barraCarga(feitas,total){
+  let pct=total?Math.min(100,Math.round(feitas/total*100)):0,el=$('carga-barra');
+  if(!el){$('tabela').innerHTML='<div class="msg-vazio"><div style="font-weight:600;color:#0f172a;margin-bottom:10px">Carregando notas…</div>'+
+      '<div style="max-width:420px;margin:0 auto;background:#e2e8f0;border-radius:999px;height:10px;overflow:hidden"><div id="carga-barra" style="height:100%;width:0;background:linear-gradient(90deg,#1e40af,#3b82f6);border-radius:999px;transition:width .25s"></div></div>'+
+      '<div id="carga-txt" style="margin-top:8px;font-size:12.5px"></div></div>';el=$('carga-barra')}
+  el.style.width=pct+'%';
+  $('carga-txt').textContent=total?(feitas.toLocaleString('pt-BR')+' de '+total.toLocaleString('pt-BR')+' notas ('+pct+'%)'+(pct>=100?' — organizando a lista…':'')):(feitas?feitas.toLocaleString('pt-BR')+' notas…':'iniciando…');
 }
 async function buscarSetores(tabela,chave){
   let out=[],de=0;
@@ -209,10 +218,12 @@ async function buscarSetores(tabela,chave){
 }
 
 async function carregar(){
-  $('tabela').innerHTML='<div class="msg-vazio">Carregando notas...</div>';
+  barraCarga(0,0);
+  let totalNotas=0,feitasNotas=0;
+  db.from('nfe_master').select('id',{count:'exact',head:true}).then(r=>{totalNotas=r.count||0;barraCarga(feitasNotas,totalNotas)}).catch(()=>{});
   try{
     let [ns,sf,sn,{data:log},sd1r,flr,entr,medr]=await Promise.all([
-      buscarTudo('nfe_master','id,numero,serie,modelo,pedido_cliente,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,prenota,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao'),
+      buscarTudo('nfe_master','id,numero,serie,modelo,pedido_cliente,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,prenota,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao',n=>{feitasNotas=n;barraCarga(n,totalNotas)}),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
       buscarSd1(),
