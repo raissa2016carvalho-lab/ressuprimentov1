@@ -252,7 +252,7 @@ function montarFiltros(){
   let vf=vals('f-filial'),ks=Object.keys(fil).sort(),restr=MODO_RECEB&&FILIAIS_USUARIO&&FILIAIS_USUARIO.length;
   if(restr){ks=FILIAIS_USUARIO.slice();ks.forEach(k=>{if(!fil[k])fil[k]=k});vf=vf.filter(x=>ks.includes(x));if(!vf.length)vf=[ks[0]]}
   $('f-filial').innerHTML=(restr?'':'<option value="">Todas</option>')+ks.map(k=>'<option value="'+k+'">'+k+' · '+esc(String(fil[k]).replace(/^B&Q ENERGIA LTDA\s*-?\s*/i,'')||'MATRIZ')+'</option>').join('');msSet('f-filial',vf);
-  let vs=window._msIni?vals('f-status'):['pend','C'];
+  let vs=window._msIni?vals('f-status'):[];   // abre com Todas (canceladas em vermelho)
   $('f-status').innerHTML='<option value="pend">⏳ Só pendentes</option><option value="3">✓ Integradas</option><option value="C">Canceladas</option><option value="">Todas</option>';msSet('f-status',vs);
   ['f-filial','f-manif','f-status','f-setor'].forEach(msMontar);window._msIni=1;
   $('sel-setor-lote').innerHTML=opcSetor('').replace('— escolher —','— escolher setor —')+'<option value="__limpar">(tirar o setor)</option>';
