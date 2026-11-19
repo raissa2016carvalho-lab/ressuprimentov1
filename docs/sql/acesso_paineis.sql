@@ -73,3 +73,23 @@ revoke execute on function public.tem_acesso(text), public.meus_paineis(), publi
   public.acesso_definir(text, text, boolean), public.acesso_admin(text, boolean) from public, anon;
 grant execute on function public.tem_acesso(text), public.meus_paineis(), public.acessos_listar(),
   public.acesso_definir(text, text, boolean), public.acesso_admin(text, boolean) to authenticated;
+
+-- ── 19/11/2026 (2ª parte): nível "somente visualização" e regras de acesso ─────────────────────────────
+-- acesso_painel.somente_ver: true = só consulta (a trava barra gravações na tela). acesso_nivel(painel) → 'editar' | 'ver' | 'nenhum'.
+-- acesso_definir ganhou o 4º parâmetro p_somente_ver (default false). acessos_listar devolve também a lista 'somente_ver'.
+-- Regras aplicadas (admins não mudam: veem tudo):
+--   gerentes (e-mails em gerentes_cc) → só 'gerente' (editar)
+--   anne@beq.com.br → só 'fechamento' (editar)
+--   demais usuários → só 'index' (Ressuprimento), somente visualização
+alter table public.acesso_painel add column if not exists somente_ver boolean not null default false;
+create or replace function public.acesso_nivel(p_painel text) returns text
+language sql stable security definer set search_path = public as $$
+  select case
+    when auth.uid() is null then 'nenhum'
+    when public.is_admin() then 'editar'
+    when p_painel = 'acessos' then 'nenhum'
+    else coalesce((select case when a.somente_ver then 'ver' else 'editar' end from public.acesso_painel a
+                    where lower(a.email) = lower(auth.jwt()->>'email') and a.painel = p_painel), 'nenhum')
+  end
+$$;
+-- (acessos_listar e acesso_definir: ver migração acesso_paineis_somente_ver no Supabase)

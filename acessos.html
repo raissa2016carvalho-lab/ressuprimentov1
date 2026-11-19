@@ -31,6 +31,8 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:#1e40af}
 input[type=checkbox]:disabled{cursor:not-allowed}
 td.salvando{background:#fef9c3!important}
 td.erro{background:#fee2e2!important}
+.olho{border:1px solid #cbd5e1;background:#fff;border-radius:6px;font-size:11px;padding:1px 4px;margin-left:3px;cursor:pointer;opacity:.45;vertical-align:middle}
+.olho.on{opacity:1;background:#e0e7ff;border-color:#6366f1}
 .lnk{color:#1e40af;cursor:pointer;font-size:11px;font-weight:600;background:none;border:none;padding:0;font-family:inherit}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;display:none;z-index:50}
 </style>
@@ -41,7 +43,7 @@ td.erro{background:#fee2e2!important}
 <div class="pag">
   <div class="aviso">
     Marque os painéis que cada pessoa pode abrir. Vale na hora (quem já está com a tela aberta precisa recarregar).
-    <b>Administrador</b> vê todos os painéis e esta tela. Clique no nome de um painel para marcar ou desmarcar a coluna inteira.
+    <b>Administrador</b> vê todos os painéis e esta tela. Clique no nome de um painel para marcar ou desmarcar a coluna inteira. O botão <b>👁</b> ao lado da caixinha deixa aquele painel <b>somente para visualização</b> (aceso = só ver).
     Usuário novo: crie no Supabase (Authentication → Add user) e ele aparece aqui, sem nenhum acesso.
   </div>
   <div class="barra">
@@ -68,7 +70,7 @@ async function carregar(){
   $('info').textContent='Carregando…';
   const{data,error}=await db.rpc('acessos_listar');
   if(error){$('info').textContent='Erro: '+error.message;return}
-  U=(data||[]).map(u=>({...u,paineis:new Set(u.paineis||[])}));
+  U=(data||[]).map(u=>({...u,paineis:new Set(u.paineis||[]),sv:new Set(u.somente_ver||[])}));
   desenhar();
 }
 function desenhar(){
@@ -80,18 +82,25 @@ function desenhar(){
   h+=lst.map(u=>{const i=U.indexOf(u);
     return `<tr class="${u.admin?'adm':''}"><td class="u"><div class="em">${esc(u.email)}</div><div class="ul">${dataBR(u.ultimo_login)}</div></td>`+
       `<td><input type="checkbox" ${u.admin?'checked':''} ${u.email===EU?'disabled title="Você não pode tirar o seu próprio admin"':''} onchange="admin(${i},this)"></td>`+
-      PAINEIS.map(p=>`<td><input type="checkbox" ${u.admin||u.paineis.has(p)?'checked':''} ${u.admin?'disabled title="Admin vê todos os painéis"':''} onchange="marcar(${i},'${p}',this)"></td>`).join('')+
+      PAINEIS.map(p=>`<td><input type="checkbox" ${u.admin||u.paineis.has(p)?'checked':''} ${u.admin?'disabled title="Admin vê todos os painéis"':''} onchange="marcar(${i},'${p}',this)">${!u.admin&&u.paineis.has(p)?`<button class="olho ${u.sv.has(p)?'on':''}" title="${u.sv.has(p)?'Somente visualização (clique para liberar edição)':'Pode editar (clique para deixar somente visualização)'}" onclick="olho(${i},'${p}')">👁</button>`:''}</td>`).join('')+
       `<td>${u.admin?'':`<button class="lnk" onclick="linha(${i},true)">todos</button> · <button class="lnk" onclick="linha(${i},false)">nenhum</button>`}</td></tr>`}).join('');
   $('tab').innerHTML=h+'</tbody>';
 }
-async function gravar(u,p,lib){
-  const{error}=await db.rpc('acesso_definir',{p_email:u.email,p_painel:p,p_liberado:lib});
+async function gravar(u,p,lib,sv){
+  sv=!!sv;
+  const{error}=await db.rpc('acesso_definir',{p_email:u.email,p_painel:p,p_liberado:lib,p_somente_ver:sv});
   if(error)throw error;
-  lib?u.paineis.add(p):u.paineis.delete(p);
+  if(lib){u.paineis.add(p);sv?u.sv.add(p):u.sv.delete(p)}else{u.paineis.delete(p);u.sv.delete(p)}
+}
+async function olho(i,p){
+  const u=U[i],sv=!u.sv.has(p);
+  try{await gravar(u,p,true,sv);toast((sv?'Somente visualização: ':'Pode editar: ')+((window.BQ_PAINEIS||{})[p]||p)+' — '+u.email)}
+  catch(e){alert('Não consegui salvar: '+(e.message||e))}
+  desenhar();
 }
 async function marcar(i,p,cb){
   const u=U[i],td=cb.parentNode;td.className='salvando';
-  try{await gravar(u,p,cb.checked);td.className='';toast((cb.checked?'Liberado: ':'Retirado: ')+((window.BQ_PAINEIS||{})[p]||p)+' — '+u.email)}
+  try{await gravar(u,p,cb.checked);toast((cb.checked?'Liberado: ':'Retirado: ')+((window.BQ_PAINEIS||{})[p]||p)+' — '+u.email);desenhar()}
   catch(e){cb.checked=!cb.checked;td.className='erro';alert('Não consegui salvar: '+(e.message||e))}
 }
 async function linha(i,lib){
