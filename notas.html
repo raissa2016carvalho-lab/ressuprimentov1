@@ -43,6 +43,9 @@ tr:hover td{background:#f8fafc}
 .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
 .st-1{background:#fef3c7;color:#92400e}.st-2{background:#fef3c7;color:#92400e}.st-3{background:#dcfce7;color:#166534}.st-x{background:#f1f5f9;color:#475569}
 .st-C{background:#fee2e2;color:#991b1b}
+tr.cancelada td{background:#fef2f2!important;color:#991b1b}
+tr.cancelada td:first-child{box-shadow:inset 3px 0 0 #dc2626}
+tr.cancelada td .cnpj,tr.cancelada td .herdado{color:#b91c1c}
 .herdado{color:#94a3b8;font-size:11px}
 tr.sel td{background:#eff6ff!important}
 input.cb{width:16px;height:16px;cursor:pointer;accent-color:#1e40af}
@@ -249,7 +252,7 @@ function montarFiltros(){
   let vf=vals('f-filial'),ks=Object.keys(fil).sort(),restr=MODO_RECEB&&FILIAIS_USUARIO&&FILIAIS_USUARIO.length;
   if(restr){ks=FILIAIS_USUARIO.slice();ks.forEach(k=>{if(!fil[k])fil[k]=k});vf=vf.filter(x=>ks.includes(x));if(!vf.length)vf=[ks[0]]}
   $('f-filial').innerHTML=(restr?'':'<option value="">Todas</option>')+ks.map(k=>'<option value="'+k+'">'+k+' · '+esc(String(fil[k]).replace(/^B&Q ENERGIA LTDA\s*-?\s*/i,'')||'MATRIZ')+'</option>').join('');msSet('f-filial',vf);
-  let vs=window._msIni?vals('f-status'):['pend'];
+  let vs=window._msIni?vals('f-status'):[];   // abre com Todas (canceladas em vermelho)
   $('f-status').innerHTML='<option value="pend">⏳ Só pendentes</option><option value="3">✓ Integradas</option><option value="C">Canceladas</option><option value="">Todas</option>';msSet('f-status',vs);
   ['f-filial','f-manif','f-status','f-setor'].forEach(msMontar);window._msIni=1;
   $('sel-setor-lote').innerHTML=opcSetor('').replace('— escolher —','— escolher setor —')+'<option value="__limpar">(tirar o setor)</option>';
@@ -284,7 +287,7 @@ function agrupar(){
 const MANIF={'210210':'Ciência da operação','210200':'Confirmação da operação','210220':'Desconhecimento','210240':'Operação não realizada'};
 function passaManif(n,m){if(n&&n.modelo==='NFSE')return true;   // nota de serviço não tem manifestação do destinatário
   if(Array.isArray(m))return !m.length||m.some(x=>passaManif(n,x));if(!m)return true;if(m==='__sem')return !n.manifestacao;return n.manifestacao===m}
-function passaStatus(n,si){if(Array.isArray(si))return si.length?si.some(x=>passaStatus(n,x)):passaStatus(n,'');if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(n.status_nfe==='C')return false;return !si||n.status_integracao===si}
+function passaStatus(n,si){if(Array.isArray(si))return si.length?si.some(x=>passaStatus(n,x)):passaStatus(n,'');if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(!si)return true;if(n.status_nfe==='C')return false;return n.status_integracao===si}
 // busca no texto do rodapé (feita no banco, para não baixar o rodapé de todas as notas)
 let RODAPE_IDS=null,RODAPE_T=null;
 function buscaRodape(){
@@ -327,7 +330,7 @@ function resumoNotas(){
   let rotSt=si.length===1?({pend:'pendentes',3:'integradas',C:'canceladas'}[si[0]]||''):'';
   let pend=ns.filter(PEND).length,paradas=ns.filter(diasParada).length;
   $('resumo').innerHTML=
-    '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+(rotSt?rotSt+' ':'')+'emitidas '+_rotPeriodo()+'</div><div class="sub" id="sub-periodo">'+(si.includes('C')?'':'sem as canceladas')+'</div></div>'+
+    '<div class="resumo-card"><div class="val">'+ns.length.toLocaleString('pt-BR')+'</div><div class="lab">Notas '+(rotSt?rotSt+' ':'')+'emitidas '+_rotPeriodo()+'</div><div class="sub" id="sub-periodo">'+(si.includes('C')||!si.length?(ns.filter(n=>n.status_nfe==='C').length?'inclui '+ns.filter(n=>n.status_nfe==='C').length.toLocaleString('pt-BR')+' canceladas':''):'sem as canceladas')+'</div></div>'+
     '<div class="resumo-card verde"><div class="val">'+com.toLocaleString('pt-BR')+'</div><div class="lab">Com setor</div></div>'+
     '<div class="resumo-card alerta"><div class="val">'+(ns.length-com).toLocaleString('pt-BR')+'</div><div class="lab">Sem setor</div></div>'+
     '<div class="resumo-card azul"><div class="val">'+(ns.length?Math.round(com/ns.length*100):0)+'%</div><div class="lab">das notas já têm setor</div></div>'+
@@ -360,7 +363,7 @@ function render(){
   let todasMarcadas=parte.every(n=>sel.has(n.id));
   $('tabela').innerHTML='<table><thead><tr><th style="width:34px"><input type="checkbox" class="cb" title="Marcar todas desta página" '+(todasMarcadas?'checked':'')+' onclick="marcarPagina(this.checked)"></th><th>Filial</th><th>Emissão</th><th>Nº nota</th><th>Setor</th><th>Fornecedor</th><th class="num">Valor</th><th>Entrega prevista</th><th title="Data em que o material chegou de verdade. Lead time = da emissão do pedido até a entrega real">Entrega real</th><th>Pedido</th><th title="Medição de contrato que gerou o pedido desta nota">Medição</th><th>Observação</th><th>Status</th></tr></thead><tbody>'+
     parte.map(n=>{let s=setorDa(n),st=statusUnico(n);
-      return '<tr class="'+(sel.has(n.id)?'sel':'')+'"><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
+      return '<tr class="'+(sel.has(n.id)?'sel':'')+(n.status_nfe==='C'?' cancelada':'')+'"'+(n.status_nfe==='C'?' title="Nota cancelada"':'')+'><td><input type="checkbox" class="cb" '+(sel.has(n.id)?'checked':'')+' onclick="marcar('+n.id+',this)"></td>'+
         '<td style="font-weight:600">'+esc(n.filial||'—')+'</td>'+
         '<td class="num" style="text-align:left">'+fmtData(n.emissao)+'</td>'+
         '<td style="white-space:nowrap"><a href="#" class="lk-nota" onclick="abrirItens('+n.id+');return false" title="Ver os itens da nota">'+esc(n.numero)+tagServ(n)+(n.serie!=null?'<span class="cnpj"> /'+esc(n.serie)+'</span>':'')+' 🔍</a>'+(RODAPE_SO.has(n.id)?'<div><span class="pill" style="background:#fef3c7;color:#92400e;font-size:10px" title="O texto buscado está no rodapé (informações complementares) desta nota, não no nome do fornecedor">achou no rodapé</span></div>':'')+'</td>'+
