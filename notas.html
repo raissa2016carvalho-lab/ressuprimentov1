@@ -174,7 +174,7 @@ const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co'
   // e pede a senha de novo a cada aba/janela nova (recarregar a página continua logado)
   {auth:{storage:window.sessionStorage,storageKey:'bq-notas-auth',persistSession:true,autoRefreshToken:true}});
 const $=id=>document.getElementById(id);
-const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Facilities/Administrativo','Financeiro','Outros'];
+const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Facilities/Administrativo','Financeiro','Contratos','Outros'];
 // códigos do NFe Master (a confirmar com notas de exemplo)
 // 3 = integrado no Protheus (todas têm data de integração). 1 e 2 = ainda não integradas → pendentes
 const ST_INT={'1':'Pendente · sem XML','2':'Pendente','3':'Integrado'};
