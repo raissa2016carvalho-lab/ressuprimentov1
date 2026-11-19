@@ -505,9 +505,8 @@ function renderForn(){
 let sd1=null;
 async function buscarSd1(){
   let out={},de=0;
-  let fonte='mv_nfe_sd1';   // cruzamento pronto (atualizado pelo sync); a view direta é lenta demais
-  for(;;){let{data,error}=await db.from(fonte).select('*').range(de,de+999);
-    if(error&&fonte==='mv_nfe_sd1'&&de===0&&/does not exist|schema cache/i.test(error.message)){fonte='vw_nfe_sd1';continue}
+  // cruzamento pronto (mv_nfe_sd1, atualizado pelo sync), já sem as notas dos fornecedores ocultos (nfe_fornecedor_oculto)
+  for(;;){let{data,error}=await db.from('nfe_sd1_painel').select('*').order('nfe_id').range(de,de+999);
     if(error)return {ok:false,erro:error};(data||[]).forEach(x=>out[x.nfe_id]=x);if(!data||data.length<1000)break;de+=1000}
   return {ok:true,mapa:out};
 }
