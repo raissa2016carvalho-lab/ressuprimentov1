@@ -784,5 +784,6 @@ async function sair(){await db.auth.signOut({scope:'local'});location.reload()}
 if(MODO_RECEB){$('lg-titulo').textContent='Recebimento';document.title='Recebimento'}
 (async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
 </script>
+<script src="/bq-acesso.js" data-painel="notas" data-login="proprio"></script>
 </body>
 </html>

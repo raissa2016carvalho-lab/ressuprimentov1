@@ -924,5 +924,6 @@ async function entrarRuptura(){
 async function sairRuptura(){await db.auth.signOut();location.reload()}
 (async()=>{let{data}=await db.auth.getSession();if(data&&data.session)_liberarRuptura();else $('tela-login').style.display='flex'})();
 </script>
+<script src="/bq-acesso.js" data-painel="ruptura" data-login="proprio"></script>
 </body>
 </html>
