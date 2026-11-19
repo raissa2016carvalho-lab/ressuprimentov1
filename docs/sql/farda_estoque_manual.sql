@@ -2,7 +2,9 @@
 -- farda_estoque_manual: a quantidade contada substitui o saldo do SB2 naquele armazém
 -- (armazem '*' = todos os armazéns da filial). Os outros armazéns continuam pelo SB2.
 -- farda_compra devolve 'estoque' já com a contagem e 'estoque_manual' (para o ✎ na tela).
--- 1ª carga: inventário da Matriz (filial 01, armazém 01), 15 itens ENEL, contado em 18/11/2026.
+-- 1ª carga: inventário da Matriz (filial 01), 15 itens ENEL, contado em 18/11/2026.
+-- Em 19/11/2026 passou a valer para TODOS os armazéns da Matriz (armazem = '*'): o SB2 da Matriz
+-- desses itens (inclusive armazéns 0011 e 10) é ignorado e vale só a contagem. Itens não contados seguem pelo SB2.
 --
 -- Lançar / corrigir uma contagem:
 --   insert into farda_estoque_manual (filial, codigo, armazem, qtd, contado_em, obs)

@@ -20,18 +20,40 @@ select trim(filial) fil, trim(produto) c, max(descricao) n, mes, sum(quantidade)
 from consumo_scp where grupo ilike 'FARDAMENTO%' and mes >= '202501' group by 1,2,4;
 create unique index if not exists mv_farda_cons_pk on public.mv_farda_cons (fil, c, mes);
 
+-- versão atual (19/11/2026): 'pend' (a chegar), estoque com contagem manual (farda_estoque_manual.sql)
+-- e nome do item pelo cadastro (SB2) > pedido/SC > consumo (a descrição digitada na requisição pode estar errada)
 create or replace function public.farda_compra(p_ano int)
 returns json language sql stable security definer set search_path = public as $$
   select json_build_object(
     'compra',  (select coalesce(json_agg(json_build_array(fil, c, mes, sc_st, pc_st, q)), '[]'::json)
                 from mv_farda_compra where mes between p_ano::text||'01' and p_ano::text||'12'),
+    -- a chegar (qualquer ano): PC Pendente / Em aprovação, ou SC pendente/em cotação/bloqueada ainda sem PC
+    'pend',    (select coalesce(json_agg(json_build_array(fil, c, q)), '[]'::json) from (
+                  select fil, c, sum(q) q from mv_farda_compra
+                  where pc_st in ('Pendente','Em aprovação')
+                     or (pc_st = '(vazio)' and sc_st in ('Solicitação Pendente','Solicitação em Processo de Cotação','Solicitação Bloqueada'))
+                  group by 1,2) x),
     'consumo', (select coalesce(json_agg(json_build_array(fil, c, mes, q)), '[]'::json)
                 from mv_farda_cons where mes between p_ano::text||'01' and p_ano::text||'12'),
-    'estoque', (select coalesce(json_agg(json_build_array(trim(filial), trim(codigo), q)), '[]'::json)
-                from (select filial, codigo, sum(qtd_atual) q from estoque_sb2 where grupo ilike 'FARDAMENTO%'
-                      group by 1,2 having sum(qtd_atual) <> 0) e),
-    'nomes',   (select json_object_agg(c, n) from (select c, max(n) n from (select c, n from mv_farda_compra union all select c, n from mv_farda_cons) x
-                                                   where n is not null group by c) y),
+    -- estoque: SB2, mas o armazém com contagem manual (farda_estoque_manual) vale pela contagem
+    'estoque', (select coalesce(json_agg(json_build_array(filial, codigo, q)), '[]'::json) from (
+                  select filial, codigo, sum(q) q from (
+                    select trim(s.filial) filial, trim(s.codigo) codigo, s.qtd_atual q
+                      from estoque_sb2 s
+                     where s.grupo ilike 'FARDAMENTO%'
+                       and not exists (select 1 from farda_estoque_manual m
+                                        where m.filial = trim(s.filial) and m.codigo = trim(s.codigo)
+                                          and (m.armazem = '*' or ltrim(m.armazem,'0') = ltrim(trim(s.armazem),'0')))
+                    union all
+                    select filial, codigo, qtd from farda_estoque_manual) u
+                  group by 1,2 having sum(q) <> 0) e),
+    'estoque_manual', (select coalesce(json_agg(json_build_array(filial, codigo, armazem, qtd, contado_em)), '[]'::json) from farda_estoque_manual),
+    'nomes',   (select json_object_agg(k.c, coalesce(s.n, p.n, q.n)) from
+                  (select c from mv_farda_compra union select c from mv_farda_cons) k
+                  left join (select trim(codigo) c, max(nullif(trim(descricao), '')) n from estoque_sb2 group by 1) s on s.c = k.c
+                  left join (select c, max(nullif(trim(n), '')) n from mv_farda_compra group by 1) p on p.c = k.c
+                  left join (select c, max(nullif(trim(n), '')) n from mv_farda_cons group by 1) q on q.c = k.c
+                 where coalesce(s.n, p.n, q.n) is not null),
     'filiais', (select json_object_agg(trim(filial), nome_filial) from filiais),
     'estoque_em', (select max(atualizado_em) from estoque_sb2),
     'consumo_ate', (select max(emissao) from consumo_scp where mes = (select max(mes) from mv_farda_cons)))
