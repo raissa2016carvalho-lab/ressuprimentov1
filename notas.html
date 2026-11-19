@@ -193,7 +193,16 @@ const fmtR0=v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{maximumFractionDigit
 const fmtCnpj=c=>{c=String(c||'').replace(/\D/g,'');return c.length===14?c.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):c};
 const chaveCnpj=c=>String(c||'').replace(/\D/g,'');
 const fmtData=d=>d?new Date(d).toLocaleDateString('pt-BR'):'—';
-const opcSetor=v=>'<option value="">— escolher —</option>'+SETORES.map(x=>'<option'+(x===v?' selected':'')+'>'+esc(x)+'</option>').join('');
+// setores digitados à mão (quando escolhe "Outros") entram na lista para poder reaproveitar
+function setoresTodos(){let fixos=SETORES.filter(x=>x!=='Outros'),ext=new Set();
+  [setNota,setForn].forEach(m=>Object.values(m||{}).forEach(x=>{if(x&&x.setor&&!SETORES.includes(x.setor))ext.add(x.setor)}));
+  return [...fixos,...[...ext].sort((a,b)=>a.localeCompare(b,'pt-BR')),'Outros']}
+const opcSetor=v=>'<option value="">— escolher —</option>'+setoresTodos().map(x=>'<option'+(x===v?' selected':'')+(x==='Outros'?' value="Outros">Outros (digitar…)':'>'+esc(x))+'</option>').join('');
+// "Outros": pergunta o nome do setor; devolve null se a pessoa cancelar
+function setorDigitado(v){if(v!=='Outros')return v;
+  let t=prompt('Qual é o setor? (vai ficar gravado com esse nome)','');
+  if(t==null)return null;t=t.replace(/\s+/g,' ').trim();if(!t)return null;
+  let igual=setoresTodos().find(x=>x.toLowerCase()===t.toLowerCase());return igual&&igual!=='Outros'?igual:t}
 
 async function buscarTudo(tabela,colunas,progresso){
   let out=[],de=0;
@@ -261,7 +270,7 @@ function msMarca(id,v,on){let o=[...$(id).options].find(x=>x.value===v);if(o)o.s
 document.addEventListener('click',()=>document.querySelectorAll('.ms-pan.aberto').forEach(p=>p.classList.remove('aberto')));
 function montarFiltros(){
   let v=vals('f-setor');
-  $('f-setor').innerHTML='<option value="">Todos</option><option value="__sem">⚠ Sem setor</option>'+SETORES.map(x=>'<option>'+esc(x)+'</option>').join('');msSet('f-setor',v);
+  $('f-setor').innerHTML='<option value="">Todos</option><option value="__sem">⚠ Sem setor</option>'+setoresTodos().map(x=>'<option>'+esc(x)+'</option>').join('');msSet('f-setor',v);
   let fil={};notas.forEach(n=>{if(n.filial)fil[n.filial]=n.empresa_nome||n.filial});
   let vf=vals('f-filial'),ks=Object.keys(fil).sort(),restr=MODO_RECEB&&FILIAIS_USUARIO&&FILIAIS_USUARIO.length;
   if(restr){ks=FILIAIS_USUARIO.slice();ks.forEach(k=>{if(!fil[k])fil[k]=k});vf=vf.filter(x=>ks.includes(x));if(!vf.length)vf=[ks[0]]}
@@ -756,6 +765,7 @@ async function aplicarLote(){let v=$('sel-setor-lote').value;if(!v){$('sel-msg')
   let ok=await salvarNotas(ids,v==='__limpar'?'':v);if(ok){$('sel-msg').textContent='✓ '+ids.length+' nota(s) salvas';sel.clear();render()}}
 
 async function salvarNotas(ids,setor,el){
+  setor=setorDigitado(setor);if(setor===null){render();return false}
   if(el)el.disabled=true;
   for(let i=0;i<ids.length;i+=500){let parte=ids.slice(i,i+500),r;
     if(setor)r=await db.from('nfe_setor').upsert(parte.map(id=>({nfe_id:id,setor,atualizado_em:new Date().toISOString(),atualizado_por:userEmail||null})),{onConflict:'nfe_id'});
@@ -766,7 +776,8 @@ async function salvarNotas(ids,setor,el){
   if(el)el.disabled=false;let pos=scrollY;render();scrollTo(0,pos);return true;
 }
 async function salvarForn(sel_){
-  let cnpj=sel_.dataset.cnpj,setor=sel_.value;sel_.disabled=true;
+  let cnpj=sel_.dataset.cnpj,setor=setorDigitado(sel_.value);if(setor===null){render();return}
+  sel_.disabled=true;
   let r=setor?await db.from('fornecedor_setor').upsert({cnpj,nome:sel_.dataset.nome,setor,atualizado_em:new Date().toISOString(),atualizado_por:userEmail||null},{onConflict:'cnpj'})
              :await db.from('fornecedor_setor').delete().eq('cnpj',cnpj);
   sel_.disabled=false;
