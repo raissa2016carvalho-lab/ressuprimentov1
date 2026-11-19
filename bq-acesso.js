@@ -3,7 +3,9 @@
  *   <script src="/bq-acesso.js" data-painel="compras"></script>                    → tela sem login próprio: a trava pede e-mail e senha
  *   <script src="/bq-acesso.js" data-painel="notas" data-login="proprio"></script> → tela que já tem login: a trava só confere o acesso depois do login
  * Quem pode ver cada painel é definido na tela "Acessos" (acessos.html), só para administradores.
- * O banco responde pela função tem_acesso(painel): admin vê tudo; os outros, só os painéis liberados para o seu e-mail.
+ * O banco responde pela função acesso_nivel(painel): 'editar', 'ver' ou 'nenhum' (admin = editar).
+ * 'ver' (somente visualização): a trava barra as gravações feitas pelo cliente Supabase da página (variável global db).
+ *   Telas que gravam por fetch() direto (compras, fardamento, manutencao) não são cobertas pelo 'ver'.
  */
 (function () {
   var S = document.currentScript || {};
@@ -84,10 +86,44 @@
     };
   }
 
+  // somente visualização: qualquer gravação (insert/update/upsert/delete e RPCs de gravação) é barrada na tela
+  var avisouEm = 0;
+  function avisoSoVer() {
+    if (Date.now() - avisouEm < 1500) return; avisouEm = Date.now();
+    alert('Você tem acesso somente para visualização neste painel. Nada foi alterado.');
+  }
+  function bloqueado() {
+    var res = { data: null, error: { message: 'Acesso somente para visualização', code: 'somente_ver' }, status: 403 };
+    var p = new Proxy(function () {}, {
+      get: function (_, prop) {
+        if (prop === 'then') return function (ok) { return Promise.resolve(res).then(ok); };
+        if (prop === 'catch' || prop === 'finally') return function () { return Promise.resolve(res); };
+        return function () { return p; };
+      },
+      apply: function () { return p; }
+    });
+    return p;
+  }
+  var RPC_GRAVA = /criar|salvar|gravar|definir|excluir|apagar|atualizar|aprovar|decidir|inserir|registrar|baixar|enviar|alterar|cancelar|lancar|marcar|confirmar|reabrir|devolver|remover|limpar/i;
+  function somenteVer(c) {
+    if (c.__bqSoVer) return; c.__bqSoVer = true;
+    var from = c.from.bind(c), rpc = c.rpc.bind(c);
+    c.from = function (t) {
+      var q = from(t);
+      ['insert', 'update', 'upsert', 'delete'].forEach(function (m) { q[m] = function () { avisoSoVer(); return bloqueado(); }; });
+      return q;
+    };
+    c.rpc = function (nome, args, op) { if (RPC_GRAVA.test(nome)) { avisoSoVer(); return bloqueado(); } return rpc(nome, args, op); };
+    var faixa = document.createElement('div');
+    faixa.textContent = '👁 Somente visualização — você pode consultar, mas não alterar nada neste painel.';
+    faixa.style.cssText = 'position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:2147482000;background:#1e293b;color:#fff;padding:8px 16px;border-radius:999px;font:600 12.5px system-ui,-apple-system,sans-serif;box-shadow:0 6px 18px #0004;pointer-events:none';
+    document.body.appendChild(faixa);
+  }
+
   async function conferir(sess) {
     verificando();
     var email = sess && sess.user && sess.user.email || '';
-    var r = await cliente().rpc('tem_acesso', { p_painel: PAINEL });
+    var r = await cliente().rpc('acesso_nivel', { p_painel: PAINEL });
     if (r.error) {
       // sessão vencida ou derrubada: volta para o login
       if (/jwt|token|auth|401|permission/i.test((r.error.message || '') + (r.error.code || ''))) {
@@ -98,8 +134,13 @@
       tela('<h2>Não consegui conferir o acesso</h2><p>' + esc(r.error.message) + '</p><button type="button" onclick="location.reload()">Tentar de novo</button>');
       return;
     }
-    if (r.data === true) { soltar(); window.BQ_ACESSO = { painel: PAINEL, email: email }; document.dispatchEvent(new CustomEvent('bq-acesso-ok', { detail: { email: email } })); }
-    else semAcesso(email);
+    var nivel = r.data;
+    if (nivel === 'editar' || nivel === 'ver') {
+      if (nivel === 'ver') somenteVer(cliente());
+      soltar();
+      window.BQ_ACESSO = { painel: PAINEL, email: email, nivel: nivel };
+      document.dispatchEvent(new CustomEvent('bq-acesso-ok', { detail: { email: email, nivel: nivel } }));
+    } else semAcesso(email);
   }
 
   async function iniciar() {
