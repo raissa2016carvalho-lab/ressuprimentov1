@@ -375,19 +375,29 @@ function render(){
 }
 
 // ── Excel da aba "Por nota fiscal": todas as notas da lista (todas as páginas), com os filtros aplicados ──
-function exportarExcel(){
+async function exportarExcel(){
   let l=notasFiltradas();if(!l.length)return alert('Nenhuma nota com esses filtros.');
   if(!window.XLSX)return alert('Não consegui carregar o gerador de Excel. Atualize a página e tente de novo.');
+  // descrição do serviço (discriminação da NFS-e): não vem na lista, busca só das notas de serviço exportadas
+  let desc={},ids=l.filter(ehServ).map(n=>n.id),bt=$('btn-excel'),txt=bt?bt.textContent:'';
+  if(ids.length){
+    if(bt){bt.disabled=true;bt.textContent='Gerando…'}
+    try{for(let i=0;i<ids.length;i+=200){let{data,error}=await db.from('nfe_master').select('id,natureza').in('id',ids.slice(i,i+200));
+        if(error)throw error;(data||[]).forEach(r=>desc[r.id]=r.natureza||'')}}
+    catch(e){alert('Não consegui buscar a descrição dos serviços; o Excel vai sair sem ela.\n\n'+(e.message||e))}
+    finally{if(bt){bt.disabled=false;bt.textContent=txt}}
+  }
   let dt=v=>{if(!v)return '';let d=new Date(String(v).slice(0,10)+'T12:00');return isNaN(d)?'':d};
   let txtStatus=n=>n.status_nfe==='C'?'Cancelada':n.status_integracao==='3'?'Integrado':(sd1&&sd1[n.id])?'Lançada manual':n.status_integracao==='1'?'Pendente · sem XML':'Pendente';
   let linhas=l.map(n=>{let f=(fluxo&&fluxo[n.id])||{},ped=ENT_PED[n.id]||{},rec=f.recebido_em?String(f.recebido_em).slice(0,10):'',real=f.entrega_real||rec||'',x=sd1&&sd1[n.id];
     return {'Filial':n.filial||'','Emissão':dt(n.emissao),'Nº nota':n.numero||'','Série':n.serie==null?'':n.serie,'Tipo':ehServ(n)?'NFS-e':'NF-e',
       'Setor':setorDa(n).setor||'','Fornecedor':n.fornecedor_nome||n.fornecedor_fantasia||'','CNPJ':fmtCnpj(n.fornecedor_cnpj),'Valor':Number(n.valor_total)||0,
       'Entrega prevista':dt(f.previsao_entrega||ped.entrega),'Entrega real':dt(real),'Pedido':f.pedido||n.pedido_cliente||'','Medição':(medicaoDa(n)||{}).medicao||'','Contrato':(medicaoDa(n)||{}).contrato||'','Observação':f.obs_compras||'',
+      'Descrição do serviço':ehServ(n)?(desc[n.id]||'').replace(/\s+/g,' ').trim():'',
       'Status':txtStatus(n),'Lançada no Protheus':lancada(n)?'Sim':'Não','Data de lançamento (SD1)':x&&x.sd1_dtdigit?dt(x.sd1_dtdigit.slice(0,4)+'-'+x.sd1_dtdigit.slice(4,6)+'-'+x.sd1_dtdigit.slice(6,8)):'',
       'Dias parada':diasParada(n)||'','Chave':n.chave||''}});
   let ws=XLSX.utils.json_to_sheet(linhas,{cellDates:true,dateNF:'dd/mm/yyyy'});
-  ws['!cols']=[6,11,10,6,7,18,40,20,13,13,13,12,10,17,30,16,10,14,9,46].map(w=>({wch:w}));
+  ws['!cols']=[6,11,10,6,7,18,40,20,13,13,13,12,10,17,30,60,16,10,14,9,46].map(w=>({wch:w}));
   let rg=XLSX.utils.decode_range(ws['!ref']);
   for(let r=1;r<=rg.e.r;r++){let c=ws[XLSX.utils.encode_cell({r,c:8})];if(c)c.z='#,##0.00'}
   ws['!autofilter']={ref:ws['!ref']};
