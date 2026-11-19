@@ -502,5 +502,6 @@ async function entrar(){
 async function sair(){await db.auth.signOut();location.reload()}
 (async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
 </script>
+<script src="/bq-acesso.js" data-painel="descontos" data-login="proprio"></script>
 </body>
 </html>

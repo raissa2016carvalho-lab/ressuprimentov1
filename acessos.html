@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acessos — B&amp;Q</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<link rel="stylesheet" href="/padrao.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:#0f172a;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.pag{padding:18px 20px 40px;max-width:100%}
+.barra{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.barra input{border:1px solid #cbd5e1;border-radius:9px;padding:9px 12px;font-size:13.5px;min-width:260px;font-family:inherit}
+.barra .info{color:#64748b;font-size:12.5px}
+.barra button,.btn{background:#fff;border:1px solid #cbd5e1;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;color:#334155;cursor:pointer;font-family:inherit}
+.aviso{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:10px 14px;font-size:12.5px;margin-bottom:12px;line-height:1.5}
+.tab-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:auto;max-height:calc(100vh - 210px)}
+table{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-content;min-width:100%}
+th,td{border-bottom:1px solid #eef2f7;padding:7px 8px;text-align:center;white-space:nowrap;background:#fff}
+thead th{position:sticky;top:0;z-index:2;background:#f8fafc;color:#475569;font-size:11px;font-weight:700;vertical-align:bottom}
+thead th.pn{writing-mode:vertical-rl;transform:rotate(180deg);height:150px;padding:8px 4px;text-align:left;cursor:pointer}
+thead th.pn:hover{color:#1e40af}
+td.u,th.u{position:sticky;left:0;z-index:1;text-align:left;min-width:250px;border-right:1px solid #e2e8f0}
+thead th.u{z-index:3}
+td.u .em{font-weight:600}
+td.u .ul{color:#94a3b8;font-size:11px}
+tr.adm td{background:#fffbeb}
+tr.adm td.u .em::after{content:" · admin";color:#b45309;font-weight:700}
+input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:#1e40af}
+input[type=checkbox]:disabled{cursor:not-allowed}
+td.salvando{background:#fef9c3!important}
+td.erro{background:#fee2e2!important}
+.lnk{color:#1e40af;cursor:pointer;font-size:11px;font-weight:600;background:none;border:none;padding:0;font-family:inherit}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;display:none;z-index:50}
+</style>
+</head>
+<body>
+<div class="bq-topo"><a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a><div><h1>Acessos</h1><div class="bq-sub">Quem pode abrir cada painel</div></div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center"><span id="quem" style="color:#cbd5e1;font-size:12.5px"></span><button class="btn" onclick="sair()">Sair</button></div></div>
+<div class="pag">
+  <div class="aviso">
+    Marque os painéis que cada pessoa pode abrir. Vale na hora (quem já está com a tela aberta precisa recarregar).
+    <b>Administrador</b> vê todos os painéis e esta tela. Clique no nome de um painel para marcar ou desmarcar a coluna inteira.
+    Usuário novo: crie no Supabase (Authentication → Add user) e ele aparece aqui, sem nenhum acesso.
+  </div>
+  <div class="barra">
+    <input id="busca" placeholder="🔍 Buscar por e-mail…" oninput="desenhar()">
+    <label style="font-size:12.5px;color:#475569;display:flex;gap:6px;align-items:center"><input type="checkbox" id="so-sem" onchange="desenhar()"> Só quem não tem nenhum acesso</label>
+    <button onclick="carregar()">↻ Atualizar</button>
+    <span class="info" id="info"></span>
+  </div>
+  <div class="tab-wrap"><table id="tab"></table></div>
+</div>
+<div id="toast"></div>
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+// ordem das colunas (chave usada em data-painel de cada tela)
+const PAINEIS=['index','gerente','formulario','ruptura','estoque','compras','fechamento','notas','separacao','descontos','estoque-central','fardamento','abrir-sc','manutencao'];
+let U=[],EU='';
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dataBR=v=>{if(!v)return 'nunca entrou';const d=new Date(v);return 'último acesso '+d.toLocaleDateString('pt-BR')};
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(()=>e.style.display='none',2600)}
+async function sair(){await db.auth.signOut({scope:'local'});location.reload()}
+
+async function carregar(){
+  $('info').textContent='Carregando…';
+  const{data,error}=await db.rpc('acessos_listar');
+  if(error){$('info').textContent='Erro: '+error.message;return}
+  U=(data||[]).map(u=>({...u,paineis:new Set(u.paineis||[])}));
+  desenhar();
+}
+function desenhar(){
+  const q=$('busca').value.trim().toLowerCase(),soSem=$('so-sem').checked,N=window.BQ_PAINEIS||{};
+  const lst=U.filter(u=>(!q||u.email.includes(q))&&(!soSem||(!u.admin&&!u.paineis.size)));
+  $('info').textContent=lst.length+' de '+U.length+' usuários · '+U.filter(u=>u.admin).length+' admin';
+  let h='<thead><tr><th class="u">Usuário</th><th class="pn" title="Administrador vê tudo e acessa esta tela">⭐ Administrador</th>'+
+    PAINEIS.map(p=>`<th class="pn" onclick="coluna('${p}')" title="Clique para marcar/desmarcar a coluna (usuários visíveis)">${esc(N[p]||p)}</th>`).join('')+'<th></th></tr></thead><tbody>';
+  h+=lst.map(u=>{const i=U.indexOf(u);
+    return `<tr class="${u.admin?'adm':''}"><td class="u"><div class="em">${esc(u.email)}</div><div class="ul">${dataBR(u.ultimo_login)}</div></td>`+
+      `<td><input type="checkbox" ${u.admin?'checked':''} ${u.email===EU?'disabled title="Você não pode tirar o seu próprio admin"':''} onchange="admin(${i},this)"></td>`+
+      PAINEIS.map(p=>`<td><input type="checkbox" ${u.admin||u.paineis.has(p)?'checked':''} ${u.admin?'disabled title="Admin vê todos os painéis"':''} onchange="marcar(${i},'${p}',this)"></td>`).join('')+
+      `<td>${u.admin?'':`<button class="lnk" onclick="linha(${i},true)">todos</button> · <button class="lnk" onclick="linha(${i},false)">nenhum</button>`}</td></tr>`}).join('');
+  $('tab').innerHTML=h+'</tbody>';
+}
+async function gravar(u,p,lib){
+  const{error}=await db.rpc('acesso_definir',{p_email:u.email,p_painel:p,p_liberado:lib});
+  if(error)throw error;
+  lib?u.paineis.add(p):u.paineis.delete(p);
+}
+async function marcar(i,p,cb){
+  const u=U[i],td=cb.parentNode;td.className='salvando';
+  try{await gravar(u,p,cb.checked);td.className='';toast((cb.checked?'Liberado: ':'Retirado: ')+((window.BQ_PAINEIS||{})[p]||p)+' — '+u.email)}
+  catch(e){cb.checked=!cb.checked;td.className='erro';alert('Não consegui salvar: '+(e.message||e))}
+}
+async function linha(i,lib){
+  const u=U[i];
+  if(!confirm((lib?'Liberar TODOS os painéis para ':'Retirar TODOS os painéis de ')+u.email+'?'))return;
+  try{for(const p of PAINEIS)if(u.paineis.has(p)!==lib)await gravar(u,p,lib);toast('Salvo.')}catch(e){alert('Não consegui salvar: '+(e.message||e))}
+  desenhar();
+}
+async function coluna(p){
+  const q=$('busca').value.trim().toLowerCase(),soSem=$('so-sem').checked;
+  const lst=U.filter(u=>!u.admin&&(!q||u.email.includes(q))&&(!soSem||!u.paineis.size));
+  if(!lst.length)return;
+  const lib=!lst.every(u=>u.paineis.has(p)),nm=(window.BQ_PAINEIS||{})[p]||p;
+  if(!confirm((lib?'Liberar ':'Retirar ')+'"'+nm+'" '+(lib?'para':'de')+' '+lst.length+' usuário(s) da lista?'))return;
+  try{for(const u of lst)if(u.paineis.has(p)!==lib)await gravar(u,p,lib);toast('Salvo.')}catch(e){alert('Não consegui salvar: '+(e.message||e))}
+  desenhar();
+}
+async function admin(i,cb){
+  const u=U[i];
+  if(!confirm((cb.checked?'Tornar ':'Tirar ')+u.email+(cb.checked?' administrador? Ele vai ver todos os painéis e esta tela.':' de administrador?'))){cb.checked=!cb.checked;return}
+  const{error}=await db.rpc('acesso_admin',{p_email:u.email,p_admin:cb.checked});
+  if(error){cb.checked=!cb.checked;return alert('Não consegui salvar: '+error.message)}
+  u.admin=cb.checked;desenhar();toast('Salvo.');
+}
+document.addEventListener('bq-acesso-ok',e=>{EU=(e.detail.email||'').toLowerCase();$('quem').textContent=EU;carregar()});
+</script>
+<script src="/bq-acesso.js" data-painel="acessos"></script>
+</body>
+</html>
