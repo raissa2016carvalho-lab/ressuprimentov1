@@ -169,7 +169,10 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
 </div>
 
 <script>
-const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI',
+  // login próprio do painel de notas, guardado só nesta aba (sessionStorage): não aproveita o login de outros painéis
+  // e pede a senha de novo a cada aba/janela nova (recarregar a página continua logado)
+  {auth:{storage:window.sessionStorage,storageKey:'bq-notas-auth',persistSession:true,autoRefreshToken:true}});
 const $=id=>document.getElementById(id);
 const SETORES=['Compras','Almoxarifado','Fiscal','RH','Frota','Oficina','TI','Facilities/Administrativo','Financeiro','Outros'];
 // códigos do NFe Master (a confirmar com notas de exemplo)
@@ -777,7 +780,7 @@ async function entrar(){
   if(error){msg.textContent=error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message;msg.style.display='block';return}
   liberar(data.user&&data.user.email);
 }
-async function sair(){await db.auth.signOut();location.reload()}
+async function sair(){await db.auth.signOut({scope:'local'});location.reload()}
 if(MODO_RECEB){$('lg-titulo').textContent='Recebimento';document.title='Recebimento'}
 (async()=>{let{data}=await db.auth.getSession();if(data&&data.session)liberar(data.session.user.email);else $('tela-login').style.display='flex'})();
 </script>
