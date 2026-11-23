@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventário Rotativo — B&amp;Q</title>
+<script src="vendor/supabase-2.118.0.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="/padrao.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:#0f172a;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.pag{padding:16px 20px 40px;max-width:1400px;margin:0 auto}
+.abas{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.abas button{background:#fff;border:1px solid #cbd5e1;border-radius:9px;padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer;color:#334155;font-family:inherit}
+.abas button.on{background:#1e40af;color:#fff;border-color:#1e40af}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.barra{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.barra label{display:flex;flex-direction:column;font-size:11.5px;font-weight:600;color:#64748b;gap:4px}
+input,select,textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;background:#fff}
+.btn{background:#1e40af;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+.btn.sec{background:#fff;color:#334155;border:1px solid #cbd5e1}
+.btn.ok{background:#15803d}.btn.no{background:#b91c1c}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:8px;border-bottom:1px solid #eef2f7;text-align:left;vertical-align:middle}
+th{background:#f8fafc;color:#475569;font-size:11.5px;font-weight:700;position:sticky;top:0;z-index:1}
+td.n,th.n{text-align:right}
+.tab-wrap{overflow:auto;max-height:calc(100vh - 290px);border:1px solid #e2e8f0;border-radius:10px;background:#fff}
+.st{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.st.pendente{background:#f1f5f9;color:#475569}.st.recontar{background:#fef3c7;color:#92400e}.st.ok{background:#dcfce7;color:#166534}
+.st.divergente{background:#fee2e2;color:#991b1b}.st.justificado{background:#e0e7ff;color:#3730a3}.st.aprovado{background:#ccfbf1;color:#115e59}
+.st.aberta{background:#dbeafe;color:#1e40af}.st.fechada{background:#dcfce7;color:#166534}.st.cancelada{background:#f1f5f9;color:#64748b}
+.qtd{width:90px;text-align:right;font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px}.kpi b{display:block;font-size:22px}.kpi span{font-size:12px;color:#64748b}
+.muted{color:#64748b;font-size:12.5px}
+.aviso{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:12px;line-height:1.5}
+.link{color:#1e40af;cursor:pointer;font-weight:600;background:none;border:none;padding:0;font-family:inherit;font-size:13px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;display:none;z-index:50}
+@media print{.bq-topo,.abas,.nao-imprime,#toast{display:none!important}body{background:#fff}.pag{padding:0}.card{border:none;padding:0}
+  .tab-wrap{max-height:none;overflow:visible;border:none}th{position:static}}
+#folha{display:none}
+@media print{body.imprimindo .pag>*:not(#folha){display:none!important}body.imprimindo #folha{display:block}}
+#folha table td,#folha table th{border:1px solid #94a3b8;padding:7px 6px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="bq-topo"><a class="bq-marca" href="/los.html" title="Voltar ao menu">B<b>&amp;</b>Q</a><div><h1>Inventário Rotativo</h1><div class="bq-sub">Contagem cega • recontagem • justificativa • aprovação do coordenador</div></div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center"><span id="quem" style="color:#cbd5e1;font-size:12.5px"></span><button class="btn sec" onclick="sair()">Sair</button></div></div>
+<div class="pag">
+  <div class="abas nao-imprime">
+    <button id="ab-listas" class="on" onclick="aba('listas')">📋 Listas de contagem</button>
+    <button id="ab-acur" onclick="aba('acur')">🎯 Acuracidade</button>
+  </div>
+  <div id="vis-listas"></div>
+  <div id="vis-lista" style="display:none"></div>
+  <div id="vis-acur" style="display:none"></div>
+  <div id="folha"></div>
+</div>
+<div id="toast"></div>
+<script>
+const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
+const $=id=>document.getElementById(id);
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const nf=v=>v==null||v===''?'–':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:3});
+const rs=v=>v==null?'–':Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const dBR=d=>d?String(d).slice(0,10).split('-').reverse().join('/'):'–';
+const hBR=d=>d?new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+const quem=e=>e?String(e).split('@')[0]:'';
+const ROT={pendente:'A contar',recontar:'Recontar',ok:'OK',divergente:'Divergente — justificar',justificado:'Aguardando coordenador',aprovado:'Aprovado (com diferença)'};
+let PAPEL='nenhum',EU='',FIL={},LISTAS=[],LISTA=null,ITENS=[];
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(()=>e.style.display='none',2800)}
+async function sair(){await db.auth.signOut({scope:'local'});location.reload()}
+async function rpc(fn,args){const{data,error}=await db.rpc(fn,args||{});if(error)throw new Error(error.message);return data}
+function aba(a){['listas','acur'].forEach(x=>$('ab-'+x).classList.toggle('on',x===a));$('vis-listas').style.display=a==='listas'&&!LISTA?'':'none';$('vis-lista').style.display=a==='listas'&&LISTA?'':'none';$('vis-acur').style.display=a==='acur'?'':'none';
+  if(a==='acur')desenharAcur();if(a==='listas'&&!LISTA)carregarListas()}
+const coord=()=>PAPEL==='coord';
+const podeContar=()=>PAPEL==='coord'||PAPEL==='contar';
+
+// ── Listas ──
+async function carregarListas(){
+  $('vis-listas').innerHTML='<div class="card muted">Carregando…</div>';
+  try{LISTAS=await rpc('inv_listas',{p_filial:null})}catch(e){$('vis-listas').innerHTML='<div class="card">Erro: '+esc(e.message)+'</div>';return}
+  const hoje=new Date().toISOString().slice(0,10);
+  const nova=coord()?`<div class="card nao-imprime"><b style="font-size:14px">Nova lista de contagem</b>
+    <div class="muted" style="margin:4px 0 10px">Pega os itens de <b>maior valor em estoque</b> (saldo × custo médio da SB2) nos armazéns escolhidos, pulando os que já foram contados nos últimos dias. O <b>saldo fica congelado</b> no momento em que a lista é gerada.</div>
+    <div class="barra">
+      <label>Filial<select id="n-fil">${Object.keys(FIL).sort().map(f=>`<option value="${f}"${f==='04'?' selected':''}>${f} — ${esc(FIL[f])}</option>`).join('')}</select></label>
+      <label>Armazéns (separe por vírgula)<input id="n-arm" value="01,04" style="width:150px"></label>
+      <label>Itens<input id="n-qtd" type="number" min="1" max="500" value="20" style="width:80px"></label>
+      <label>Data da contagem<input id="n-data" type="date" value="${hoje}"></label>
+      <label>Não repetir item contado nos últimos (dias)<input id="n-rot" type="number" min="0" value="90" style="width:110px"></label>
+      <button class="btn" onclick="gerar(this)">➕ Gerar lista</button>
+    </div></div>`:'';
+  const linhas=LISTAS.map(l=>{const pct=l.itens?Math.round(l.contados/l.itens*100):0;
+    return `<tr><td><b>#${l.id}</b></td><td>${esc(l.filial)} — ${esc(FIL[l.filial]||'')}</td><td>${(l.armazens||[]).map(a=>a.padStart(2,'0')).join(', ')}</td><td>${dBR(l.data_contagem)}</td>
+      <td><span class="st ${l.status}">${l.status}</span></td><td class="n">${l.contados}/${l.itens} <span class="muted">(${pct}%)</span></td>
+      <td class="n">${l.recontar?'<span class="st recontar">'+l.recontar+' recontar</span> ':''}${l.divergentes?'<span class="st divergente">'+l.divergentes+' justificar</span> ':''}${l.aguardando?'<span class="st justificado">'+l.aguardando+' p/ aprovar</span>':''}</td>
+      ${coord()?`<td class="n">${l.valor_div!=null?rs(l.valor_div):'–'}</td>`:''}
+      <td class="muted">${quem(l.criado_por)}</td><td><button class="btn sec" onclick="abrir(${l.id})">Abrir</button></td></tr>`}).join('');
+  $('vis-listas').innerHTML=nova+`<div class="card"><div class="tab-wrap" style="max-height:none"><table><thead><tr><th>Lista</th><th>Filial</th><th>Armazéns</th><th>Contagem</th><th>Situação</th><th class="n">Contados</th><th class="n">Pendências</th>${coord()?'<th class="n">Valor das diferenças</th>':''}<th>Criada por</th><th></th></tr></thead>
+    <tbody>${linhas||`<tr><td colspan="10" class="muted" style="padding:16px">Nenhuma lista ainda.${coord()?' Gere a primeira acima.':''}</td></tr>`}</tbody></table></div></div>`;
+}
+async function gerar(b){
+  const arm=$('n-arm').value.split(/[,;\s]+/).map(x=>x.trim()).filter(Boolean);
+  if(!arm.length)return alert('Informe os armazéns.');
+  b.disabled=true;b.textContent='Gerando…';
+  try{const id=await rpc('inv_gerar',{p_filial:$('n-fil').value,p_armazens:arm,p_qtd:+$('n-qtd').value||20,p_data:$('n-data').value||null,p_dias_rotacao:+$('n-rot').value||0});toast('Lista #'+id+' gerada.');abrir(id)}
+  catch(e){alert(e.message);b.disabled=false;b.textContent='➕ Gerar lista'}
+}
+
+// ── Lista aberta ──
+async function abrir(id){
+  LISTA=(LISTAS.find(l=>l.id===id))||{id};$('vis-listas').style.display='none';$('vis-lista').style.display='';
+  $('vis-lista').innerHTML='<div class="card muted">Carregando…</div>';
+  try{LISTAS=await rpc('inv_listas',{p_filial:null});LISTA=LISTAS.find(l=>l.id===id)||LISTA;ITENS=await rpc('inv_itens',{p_lista:id})}catch(e){$('vis-lista').innerHTML='<div class="card">Erro: '+esc(e.message)+'</div>';return}
+  desenharLista();
+}
+function voltar(){LISTA=null;$('vis-lista').style.display='none';$('vis-listas').style.display='';carregarListas()}
+const final=i=>i.cont2!=null?i.cont2:i.cont1;
+function desenharLista(){
+  const l=LISTA,aberta=l.status==='aberta',c=coord();
+  const n=s=>ITENS.filter(i=>i.status===s).length,cont=ITENS.filter(i=>i.status!=='pendente').length;
+  const ok1=ITENS.filter(i=>i.status==='ok'&&i.cont2==null).length,okF=ITENS.filter(i=>i.status==='ok').length;
+  const fin=ITENS.filter(i=>['ok','aprovado','divergente','justificado'].includes(i.status)).length;
+  const k=`<div class="kpis">
+    <div class="kpi"><b>${cont}/${ITENS.length}</b><span>itens contados</span></div>
+    <div class="kpi"><b>${fin?Math.round(okF/fin*100):0}%</b><span>acuracidade (${okF} de ${fin} sem diferença)</span></div>
+    <div class="kpi"><b>${ok1}</b><span>certos já na 1ª contagem</span></div>
+    <div class="kpi"><b>${n('recontar')}</b><span>para recontar</span></div>
+    <div class="kpi"><b>${n('divergente')+n('justificado')}</b><span>com diferença (justificar / aprovar)</span></div>
+    ${c?`<div class="kpi"><b>${rs(ITENS.filter(i=>['divergente','justificado','aprovado'].includes(i.status)).reduce((s,i)=>s+Math.abs((final(i)??i.saldo)-i.saldo)*(i.custo||0),0))}</b><span>valor das diferenças</span></div>`:''}</div>`;
+  const rows=ITENS.map(i=>{
+    const dif=c&&final(i)!=null?final(i)-i.saldo:null;
+    let acao='';
+    if(aberta&&podeContar()&&(i.status==='pendente'||i.status==='recontar'))
+      acao=`<input class="qtd" type="number" min="0" step="any" id="q${i.id}" placeholder="${i.status==='recontar'?'recontagem':'contado'}" onkeydown="if(event.key==='Enter')contar(${i.id})"> <button class="btn" onclick="contar(${i.id})">Salvar</button>`;
+    else if(aberta&&podeContar()&&i.status==='divergente')
+      acao=`<input id="j${i.id}" placeholder="Justificativa da diferença" style="width:230px"> <button class="btn sec" onclick="justificar(${i.id})">Enviar</button>`;
+    if(aberta&&c&&(i.status==='justificado'||i.status==='divergente'))
+      acao+=`<div style="margin-top:4px"><button class="btn ok" onclick="decidir(${i.id},true)">Aprovar</button> <button class="btn no" onclick="decidir(${i.id},false)">Reprovar (recontar)</button></div>`;
+    return `<tr><td><b>${esc(i.codigo)}</b></td><td>${esc(i.descricao)}</td><td>${esc(i.unidade||'')}</td><td>${esc(String(i.armazem).padStart(2,'0'))}</td><td>${esc(i.localizacao||'')}</td>
+      ${c?`<td class="n">${nf(i.saldo)}</td>`:''}
+      <td class="n">${nf(i.cont1)}<div class="muted" style="font-size:11px">${quem(i.cont1_por)} ${hBR(i.cont1_em)}</div></td>
+      <td class="n">${nf(i.cont2)}<div class="muted" style="font-size:11px">${quem(i.cont2_por)} ${hBR(i.cont2_em)}</div></td>
+      ${c?`<td class="n" style="color:${dif?'#b91c1c':'inherit'};font-weight:700">${dif==null?'–':(dif>0?'+':'')+nf(dif)}</td>`:''}
+      <td><span class="st ${i.status}">${ROT[i.status]||i.status}</span>${i.justificativa?`<div class="muted" style="font-size:11.5px;margin-top:3px">“${esc(i.justificativa)}” — ${quem(i.just_por)}</div>`:''}${i.decisao_obs?`<div class="muted" style="font-size:11.5px">Coord.: ${esc(i.decisao_obs)} — ${quem(i.decisao_por)}</div>`:''}</td>
+      <td class="nao-imprime" style="white-space:nowrap">${acao}</td></tr>`}).join('');
+  $('vis-lista').innerHTML=`<div class="card nao-imprime" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <button class="btn sec" onclick="voltar()">← Listas</button>
+      <b style="font-size:15px">Lista #${l.id}</b><span class="st ${l.status}">${l.status}</span>
+      <span class="muted">Filial ${esc(l.filial)} — ${esc(FIL[l.filial]||'')} • armazéns ${(l.armazens||[]).map(a=>a.padStart(2,'0')).join(', ')} • contagem ${dBR(l.data_contagem)} • saldo congelado em ${hBR(l.criado_em)}</span>
+      <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn sec" onclick="imprimir()">🖨 Folha de contagem</button>
+        ${c?`<button class="btn sec" onclick="exportar()">⬇ Exportar para o Protheus</button>`:''}
+        ${c&&aberta?`<button class="btn ok" onclick="statusLista('fechada')">✔ Fechar lista</button><button class="btn sec" onclick="statusLista('cancelada')">Cancelar</button>`:''}
+        ${c&&l.status!=='aberta'?`<button class="btn sec" onclick="statusLista('aberta')">Reabrir</button>`:''}
+      </span></div>
+    ${podeContar()&&!c?`<div class="aviso">Contagem <b>cega</b>: digite a quantidade que você contou. Se não bater, o sistema pede a <b>recontagem</b>; se continuar diferente, escreva a justificativa — o coordenador aprova.</div>`:''}
+    ${k}
+    <div class="tab-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>UM</th><th>Arm.</th><th>Endereço</th>${c?'<th class="n">Saldo congelado</th>':''}<th class="n">1ª contagem</th><th class="n">Recontagem</th>${c?'<th class="n">Diferença</th>':''}<th>Situação</th><th class="nao-imprime">Ação</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+async function contar(id){
+  const el=$('q'+id),v=el.value.replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a quantidade contada (0 ou mais).');
+  el.disabled=true;
+  try{const st=await rpc('inv_contar',{p_item:id,p_qtd:+v});toast(st==='ok'?'✓ Contagem confere.':st==='recontar'?'⚠ Não confere com o sistema: faça a recontagem.':st==='divergente'?'✖ Recontagem também diferente: escreva a justificativa.':'Salvo.');
+    ITENS=await rpc('inv_itens',{p_lista:LISTA.id});desenharLista();const nx=document.querySelector('input.qtd');if(nx)nx.focus()}
+  catch(e){alert(e.message);el.disabled=false}
+}
+async function justificar(id){const t=$('j'+id).value.trim();if(!t)return alert('Escreva a justificativa.');
+  try{await rpc('inv_justificar',{p_item:id,p_texto:t});toast('Justificativa enviada ao coordenador.');ITENS=await rpc('inv_itens',{p_lista:LISTA.id});desenharLista()}catch(e){alert(e.message)}}
+async function decidir(id,ap){const obs=prompt(ap?'Observação (opcional):':'Motivo da reprovação (o item volta para recontagem):','');if(obs===null)return;
+  try{await rpc('inv_decidir',{p_item:id,p_aprovar:ap,p_obs:obs});toast(ap?'Aprovado.':'Reprovado: volta para recontagem.');ITENS=await rpc('inv_itens',{p_lista:LISTA.id});desenharLista()}catch(e){alert(e.message)}}
+async function statusLista(s){if(!confirm({fechada:'Fechar a lista? Só fecha se todos os itens estiverem OK ou aprovados.',cancelada:'Cancelar esta lista?',aberta:'Reabrir a lista?'}[s]))return;
+  try{await rpc('inv_status_lista',{p_lista:LISTA.id,p_status:s});toast('Lista '+s+'.');abrir(LISTA.id)}catch(e){alert(e.message)}}
+
+// folha de contagem cega (sem saldo) para imprimir
+function imprimir(){
+  const l=LISTA;
+  $('folha').innerHTML=`<h2 style="margin:0 0 4px">Folha de contagem — Lista #${l.id}</h2>
+    <div style="font-size:12px;margin-bottom:10px">Filial ${esc(l.filial)} — ${esc(FIL[l.filial]||'')} • armazéns ${(l.armazens||[]).map(a=>a.padStart(2,'0')).join(', ')} • data ${dBR(l.data_contagem)}</div>
+    <table style="width:100%;border-collapse:collapse"><thead><tr><th>#</th><th>Código</th><th>Descrição</th><th>UM</th><th>Arm.</th><th>Endereço</th><th style="width:90px">1ª contagem</th><th style="width:90px">Recontagem</th></tr></thead>
+    <tbody>${ITENS.map((i,n)=>`<tr><td>${n+1}</td><td>${esc(i.codigo)}</td><td>${esc(i.descricao)}</td><td>${esc(i.unidade||'')}</td><td>${esc(String(i.armazem).padStart(2,'0'))}</td><td>${esc(i.localizacao||'')}</td><td></td><td></td></tr>`).join('')}</tbody></table>
+    <div style="margin-top:28px;display:flex;gap:40px;font-size:12px"><div>Contado por: ______________________________</div><div>Data: ____/____/______</div></div>`;
+  document.body.classList.add('imprimindo');setTimeout(()=>{window.print();document.body.classList.remove('imprimindo')},50);
+}
+// planilha para subir no Protheus (inventário SB7) — quantidade final contada dos itens OK/aprovados
+function exportar(){
+  if(!window.XLSX)return alert('Não consegui carregar o gerador de Excel. Atualize a página.');
+  const prontos=ITENS.filter(i=>i.status==='ok'||i.status==='aprovado'),falta=ITENS.length-prontos.length;
+  if(!prontos.length)return alert('Nenhum item com contagem final (OK ou aprovado).');
+  if(falta&&!confirm(falta+' item(ns) ainda sem contagem final ficarão FORA da planilha. Exportar mesmo assim?'))return;
+  const l=LISTA,data=String(l.data_contagem).replace(/-/g,''),doc='INV'+String(l.id).padStart(6,'0');
+  const linhas=prontos.map(i=>({B7_FILIAL:l.filial,B7_COD:i.codigo,B7_LOCAL:String(i.armazem).padStart(2,'0'),B7_DOC:doc,B7_QUANT:final(i),B7_DATA:data}));
+  const ws=XLSX.utils.json_to_sheet(linhas),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'SB7');
+  const conf=ITENS.map(i=>({Código:i.codigo,Descrição:i.descricao,UM:i.unidade,Armazém:String(i.armazem).padStart(2,'0'),'Saldo congelado':i.saldo,'1ª contagem':i.cont1,'Recontagem':i.cont2,'Quantidade final':final(i),'Diferença':final(i)!=null?final(i)-i.saldo:null,'Custo médio':i.custo,'Valor da diferença':final(i)!=null?(final(i)-i.saldo)*(i.custo||0):null,Situação:ROT[i.status]||i.status,Justificativa:i.justificativa||'','Contado por':quem(i.cont2_por||i.cont1_por),'Aprovado por':quem(i.decisao_por)}));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(conf),'Conferência');
+  XLSX.writeFile(wb,`inventario_${l.filial}_lista${l.id}_${data}.xlsx`);
+}
+
+// ── Acuracidade (por filial e mês) ──
+async function desenharAcur(){
+  $('vis-acur').innerHTML='<div class="card muted">Carregando…</div>';
+  try{LISTAS=await rpc('inv_listas',{p_filial:null})}catch(e){$('vis-acur').innerHTML='<div class="card">Erro: '+esc(e.message)+'</div>';return}
+  const g={};LISTAS.filter(l=>l.status!=='cancelada').forEach(l=>{const k=l.filial+'|'+String(l.data_contagem).slice(0,7),x=g[k]=g[k]||{f:l.filial,m:String(l.data_contagem).slice(0,7),listas:0,itens:0,fin:0,ok:0,ok1:0,val:0};
+    x.listas++;x.itens+=l.itens;x.fin+=l.ok+l.divergentes+l.aguardando+l.aprovados;x.ok+=l.ok;x.ok1+=l.ok_1a;x.val+=Number(l.valor_div||0)});
+  const L=Object.values(g).sort((a,b)=>b.m.localeCompare(a.m)||a.f.localeCompare(b.f));
+  const tot=L.reduce((s,x)=>({fin:s.fin+x.fin,ok:s.ok+x.ok,ok1:s.ok1+x.ok1}),{fin:0,ok:0,ok1:0});
+  $('vis-acur').innerHTML=`<div class="aviso"><b>Acuracidade</b> = itens sem diferença ÷ itens com contagem final × 100. "Na 1ª contagem" conta só os que bateram de primeira; "final" inclui os que bateram na recontagem. Sem tolerância: qualquer diferença conta como erro.</div>
+    <div class="kpis"><div class="kpi"><b>${tot.fin?Math.round(tot.ok/tot.fin*1000)/10:0}%</b><span>acuracidade final (${tot.ok} de ${tot.fin})</span></div>
+      <div class="kpi"><b>${tot.fin?Math.round(tot.ok1/tot.fin*1000)/10:0}%</b><span>acuracidade na 1ª contagem</span></div></div>
+    <div class="card"><div class="tab-wrap" style="max-height:none"><table><thead><tr><th>Mês</th><th>Filial</th><th class="n">Listas</th><th class="n">Itens</th><th class="n">Com contagem final</th><th class="n">Sem diferença</th><th class="n">Acuracidade final</th><th class="n">Acuracidade 1ª contagem</th>${coord()?'<th class="n">Valor das diferenças</th>':''}</tr></thead>
+    <tbody>${L.map(x=>`<tr><td>${x.m.split('-').reverse().join('/')}</td><td>${esc(x.f)} — ${esc(FIL[x.f]||'')}</td><td class="n">${x.listas}</td><td class="n">${x.itens}</td><td class="n">${x.fin}</td><td class="n">${x.ok}</td>
+      <td class="n"><b>${x.fin?Math.round(x.ok/x.fin*1000)/10+'%':'–'}</b></td><td class="n">${x.fin?Math.round(x.ok1/x.fin*1000)/10+'%':'–'}</td>${coord()?`<td class="n">${rs(x.val)}</td>`:''}</tr>`).join('')||'<tr><td colspan="9" class="muted" style="padding:16px">Ainda não há contagens.</td></tr>'}</tbody></table></div></div>`;
+}
+
+document.addEventListener('bq-acesso-ok',async e=>{
+  EU=(e.detail.email||'').toLowerCase();$('quem').textContent=EU;
+  try{PAPEL=await rpc('inv_papel');const{data}=await db.from('filiais').select('filial,nome_filial');(data||[]).forEach(f=>FIL[String(f.filial).trim()]=f.nome_filial)}catch(err){}
+  carregarListas();
+});
+</script>
+<script src="/bq-acesso.js" data-painel="inventario"></script>
+</body>
+</html>
