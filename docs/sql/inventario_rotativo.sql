@@ -24,3 +24,14 @@ create table if not exists public.inv_item (
 --   inv_contar(item, qtd) → ok | recontar | divergente
 --   inv_justificar(item, texto) / inv_decidir(item, aprovar, obs) / inv_status_lista(lista, aberta|fechada|cancelada)
 -- acesso_nivel('inventario') também aceita quem tem 'inventario-coord'.
+
+-- 23/11/2026 (2ª parte, migração inventario_coletor_escopo):
+--   inv_lista.tipo: 'lista' (liberada pelo coordenador) | 'coletor' (criada sozinha pelo coletor, 1 por filial/dia)
+--   inv_gerar(filial, armazens[] ou null = todos, qtd ou null = todos os itens com saldo, data, dias_rotacao)
+--   inv_armazens(filial) → armazéns com itens com saldo (valor só para coord)
+--   inv_produto(codigo) → descrição/unidade (sem saldo) — coletor
+--   inv_coletar(filial, armazem, codigo, qtd) → usa o item de uma lista aberta da filial/armazém; se não houver, cria na
+--     lista 'coletor' do dia (saldo congelado no momento da 1ª contagem); se o item está em recontagem, grava a 2ª.
+--     Item já contado: bloqueia ("fale com o administrador").
+--   inv_minhas_contagens(filial) → o que o usuário contou hoje (sem saldo)
+--   inv_desfazer(item, motivo) → só coord/admin: volta o item para "a contar" (item do coletor é apagado)
