@@ -296,6 +296,11 @@ function scResumo(){
   $('sc-escopo').innerHTML=`Itens da tabela filtrada (<b>${esc(cli)}</b>, filial ${esc(fil)}). <b>Previsto na chegada</b> = ${SC.desEst?'estoque da filial '+esc(fil)+' + ':''}a chegar (PC pendente ou em aprovação, ou SC pendente sem PC) − consumo médio até ${dChe}. <b>Sugerido</b> = consumo de ${SC.meses} ${SC.meses>1?'meses':'mês'} depois da chegada − o que ainda houver na chegada. A quantidade final pode ser alterada; ela é dividida pelos centros de custo na proporção do consumo de ${FC.ano}.`;
   const G={};out.forEach(x=>{const g=G[x.cc]=G[x.cc]||{cc:x.cc,n:x.ccn,qt:0,sk:0};g.qt+=x.qt;g.sk++});
   const L=Object.values(G).sort((a,b)=>b.qt-a.qt),T=L.reduce((s,g)=>s+g.qt,0),nSku=new Set(out.map(x=>x.c)).size;
+  // efetivo da SRA (funcionarios) dos CCs do rateio: busca só o que ainda não tem e redesenha quando chegar
+  SC.efet=SC.efet||{};const faltaEf=L.map(g=>g.cc).filter(c=>c&&!(c in SC.efet)&&!(SC.efetPedido||{})[c]);
+  if(faltaEf.length){SC.efetPedido=SC.efetPedido||{};faltaEf.forEach(c=>SC.efetPedido[c]=1);
+    rpc('efetivo_cc',{p_ccs:faltaEf}).then(r=>{faltaEf.forEach(c=>SC.efet[c]=(r&&r[c])||{normal:0,ferias:0,afastado:0});scResumo()}).catch(()=>{faltaEf.forEach(c=>delete SC.efetPedido[c])})}
+  const ef=c=>SC.efet[c],efOk=L.every(g=>ef(g.cc)),efN=L.reduce((s,g)=>s+((ef(g.cc)||{}).normal||0),0);
   const sm=f=>S.reduce((s,x)=>s+f(x),0),TE=sm(x=>x.est0),TA=sm(x=>x.ac),TK=sm(x=>x.consAte),TP=sm(x=>Math.max(0,x.prev)),TC=sm(x=>x.cob),TS=sm(x=>x.sug),TF=sm(x=>x.fin);
   const nFalta=S.filter(x=>x.falta).length,cobertos=S.filter(x=>x.sug===0).length,ned=S.filter(x=>x.editado).length;
   const nn=v=>fcN(v);
@@ -307,7 +312,7 @@ function scResumo(){
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="color:var(--muted);min-width:118px">Depois da chegada:</span>
         <span>consumo de ${SC.meses} ${SC.meses>1?'meses':'mês'} <b>${nn(TC)}</b></span><span style="color:var(--muted)">−</span><span>sobra na chegada</span><span style="color:var(--muted)">=</span>
         <span>sugerido <b>${nn(TS)}</b></span>${ned?`<span style="color:var(--muted)">→</span><span style="color:#1e40af">final (com ${ned} ajuste${ned>1?'s':''}) <b>${nn(TF)}</b></span>`:''}
-        <span style="margin-left:auto;color:var(--muted)">${nSku} SKUs · ${L.length} centros de custo (= ${L.length} SCs)${cobertos?` · <span style="color:#15803d">${cobertos} coberto${cobertos>1?'s':''}</span>`:''}</span></div></div>
+        <span style="margin-left:auto;color:var(--muted)">${L.length?`👥 efetivo normal (SRA) <b style="color:#0f172a">${efOk?nn(efN):'…'}</b> pessoas · `:''}${nSku} SKUs · ${L.length} centros de custo (= ${L.length} SCs)${cobertos?` · <span style="color:#15803d">${cobertos} coberto${cobertos>1?'s':''}</span>`:''}</span></div></div>
     <div style="flex:none;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <div class="vis"><button class="${SC.visao==='sku'?'on':''}" onclick="scVisao('sku')">Por SKU (conferir e ajustar)</button><button class="${SC.visao==='cc'?'on':''}" onclick="scVisao('cc')">Por centro de custo</button></div>
       <label style="font-size:12px;display:flex;gap:5px;align-items:center"><input type="checkbox" ${SC.desEst?'checked':''} onchange="scDesEst(this.checked)"> contar o estoque da filial ${esc(fil)}</label>
@@ -329,8 +334,11 @@ function scResumo(){
       <td class="n">${x.ncc||'–'}</td></tr>`).join('')}
     </tbody><tfoot><tr style="font-weight:800;background:#eef2ff"><td>Total</td><td></td>${SC.desEst?`<td class="n" style="color:#7c3aed">${nn(TE)}</td>`:''}<td class="n" style="color:#c2410c">${nn(TA)}</td>
       <td class="n">− ${nn(TK)}</td><td class="n">${nn(TP)}</td><td class="n">${nn(TC)}</td><td class="n">${nn(TS)}</td><td class="n" style="color:#1e40af">${nn(TF)}</td><td></td></tr></tfoot></table>`;
-  const porCC=`<table class="t2"><thead><tr><th>Centro de custo</th><th class="n">SKUs</th><th class="n">Peças</th><th class="n">% das peças</th></tr></thead><tbody>
-    ${L.map(g=>`<tr><td><b>${esc(g.cc)}</b> ${esc(g.n)}</td><td class="n">${g.sk}</td><td class="n"><b>${fcN(g.qt)}</b></td><td class="n">${T?(g.qt/T*100).toFixed(1).replace('.',','):'0'}%</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted);padding:12px">Nada a comprar: o que está a chegar e o estoque já cobrem o período.</td></tr>'}
+  const efCel=c=>{const e=ef(c);if(!e)return '<td class="n" style="color:var(--muted)">…</td><td class="n" style="color:var(--muted)">…</td><td class="n" style="color:var(--muted)">…</td>';
+      const pp=e.normal?(G[c].qt/e.normal):0;
+      return `<td class="n"><b>${nn(e.normal)}</b></td><td class="n" style="color:var(--muted)">${(e.ferias||e.afastado)?nn(e.ferias)+' / '+nn(e.afastado):'–'}</td><td class="n">${e.normal?pp.toLocaleString('pt-BR',{maximumFractionDigits:1}):'–'}</td>`};
+  const porCC=`<table class="t2"><thead><tr><th>Centro de custo</th><th class="n">SKUs</th><th class="n">Peças</th><th class="n">% das peças</th><th class="n" title="Funcionários com situação NORMAL na SRA">Efetivo<br>normal (SRA)</th><th class="n" title="Férias / afastados na SRA (não entram no efetivo normal)">Férias /<br>afastado</th><th class="n">Peças por<br>pessoa</th></tr></thead><tbody>
+    ${L.map(g=>`<tr><td><b>${esc(g.cc)}</b> ${esc(g.n)}</td><td class="n">${g.sk}</td><td class="n"><b>${fcN(g.qt)}</b></td><td class="n">${T?(g.qt/T*100).toFixed(1).replace('.',','):'0'}%</td>${efCel(g.cc)}</tr>`).join('')||'<tr><td colspan="7" style="color:var(--muted);padding:12px">Nada a comprar: o que está a chegar e o estoque já cobrem o período.</td></tr>'}
     </tbody></table>`;
   const box=document.querySelector('#sc-resumo .sc-lista'),top=box?box.scrollTop:0;
   $('sc-resumo').innerHTML=conta+`<div class="sc-lista" style="flex:1;min-height:90px;overflow:auto;border:1px solid var(--border);border-radius:8px">${SC.visao==='sku'?porSku:porCC}</div>`;
