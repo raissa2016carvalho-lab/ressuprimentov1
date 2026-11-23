@@ -130,7 +130,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
   <div class="f-group so-notas"><label>Produto ou serviço</label><select id="f-tipo-nota" onchange="pag=0;render()"><option value="">Todos</option><option value="NFE">Produto (NF-e)</option><option value="NFSE">Serviço (NFS-e)</option></select></div>
   <div class="f-group so-notas"><label>Medição</label><select id="f-med" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="com">Com medição</option><option value="sem">Sem medição</option></select></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="">Todas</option></select></div>
-  <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="203206" selected>Recusada (NFS-e)</option><option value="203202">Confirmada (NFS-e)</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
+  <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="210210">Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="203206">Recusada (NFS-e)</option><option value="203202">Confirmada (NFS-e)</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Lançada no Protheus?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já lançada</option><option value="nao">✗ Não — falta lançar</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Status</label><select id="f-status" multiple class="ms-src" style="display:none" onchange="pag=0;render()"></select></div>
   <div class="f-group so-gestao"><label>Setor</label><select id="f-setor" multiple class="ms-src" style="display:none" onchange="pag=0;render()"></select></div>
@@ -310,7 +310,8 @@ function agrupar(){
 const MANIF={'210210':'Ciência da operação','210200':'Confirmação da operação','210220':'Desconhecimento','210240':'Operação não realizada','203206':'Recusada (NFS-e)','203202':'Confirmada (NFS-e)'};
 // NFS-e recusada pela B&Q no portal (evento 203206): não vai ser lançada
 const RECUSADA=n=>n.manifestacao==='203206';
-function passaManif(n,m){if(n&&n.modelo==='NFSE')return true;   // nota de serviço não tem manifestação do destinatário
+// filtro de manifestação vale igual para NF-e e NFS-e (a NFS-e tem recusa 203206 e confirmação 203202); nada marcado = todas
+function passaManif(n,m){
   if(Array.isArray(m))return !m.length||m.some(x=>passaManif(n,x));if(!m)return true;if(m==='__sem')return !n.manifestacao;return n.manifestacao===m}
 function passaStatus(n,si){if(Array.isArray(si))return si.length?si.some(x=>passaStatus(n,x)):passaStatus(n,'');if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(!si)return true;if(n.status_nfe==='C')return false;return n.status_integracao===si}
 // busca no texto do rodapé (feita no banco, para não baixar o rodapé de todas as notas)
