@@ -137,10 +137,22 @@ async function abrir(id){
   try{LISTAS=await rpc('inv_listas',{p_filial:null});LISTA=LISTAS.find(l=>l.id===id)||LISTA;ITENS=await rpc('inv_itens',{p_lista:id})}catch(e){$('vis-lista').innerHTML='<div class="card">Erro: '+esc(e.message)+'</div>';return}
   desenharLista();
 }
-function voltar(){LISTA=null;$('vis-lista').style.display='none';$('vis-listas').style.display='';carregarListas()}
+function voltar(){LISTA=null;ARM_LISTA='';$('vis-lista').style.display='none';$('vis-listas').style.display='';carregarListas()}
 const final=i=>i.cont2!=null?i.cont2:i.cont1;
+let ARM_LISTA='';
 function desenharLista(){
   const l=LISTA,aberta=l.status==='aberta',c=coord();
+  const armsL=[...new Set(ITENS.map(i=>String(i.armazem).padStart(2,'0')))].sort();
+  if(armsL.length===1)ARM_LISTA=armsL[0];
+  if(!c&&!armsL.includes(ARM_LISTA)){
+    $('vis-lista').innerHTML=`<div class="card" style="max-width:720px"><button class="btn sec" onclick="voltar()">← Listas</button>
+      <div style="font-size:17px;font-weight:800;margin:14px 0 4px">Lista #${l.id} — qual armazém você vai contar agora?</div>
+      <div class="muted" style="margin-bottom:12px">Conte um armazém por vez.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${armsL.map(a=>`<button class="btn" style="font-size:22px;padding:18px 28px;min-width:120px" onclick="ARM_LISTA='${a}';desenharLista()">Armazém ${a}<div style="font-size:12px;font-weight:600">${ITENS.filter(i=>String(i.armazem).padStart(2,'0')===a&&i.status==='pendente').length} a contar</div></button>`).join('')}</div></div>`;
+    return;
+  }
+  const TODOS=ITENS;if(ARM_LISTA&&armsL.includes(ARM_LISTA))ITENS=TODOS.filter(i=>String(i.armazem).padStart(2,'0')===ARM_LISTA);
+  try{
   const n=s=>ITENS.filter(i=>i.status===s).length,cont=ITENS.filter(i=>i.status!=='pendente').length;
   const ok1=ITENS.filter(i=>i.status==='ok'&&i.cont2==null).length,okF=ITENS.filter(i=>i.status==='ok').length;
   const fin=ITENS.filter(i=>['ok','aprovado','divergente','justificado'].includes(i.status)).length;
@@ -172,6 +184,8 @@ function desenharLista(){
   $('vis-lista').innerHTML=`<div class="card nao-imprime" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
       <button class="btn sec" onclick="voltar()">← Listas</button>
       <b style="font-size:15px">Lista #${l.id}</b><span class="st ${l.status}">${l.status}</span>
+      ${armsL.length>1?(c?`<select onchange="ARM_LISTA=this.value;desenharLista()"><option value="">todos os armazéns</option>${armsL.map(a=>`<option${a===ARM_LISTA?' selected':''}>${a}</option>`).join('')}</select>`
+        :`<span style="background:#1e40af;color:#fff;border-radius:8px;padding:4px 10px;font-weight:800">📦 Armazém ${ARM_LISTA}</span><button class="btn sec" onclick="if(confirm('Encerrar o armazém '+ARM_LISTA+' e escolher outro?')){ARM_LISTA='';desenharLista()}">Encerrar este armazém</button>`):''}
       <span class="muted">Filial ${esc(l.filial)} — ${esc(FIL[l.filial]||'')} • armazéns ${(l.armazens||[]).map(a=>a.padStart(2,'0')).join(', ')} • contagem ${dBR(l.data_contagem)} • saldo congelado em ${hBR(l.criado_em)}</span>
       <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn sec" onclick="imprimir()">🖨 Folha de contagem</button>
@@ -182,6 +196,7 @@ function desenharLista(){
     ${podeContar()&&!c?`<div class="aviso">Contagem <b>cega</b>: digite a quantidade que você contou. Se não bater, o sistema pede a <b>recontagem</b>; se continuar diferente, escreva a justificativa — o coordenador aprova.</div>`:''}
     ${k}
     <div class="tab-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>UM</th><th>Arm.</th><th>Endereço</th>${c?'<th class="n">Saldo congelado</th>':''}<th class="n">1ª contagem</th><th class="n">Recontagem</th>${c?'<th class="n">Diferença</th>':''}<th>Situação</th><th class="nao-imprime">Ação</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }finally{ITENS=TODOS}
 }
 async function contar(id){
   const el=$('q'+id),v=el.value.replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a quantidade contada (0 ou mais).');
@@ -241,27 +256,43 @@ async function desenharAcur(){
 
 // ── Coletor: digita o código, a descrição aparece, digita a quantidade e já sabe se confere ──
 const LS=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}};
-let COL={fil:LS('inv_fil')||'04',arm:LS('inv_arm')||'',prod:null,foco:null,arms:[]};
+let COL={fil:LS('inv_fil')||'04',arm:'',prod:null,foco:null,arms:[]};
+// o almoxarife conta UM armazém por vez: escolhe antes de começar e só troca encerrando o armazém
+const hojeISO=()=>new Date().toISOString().slice(0,10);
+function travaLer(){try{const t=JSON.parse(LS('inv_trava')||'null');return t&&t.data===hojeISO()?t:null}catch(e){return null}}
+function travar(fil,arm){LS('inv_trava',JSON.stringify({fil,arm,data:hojeISO()}))}
+function destravar(){try{localStorage.removeItem('inv_trava')}catch(e){}}
+function encerrarArm(){if(!confirm('Encerrar a contagem do armazém '+COL.arm+'? Depois você escolhe o próximo armazém.'))return;destravar();COL.arm='';desenharColetor()}
+function escolherArm(a){travar(COL.fil,a);COL.arm=a;desenharColetor()}
 async function desenharColetor(){
+  const t=travaLer();if(t){COL.fil=t.fil;COL.arm=t.arm}else COL.arm='';
   try{COL.arms=(await rpc('inv_armazens',{p_filial:COL.fil})).filter(a=>a.itens_com_saldo>0).map(a=>a.armazem)}catch(e){COL.arms=[]}
-  if(!COL.arms.includes(COL.arm))COL.arm=COL.arms[0]||'01';
+  if(!COL.arm){
+    $('vis-coletor').innerHTML=`<div class="card" style="max-width:720px">
+      <div class="barra" style="margin-bottom:14px"><label>Filial<select id="c-fil" onchange="COL.fil=this.value;LS('inv_fil',COL.fil);desenharColetor()">${Object.keys(FIL).sort().map(f=>`<option value="${f}"${f===COL.fil?' selected':''}>${f} — ${esc(FIL[f])}</option>`).join('')}</select></label></div>
+      <div style="font-size:17px;font-weight:800;margin-bottom:4px">Qual armazém você vai contar agora?</div>
+      <div class="muted" style="margin-bottom:12px">Conte um armazém por vez. Para trocar, você vai precisar encerrar o armazém atual.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${(COL.arms.length?COL.arms:['01']).map(a=>`<button class="btn" style="font-size:22px;padding:18px 28px;min-width:120px" onclick="escolherArm('${a}')">Armazém ${a}</button>`).join('')}</div>
+    </div>`;
+    return;
+  }
   $('vis-coletor').innerHTML=`<div class="card">
-      <div class="barra" style="margin-bottom:10px">
-        <label>Filial<select id="c-fil" onchange="COL.fil=this.value;LS('inv_fil',COL.fil);desenharColetor()">${Object.keys(FIL).sort().map(f=>`<option value="${f}"${f===COL.fil?' selected':''}>${f} — ${esc(FIL[f])}</option>`).join('')}</select></label>
-        <label>Armazém<select id="c-arm" onchange="COL.arm=this.value;LS('inv_arm',COL.arm);$('c-cod').focus()">${(COL.arms.length?COL.arms:['01']).map(a=>`<option${a===COL.arm?' selected':''}>${a}</option>`).join('')}</select></label>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px">
+        <div style="background:#1e40af;color:#fff;border-radius:10px;padding:8px 14px;font-weight:800;font-size:16px">📦 Contando: filial ${esc(COL.fil)} — armazém ${esc(COL.arm)}</div>
+        <button class="btn sec" onclick="encerrarArm()">Encerrar este armazém</button>
         <span class="muted" style="margin-left:auto;max-width:420px">Contagem cega: o sistema não mostra o saldo. Se não conferir, a 2ª contagem abre na própria linha. Digitou errado? Fale com o administrador.</span>
       </div>
       <div class="tab-wrap" style="max-height:calc(100vh - 260px)"><table id="c-tab">
-        <thead><tr><th style="width:150px">Código</th><th>Descrição</th><th style="width:60px">UM</th><th style="width:60px">Arm.</th><th class="n" style="width:120px">1ª contagem</th><th class="n" style="width:150px">2ª contagem</th><th style="width:260px">Situação</th></tr></thead>
+        <thead><tr><th style="width:150px">Código</th><th>Descrição</th><th style="width:60px">UM</th><th class="n" style="width:120px">1ª contagem</th><th class="n" style="width:150px">2ª contagem</th><th style="width:260px">Situação</th></tr></thead>
         <tbody>
           <tr style="background:#eff6ff">
             <td><input id="c-cod" inputmode="numeric" autocomplete="off" placeholder="código + Enter" style="width:100%;font-weight:700" onkeydown="if(event.key==='Enter')colBusca()"></td>
-            <td id="c-desc" class="muted">digite ou bipe o código</td><td id="c-um"></td><td id="c-armc">${esc(COL.arm)}</td>
+            <td id="c-desc" class="muted">digite ou bipe o código</td><td id="c-um"></td>
             <td class="n"><input id="c-qtd" type="number" min="0" step="any" inputmode="decimal" class="qtd" style="width:100%" placeholder="qtd" onkeydown="if(event.key==='Enter')colContar()" disabled></td>
             <td></td><td><button class="btn" id="c-btn" onclick="colContar()" disabled>Confirmar</button></td>
           </tr>
         </tbody>
-        <tbody id="c-hist"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
+        <tbody id="c-hist"><tr><td colspan="6" class="muted">Carregando…</td></tr></tbody>
       </table></div>
       <div id="c-msg" style="margin-top:8px"></div>
     </div>`;
@@ -269,7 +300,7 @@ async function desenharColetor(){
 }
 async function colBusca(){
   const c=$('c-cod').value.trim();if(!c)return;
-  $('c-desc').textContent='buscando…';$('c-msg').innerHTML='';$('c-armc').textContent=$('c-arm').value;
+  $('c-desc').textContent='buscando…';$('c-msg').innerHTML='';
   try{COL.prod=await rpc('inv_produto',{p_codigo:c})}catch(e){COL.prod=null}
   if(!COL.prod){$('c-desc').innerHTML='<span style="color:#b91c1c;font-weight:700">Código não encontrado no cadastro.</span>';$('c-um').textContent='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-cod').select();return}
   $('c-desc').innerHTML='<b>'+esc(COL.prod.descricao||'')+'</b>';$('c-um').textContent=COL.prod.unidade||'';
@@ -280,7 +311,7 @@ async function colContar(){
   const v=String($('c-qtd').value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a quantidade contada.');
   $('c-btn').disabled=true;
   let r;
-  try{r=await rpc('inv_coletar',{p_filial:COL.fil,p_armazem:$('c-arm').value,p_codigo:COL.prod.codigo,p_qtd:+v})}
+  try{r=await rpc('inv_coletar',{p_filial:COL.fil,p_armazem:COL.arm,p_codigo:COL.prod.codigo,p_qtd:+v})}
   catch(e){$('c-msg').innerHTML=`<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">${esc(e.message)}</div>`;$('c-btn').disabled=false;return}
   $('c-cod').value='';$('c-qtd').value='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-desc').innerHTML='<span class="muted">digite ou bipe o código</span>';$('c-um').textContent='';COL.prod=null;
   $('c-msg').innerHTML=r.status==='ok'?`<div class="aviso" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534">✅ <b>${esc(r.codigo)}</b> confere.</div>`:
@@ -297,14 +328,14 @@ async function colJustificar(item){const t=$('j-'+item).value.trim();if(!t)retur
   try{await rpc('inv_justificar',{p_item:item,p_texto:t});$('c-msg').innerHTML='<div class="aviso">Justificativa enviada ao coordenador.</div>';COL.foco=null}catch(e){alert(e.message);return}
   await colHist();$('c-cod').focus()}
 async function colHist(){
-  let h=[];try{h=await rpc('inv_minhas_contagens',{p_filial:COL.fil})}catch(e){}
+  let h=[];try{h=(await rpc('inv_minhas_contagens',{p_filial:COL.fil})).filter(x=>String(x.armazem).replace(/^0+/,'')===String(COL.arm).replace(/^0+/,''))}catch(e){}
   $('c-hist').innerHTML=h.length?h.map(x=>{
     let sit=`<span class="st ${x.status}">${ROT[x.status]||x.status}</span>`,c2=nf(x.cont2);
     if(x.status==='recontar')c2=`<span style="display:flex;gap:4px;justify-content:flex-end"><input id="q2-${x.id}" type="number" min="0" step="any" inputmode="decimal" class="qtd" placeholder="2ª" onkeydown="if(event.key==='Enter')colRecontar(${x.id})"><button class="btn" onclick="colRecontar(${x.id})">OK</button></span>`;
     if(x.status==='divergente')sit=`<span style="display:flex;gap:4px"><input id="j-${x.id}" placeholder="justificativa" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')colJustificar(${x.id})"><button class="btn sec" onclick="colJustificar(${x.id})">Enviar</button></span>`;
     if(x.status==='justificado')sit+=`<div class="muted" style="font-size:11.5px">“${esc(x.justificativa||'')}”</div>`;
-    return `<tr${x.status==='recontar'?' style="background:#fffbeb"':x.status==='divergente'?' style="background:#fef2f2"':''}><td><b>${esc(x.codigo)}</b></td><td>${esc(x.descricao||'')}</td><td>${esc(x.unidade||'')}</td><td>${esc(x.armazem)}</td><td class="n">${nf(x.cont1)}</td><td class="n">${c2}</td><td>${sit}</td></tr>`}).join('')
-    :'<tr><td colspan="7" class="muted" style="padding:12px">Nenhuma contagem sua hoje nesta filial.</td></tr>';
+    return `<tr${x.status==='recontar'?' style="background:#fffbeb"':x.status==='divergente'?' style="background:#fef2f2"':''}><td><b>${esc(x.codigo)}</b></td><td>${esc(x.descricao||'')}</td><td>${esc(x.unidade||'')}</td><td class="n">${nf(x.cont1)}</td><td class="n">${c2}</td><td>${sit}</td></tr>`}).join('')
+    :'<tr><td colspan="6" class="muted" style="padding:12px">Nenhuma contagem sua hoje neste armazém.</td></tr>';
   if(COL.foco){const el=$('q2-'+COL.foco)||$('j-'+COL.foco);if(el)el.focus()}
 }
 
