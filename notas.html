@@ -130,7 +130,7 @@ body.bq-trancado>*:not(#tela-login){display:none!important}
   <div class="f-group so-notas"><label>Produto ou serviço</label><select id="f-tipo-nota" onchange="pag=0;render()"><option value="">Todos</option><option value="NFE">Produto (NF-e)</option><option value="NFSE">Serviço (NFS-e)</option></select></div>
   <div class="f-group so-notas"><label>Medição</label><select id="f-med" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="com">Com medição</option><option value="sem">Sem medição</option></select></div>
   <div class="f-group so-notas"><label>Filial</label><select id="f-filial" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="">Todas</option></select></div>
-  <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
+  <div class="f-group so-notas so-gestao"><label>Manifestação</label><select id="f-manif" multiple class="ms-src" style="display:none" onchange="pag=0;render()"><option value="210210" selected>Ciência da operação</option><option value="210200">Confirmação da operação</option><option value="210220">Desconhecimento</option><option value="210240">Operação não realizada</option><option value="203206" selected>Recusada (NFS-e)</option><option value="203202">Confirmada (NFS-e)</option><option value="__sem">Sem manifestação</option><option value="">Todas</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Lançada no Protheus?</label><select id="f-sd1" onchange="pag=0;render()"><option value="">Tanto faz</option><option value="sim">✓ Sim — já lançada</option><option value="nao">✗ Não — falta lançar</option></select></div>
   <div class="f-group so-notas so-gestao"><label>Status</label><select id="f-status" multiple class="ms-src" style="display:none" onchange="pag=0;render()"></select></div>
   <div class="f-group so-gestao"><label>Setor</label><select id="f-setor" multiple class="ms-src" style="display:none" onchange="pag=0;render()"></select></div>
@@ -232,7 +232,7 @@ async function carregar(){
   db.from('nfe_master').select('id',{count:'exact',head:true}).then(r=>{totalNotas=r.count||0;barraCarga(feitasNotas,totalNotas)}).catch(()=>{});
   try{
     let [ns,sf,sn,{data:log},sd1r,flr,entr,medr]=await Promise.all([
-      buscarTudo('nfe_master','id,numero,serie,modelo,pedido_cliente,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,prenota,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao',n=>{feitasNotas=n;barraCarga(n,totalNotas)}),
+      buscarTudo('nfe_master','id,numero,serie,modelo,pedido_cliente,chave,filial,empresa_nome,fornecedor_cnpj,fornecedor_nome,fornecedor_fantasia,valor_total,valor_produtos,emissao,chegada,integracao,prenota,status_nfe,status_integracao,pedido,em_tratativa,motivo_tratativa,manifestacao,data_manifestacao',n=>{feitasNotas=n;barraCarga(n,totalNotas)}),
       buscarSetores('fornecedor_setor','cnpj'),buscarSetores('nfe_setor','nfe_id'),
       db.from('sync_log').select('atualizado_em').eq('chave','nfe_master').maybeSingle(),
       buscarSd1(),
@@ -307,7 +307,9 @@ function agrupar(){
   lista=Object.values(m).sort((a,b)=>b.notas-a.notas||b.valor-a.valor);
 }
 
-const MANIF={'210210':'Ciência da operação','210200':'Confirmação da operação','210220':'Desconhecimento','210240':'Operação não realizada'};
+const MANIF={'210210':'Ciência da operação','210200':'Confirmação da operação','210220':'Desconhecimento','210240':'Operação não realizada','203206':'Recusada (NFS-e)','203202':'Confirmada (NFS-e)'};
+// NFS-e recusada pela B&Q no portal (evento 203206): não vai ser lançada
+const RECUSADA=n=>n.manifestacao==='203206';
 function passaManif(n,m){if(n&&n.modelo==='NFSE')return true;   // nota de serviço não tem manifestação do destinatário
   if(Array.isArray(m))return !m.length||m.some(x=>passaManif(n,x));if(!m)return true;if(m==='__sem')return !n.manifestacao;return n.manifestacao===m}
 function passaStatus(n,si){if(Array.isArray(si))return si.length?si.some(x=>passaStatus(n,x)):passaStatus(n,'');if(si==='C')return n.status_nfe==='C';if(si==='pend')return PEND(n);if(!si)return true;if(n.status_nfe==='C')return false;return n.status_integracao===si}
@@ -417,7 +419,7 @@ async function exportarExcel(){
   }catch(e){alert('Não consegui buscar a descrição dos produtos/serviços; o Excel vai sair sem ela.\n\n'+(e.message||e))}
   finally{if(bt){bt.disabled=false;bt.textContent=txt}}
   let dt=v=>{if(!v)return '';let d=new Date(String(v).slice(0,10)+'T12:00');return isNaN(d)?'':d};
-  let txtStatus=n=>n.status_nfe==='C'?'Cancelada':n.status_integracao==='3'?'Integrado':(sd1&&sd1[n.id])?'Lançada manual':n.status_integracao==='1'?'Pendente · sem XML':'Pendente';
+  let txtStatus=n=>n.status_nfe==='C'?'Cancelada':n.status_integracao==='3'?'Integrado':RECUSADA(n)?'Recusada (NFS-e)':(sd1&&sd1[n.id])?'Lançada manual':n.status_integracao==='1'?'Pendente · sem XML':'Pendente';
   let linhas=l.map(n=>{let f=(fluxo&&fluxo[n.id])||{},ped=ENT_PED[n.id]||{},rec=f.recebido_em?String(f.recebido_em).slice(0,10):'',real=f.entrega_real||rec||'',x=sd1&&sd1[n.id];
     return {'Filial':n.filial||'','Emissão':dt(n.emissao),'Nº nota':n.numero||'','Série':n.serie==null?'':n.serie,'Tipo':ehServ(n)?'NFS-e':'NF-e',
       'Setor':setorDa(n).setor||'','Fornecedor':n.fornecedor_nome||n.fornecedor_fantasia||'','CNPJ':fmtCnpj(n.fornecedor_cnpj),'Valor':Number(n.valor_total)||0,
@@ -453,7 +455,7 @@ function slaDa(n){let x=sd1&&sd1[n.id],emi=_dt(n.emissao),pre=_dt(n.prenota),dig
     aberto:lanc?null:_dias(emi,_hoje0()),aguardaFiscal:pre&&!lanc?diasUteis(pre,_hoje0()):null}}
 // No SLA ficam de fora as notas que nunca vão ser lançadas: canceladas, denegadas,
 // manifestação de desconhecimento (210220) ou de operação não realizada (210240)
-const slaConta=n=>n.status_nfe!=='C'&&n.status_nfe!=='D'&&n.manifestacao!=='210220'&&n.manifestacao!=='210240';
+const slaConta=n=>n.status_nfe!=='C'&&n.status_nfe!=='D'&&n.manifestacao!=='210220'&&n.manifestacao!=='210240'&&!RECUSADA(n);
 const _med=a=>a.length?a.reduce((t,v)=>t+v,0)/a.length:0;
 const _fmd=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:1})+' dias';
 // SLA fiscal (pré-nota → lançamento): meta de 2 dias úteis (48 h sem sábado e domingo).
@@ -526,6 +528,7 @@ function statusUnico(n){
   let t=x=>' title="'+esc([x].concat(extra).join(' · '))+'"';
   if(n.status_nfe==='C')return '<span class="pill st-C"'+t('Cancelada')+'>Cancelada</span>';
   if(n.status_integracao==='3')return '<span class="pill st-3"'+t('Integrada pelo NFe Master')+'>Integrado</span>';
+  if(RECUSADA(n))return '<span class="pill st-C"'+t('NFS-e recusada no NFe Master'+(n.data_manifestacao?' em '+new Date(n.data_manifestacao).toLocaleString('pt-BR'):''))+'>Recusada'+(n.data_manifestacao?' '+fmtData(n.data_manifestacao):'')+'</span>';
   let x=sd1&&sd1[n.id];
   if(x){let dif=Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_total)||0))>1&&Math.abs((Number(x.sd1_valor)||0)-(Number(n.valor_produtos)||0))>1;
     return '<span class="pill" style="background:#ede9fe;color:#5b21b6"'+t('Já está na SD1 (lançada no Protheus sem passar pelo NFe Master): '+x.sd1_itens+' itens · '+fmtR(x.sd1_valor)+(dif?' · VALOR DIFERENTE da nota':''))+'>Lançada manual'+(dif?' ⚠':'')+'</span>'}
@@ -663,7 +666,7 @@ async function desfazerRecusa(id,btn){if(!confirm('Desfazer a recusa? A nota vol
 
 // tela do almoxarifado: o que vai chegar (pendente, não cancelada, não lançada, sem aceite) e o que já foi recebido
 function setAbaReceb(a){abaReceb=a;pag=0;['chegar','recebidas','recusadas'].forEach(x=>$('aba-'+x).classList.toggle('ativo',a===x));render()}
-function _vaiChegar(n){return n.status_nfe!=='C'&&n.status_integracao!=='3'&&!(sd1&&sd1[n.id])&&n.manifestacao!=='210220'&&n.manifestacao!=='210240'}
+function _vaiChegar(n){return n.status_nfe!=='C'&&n.status_integracao!=='3'&&!(sd1&&sd1[n.id])&&n.manifestacao!=='210220'&&n.manifestacao!=='210240'&&!RECUSADA(n)}
 function renderReceb(){
   if(!fluxo){$('resumo').innerHTML='';$('tabela').innerHTML='<div class="msg-vazio">Falta criar no banco a tabela <b>nfe_fluxo</b>.</div>';return}
   let fil=vals('f-filial'),b=$('f-busca').value.toLowerCase().trim(),bd=b.replace(/\D/g,''),h=hojeIso(),lim=_iso(new Date(Date.now()-90*864e5));
