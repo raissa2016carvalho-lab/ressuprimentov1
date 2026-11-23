@@ -701,13 +701,14 @@ function kpisHTML(){
   const totalQtd=_filtrados.reduce((a,r)=>a+(r.quantidade||0),0);
   const custoZeroCount=_filtrados.filter(r=>r.custo_zero).length;
   const custoZeroVal=_filtrados.filter(r=>r.custo_zero).reduce((a,r)=>a+(r.quantidade||0),0);
-  const itensUniq=new Set(_filtrados.map(r=>r.produto)).size;
+  // a tela usa o resumo (sem código do item): conta grupos e CCs, que existem no resumo
+  const gruposUniq=new Set(_filtrados.map(r=>r.grupo).filter(Boolean)).size,ccsUniq=new Set(_filtrados.map(r=>r.cc).filter(Boolean)).size;
   const mesesUniq=[...new Set(_filtrados.map(r=>r.mes))].sort();
   const mediaM=mesesUniq.length>0?totalVal/mesesUniq.length:0;
   return `<div class="kpis">
     <div class="kpi azul"><div class="kpi-valor">${fmtVal(totalVal)}</div><div class="kpi-label">Valor total consumido</div><div class="kpi-sub">${mesesUniq.length} meses</div></div>
     <div class="kpi azul"><div class="kpi-valor">${fmtVal(mediaM)}</div><div class="kpi-label">Média mensal</div><div class="kpi-sub">por mês do período</div></div>
-    <div class="kpi verde"><div class="kpi-valor">${fmtQtd(totalQtd)}</div><div class="kpi-label">Quantidade total</div><div class="kpi-sub">${itensUniq} itens distintos</div></div>
+    <div class="kpi verde"><div class="kpi-valor">${fmtQtd(totalQtd)}</div><div class="kpi-label">Quantidade total</div><div class="kpi-sub">${gruposUniq} grupo${gruposUniq===1?'':'s'} • ${ccsUniq} CC${ccsUniq===1?'':'s'}</div></div>
     <div class="kpi ${custoZeroCount>0?'vermelho':'verde'}"><div class="kpi-valor">${custoZeroCount.toLocaleString('pt-BR')}</div><div class="kpi-label">Registros custo zero</div><div class="kpi-sub">${fmtQtd(custoZeroVal)} unidades sem custo</div></div>
   </div>`;
 }
@@ -2014,6 +2015,17 @@ async function renderComparativo(){
 }
 
 
+// busca uma página com até 3 tentativas; se ainda der erro, interrompe a exportação (antes saía planilha com a aba vazia)
+async function tentar(fn,rotulo){
+  let ult=null;
+  for(let t=1;t<=3;t++){
+    const r=await fn();
+    if(!r.error)return r;
+    ult=r.error;
+    await new Promise(ok=>setTimeout(ok,1500*t));
+  }
+  throw new Error('Não consegui buscar '+rotulo+' no banco ('+(ult.message||ult.code||'erro')+'). Nada foi exportado; tente de novo em alguns minutos — se o sync do Protheus estiver rodando, espere ele terminar.');
+}
 async function exportarExcel(){
   const filial=_filSel.size>3?_filSel.size+'filiais':filLista().sort().join('-');
   const grupo=document.getElementById('f-grupo').value;
@@ -2048,8 +2060,8 @@ async function exportarExcel(){
       q=filQ(q);
       if(grupo)  q=q.eq('grupo',grupo);
       q=ccQ(q);
-      const{data,error}=await q;
-      if(error||!data||!data.length)break;
+      const{data,error}=await tentar(()=>q,'consumo');
+      if(!data||!data.length)break;
       consumo=consumo.concat(data);
       setMsg(`Buscando consumo...`,`${consumo.length.toLocaleString('pt-BR')} registros`);
       if(data.length<1000)break;
@@ -2069,8 +2081,8 @@ async function exportarExcel(){
       q=filQ(q);
       if(grupo)  q=q.eq('grupo',grupo);
       q=ccQ(q);
-      const{data,error}=await q;
-      if(error||!data||!data.length)break;
+      const{data,error}=await tentar(()=>q,'devoluções');
+      if(!data||!data.length)break;
       devolucoes=devolucoes.concat(data);
       setMsg(`Buscando devoluções...`,`${devolucoes.length.toLocaleString('pt-BR')} registros`);
       if(data.length<1000)break;
