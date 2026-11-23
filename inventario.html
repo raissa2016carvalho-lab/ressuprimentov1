@@ -279,10 +279,20 @@ async function desenharColetor(){
       <div style="font-size:17px;font-weight:800;margin-bottom:4px">Inventários liberados</div>
       <div class="muted" style="margin-bottom:12px">Escolha o inventário e o armazém que você vai contar agora. Conte um armazém por vez.</div>
       ${L.map(l=>{const arms=[...new Set(LIB.filter(x=>x.filial===l.filial&&(x.listas||[]).includes(l.id)).map(x=>x.armazem))].sort();
-        return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
-          <div style="font-weight:800">Inventário #${l.id} — filial ${esc(l.filial)} ${esc(FIL[l.filial]||'')}</div>
-          <div class="muted" style="margin-bottom:8px">Contagem de ${dBR(l.data_contagem)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px">${arms.map(a=>`<button class="btn" style="font-size:18px;padding:12px 22px;min-width:130px" onclick="COL.fil='${esc(l.filial)}';LS('inv_fil',COL.fil);escolherArm('${a}')">Armazém ${a}</button>`).join('')||'<span class="muted">nada a contar</span>'}</div></div>`}).join('')}
+        const falta=(l.itens-l.contados)+(l.recontar||0)+(l.divergentes||0),concl=falta===0,pct=l.itens?Math.round(l.contados/l.itens*100):0;
+        const armOk=a=>{const x=LIB.find(z=>z.filial===l.filial&&z.armazem===a&&(z.listas||[]).includes(l.id));return x&&x.pendentes===0};
+        return `<div style="border:1px solid ${concl?'#bbf7d0':'#e2e8f0'};background:${concl?'#f0fdf4':'#fff'};border-radius:10px;padding:12px 14px;margin-bottom:10px">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <div style="font-weight:800">Inventário #${l.id} — filial ${esc(l.filial)} ${esc(FIL[l.filial]||'')}</div>
+            <span class="st ${concl?'ok':'recontar'}">${concl?'✔ Concluído':'Em andamento'}</span></div>
+          <div class="muted" style="margin:2px 0 8px">Contagem de ${dBR(l.data_contagem)}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px;font-size:13.5px">
+            <span>Itens esperados: <b>${nf(l.itens)}</b></span>
+            <span>Contados: <b>${nf(l.contados)}</b> <span class="muted">(${pct}%)</span></span>
+            <span>Faltam: <b style="color:${concl?'#15803d':'#b45309'}">${nf(Math.max(0,l.itens-l.contados))}</b></span>
+            ${l.recontar?`<span style="color:#92400e">Recontar: <b>${l.recontar}</b></span>`:''}${l.divergentes?`<span style="color:#991b1b">Justificar: <b>${l.divergentes}</b></span>`:''}</div>
+          <div style="background:#e2e8f0;border-radius:999px;height:8px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${pct}%;background:${concl?'#16a34a':'#1e40af'}"></div></div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">${arms.map(a=>`<button class="btn${armOk(a)?' ok':''}" style="font-size:18px;padding:12px 22px;min-width:130px" onclick="COL.fil='${esc(l.filial)}';LS('inv_fil',COL.fil);escolherArm('${a}')">Armazém ${a}${armOk(a)?' ✔':''}</button>`).join('')||'<span class="muted">nada a contar</span>'}</div></div>`}).join('')}
     </div>`;
     return;
   }
