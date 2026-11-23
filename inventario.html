@@ -50,9 +50,11 @@ td.n,th.n{text-align:right}
   <div style="margin-left:auto;display:flex;gap:8px;align-items:center"><span id="quem" style="color:#cbd5e1;font-size:12.5px"></span><button class="btn sec" onclick="sair()">Sair</button></div></div>
 <div class="pag">
   <div class="abas nao-imprime">
+    <button id="ab-coletor" onclick="aba('coletor')" style="display:none">📟 Coletor</button>
     <button id="ab-listas" class="on" onclick="aba('listas')">📋 Listas de contagem</button>
     <button id="ab-acur" onclick="aba('acur')">🎯 Acuracidade</button>
   </div>
+  <div id="vis-coletor" style="display:none"></div>
   <div id="vis-listas"></div>
   <div id="vis-lista" style="display:none"></div>
   <div id="vis-acur" style="display:none"></div>
@@ -73,8 +75,8 @@ let PAPEL='nenhum',EU='',FIL={},LISTAS=[],LISTA=null,ITENS=[];
 function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(()=>e.style.display='none',2800)}
 async function sair(){await db.auth.signOut({scope:'local'});location.reload()}
 async function rpc(fn,args){const{data,error}=await db.rpc(fn,args||{});if(error)throw new Error(error.message);return data}
-function aba(a){['listas','acur'].forEach(x=>$('ab-'+x).classList.toggle('on',x===a));$('vis-listas').style.display=a==='listas'&&!LISTA?'':'none';$('vis-lista').style.display=a==='listas'&&LISTA?'':'none';$('vis-acur').style.display=a==='acur'?'':'none';
-  if(a==='acur')desenharAcur();if(a==='listas'&&!LISTA)carregarListas()}
+function aba(a){['coletor','listas','acur'].forEach(x=>$('ab-'+x).classList.toggle('on',x===a));$('vis-listas').style.display=a==='listas'&&!LISTA?'':'none';$('vis-lista').style.display=a==='listas'&&LISTA?'':'none';$('vis-acur').style.display=a==='acur'?'':'none';$('vis-coletor').style.display=a==='coletor'?'':'none';
+  if(a==='acur')desenharAcur();if(a==='listas'&&!LISTA)carregarListas();if(a==='coletor')desenharColetor()}
 const coord=()=>PAPEL==='coord';
 const podeContar=()=>PAPEL==='coord'||PAPEL==='contar';
 
@@ -84,30 +86,48 @@ async function carregarListas(){
   try{LISTAS=await rpc('inv_listas',{p_filial:null})}catch(e){$('vis-listas').innerHTML='<div class="card">Erro: '+esc(e.message)+'</div>';return}
   const hoje=new Date().toISOString().slice(0,10);
   const nova=coord()?`<div class="card nao-imprime"><b style="font-size:14px">Nova lista de contagem</b>
-    <div class="muted" style="margin:4px 0 10px">Pega os itens de <b>maior valor em estoque</b> (saldo × custo médio da SB2) nos armazéns escolhidos, pulando os que já foram contados nos últimos dias. O <b>saldo fica congelado</b> no momento em que a lista é gerada.</div>
+    <div class="muted" style="margin:4px 0 10px">O <b>saldo fica congelado</b> no momento em que a contagem é liberada. Só entram itens com saldo.</div>
     <div class="barra">
-      <label>Filial<select id="n-fil">${Object.keys(FIL).sort().map(f=>`<option value="${f}"${f==='04'?' selected':''}>${f} — ${esc(FIL[f])}</option>`).join('')}</select></label>
-      <label>Armazéns (separe por vírgula)<input id="n-arm" value="01,04" style="width:150px"></label>
-      <label>Itens<input id="n-qtd" type="number" min="1" max="500" value="20" style="width:80px"></label>
+      <label>Filial<select id="n-fil" onchange="carregarArms()">${Object.keys(FIL).sort().map(f=>`<option value="${f}"${f==='04'?' selected':''}>${f} — ${esc(FIL[f])}</option>`).join('')}</select></label>
+      <label>O que contar<select id="n-esc" onchange="escopo()">
+        <option value="tudo">Tudo — todos os armazéns da filial</option>
+        <option value="arm">Só alguns armazéns (todos os itens)</option>
+        <option value="qtd">Só uma quantidade de itens (os de maior valor)</option></select></label>
+      <label id="l-qtd" style="display:none">Quantos itens<input id="n-qtd" type="number" min="1" value="20" style="width:90px"></label>
+      <label id="l-rot" style="display:none">Não repetir item contado nos últimos (dias)<input id="n-rot" type="number" min="0" value="90" style="width:110px"></label>
       <label>Data da contagem<input id="n-data" type="date" value="${hoje}"></label>
-      <label>Não repetir item contado nos últimos (dias)<input id="n-rot" type="number" min="0" value="90" style="width:110px"></label>
-      <button class="btn" onclick="gerar(this)">➕ Gerar lista</button>
-    </div></div>`:'';
+      <button class="btn" onclick="gerar(this)">✅ Liberar contagem</button>
+    </div>
+    <div id="n-arms" style="display:none;margin-top:10px;font-size:13px"></div>
+    <div id="n-resumo" class="muted" style="margin-top:8px"></div></div>`:'';
   const linhas=LISTAS.map(l=>{const pct=l.itens?Math.round(l.contados/l.itens*100):0;
-    return `<tr><td><b>#${l.id}</b></td><td>${esc(l.filial)} — ${esc(FIL[l.filial]||'')}</td><td>${(l.armazens||[]).map(a=>a.padStart(2,'0')).join(', ')}</td><td>${dBR(l.data_contagem)}</td>
+    return `<tr><td><b>#${l.id}</b>${l.tipo==='coletor'?' <span class="st pendente">coletor</span>':''}</td><td>${esc(l.filial)} — ${esc(FIL[l.filial]||'')}</td><td>${(l.armazens||[]).map(a=>a.padStart(2,'0')).join(', ')}</td><td>${dBR(l.data_contagem)}</td>
       <td><span class="st ${l.status}">${l.status}</span></td><td class="n">${l.contados}/${l.itens} <span class="muted">(${pct}%)</span></td>
       <td class="n">${l.recontar?'<span class="st recontar">'+l.recontar+' recontar</span> ':''}${l.divergentes?'<span class="st divergente">'+l.divergentes+' justificar</span> ':''}${l.aguardando?'<span class="st justificado">'+l.aguardando+' p/ aprovar</span>':''}</td>
       ${coord()?`<td class="n">${l.valor_div!=null?rs(l.valor_div):'–'}</td>`:''}
       <td class="muted">${quem(l.criado_por)}</td><td><button class="btn sec" onclick="abrir(${l.id})">Abrir</button></td></tr>`}).join('');
+  setTimeout(()=>{if($('n-fil'))carregarArms()},0);
   $('vis-listas').innerHTML=nova+`<div class="card"><div class="tab-wrap" style="max-height:none"><table><thead><tr><th>Lista</th><th>Filial</th><th>Armazéns</th><th>Contagem</th><th>Situação</th><th class="n">Contados</th><th class="n">Pendências</th>${coord()?'<th class="n">Valor das diferenças</th>':''}<th>Criada por</th><th></th></tr></thead>
     <tbody>${linhas||`<tr><td colspan="10" class="muted" style="padding:16px">Nenhuma lista ainda.${coord()?' Gere a primeira acima.':''}</td></tr>`}</tbody></table></div></div>`;
 }
+let ARMS=[];
+async function carregarArms(){
+  try{ARMS=(await rpc('inv_armazens',{p_filial:$('n-fil').value})).filter(a=>a.itens_com_saldo>0)}catch(e){ARMS=[]}
+  $('n-arms').innerHTML='<b>Armazéns:</b> '+(ARMS.map(a=>`<label style="display:inline-flex;gap:4px;align-items:center;margin-right:14px;font-weight:400;flex-direction:row;color:#0f172a"><input type="checkbox" class="n-arm" value="${a.armazem}" checked onchange="resumoEsc()"> ${a.armazem} <span class="muted">(${a.itens_com_saldo} itens${a.valor!=null?' • '+rs(a.valor):''})</span></label>`).join('')||'<span class="muted">nenhum armazém com saldo</span>');
+  escopo();
+}
+function escopo(){const e=$('n-esc').value;$('n-arms').style.display=e==='tudo'?'none':'';$('l-qtd').style.display=$('l-rot').style.display=e==='qtd'?'':'none';resumoEsc()}
+function armsSel(){return [...document.querySelectorAll('.n-arm:checked')].map(x=>x.value)}
+function resumoEsc(){const e=$('n-esc').value,sel=e==='tudo'?ARMS.map(a=>a.armazem):armsSel(),n=ARMS.filter(a=>sel.includes(a.armazem)).reduce((s,a)=>s+a.itens_com_saldo,0);
+  $('n-resumo').textContent=e==='qtd'?`Vai contar os ${$('n-qtd').value||0} itens de maior valor dos armazéns ${sel.join(', ')||'—'}.`:`Vai contar ${n} itens (todos com saldo) dos armazéns ${sel.join(', ')||'—'}.`}
 async function gerar(b){
-  const arm=$('n-arm').value.split(/[,;\s]+/).map(x=>x.trim()).filter(Boolean);
-  if(!arm.length)return alert('Informe os armazéns.');
-  b.disabled=true;b.textContent='Gerando…';
-  try{const id=await rpc('inv_gerar',{p_filial:$('n-fil').value,p_armazens:arm,p_qtd:+$('n-qtd').value||20,p_data:$('n-data').value||null,p_dias_rotacao:+$('n-rot').value||0});toast('Lista #'+id+' gerada.');abrir(id)}
-  catch(e){alert(e.message);b.disabled=false;b.textContent='➕ Gerar lista'}
+  const e=$('n-esc').value,arms=e==='tudo'?null:armsSel();
+  if(e!=='tudo'&&!arms.length)return alert('Marque pelo menos um armazém.');
+  const qtd=e==='qtd'?(+$('n-qtd').value||0):null;if(e==='qtd'&&qtd<1)return alert('Informe quantos itens.');
+  if(!confirm('Liberar a contagem? '+$('n-resumo').textContent+' O saldo será congelado agora.'))return;
+  b.disabled=true;b.textContent='Liberando…';
+  try{const id=await rpc('inv_gerar',{p_filial:$('n-fil').value,p_armazens:arms,p_qtd:qtd,p_data:$('n-data').value||null,p_dias_rotacao:+$('n-rot').value||0});toast('Contagem liberada: lista #'+id+'.');abrir(id)}
+  catch(err){alert(err.message);b.disabled=false;b.textContent='✅ Liberar contagem'}
 }
 
 // ── Lista aberta ──
@@ -138,6 +158,8 @@ function desenharLista(){
       acao=`<input class="qtd" type="number" min="0" step="any" id="q${i.id}" placeholder="${i.status==='recontar'?'recontagem':'contado'}" onkeydown="if(event.key==='Enter')contar(${i.id})"> <button class="btn" onclick="contar(${i.id})">Salvar</button>`;
     else if(aberta&&podeContar()&&i.status==='divergente')
       acao=`<input id="j${i.id}" placeholder="Justificativa da diferença" style="width:230px"> <button class="btn sec" onclick="justificar(${i.id})">Enviar</button>`;
+    if(aberta&&c&&i.status!=='pendente')
+      acao+=`<div style="margin-top:4px"><button class="link" onclick="desfazer(${i.id})">↺ desfazer contagem</button></div>`;
     if(aberta&&c&&(i.status==='justificado'||i.status==='divergente'))
       acao+=`<div style="margin-top:4px"><button class="btn ok" onclick="decidir(${i.id},true)">Aprovar</button> <button class="btn no" onclick="decidir(${i.id},false)">Reprovar (recontar)</button></div>`;
     return `<tr><td><b>${esc(i.codigo)}</b></td><td>${esc(i.descricao)}</td><td>${esc(i.unidade||'')}</td><td>${esc(String(i.armazem).padStart(2,'0'))}</td><td>${esc(i.localizacao||'')}</td>
@@ -172,6 +194,8 @@ async function justificar(id){const t=$('j'+id).value.trim();if(!t)return alert(
   try{await rpc('inv_justificar',{p_item:id,p_texto:t});toast('Justificativa enviada ao coordenador.');ITENS=await rpc('inv_itens',{p_lista:LISTA.id});desenharLista()}catch(e){alert(e.message)}}
 async function decidir(id,ap){const obs=prompt(ap?'Observação (opcional):':'Motivo da reprovação (o item volta para recontagem):','');if(obs===null)return;
   try{await rpc('inv_decidir',{p_item:id,p_aprovar:ap,p_obs:obs});toast(ap?'Aprovado.':'Reprovado: volta para recontagem.');ITENS=await rpc('inv_itens',{p_lista:LISTA.id});desenharLista()}catch(e){alert(e.message)}}
+async function desfazer(id){const m=prompt('Desfazer a contagem deste item? Ele volta para "a contar" (no coletor, o item sai da lista).\nMotivo:','digitado errado');if(m===null)return;
+  try{await rpc('inv_desfazer',{p_item:id,p_motivo:m});toast('Contagem desfeita.');ITENS=await rpc('inv_itens',{p_lista:LISTA.id});desenharLista()}catch(e){alert(e.message)}}
 async function statusLista(s){if(!confirm({fechada:'Fechar a lista? Só fecha se todos os itens estiverem OK ou aprovados.',cancelada:'Cancelar esta lista?',aberta:'Reabrir a lista?'}[s]))return;
   try{await rpc('inv_status_lista',{p_lista:LISTA.id,p_status:s});toast('Lista '+s+'.');abrir(LISTA.id)}catch(e){alert(e.message)}}
 
@@ -215,9 +239,71 @@ async function desenharAcur(){
       <td class="n"><b>${x.fin?Math.round(x.ok/x.fin*1000)/10+'%':'–'}</b></td><td class="n">${x.fin?Math.round(x.ok1/x.fin*1000)/10+'%':'–'}</td>${coord()?`<td class="n">${rs(x.val)}</td>`:''}</tr>`).join('')||'<tr><td colspan="9" class="muted" style="padding:16px">Ainda não há contagens.</td></tr>'}</tbody></table></div></div>`;
 }
 
+// ── Coletor: digita o código, a descrição aparece, digita a quantidade e já sabe se confere ──
+const LS=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}};
+let COL={fil:LS('inv_fil')||'04',arm:LS('inv_arm')||'',prod:null,ult:null,arms:[]};
+async function desenharColetor(){
+  try{COL.arms=(await rpc('inv_armazens',{p_filial:COL.fil})).filter(a=>a.itens_com_saldo>0).map(a=>a.armazem)}catch(e){COL.arms=[]}
+  if(!COL.arms.includes(COL.arm))COL.arm=COL.arms[0]||'01';
+  $('vis-coletor').innerHTML=`<div class="card" style="max-width:640px">
+      <div class="barra" style="margin-bottom:12px">
+        <label>Filial<select id="c-fil" onchange="COL.fil=this.value;LS('inv_fil',COL.fil);desenharColetor()">${Object.keys(FIL).sort().map(f=>`<option value="${f}"${f===COL.fil?' selected':''}>${f} — ${esc(FIL[f])}</option>`).join('')}</select></label>
+        <label>Armazém<select id="c-arm" onchange="COL.arm=this.value;LS('inv_arm',COL.arm)">${(COL.arms.length?COL.arms:['01']).map(a=>`<option${a===COL.arm?' selected':''}>${a}</option>`).join('')}</select></label>
+      </div>
+      <label style="font-size:12px;font-weight:700;color:#475569">Código do produto</label>
+      <input id="c-cod" inputmode="numeric" autocomplete="off" placeholder="digite ou bipe o código e Enter" style="width:100%;font-size:20px;padding:12px;margin:4px 0 6px" onkeydown="if(event.key==='Enter')colBusca()">
+      <div id="c-desc" style="min-height:24px;font-weight:700;font-size:15px;margin-bottom:8px"></div>
+      <label style="font-size:12px;font-weight:700;color:#475569">Quantidade contada</label>
+      <input id="c-qtd" type="number" min="0" step="any" inputmode="decimal" placeholder="0" style="width:100%;font-size:24px;padding:12px;margin:4px 0 10px;font-weight:800" onkeydown="if(event.key==='Enter')colContar()" disabled>
+      <button class="btn" id="c-btn" style="width:100%;padding:14px;font-size:16px" onclick="colContar()" disabled>Confirmar contagem</button>
+      <div id="c-res" style="margin-top:12px"></div>
+      <div class="muted" style="margin-top:10px">Contagem cega: o sistema não mostra o saldo. Se não conferir, já abre a 2ª contagem. Digitou errado? Fale com o administrador para desfazer.</div>
+    </div>
+    <div class="card"><b>Minhas contagens de hoje</b><div id="c-hist" class="muted" style="margin-top:8px">Carregando…</div></div>`;
+  $('c-cod').focus();colHist();
+}
+async function colBusca(){
+  const c=$('c-cod').value.trim();if(!c)return;
+  $('c-desc').textContent='Buscando…';$('c-res').innerHTML='';
+  try{COL.prod=await rpc('inv_produto',{p_codigo:c})}catch(e){COL.prod=null}
+  if(!COL.prod){$('c-desc').innerHTML='<span style="color:#b91c1c">Código não encontrado no cadastro.</span>';$('c-qtd').disabled=$('c-btn').disabled=true;return}
+  $('c-desc').textContent=COL.prod.descricao+(COL.prod.unidade?' ('+COL.prod.unidade+')':'');
+  $('c-qtd').disabled=$('c-btn').disabled=false;$('c-qtd').value='';$('c-qtd').focus();
+}
+async function colContar(){
+  if(!COL.prod)return colBusca();
+  const v=String($('c-qtd').value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a quantidade contada.');
+  $('c-btn').disabled=true;
+  try{const r=await rpc('inv_coletar',{p_filial:COL.fil,p_armazem:$('c-arm').value,p_codigo:COL.prod.codigo,p_qtd:+v});COL.ult=r;colResultado(r)}
+  catch(e){$('c-res').innerHTML=`<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">${esc(e.message)}</div>`;$('c-btn').disabled=false;return}
+  $('c-cod').value='';$('c-qtd').value='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-desc').textContent='';COL.prod=null;colHist();
+}
+function colResultado(r){
+  const box=$('c-res'),nm=`<b>${esc(r.codigo)}</b> ${esc(r.descricao||'')}`;
+  if(r.status==='ok'){box.innerHTML=`<div class="aviso" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534;font-size:15px">✅ ${nm}<br><b>Confere!</b></div>`;$('c-cod').focus();return}
+  if(r.status==='recontar'){box.innerHTML=`<div class="aviso" style="background:#fffbeb;border-color:#fde68a;color:#92400e;font-size:15px">⚠️ ${nm}<br><b>Não confere. Conte de novo e digite a 2ª contagem:</b>
+      <div style="display:flex;gap:8px;margin-top:8px"><input id="c-q2" type="number" min="0" step="any" inputmode="decimal" style="flex:1;font-size:22px;padding:10px;font-weight:800" onkeydown="if(event.key==='Enter')colRecontar(${r.item})"><button class="btn" onclick="colRecontar(${r.item})">Confirmar 2ª</button></div></div>`;$('c-q2').focus();return}
+  if(r.status==='divergente'){box.innerHTML=`<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;font-size:15px">❌ ${nm}<br><b>A 2ª contagem também não confere.</b> Escreva o motivo (vai para o coordenador):
+      <div style="display:flex;gap:8px;margin-top:8px"><input id="c-j" placeholder="justificativa" style="flex:1;font-size:15px;padding:10px" onkeydown="if(event.key==='Enter')colJustificar(${r.item})"><button class="btn sec" onclick="colJustificar(${r.item})">Enviar</button></div></div>`;$('c-j').focus();return}
+  box.innerHTML=`<div class="aviso">${nm}: ${esc(ROT[r.status]||r.status)}</div>`;
+}
+async function colRecontar(item){const el=$('c-q2'),v=String(el.value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a 2ª contagem.');el.disabled=true;
+  try{const st=await rpc('inv_contar',{p_item:item,p_qtd:+v});colResultado({...COL.ult,item,status:st})}catch(e){alert(e.message);el.disabled=false}colHist()}
+async function colJustificar(item){const t=$('c-j').value.trim();if(!t)return alert('Escreva a justificativa.');
+  try{await rpc('inv_justificar',{p_item:item,p_texto:t});$('c-res').innerHTML='<div class="aviso">Justificativa enviada ao coordenador.</div>';$('c-cod').focus()}catch(e){alert(e.message)}colHist()}
+async function colHist(){
+  let h=[];try{h=await rpc('inv_minhas_contagens',{p_filial:COL.fil})}catch(e){}
+  $('c-hist').innerHTML=h.length?`<table><thead><tr><th>Código</th><th>Descrição</th><th>Arm.</th><th class="n">1ª</th><th class="n">2ª</th><th>Situação</th><th></th></tr></thead><tbody>${h.map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.descricao||'')}</td><td>${esc(x.armazem)}</td><td class="n">${nf(x.cont1)}</td><td class="n">${nf(x.cont2)}</td>
+      <td><span class="st ${x.status}">${ROT[x.status]||x.status}</span></td><td>${x.status==='recontar'?`<button class="link" onclick='COL.ult=${JSON.stringify({codigo:x.codigo,descricao:x.descricao}).replace(/'/g,"&#39;")};colResultado({...COL.ult,item:${x.id},status:"recontar"})'>fazer 2ª</button>`:x.status==='divergente'?`<button class="link" onclick='COL.ult=${JSON.stringify({codigo:x.codigo,descricao:x.descricao}).replace(/'/g,"&#39;")};colResultado({...COL.ult,item:${x.id},status:"divergente"})'>justificar</button>`:''}</td></tr>`).join('')}</tbody></table>`:'Nenhuma contagem sua hoje nesta filial.';
+}
+
 document.addEventListener('bq-acesso-ok',async e=>{
   EU=(e.detail.email||'').toLowerCase();$('quem').textContent=EU;
   try{PAPEL=await rpc('inv_papel');const{data}=await db.from('filiais').select('filial,nome_filial');(data||[]).forEach(f=>FIL[String(f.filial).trim()]=f.nome_filial)}catch(err){}
+  if(podeContar())$('ab-coletor').style.display='';
+  // almoxarife: sem contagem liberada (nenhuma lista aberta), abre direto o coletor
+  if(podeContar()&&!coord()){let ab=[];try{ab=(await rpc('inv_listas',{p_filial:null})).filter(l=>l.status==='aberta'&&l.tipo==='lista')}catch(err){}
+    if(!ab.length){aba('coletor');return}}
   carregarListas();
 });
 </script>
