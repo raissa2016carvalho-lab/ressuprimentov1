@@ -113,3 +113,8 @@ alter table public.nfe_fluxo add column if not exists entrega_real date, add col
 --          AND (abs(s.valor - coalesce(n.vtot,0)) < 1 OR abs(s.valor - coalesce(n.vprod,0)) < 1)))
 --   (o bloco n ganhou vtot = valor_total e vprod = valor_produtos)
 -- Resultado: mv_nfe_sd1 de 19.820 para 22.791 notas amarradas.
+-- 23/11/2026 (2): desempate por valor. Um lançamento da SD1 que casava com mais de uma nota
+-- (ex.: dois prestadores com NFS-e nº 1 no mesmo dia e filial) marcava as duas como lançadas.
+-- Agora, no mesmo lançamento da SD1 (filial+doc+série+emissão+fornecedor), se alguma nota tem o mesmo valor,
+-- só ela fica amarrada (blocos b/d da view: bate / bool_or(bate) over (...)). Amarração por chave (pri 1) não muda.
+-- NFS-e com valor diferente da SD1: de 30 para 3. Total amarrado: 22.783.
