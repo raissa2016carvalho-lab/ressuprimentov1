@@ -241,60 +241,71 @@ async function desenharAcur(){
 
 // ── Coletor: digita o código, a descrição aparece, digita a quantidade e já sabe se confere ──
 const LS=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}};
-let COL={fil:LS('inv_fil')||'04',arm:LS('inv_arm')||'',prod:null,ult:null,arms:[]};
+let COL={fil:LS('inv_fil')||'04',arm:LS('inv_arm')||'',prod:null,foco:null,arms:[]};
 async function desenharColetor(){
   try{COL.arms=(await rpc('inv_armazens',{p_filial:COL.fil})).filter(a=>a.itens_com_saldo>0).map(a=>a.armazem)}catch(e){COL.arms=[]}
   if(!COL.arms.includes(COL.arm))COL.arm=COL.arms[0]||'01';
-  $('vis-coletor').innerHTML=`<div class="card" style="max-width:640px">
-      <div class="barra" style="margin-bottom:12px">
+  $('vis-coletor').innerHTML=`<div class="card">
+      <div class="barra" style="margin-bottom:10px">
         <label>Filial<select id="c-fil" onchange="COL.fil=this.value;LS('inv_fil',COL.fil);desenharColetor()">${Object.keys(FIL).sort().map(f=>`<option value="${f}"${f===COL.fil?' selected':''}>${f} — ${esc(FIL[f])}</option>`).join('')}</select></label>
-        <label>Armazém<select id="c-arm" onchange="COL.arm=this.value;LS('inv_arm',COL.arm)">${(COL.arms.length?COL.arms:['01']).map(a=>`<option${a===COL.arm?' selected':''}>${a}</option>`).join('')}</select></label>
+        <label>Armazém<select id="c-arm" onchange="COL.arm=this.value;LS('inv_arm',COL.arm);$('c-cod').focus()">${(COL.arms.length?COL.arms:['01']).map(a=>`<option${a===COL.arm?' selected':''}>${a}</option>`).join('')}</select></label>
+        <span class="muted" style="margin-left:auto;max-width:420px">Contagem cega: o sistema não mostra o saldo. Se não conferir, a 2ª contagem abre na própria linha. Digitou errado? Fale com o administrador.</span>
       </div>
-      <label style="font-size:12px;font-weight:700;color:#475569">Código do produto</label>
-      <input id="c-cod" inputmode="numeric" autocomplete="off" placeholder="digite ou bipe o código e Enter" style="width:100%;font-size:20px;padding:12px;margin:4px 0 6px" onkeydown="if(event.key==='Enter')colBusca()">
-      <div id="c-desc" style="min-height:24px;font-weight:700;font-size:15px;margin-bottom:8px"></div>
-      <label style="font-size:12px;font-weight:700;color:#475569">Quantidade contada</label>
-      <input id="c-qtd" type="number" min="0" step="any" inputmode="decimal" placeholder="0" style="width:100%;font-size:24px;padding:12px;margin:4px 0 10px;font-weight:800" onkeydown="if(event.key==='Enter')colContar()" disabled>
-      <button class="btn" id="c-btn" style="width:100%;padding:14px;font-size:16px" onclick="colContar()" disabled>Confirmar contagem</button>
-      <div id="c-res" style="margin-top:12px"></div>
-      <div class="muted" style="margin-top:10px">Contagem cega: o sistema não mostra o saldo. Se não conferir, já abre a 2ª contagem. Digitou errado? Fale com o administrador para desfazer.</div>
-    </div>
-    <div class="card"><b>Minhas contagens de hoje</b><div id="c-hist" class="muted" style="margin-top:8px">Carregando…</div></div>`;
+      <div class="tab-wrap" style="max-height:calc(100vh - 260px)"><table id="c-tab">
+        <thead><tr><th style="width:150px">Código</th><th>Descrição</th><th style="width:60px">UM</th><th style="width:60px">Arm.</th><th class="n" style="width:120px">1ª contagem</th><th class="n" style="width:150px">2ª contagem</th><th style="width:260px">Situação</th></tr></thead>
+        <tbody>
+          <tr style="background:#eff6ff">
+            <td><input id="c-cod" inputmode="numeric" autocomplete="off" placeholder="código + Enter" style="width:100%;font-weight:700" onkeydown="if(event.key==='Enter')colBusca()"></td>
+            <td id="c-desc" class="muted">digite ou bipe o código</td><td id="c-um"></td><td id="c-armc">${esc(COL.arm)}</td>
+            <td class="n"><input id="c-qtd" type="number" min="0" step="any" inputmode="decimal" class="qtd" style="width:100%" placeholder="qtd" onkeydown="if(event.key==='Enter')colContar()" disabled></td>
+            <td></td><td><button class="btn" id="c-btn" onclick="colContar()" disabled>Confirmar</button></td>
+          </tr>
+        </tbody>
+        <tbody id="c-hist"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
+      </table></div>
+      <div id="c-msg" style="margin-top:8px"></div>
+    </div>`;
   $('c-cod').focus();colHist();
 }
 async function colBusca(){
   const c=$('c-cod').value.trim();if(!c)return;
-  $('c-desc').textContent='Buscando…';$('c-res').innerHTML='';
+  $('c-desc').textContent='buscando…';$('c-msg').innerHTML='';$('c-armc').textContent=$('c-arm').value;
   try{COL.prod=await rpc('inv_produto',{p_codigo:c})}catch(e){COL.prod=null}
-  if(!COL.prod){$('c-desc').innerHTML='<span style="color:#b91c1c">Código não encontrado no cadastro.</span>';$('c-qtd').disabled=$('c-btn').disabled=true;return}
-  $('c-desc').textContent=COL.prod.descricao+(COL.prod.unidade?' ('+COL.prod.unidade+')':'');
+  if(!COL.prod){$('c-desc').innerHTML='<span style="color:#b91c1c;font-weight:700">Código não encontrado no cadastro.</span>';$('c-um').textContent='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-cod').select();return}
+  $('c-desc').innerHTML='<b>'+esc(COL.prod.descricao||'')+'</b>';$('c-um').textContent=COL.prod.unidade||'';
   $('c-qtd').disabled=$('c-btn').disabled=false;$('c-qtd').value='';$('c-qtd').focus();
 }
 async function colContar(){
   if(!COL.prod)return colBusca();
   const v=String($('c-qtd').value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a quantidade contada.');
   $('c-btn').disabled=true;
-  try{const r=await rpc('inv_coletar',{p_filial:COL.fil,p_armazem:$('c-arm').value,p_codigo:COL.prod.codigo,p_qtd:+v});COL.ult=r;colResultado(r)}
-  catch(e){$('c-res').innerHTML=`<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">${esc(e.message)}</div>`;$('c-btn').disabled=false;return}
-  $('c-cod').value='';$('c-qtd').value='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-desc').textContent='';COL.prod=null;colHist();
+  let r;
+  try{r=await rpc('inv_coletar',{p_filial:COL.fil,p_armazem:$('c-arm').value,p_codigo:COL.prod.codigo,p_qtd:+v})}
+  catch(e){$('c-msg').innerHTML=`<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">${esc(e.message)}</div>`;$('c-btn').disabled=false;return}
+  $('c-cod').value='';$('c-qtd').value='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-desc').innerHTML='<span class="muted">digite ou bipe o código</span>';$('c-um').textContent='';COL.prod=null;
+  $('c-msg').innerHTML=r.status==='ok'?`<div class="aviso" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534">✅ <b>${esc(r.codigo)}</b> confere.</div>`:
+    r.status==='recontar'?`<div class="aviso" style="background:#fffbeb;border-color:#fde68a;color:#92400e">⚠️ <b>${esc(r.codigo)}</b> não confere: conte de novo e digite a 2ª contagem na linha.</div>`:'';
+  COL.foco=r.status==='recontar'?r.item:null;await colHist();
+  if(!COL.foco)$('c-cod').focus();
 }
-function colResultado(r){
-  const box=$('c-res'),nm=`<b>${esc(r.codigo)}</b> ${esc(r.descricao||'')}`;
-  if(r.status==='ok'){box.innerHTML=`<div class="aviso" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534;font-size:15px">✅ ${nm}<br><b>Confere!</b></div>`;$('c-cod').focus();return}
-  if(r.status==='recontar'){box.innerHTML=`<div class="aviso" style="background:#fffbeb;border-color:#fde68a;color:#92400e;font-size:15px">⚠️ ${nm}<br><b>Não confere. Conte de novo e digite a 2ª contagem:</b>
-      <div style="display:flex;gap:8px;margin-top:8px"><input id="c-q2" type="number" min="0" step="any" inputmode="decimal" style="flex:1;font-size:22px;padding:10px;font-weight:800" onkeydown="if(event.key==='Enter')colRecontar(${r.item})"><button class="btn" onclick="colRecontar(${r.item})">Confirmar 2ª</button></div></div>`;$('c-q2').focus();return}
-  if(r.status==='divergente'){box.innerHTML=`<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;font-size:15px">❌ ${nm}<br><b>A 2ª contagem também não confere.</b> Escreva o motivo (vai para o coordenador):
-      <div style="display:flex;gap:8px;margin-top:8px"><input id="c-j" placeholder="justificativa" style="flex:1;font-size:15px;padding:10px" onkeydown="if(event.key==='Enter')colJustificar(${r.item})"><button class="btn sec" onclick="colJustificar(${r.item})">Enviar</button></div></div>`;$('c-j').focus();return}
-  box.innerHTML=`<div class="aviso">${nm}: ${esc(ROT[r.status]||r.status)}</div>`;
-}
-async function colRecontar(item){const el=$('c-q2'),v=String(el.value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a 2ª contagem.');el.disabled=true;
-  try{const st=await rpc('inv_contar',{p_item:item,p_qtd:+v});colResultado({...COL.ult,item,status:st})}catch(e){alert(e.message);el.disabled=false}colHist()}
-async function colJustificar(item){const t=$('c-j').value.trim();if(!t)return alert('Escreva a justificativa.');
-  try{await rpc('inv_justificar',{p_item:item,p_texto:t});$('c-res').innerHTML='<div class="aviso">Justificativa enviada ao coordenador.</div>';$('c-cod').focus()}catch(e){alert(e.message)}colHist()}
+async function colRecontar(item){const el=$('q2-'+item),v=String(el.value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a 2ª contagem.');el.disabled=true;
+  try{const st=await rpc('inv_contar',{p_item:item,p_qtd:+v});
+    $('c-msg').innerHTML=st==='ok'?'<div class="aviso" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534">✅ 2ª contagem confere.</div>':'<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">❌ A 2ª contagem também não confere: escreva a justificativa na linha.</div>';
+    COL.foco=st==='divergente'?item:null}catch(e){alert(e.message);el.disabled=false;return}
+  await colHist();if(!COL.foco)$('c-cod').focus()}
+async function colJustificar(item){const t=$('j-'+item).value.trim();if(!t)return alert('Escreva a justificativa.');
+  try{await rpc('inv_justificar',{p_item:item,p_texto:t});$('c-msg').innerHTML='<div class="aviso">Justificativa enviada ao coordenador.</div>';COL.foco=null}catch(e){alert(e.message);return}
+  await colHist();$('c-cod').focus()}
 async function colHist(){
   let h=[];try{h=await rpc('inv_minhas_contagens',{p_filial:COL.fil})}catch(e){}
-  $('c-hist').innerHTML=h.length?`<table><thead><tr><th>Código</th><th>Descrição</th><th>Arm.</th><th class="n">1ª</th><th class="n">2ª</th><th>Situação</th><th></th></tr></thead><tbody>${h.map(x=>`<tr><td><b>${esc(x.codigo)}</b></td><td>${esc(x.descricao||'')}</td><td>${esc(x.armazem)}</td><td class="n">${nf(x.cont1)}</td><td class="n">${nf(x.cont2)}</td>
-      <td><span class="st ${x.status}">${ROT[x.status]||x.status}</span></td><td>${x.status==='recontar'?`<button class="link" onclick='COL.ult=${JSON.stringify({codigo:x.codigo,descricao:x.descricao}).replace(/'/g,"&#39;")};colResultado({...COL.ult,item:${x.id},status:"recontar"})'>fazer 2ª</button>`:x.status==='divergente'?`<button class="link" onclick='COL.ult=${JSON.stringify({codigo:x.codigo,descricao:x.descricao}).replace(/'/g,"&#39;")};colResultado({...COL.ult,item:${x.id},status:"divergente"})'>justificar</button>`:''}</td></tr>`).join('')}</tbody></table>`:'Nenhuma contagem sua hoje nesta filial.';
+  $('c-hist').innerHTML=h.length?h.map(x=>{
+    let sit=`<span class="st ${x.status}">${ROT[x.status]||x.status}</span>`,c2=nf(x.cont2);
+    if(x.status==='recontar')c2=`<span style="display:flex;gap:4px;justify-content:flex-end"><input id="q2-${x.id}" type="number" min="0" step="any" inputmode="decimal" class="qtd" placeholder="2ª" onkeydown="if(event.key==='Enter')colRecontar(${x.id})"><button class="btn" onclick="colRecontar(${x.id})">OK</button></span>`;
+    if(x.status==='divergente')sit=`<span style="display:flex;gap:4px"><input id="j-${x.id}" placeholder="justificativa" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')colJustificar(${x.id})"><button class="btn sec" onclick="colJustificar(${x.id})">Enviar</button></span>`;
+    if(x.status==='justificado')sit+=`<div class="muted" style="font-size:11.5px">“${esc(x.justificativa||'')}”</div>`;
+    return `<tr${x.status==='recontar'?' style="background:#fffbeb"':x.status==='divergente'?' style="background:#fef2f2"':''}><td><b>${esc(x.codigo)}</b></td><td>${esc(x.descricao||'')}</td><td>${esc(x.unidade||'')}</td><td>${esc(x.armazem)}</td><td class="n">${nf(x.cont1)}</td><td class="n">${c2}</td><td>${sit}</td></tr>`}).join('')
+    :'<tr><td colspan="7" class="muted" style="padding:12px">Nenhuma contagem sua hoje nesta filial.</td></tr>';
+  if(COL.foco){const el=$('q2-'+COL.foco)||$('j-'+COL.foco);if(el)el.focus()}
 }
 
 document.addEventListener('bq-acesso-ok',async e=>{
