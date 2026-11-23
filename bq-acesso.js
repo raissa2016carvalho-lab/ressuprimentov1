@@ -19,6 +19,7 @@
     'ruptura': 'Risco de Ruptura', 'estoque': 'Posição de Estoque', 'compras': 'Compras', 'fechamento': 'Fechamento de Consumo',
     'notas': 'Notas Fiscais / Recebimento', 'separacao': 'Separação', 'descontos': 'Descontos de EPI',
     'estoque-central': 'Estoque Central', 'fardamento': 'Fardamento', 'abrir-sc': 'Abrir SC', 'manutencao': 'Gestão de Manutenção',
+    'inventario': 'Inventário rotativo — contar', 'inventario-coord': 'Inventário rotativo — coordenador',
     'acessos': 'Acessos (administração)'
   };
   window.BQ_PAINEIS = NOMES;

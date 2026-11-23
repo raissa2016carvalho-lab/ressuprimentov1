@@ -59,7 +59,7 @@ td.erro{background:#fee2e2!important}
 const db=window.supabase.createClient('https://eugefrjckrxisfpizkjb.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Z2Vmcmpja3J4aXNmcGl6a2piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MzEzNjksImV4cCI6MjEwNDAwNzM2OX0.sNQjKjlUm1TWeiDGG2SDeER7GGaf4PucofJWNKxqygI');
 const $=id=>document.getElementById(id);
 // ordem das colunas (chave usada em data-painel de cada tela)
-const PAINEIS=['index','gerente','formulario','ruptura','estoque','compras','fechamento','notas','separacao','descontos','estoque-central','fardamento','abrir-sc','manutencao'];
+const PAINEIS=['index','gerente','formulario','ruptura','estoque','compras','fechamento','notas','separacao','descontos','estoque-central','fardamento','abrir-sc','manutencao','inventario','inventario-coord'];
 let U=[],EU='';
 const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const dataBR=v=>{if(!v)return 'nunca entrou';const d=new Date(v);return 'último acesso '+d.toLocaleDateString('pt-BR')};
