@@ -264,78 +264,86 @@ function travar(fil,arm){LS('inv_trava',JSON.stringify({fil,arm,data:hojeISO()})
 function destravar(){try{localStorage.removeItem('inv_trava')}catch(e){}}
 function encerrarArm(){if(!confirm('Encerrar a contagem do armazém '+COL.arm+'? Depois você escolhe o próximo armazém.'))return;destravar();COL.arm='';desenharColetor()}
 function escolherArm(a){travar(COL.fil,a);COL.arm=a;desenharColetor()}
+let LIB=[],ITC=[];
 async function desenharColetor(){
-  const t=travaLer();if(t){COL.fil=t.fil;COL.arm=t.arm}else COL.arm='';
-  try{COL.arms=(await rpc('inv_armazens',{p_filial:COL.fil})).filter(a=>a.itens_com_saldo>0).map(a=>a.armazem)}catch(e){COL.arms=[]}
+  try{LIB=await rpc('inv_liberadas')}catch(e){LIB=[]}
+  const fils=[...new Set(LIB.map(x=>x.filial))].sort();
+  if(!fils.length){destravar();$('vis-coletor').innerHTML=`<div class="card" style="max-width:720px"><div style="font-size:17px;font-weight:800">Nenhuma contagem liberada no momento.</div><div class="muted" style="margin-top:6px">Aguarde o coordenador/administrador liberar a contagem (filial e armazéns). Depois recarregue a página.</div><button class="btn sec" style="margin-top:12px" onclick="desenharColetor()">↻ Verificar de novo</button></div>`;return}
+  const t=travaLer();
+  if(t&&LIB.some(x=>x.filial===t.fil&&x.armazem===t.arm)){COL.fil=t.fil;COL.arm=t.arm}else{if(t)destravar();COL.arm='';if(!fils.includes(COL.fil))COL.fil=fils[0]}
   if(!COL.arm){
+    const arms=LIB.filter(x=>x.filial===COL.fil);
     $('vis-coletor').innerHTML=`<div class="card" style="max-width:720px">
-      <div class="barra" style="margin-bottom:14px"><label>Filial<select id="c-fil" onchange="COL.fil=this.value;LS('inv_fil',COL.fil);desenharColetor()">${Object.keys(FIL).sort().map(f=>`<option value="${f}"${f===COL.fil?' selected':''}>${f} — ${esc(FIL[f])}</option>`).join('')}</select></label></div>
+      ${fils.length>1?`<div class="barra" style="margin-bottom:14px"><label>Filial<select onchange="COL.fil=this.value;LS('inv_fil',COL.fil);desenharColetor()">${fils.map(f=>`<option value="${f}"${f===COL.fil?' selected':''}>${f} — ${esc(FIL[f]||'')}</option>`).join('')}</select></label></div>`:`<div style="margin-bottom:10px;font-weight:700">Filial ${esc(COL.fil)} — ${esc(FIL[COL.fil]||'')}</div>`}
       <div style="font-size:17px;font-weight:800;margin-bottom:4px">Qual armazém você vai contar agora?</div>
-      <div class="muted" style="margin-bottom:12px">Conte um armazém por vez. Para trocar, você vai precisar encerrar o armazém atual.</div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px">${(COL.arms.length?COL.arms:['01']).map(a=>`<button class="btn" style="font-size:22px;padding:18px 28px;min-width:120px" onclick="escolherArm('${a}')">Armazém ${a}</button>`).join('')}</div>
+      <div class="muted" style="margin-bottom:12px">Só aparecem os armazéns liberados. Conte um armazém por vez; para trocar, encerre o armazém atual.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${arms.map(a=>`<button class="btn" style="font-size:22px;padding:16px 26px;min-width:140px" onclick="escolherArm('${a.armazem}')">Armazém ${a.armazem}<div style="font-size:12px;font-weight:600">${a.pendentes} de ${a.itens} a contar</div></button>`).join('')}</div>
     </div>`;
     return;
   }
   $('vis-coletor').innerHTML=`<div class="card">
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px">
         <div style="background:#1e40af;color:#fff;border-radius:10px;padding:8px 14px;font-weight:800;font-size:16px">📦 Contando: filial ${esc(COL.fil)} — armazém ${esc(COL.arm)}</div>
+        <span id="c-prog" class="muted"></span>
         <button class="btn sec" onclick="encerrarArm()">Encerrar este armazém</button>
-        <span class="muted" style="margin-left:auto;max-width:420px">Contagem cega: o sistema não mostra o saldo. Se não conferir, a 2ª contagem abre na própria linha. Digitou errado? Fale com o administrador.</span>
+        <span class="muted" style="margin-left:auto;max-width:420px">Contagem cega: o saldo não aparece. Bipe/digite o código ou conte direto na linha do item. Digitou errado? Fale com o administrador.</span>
       </div>
-      <div class="tab-wrap" style="max-height:calc(100vh - 260px)"><table id="c-tab">
-        <thead><tr><th style="width:150px">Código</th><th>Descrição</th><th style="width:60px">UM</th><th class="n" style="width:120px">1ª contagem</th><th class="n" style="width:150px">2ª contagem</th><th style="width:260px">Situação</th></tr></thead>
+      <div class="tab-wrap" style="max-height:calc(100vh - 260px)"><table>
+        <thead><tr><th style="width:150px">Código</th><th>Descrição</th><th style="width:60px">UM</th><th style="width:110px">Endereço</th><th class="n" style="width:150px">1ª contagem</th><th class="n" style="width:150px">2ª contagem</th><th style="width:260px">Situação</th></tr></thead>
         <tbody>
           <tr style="background:#eff6ff">
             <td><input id="c-cod" inputmode="numeric" autocomplete="off" placeholder="código + Enter" style="width:100%;font-weight:700" onkeydown="if(event.key==='Enter')colBusca()"></td>
-            <td id="c-desc" class="muted">digite ou bipe o código</td><td id="c-um"></td>
+            <td id="c-desc" class="muted">digite ou bipe o código</td><td id="c-um"></td><td></td>
             <td class="n"><input id="c-qtd" type="number" min="0" step="any" inputmode="decimal" class="qtd" style="width:100%" placeholder="qtd" onkeydown="if(event.key==='Enter')colContar()" disabled></td>
             <td></td><td><button class="btn" id="c-btn" onclick="colContar()" disabled>Confirmar</button></td>
           </tr>
         </tbody>
-        <tbody id="c-hist"><tr><td colspan="6" class="muted">Carregando…</td></tr></tbody>
+        <tbody id="c-hist"><tr><td colspan="7" class="muted">Carregando…</td></tr></tbody>
       </table></div>
       <div id="c-msg" style="margin-top:8px"></div>
     </div>`;
   $('c-cod').focus();colHist();
 }
 async function colBusca(){
-  const c=$('c-cod').value.trim();if(!c)return;
-  $('c-desc').textContent='buscando…';$('c-msg').innerHTML='';
-  try{COL.prod=await rpc('inv_produto',{p_codigo:c})}catch(e){COL.prod=null}
-  if(!COL.prod){$('c-desc').innerHTML='<span style="color:#b91c1c;font-weight:700">Código não encontrado no cadastro.</span>';$('c-um').textContent='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-cod').select();return}
-  $('c-desc').innerHTML='<b>'+esc(COL.prod.descricao||'')+'</b>';$('c-um').textContent=COL.prod.unidade||'';
+  const c=$('c-cod').value.trim();if(!c)return;$('c-msg').innerHTML='';
+  const it=ITC.find(i=>i.codigo===c);
+  if(!it){COL.prod=null;$('c-desc').innerHTML='<span style="color:#b91c1c;font-weight:700">Este código não está na contagem liberada deste armazém.</span>';$('c-um').textContent='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-cod').select();return}
+  if(!['pendente','recontar'].includes(it.status)){COL.prod=null;$('c-desc').innerHTML=`<span style="color:#b91c1c;font-weight:700">${esc(it.descricao||'')} — já contado (${esc(ROT[it.status]||it.status)}). Para corrigir, fale com o administrador.</span>`;$('c-qtd').disabled=$('c-btn').disabled=true;$('c-cod').select();return}
+  COL.prod=it;$('c-desc').innerHTML='<b>'+esc(it.descricao||'')+'</b>'+(it.status==='recontar'?' <span class="st recontar">2ª contagem</span>':'');$('c-um').textContent=it.unidade||'';
   $('c-qtd').disabled=$('c-btn').disabled=false;$('c-qtd').value='';$('c-qtd').focus();
 }
 async function colContar(){
   if(!COL.prod)return colBusca();
   const v=String($('c-qtd').value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a quantidade contada.');
-  $('c-btn').disabled=true;
-  let r;
-  try{r=await rpc('inv_coletar',{p_filial:COL.fil,p_armazem:COL.arm,p_codigo:COL.prod.codigo,p_qtd:+v})}
-  catch(e){$('c-msg').innerHTML=`<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">${esc(e.message)}</div>`;$('c-btn').disabled=false;return}
-  $('c-cod').value='';$('c-qtd').value='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-desc').innerHTML='<span class="muted">digite ou bipe o código</span>';$('c-um').textContent='';COL.prod=null;
-  $('c-msg').innerHTML=r.status==='ok'?`<div class="aviso" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534">✅ <b>${esc(r.codigo)}</b> confere.</div>`:
-    r.status==='recontar'?`<div class="aviso" style="background:#fffbeb;border-color:#fde68a;color:#92400e">⚠️ <b>${esc(r.codigo)}</b> não confere: conte de novo e digite a 2ª contagem na linha.</div>`:'';
-  COL.foco=r.status==='recontar'?r.item:null;await colHist();
-  if(!COL.foco)$('c-cod').focus();
+  $('c-btn').disabled=true;await colLancar(COL.prod.id,+v,true);
 }
-async function colRecontar(item){const el=$('q2-'+item),v=String(el.value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a 2ª contagem.');el.disabled=true;
-  try{const st=await rpc('inv_contar',{p_item:item,p_qtd:+v});
-    $('c-msg').innerHTML=st==='ok'?'<div class="aviso" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534">✅ 2ª contagem confere.</div>':'<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">❌ A 2ª contagem também não confere: escreva a justificativa na linha.</div>';
-    COL.foco=st==='divergente'?item:null}catch(e){alert(e.message);el.disabled=false;return}
-  await colHist();if(!COL.foco)$('c-cod').focus()}
+async function colLancar(item,qtd,doTopo){
+  let st;try{st=await rpc('inv_contar',{p_item:item,p_qtd:qtd})}catch(e){$('c-msg').innerHTML=`<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">${esc(e.message)}</div>`;if(doTopo)$('c-btn').disabled=false;return}
+  const it=ITC.find(i=>i.id===item)||{};
+  $('c-msg').innerHTML=st==='ok'?`<div class="aviso" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534">✅ <b>${esc(it.codigo||'')}</b> confere.</div>`:
+    st==='recontar'?`<div class="aviso" style="background:#fffbeb;border-color:#fde68a;color:#92400e">⚠️ <b>${esc(it.codigo||'')}</b> não confere: conte de novo e digite a 2ª contagem na linha.</div>`:
+    `<div class="aviso" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">❌ <b>${esc(it.codigo||'')}</b>: a 2ª contagem também não confere. Escreva a justificativa na linha.</div>`;
+  if(doTopo){$('c-cod').value='';$('c-qtd').value='';$('c-qtd').disabled=$('c-btn').disabled=true;$('c-desc').innerHTML='<span class="muted">digite ou bipe o código</span>';$('c-um').textContent='';COL.prod=null}
+  COL.foco=st==='ok'?null:item;await colHist();if(!COL.foco)$('c-cod').focus();
+}
+async function colLinha(item,campo){const el=$(campo+'-'+item),v=String(el.value).replace(',','.');if(v===''||isNaN(+v)||+v<0)return alert('Digite a quantidade.');el.disabled=true;await colLancar(item,+v,false)}
 async function colJustificar(item){const t=$('j-'+item).value.trim();if(!t)return alert('Escreva a justificativa.');
   try{await rpc('inv_justificar',{p_item:item,p_texto:t});$('c-msg').innerHTML='<div class="aviso">Justificativa enviada ao coordenador.</div>';COL.foco=null}catch(e){alert(e.message);return}
   await colHist();$('c-cod').focus()}
 async function colHist(){
-  let h=[];try{h=(await rpc('inv_minhas_contagens',{p_filial:COL.fil})).filter(x=>String(x.armazem).replace(/^0+/,'')===String(COL.arm).replace(/^0+/,''))}catch(e){}
-  $('c-hist').innerHTML=h.length?h.map(x=>{
-    let sit=`<span class="st ${x.status}">${ROT[x.status]||x.status}</span>`,c2=nf(x.cont2);
-    if(x.status==='recontar')c2=`<span style="display:flex;gap:4px;justify-content:flex-end"><input id="q2-${x.id}" type="number" min="0" step="any" inputmode="decimal" class="qtd" placeholder="2ª" onkeydown="if(event.key==='Enter')colRecontar(${x.id})"><button class="btn" onclick="colRecontar(${x.id})">OK</button></span>`;
+  const lb=LIB.find(x=>x.filial===COL.fil&&x.armazem===COL.arm);ITC=[];
+  if(lb)for(const id of lb.listas){try{ITC=ITC.concat((await rpc('inv_itens',{p_lista:id})).filter(i=>String(i.armazem).padStart(2,'0')===COL.arm))}catch(e){}}
+  const ordem={recontar:0,divergente:1,pendente:2,justificado:3,ok:4,aprovado:5};
+  ITC.sort((a,b)=>(ordem[a.status]-ordem[b.status])||String(a.localizacao||'').localeCompare(String(b.localizacao||''))||String(a.descricao).localeCompare(String(b.descricao)));
+  const feitos=ITC.filter(i=>i.status!=='pendente').length;if($('c-prog'))$('c-prog').textContent=`${feitos} de ${ITC.length} itens contados`;
+  $('c-hist').innerHTML=ITC.length?ITC.map(x=>{
+    let c1=nf(x.cont1),c2=nf(x.cont2),sit=`<span class="st ${x.status}">${ROT[x.status]||x.status}</span>`;
+    if(x.status==='pendente')c1=`<span style="display:flex;gap:4px;justify-content:flex-end"><input id="q1-${x.id}" type="number" min="0" step="any" inputmode="decimal" class="qtd" placeholder="qtd" onkeydown="if(event.key==='Enter')colLinha(${x.id},'q1')"><button class="btn sec" onclick="colLinha(${x.id},'q1')">OK</button></span>`;
+    if(x.status==='recontar')c2=`<span style="display:flex;gap:4px;justify-content:flex-end"><input id="q2-${x.id}" type="number" min="0" step="any" inputmode="decimal" class="qtd" placeholder="2ª" onkeydown="if(event.key==='Enter')colLinha(${x.id},'q2')"><button class="btn" onclick="colLinha(${x.id},'q2')">OK</button></span>`;
     if(x.status==='divergente')sit=`<span style="display:flex;gap:4px"><input id="j-${x.id}" placeholder="justificativa" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')colJustificar(${x.id})"><button class="btn sec" onclick="colJustificar(${x.id})">Enviar</button></span>`;
-    if(x.status==='justificado')sit+=`<div class="muted" style="font-size:11.5px">“${esc(x.justificativa||'')}”</div>`;
-    return `<tr${x.status==='recontar'?' style="background:#fffbeb"':x.status==='divergente'?' style="background:#fef2f2"':''}><td><b>${esc(x.codigo)}</b></td><td>${esc(x.descricao||'')}</td><td>${esc(x.unidade||'')}</td><td class="n">${nf(x.cont1)}</td><td class="n">${c2}</td><td>${sit}</td></tr>`}).join('')
-    :'<tr><td colspan="6" class="muted" style="padding:12px">Nenhuma contagem sua hoje neste armazém.</td></tr>';
+    if(x.status==='justificado'&&x.justificativa)sit+=`<div class="muted" style="font-size:11.5px">“${esc(x.justificativa)}”</div>`;
+    return `<tr${x.status==='recontar'?' style="background:#fffbeb"':x.status==='divergente'?' style="background:#fef2f2"':x.status==='pendente'?'':' style="background:#f8fafc"'}><td><b>${esc(x.codigo)}</b></td><td>${esc(x.descricao||'')}</td><td>${esc(x.unidade||'')}</td><td>${esc(x.localizacao||'')}</td><td class="n">${c1}</td><td class="n">${c2}</td><td>${sit}</td></tr>`}).join('')
+    :'<tr><td colspan="7" class="muted" style="padding:12px">Nenhum item liberado neste armazém.</td></tr>';
   if(COL.foco){const el=$('q2-'+COL.foco)||$('j-'+COL.foco);if(el)el.focus()}
 }
 
@@ -343,9 +351,8 @@ document.addEventListener('bq-acesso-ok',async e=>{
   EU=(e.detail.email||'').toLowerCase();$('quem').textContent=EU;
   try{PAPEL=await rpc('inv_papel');const{data}=await db.from('filiais').select('filial,nome_filial');(data||[]).forEach(f=>FIL[String(f.filial).trim()]=f.nome_filial)}catch(err){}
   if(podeContar())$('ab-coletor').style.display='';
-  // almoxarife: sem contagem liberada (nenhuma lista aberta), abre direto o coletor
-  if(podeContar()&&!coord()){let ab=[];try{ab=(await rpc('inv_listas',{p_filial:null})).filter(l=>l.status==='aberta'&&l.tipo==='lista')}catch(err){}
-    if(!ab.length){aba('coletor');return}}
+  // almoxarife (não coordenador): só Coletor e Acuracidade; o coletor só mostra o que o coordenador liberou
+  if(!coord()){$('ab-listas').style.display='none';if(podeContar()){aba('coletor');return}aba('acur');return}
   carregarListas();
 });
 </script>
