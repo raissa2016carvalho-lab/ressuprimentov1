@@ -98,3 +98,18 @@ alter table public.nfe_fluxo add column if not exists entrega_real date, add col
 -- alter table public.nfe_fluxo drop column entrega_real, drop column entrega_real_por;
 -- nfe_entregas_json(): o mesmo que nfe_entregas() num JSON só (a API devolve no máximo 1.000 linhas por consulta).
 -- DESFAZER: drop function if exists public.nfe_entregas_json();
+
+-- ── 23/11/2026: regra 5 do cruzamento com a SD1 (aplicado) ───────────────────────────────
+-- A movimentos_entrada chega sem CNPJ e sem chave (o sync não acha SA2/SF1 no banco do Protheus), então a regra 4
+-- (NFS-e: filial+nota+emissão+CNPJ) nunca casava e ~2.970 NFS-e lançadas apareciam como pendentes no painel.
+-- A regra 4 passou a aceitar também: SD1 sem CNPJ e sem chave + filial+nota+emissão + mesmo valor (diferença < R$ 1),
+-- com a amarração 'NFS-e: filial+nota+emissão+valor (SD1 sem CNPJ)'. Fica no mesmo bloco da regra 4 (merge join);
+-- num bloco separado o banco escolhia nested loop e passava de 60 s. Com o bloco junto: ~4,5 s.
+--   ... UNION ALL
+--   SELECT n.id, s.*..., case when s.cnpj = n.cnpj then 4 else 5 end,
+--          case when s.cnpj = n.cnpj then 'NFS-e: filial+nota+emissão+CNPJ' else 'NFS-e: filial+nota+emissão+valor (SD1 sem CNPJ)' end
+--     FROM n JOIN s ON s.filial = n.filial AND s.doc = n.doc AND s.emissao = n.emi
+--    WHERE n.modelo = 'NFSE' AND (s.cnpj = n.cnpj OR (s.cnpj IS NULL AND s.chave IS NULL
+--          AND (abs(s.valor - coalesce(n.vtot,0)) < 1 OR abs(s.valor - coalesce(n.vprod,0)) < 1)))
+--   (o bloco n ganhou vtot = valor_total e vprod = valor_produtos)
+-- Resultado: mv_nfe_sd1 de 19.820 para 22.791 notas amarradas.
