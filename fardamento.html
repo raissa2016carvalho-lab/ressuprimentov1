@@ -71,7 +71,7 @@ select:focus,.sbox:focus{border-color:var(--blue)}
   <span class="fl">Cliente</span><select id="fc-cli" onchange="fcRender()"><option value="">Todos</option></select>
   <input class="sbox" id="fc-busca" placeholder="Buscar item (ex.: CALCA ENEL 42)..." oninput="fcRender()" style="width:210px">
   <span class="fl">Média ÷</span><select id="fc-div" onchange="fcRender()" title="Consumo do ano dividido por quantos meses"></select>
-  <span class="fl">Consumo de</span><select id="fc-cons" onchange="fcRender()"><option value="todas">todas as filiais</option><option value="fil">só as filiais escolhidas</option></select>
+  <span class="fl" title="Consumo, estoque, a chegar e rateio sempre só das filiais selecionadas (nenhuma selecionada = todas)">Consumo e estoque: <b>só das filiais escolhidas</b></span>
   <label style="font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center"><input type="checkbox" id="fc-semcompra" checked onchange="fcRender()"> itens consumidos sem compra no ano</label>
   <button class="btn-c" onclick="fcExcel()">⬇ Excel da tabela</button>
   <button class="btn-f" onclick="scAbrir()" title="Excel no padrão de importação de SC do Protheus, com a compra dividida pelos centros de custo">🧾 Excel de SC com rateio</button>
@@ -172,7 +172,7 @@ async function fcCarregar(){
 // rateio de um SKU pelos CCs (proporção do consumo do ano; maior resto: a soma fecha com o total)
 function fcRateio(c,tot){
   const R=FC.rat[FC.ano];if(!R||tot<=0)return[];
-  const consTodas=$('fc-cons').value==='todas',pf=f=>!FC.fil.size||FC.fil.has(f),pc={};
+  const consTodas=false,pf=f=>!FC.fil.size||FC.fil.has(f),pc={};   // rateio só com o consumo das filiais escolhidas
   R.cons.forEach(([f,cod,cc,q])=>{if(cod!==c||!cc||!(consTodas||pf(f)))return;pc[cc]=(pc[cc]||0)+(+q||0)});
   const ccs=Object.entries(pc).filter(([,q])=>q>0),base=ccs.reduce((s,[,q])=>s+q,0);if(!base)return[];
   const parts=ccs.map(([cc,q])=>{const x=tot*q/base;return{cc,n:(R.ccs||{})[cc]||'',q,pct:q/base,qt:Math.floor(x),resto:x-Math.floor(x)}});
@@ -184,7 +184,7 @@ function fcRender(){
   const nome=c=>(d.nomes||{})[c]||'',fil=FC.fil,pf=f=>!fil.size||fil.has(f);
   const q=$('fc-busca').value.trim().toUpperCase().split(/\s+/).filter(Boolean),cli=$('fc-cli').value;
   const okItem=c=>{const n=(c+' '+nome(c)).toUpperCase();return q.every(t=>n.includes(t))&&(!cli||fcCliente(nome(c))===cli)};
-  const div=+$('fc-div').value||1,consTodas=$('fc-cons').value==='todas';
+  const div=+$('fc-div').value||1,consTodas=false;   // consumo sempre só das filiais escolhidas (antes havia a opção 'todas as filiais', que duplicava compras)
   const R={},lin=c=>R[c]=R[c]||{c,m:Array(12).fill(0),km:Array(12).fill(0),tp:0,k:0,ac:0,ef:0,et:0};
   d.compra.forEach(([f,c,mes,sc,pc,qq])=>{if(!pf(f)||(FC.sc.size&&!FC.sc.has(sc))||(FC.pc.size&&!FC.pc.has(pc))||!okItem(c))return;const r=lin(c),m=+mes.slice(4,6)-1;r.m[m]+=+qq||0;r.tp+=+qq||0});
   const semCompra=$('fc-semcompra').checked;
