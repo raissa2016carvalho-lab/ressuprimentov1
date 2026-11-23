@@ -8,6 +8,7 @@ Rodar com: py C:\\painel-protheus\\sync_movimentos_entrada.py
 
 05/11/2026: + D1_LOJA, D1_DTDIGIT (SLA de lançamento), F1_CHVNFE (amarração exata com o NFe Master),
             A2_CGC (CNPJ do fornecedor) e filtro D_E_L_E_T_ quando a tabela tiver essa coluna.
+23/11/2026: + D1_PEDIDO (pedido de compra), mostrado na coluna Pedido do painel de Notas.
             O script confere quais colunas existem em LWHSD1010 / LWHSF1010 / LWHSA2010 antes de montar a consulta.
             No fim chama atualizar_nfe_sd1() para o painel de Notas ficar em dia.
 """
@@ -90,6 +91,7 @@ def montar_sql(conn):
         ("D.D1_DTDIGIT" if tem(sd1, "D1_DTDIGIT") else "NULL") + " AS dtdigit",
         "RTRIM(D.D1_DOC) AS nota_fiscal", "RTRIM(D.D1_SERIE) AS serie", "RTRIM(D.D1_FORNECE) AS fornecedor",
         ("RTRIM(D.D1_LOJA)" if tem(sd1, "D1_LOJA") else "NULL") + " AS loja",
+        ("RTRIM(D.D1_PEDIDO)" if tem(sd1, "D1_PEDIDO") else "NULL") + " AS pedido",
         "RTRIM(D.D1_TES) AS tes", "D.D1_QUANT AS qtd_entrada", "D.D1_VUNIT AS preco_unit", "D.D1_TOTAL AS valor_entrada",
     ]
     joins = ""
@@ -165,6 +167,7 @@ def sincronizar():
                 "fornecedor_cnpj": limpar(row["fornecedor_cnpj"]),
                 "chave_nfe":       limpar(row["chave_nfe"]),
                 "tes":             limpar(row["tes"]),
+                "pedido":          limpar(row["pedido"]),
                 "qtd_entrada":     limpar_num(row["qtd_entrada"]) or 0,
                 "preco_unit":      limpar_num(row["preco_unit"]),
                 "valor_entrada":   limpar_num(row["valor_entrada"]) or 0,
