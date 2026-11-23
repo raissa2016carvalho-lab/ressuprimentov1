@@ -277,7 +277,7 @@ async function desenharColetor(){
       ${fils.length>1?`<div class="barra" style="margin-bottom:14px"><label>Filial<select onchange="COL.fil=this.value;LS('inv_fil',COL.fil);desenharColetor()">${fils.map(f=>`<option value="${f}"${f===COL.fil?' selected':''}>${f} — ${esc(FIL[f]||'')}</option>`).join('')}</select></label></div>`:`<div style="margin-bottom:10px;font-weight:700">Filial ${esc(COL.fil)} — ${esc(FIL[COL.fil]||'')}</div>`}
       <div style="font-size:17px;font-weight:800;margin-bottom:4px">Qual armazém você vai contar agora?</div>
       <div class="muted" style="margin-bottom:12px">Só aparecem os armazéns liberados. Conte um armazém por vez; para trocar, encerre o armazém atual.</div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px">${arms.map(a=>`<button class="btn" style="font-size:22px;padding:16px 26px;min-width:140px" onclick="escolherArm('${a.armazem}')">Armazém ${a.armazem}<div style="font-size:12px;font-weight:600">${a.pendentes} de ${a.itens} a contar</div></button>`).join('')}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${arms.map(a=>`<button class="btn" style="font-size:22px;padding:16px 26px;min-width:140px" onclick="escolherArm('${a.armazem}')">Armazém ${a.armazem}</button>`).join('')}</div>
     </div>`;
     return;
   }
@@ -286,7 +286,7 @@ async function desenharColetor(){
         <div style="background:#1e40af;color:#fff;border-radius:10px;padding:8px 14px;font-weight:800;font-size:16px">📦 Contando: filial ${esc(COL.fil)} — armazém ${esc(COL.arm)}</div>
         <span id="c-prog" class="muted"></span>
         <button class="btn sec" onclick="encerrarArm()">Encerrar este armazém</button>
-        <span class="muted" style="margin-left:auto;max-width:420px">Contagem cega: o saldo não aparece. Bipe/digite o código ou conte direto na linha do item. Digitou errado? Fale com o administrador.</span>
+        <span class="muted" style="margin-left:auto;max-width:420px">Contagem cega: bipe ou digite o código e a quantidade. Se não conferir, a 2ª contagem abre na própria linha. Digitou errado? Fale com o administrador.</span>
       </div>
       <div class="tab-wrap" style="max-height:calc(100vh - 260px)"><table>
         <thead><tr><th style="width:150px">Código</th><th>Descrição</th><th style="width:60px">UM</th><th style="width:110px">Endereço</th><th class="n" style="width:150px">1ª contagem</th><th class="n" style="width:150px">2ª contagem</th><th style="width:260px">Situação</th></tr></thead>
@@ -335,15 +335,16 @@ async function colHist(){
   if(lb)for(const id of lb.listas){try{ITC=ITC.concat((await rpc('inv_itens',{p_lista:id})).filter(i=>String(i.armazem).padStart(2,'0')===COL.arm))}catch(e){}}
   const ordem={recontar:0,divergente:1,pendente:2,justificado:3,ok:4,aprovado:5};
   ITC.sort((a,b)=>(ordem[a.status]-ordem[b.status])||String(a.localizacao||'').localeCompare(String(b.localizacao||''))||String(a.descricao).localeCompare(String(b.descricao)));
-  const feitos=ITC.filter(i=>i.status!=='pendente').length;if($('c-prog'))$('c-prog').textContent=`${feitos} de ${ITC.length} itens contados`;
-  $('c-hist').innerHTML=ITC.length?ITC.map(x=>{
+  // a lista de itens a contar NÃO aparece: só o que já foi contado (o almoxarife bipa/digita o código)
+  const feitos=ITC.filter(i=>i.status!=='pendente');if($('c-prog'))$('c-prog').textContent=`${feitos.length} ${feitos.length===1?'item contado':'itens contados'}`;
+  $('c-hist').innerHTML=feitos.length?feitos.map(x=>{
     let c1=nf(x.cont1),c2=nf(x.cont2),sit=`<span class="st ${x.status}">${ROT[x.status]||x.status}</span>`;
     if(x.status==='pendente')c1=`<span style="display:flex;gap:4px;justify-content:flex-end"><input id="q1-${x.id}" type="number" min="0" step="any" inputmode="decimal" class="qtd" placeholder="qtd" onkeydown="if(event.key==='Enter')colLinha(${x.id},'q1')"><button class="btn sec" onclick="colLinha(${x.id},'q1')">OK</button></span>`;
     if(x.status==='recontar')c2=`<span style="display:flex;gap:4px;justify-content:flex-end"><input id="q2-${x.id}" type="number" min="0" step="any" inputmode="decimal" class="qtd" placeholder="2ª" onkeydown="if(event.key==='Enter')colLinha(${x.id},'q2')"><button class="btn" onclick="colLinha(${x.id},'q2')">OK</button></span>`;
     if(x.status==='divergente')sit=`<span style="display:flex;gap:4px"><input id="j-${x.id}" placeholder="justificativa" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')colJustificar(${x.id})"><button class="btn sec" onclick="colJustificar(${x.id})">Enviar</button></span>`;
     if(x.status==='justificado'&&x.justificativa)sit+=`<div class="muted" style="font-size:11.5px">“${esc(x.justificativa)}”</div>`;
     return `<tr${x.status==='recontar'?' style="background:#fffbeb"':x.status==='divergente'?' style="background:#fef2f2"':x.status==='pendente'?'':' style="background:#f8fafc"'}><td><b>${esc(x.codigo)}</b></td><td>${esc(x.descricao||'')}</td><td>${esc(x.unidade||'')}</td><td>${esc(x.localizacao||'')}</td><td class="n">${c1}</td><td class="n">${c2}</td><td>${sit}</td></tr>`}).join('')
-    :'<tr><td colspan="7" class="muted" style="padding:12px">Nenhum item liberado neste armazém.</td></tr>';
+    :'<tr><td colspan="7" class="muted" style="padding:12px">Nenhum item contado ainda neste armazém. Bipe ou digite o código acima.</td></tr>';
   if(COL.foco){const el=$('q2-'+COL.foco)||$('j-'+COL.foco);if(el)el.focus()}
 }
 
