@@ -39,3 +39,9 @@ create table if not exists public.inv_item (
 -- 23/11/2026 (3ª parte, migração inventario_coletor_so_liberado):
 --   inv_coletar só conta itens das listas ABERTAS liberadas pelo coordenador (tipo 'lista'); não cria mais lista 'coletor'.
 --   inv_liberadas() → filial/armazém liberados (listas abertas), com itens e pendentes (sem saldo).
+
+-- 23/11/2026 (4ª parte, migração inventario_incluir_item):
+--   inv_item.incluido / incluido_por: item achado fisicamente que não estava na lista liberada (sem saldo no sistema).
+--   inv_incluir(filial, armazem, codigo, qtd): exige contagem liberada para o armazém e código no cadastro; cria o item
+--     na lista (saldo do SB2 congelado agora, normalmente 0) e lança a 1ª contagem (segue recontagem/justificativa).
+--   inv_desfazer apaga o item incluído.
