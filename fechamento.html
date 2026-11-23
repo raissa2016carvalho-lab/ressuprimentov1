@@ -444,14 +444,14 @@ async function _buscarTodas(montar){
 }
 // Botão "Atualizar dados": descarta o cache do navegador e busca tudo de novo
 function _recarregarDados(){
-  try{localStorage.removeItem('consumo_resumo_v1');localStorage.removeItem('consumo_resumo_ts');localStorage.removeItem('consumo_resumo_sync');}catch(e){}
+  try{localStorage.removeItem('consumo_resumo_v1');localStorage.removeItem('consumo_resumo_v2');localStorage.removeItem('consumo_resumo_ts');localStorage.removeItem('consumo_resumo_sync');}catch(e){}
   _devResumoCache=null;_dadosDevComp=null;
   carregar();
 }
 window._recarregarDados=_recarregarDados;
 let _nomesFiliais={};
 async function carregar(){
-  const cacheKey='consumo_resumo_v1';
+  const cacheKey='consumo_resumo_v2';
   const cacheTS='consumo_resumo_ts';
   const cacheSync='consumo_resumo_sync';
   const CACHE_HORAS=24;
@@ -545,7 +545,8 @@ async function carregar(){
     valor_total:      Number(r.valor_total)||0,
     quantidade:       Number(r.quantidade)||0,
     custo_zero:       (r.ycustd_zero_count||0)>0,
-    custo_zero_count: r.ycustd_zero_count||0,
+    custo_zero_count: r.ycustd_zero_count||0,   // lançamentos sem custo no Protheus (CP_YCUSTD = 0)
+    zero_final:       r.custo_zero_count||0,    // desses, os que ficaram mesmo com custo zero (sem B2_CM1 nem último preço)
     produto:'', descricao:'', custo_unit:0,
   }));
 
@@ -699,8 +700,9 @@ function renderAba(aba){
 function kpisHTML(){
   const totalVal=_filtrados.reduce((a,r)=>a+(r.valor_total||0),0);
   const totalQtd=_filtrados.reduce((a,r)=>a+(r.quantidade||0),0);
-  const custoZeroCount=_filtrados.filter(r=>r.custo_zero).length;
-  const custoZeroVal=_filtrados.filter(r=>r.custo_zero).reduce((a,r)=>a+(r.quantidade||0),0);
+  // o resumo tem 1 linha por filial/CC/mês/grupo: soma as contagens de lançamentos (antes contava as linhas do resumo)
+  const custoZeroCount=_filtrados.reduce((a,r)=>a+(r.custo_zero_count||0),0);
+  const custoZeroFinal=_filtrados.reduce((a,r)=>a+(r.zero_final||0),0);
   // a tela usa o resumo (sem código do item): conta grupos e CCs, que existem no resumo
   const gruposUniq=new Set(_filtrados.map(r=>r.grupo).filter(Boolean)).size,ccsUniq=new Set(_filtrados.map(r=>r.cc).filter(Boolean)).size;
   const mesesUniq=[...new Set(_filtrados.map(r=>r.mes))].sort();
@@ -709,7 +711,7 @@ function kpisHTML(){
     <div class="kpi azul"><div class="kpi-valor">${fmtVal(totalVal)}</div><div class="kpi-label">Valor total consumido</div><div class="kpi-sub">${mesesUniq.length} meses</div></div>
     <div class="kpi azul"><div class="kpi-valor">${fmtVal(mediaM)}</div><div class="kpi-label">Média mensal</div><div class="kpi-sub">por mês do período</div></div>
     <div class="kpi verde"><div class="kpi-valor">${fmtQtd(totalQtd)}</div><div class="kpi-label">Quantidade total</div><div class="kpi-sub">${gruposUniq} grupo${gruposUniq===1?'':'s'} • ${ccsUniq} CC${ccsUniq===1?'':'s'}</div></div>
-    <div class="kpi ${custoZeroCount>0?'vermelho':'verde'}"><div class="kpi-valor">${custoZeroCount.toLocaleString('pt-BR')}</div><div class="kpi-label">Registros custo zero</div><div class="kpi-sub">${fmtQtd(custoZeroVal)} unidades sem custo</div></div>
+    <div class="kpi ${custoZeroCount>0?'vermelho':'verde'}"><div class="kpi-valor">${custoZeroCount.toLocaleString('pt-BR')}</div><div class="kpi-label">Lançamentos sem custo no Protheus</div><div class="kpi-sub">${custoZeroFinal.toLocaleString('pt-BR')} ficaram com custo zero • os demais receberam custo médio/último preço</div></div>
   </div>`;
 }
 
@@ -1050,12 +1052,14 @@ function renderCustoZero(){
     cross[r.filial][r.mes].push(r);
   });
 
+  // quantidade de lançamentos sem custo (soma do resumo; cada linha do resumo junta vários lançamentos)
+  const nZ=l=>(l||[]).reduce((a,r)=>a+(r.custo_zero_count||0),0),nZ2=l=>(l||[]).reduce((a,r)=>a+(r.zero_final||0),0);
   const totalPorMes={};
-  meses.forEach(m=>{totalPorMes[m]=filiais.reduce((a,f)=>a+(cross[f]?.[m]?.length||0),0);});
-  const totalGeral=zeros.length;
+  meses.forEach(m=>{totalPorMes[m]=filiais.reduce((a,f)=>a+nZ(cross[f]?.[m]),0);});
+  const totalGeral=nZ(zeros);
 
   const rows=filiais.map(f=>{
-    const totalF=meses.reduce((a,m)=>a+(cross[f]?.[m]?.length||0),0);
+    const totalF=meses.reduce((a,m)=>a+nZ(cross[f]?.[m]),0);
     if(!totalF)return'';
     return`<tr>
       <td><strong>${f}</strong></td>
@@ -1065,7 +1069,7 @@ function renderCustoZero(){
         if(!itens.length)return`<td class="num" style="color:#cbd5e1">—</td>`;
         return`<td class="num">
           <button onclick="abrirDrilldown('${f}','${m}')" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;padding:2px 8px;font-size:12px;font-weight:700;color:#92400e;cursor:pointer">
-            ${itens.length}
+            ${nZ(itens)}
           </button>
         </td>`;
       }).join('')}
@@ -1078,8 +1082,8 @@ function renderCustoZero(){
   document.getElementById('content').innerHTML=`
   <div class="alerta-banner" style="margin-bottom:14px">
     <span class="icon">⚠️</span>
-    <div><strong>${zeros.length.toLocaleString('pt-BR')} registros com custo zero</strong>
-    <span style="display:block;font-size:12px;color:#b45309">${new Set(zeros.map(r=>r.produto)).size} itens distintos • Clique nos números para ver o detalhe</span></div>
+    <div><strong>${totalGeral.toLocaleString('pt-BR')} lançamentos sem custo no Protheus</strong>
+    <span style="display:block;font-size:12px;color:#b45309">${nZ2(zeros).toLocaleString('pt-BR')} ficaram com custo zero (sem custo médio nem último preço) • Clique nos números para ver o detalhe</span></div>
   </div>
   <div class="card">
     <div class="card-header">
