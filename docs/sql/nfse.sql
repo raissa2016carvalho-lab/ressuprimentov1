@@ -118,3 +118,6 @@ alter table public.nfe_fluxo add column if not exists entrega_real date, add col
 -- Agora, no mesmo lançamento da SD1 (filial+doc+série+emissão+fornecedor), se alguma nota tem o mesmo valor,
 -- só ela fica amarrada (blocos b/d da view: bate / bool_or(bate) over (...)). Amarração por chave (pri 1) não muda.
 -- NFS-e com valor diferente da SD1: de 30 para 3. Total amarrado: 22.783.
+-- 23/11/2026 (3): pedido da SD1. movimentos_entrada ganhou a coluna pedido (D1_PEDIDO, vem do sync_movimentos_entrada.py);
+-- vw_nfe_sd1 devolve sd1_pedido (string_agg dos pedidos da nota); mv_nfe_sd1 e nfe_sd1_painel recriadas com a coluna.
+-- Painel: Pedido mostra, quando ninguém digitou, o da SD1 ("do Protheus"), senão o do NFe Master, senão o da nota.

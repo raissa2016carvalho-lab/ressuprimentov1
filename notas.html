@@ -351,8 +351,8 @@ function fornFiltrados(){
 }
 
 function resumoNotas(){
-  // cartões com os mesmos filtros da lista (busca, tipo, medição, lançada, paradas...), menos o setor, que é o assunto dos cartões
-  let si=vals('f-status'),ns=notasFiltradas(true),com=ns.filter(n=>setorDa(n).setor).length;
+  // cartões com os mesmos filtros da lista (inclusive o setor)
+  let si=vals('f-status'),ns=notasFiltradas(false),com=ns.filter(n=>setorDa(n).setor).length;
   let rotSt=si.length===1?({pend:'pendentes',3:'integradas',C:'canceladas'}[si[0]]||''):'';
   let pend=ns.filter(PEND).length,paradas=ns.filter(diasParada).length;
   $('resumo').innerHTML=
@@ -424,7 +424,7 @@ async function exportarExcel(){
   let linhas=l.map(n=>{let f=(fluxo&&fluxo[n.id])||{},ped=ENT_PED[n.id]||{},rec=f.recebido_em?String(f.recebido_em).slice(0,10):'',real=f.entrega_real||rec||'',x=sd1&&sd1[n.id];
     return {'Filial':n.filial||'','Emissão':dt(n.emissao),'Nº nota':n.numero||'','Série':n.serie==null?'':n.serie,'Tipo':ehServ(n)?'NFS-e':'NF-e',
       'Setor':setorDa(n).setor||'','Fornecedor':n.fornecedor_nome||n.fornecedor_fantasia||'','CNPJ':fmtCnpj(n.fornecedor_cnpj),'Valor':Number(n.valor_total)||0,
-      'Entrega prevista':dt(f.previsao_entrega||ped.entrega),'Entrega real':dt(real),'Pedido':f.pedido||n.pedido_cliente||'','Medição':(medicaoDa(n)||{}).medicao||'','Contrato':(medicaoDa(n)||{}).contrato||'','Observação':f.obs_compras||'',
+      'Entrega prevista':dt(f.previsao_entrega||ped.entrega),'Entrega real':dt(real),'Pedido':f.pedido||(pedidoAuto(n)||{}).ped||'','Pedido veio':f.pedido?'digitado':(pedidoAuto(n)||{}).de||'','Medição':(medicaoDa(n)||{}).medicao||'','Contrato':(medicaoDa(n)||{}).contrato||'','Observação':f.obs_compras||'',
       'Descrição produto/serviço':(desc[n.id]||'').replace(/\s+/g,' ').trim().slice(0,32000),
       'Status':txtStatus(n),'Status no NFe Master':n.status_nfe==='C'?'Cancelada':n.status_integracao==='3'?'Integrado':RECUSADA(n)?'Recusada (NFS-e)':n.status_integracao==='1'?'Pendente · sem XML':'Pendente','Lançada no Protheus':lancada(n)?'Sim':'Não','Data de lançamento (SD1)':x&&x.sd1_dtdigit?dt(x.sd1_dtdigit.slice(0,4)+'-'+x.sd1_dtdigit.slice(4,6)+'-'+x.sd1_dtdigit.slice(6,8)):'',
       'Dias parada':diasParada(n)||'','Chave':n.chave||''}});
@@ -636,9 +636,16 @@ function salvarEntregaReal(ids,data,el){return salvarFluxo(ids,{entrega_real:dat
 // campos de texto do Compras (nº do pedido e observação): salvam ao sair do campo
 function htmlCampoFluxo(n,campo,ph,larg){
   if(!fluxo)return '<span class="herdado">—</span>';
-  let v=(fluxo[n.id]||{})[campo]||'',auto=campo==='pedido'&&!v&&n.pedido_cliente?n.pedido_cliente:'';
-  return (auto?'<div style="position:relative">':'')+'<input class="inp-txt" style="width:'+larg+'px'+(auto?';color:#1e40af':'')+'" placeholder="'+ph+'" value="'+esc(v||auto)+'" data-orig="'+esc(v)+'" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarCampoFluxo('+n.id+',\''+campo+'\',this)" title="'+(auto?'Pedido do cliente escrito na nota (pode trocar)':esc(v))+'">'+(auto?'<div class="herdado">da nota</div></div>':'');
+  let v=(fluxo[n.id]||{})[campo]||'',pa=campo==='pedido'&&!v?pedidoAuto(n):null,auto=pa?pa.ped:'';
+  return (auto?'<div style="position:relative">':'')+'<input class="inp-txt" style="width:'+larg+'px'+(auto?';color:#1e40af':'')+'" placeholder="'+ph+'" value="'+esc(v||auto)+'" data-orig="'+esc(v)+'" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="salvarCampoFluxo('+n.id+',\''+campo+'\',this)" title="'+(auto?esc(pa.tit)+' (pode trocar)':esc(v))+'">'+(auto?'<div class="herdado">'+pa.de+'</div></div>':'');
 }
+// pedido que vem sozinho (quando ninguém digitou): 1º o da SD1 (lançado no Protheus), 2º o que o NFe Master associou na integração, 3º o escrito na nota
+function pedidoAuto(n){
+  let x=sd1&&sd1[n.id];
+  if(x&&x.sd1_pedido)return {ped:x.sd1_pedido,de:'do Protheus',tit:'Pedido do lançamento no Protheus (SD1)'};
+  if(n.pedido)return {ped:n.pedido,de:'do NFe Master',tit:'Pedido associado pelo NFe Master na integração'};
+  if(n.pedido_cliente)return {ped:n.pedido_cliente,de:'da nota',tit:'Pedido do cliente escrito na nota'};
+  return null}
 function salvarCampoFluxo(id,campo,el){let v=el.value.trim();let c={};c[campo]=v||null;c.atualizado_em=new Date().toISOString();
   salvarFluxo([id],c,el).then(ok=>{if(!ok)el.value=el.dataset.orig})}
 async function salvarFluxo(ids,campos,el){
