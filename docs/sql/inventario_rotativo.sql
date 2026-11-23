@@ -35,3 +35,7 @@ create table if not exists public.inv_item (
 --     Item já contado: bloqueia ("fale com o administrador").
 --   inv_minhas_contagens(filial) → o que o usuário contou hoje (sem saldo)
 --   inv_desfazer(item, motivo) → só coord/admin: volta o item para "a contar" (item do coletor é apagado)
+
+-- 23/11/2026 (3ª parte, migração inventario_coletor_so_liberado):
+--   inv_coletar só conta itens das listas ABERTAS liberadas pelo coordenador (tipo 'lista'); não cria mais lista 'coletor'.
+--   inv_liberadas() → filial/armazém liberados (listas abertas), com itens e pendentes (sem saldo).
