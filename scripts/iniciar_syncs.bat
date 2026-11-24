@@ -25,8 +25,6 @@ REM    Pedidos de compra
 call :rodar "sync_pedidos" "sync.py"
 REM    SC + pedidos v2 (fonte da verdade do acompanhamento)
 call :rodar "sync_sc_v2" "sync_sc_pedidos_v2.py"
-REM    SC + pedidos legado
-call :rodar "sync_sc" "sync_sc_pedidos.py"
 REM    Itens + centros de custo + consumo 12 meses (formulário do almoxarife)
 call :rodar "sync_ressup" "sync_ressuprimento.py"
 REM    Estoque SB2 (estoque nas telas, ruptura, fardamento)
@@ -68,6 +66,7 @@ call :rodar "sync_bens" "sync_bens.py"
 
 REM ── DESLIGADOS em 24/11/2026 (nenhuma tela usa o que eles gravavam):
 REM    sync_consumo_comp.py (consumo_mensal_comp) e sync_inventario.py (inventario_agg)
+REM    sync_sc_pedidos.py (legado): a tabela sc_pedidos virou uma visão da sc_pedidos_v2
 
 REM ── ESTUDO DE CUSTO MÉDIO (fora do dia a dia; rodar à mão quando precisar) ────
 REM    É pesado (centenas de milhares de linhas). Tire o REM da linha abaixo só se quiser rodar sempre.
