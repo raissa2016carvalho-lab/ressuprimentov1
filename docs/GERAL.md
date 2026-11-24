@@ -3,7 +3,7 @@
 Atualizado em 10/11/2026. Este arquivo resume o sistema, as regras de trabalho e tudo o que já foi
 mudado no banco. Os detalhes de cada tela estão nos outros arquivos desta pasta:
 `index.md`, `gerente.md`, `mobilizacao.md`, `outras-telas.md` (formulário, estoque, compras,
-fechamento, manutenção, menu), `syncs.md` e `nfe-master.md` (Notas Fiscais / Recebimento).
+fechamento, menu), `syncs.md` e `nfe-master.md` (Notas Fiscais / Recebimento).
 
 ## Como falar comigo (Raissa)
 - Sou especialista em suprimentos, **não sou programadora**. Explique em português simples.
@@ -26,7 +26,6 @@ meu computador (`C:\painel-protheus`) usando a chave `service_role`.
 | `abrir-sc.html` | Abrir SC (18/11): filial, matrícula (nome e CC automáticos pela tabela `funcionarios`, sync `sync_funcionarios.py` da LWHSRA001; sem ela, usa `descontos_epi`), itens com busca na descrição (`sc_buscar_itens`), código automático, qtd e observação. Cada envio gera um nº (`sc_abertura` + `sc_abertura_itens`, só por função). Aba "Formulários enviados" e Excel de importação (tipo 004). Mostra item bloqueado/ativo (`itens_bloqueio`, sync `sync_itens_bloqueio.py` da SB1/B1_MSBLQL), observação do 1º item com link "Replicar para os demais itens", confirmação antes de enviar e campos sempre em branco (não lembra o último solicitante). SQL: `docs/sql/abrir_sc.sql` | Não (link separado, fora do menu) |
 | `estoque.html`, `compras.html` | Painéis de consulta | Não |
 | `fechamento.html` (+ `login_fechamento.html`) | Fechamento de consumo | Sim |
-| `manutencao.html` | Manutenção de veículos — **outro projeto Supabase** (fora do menu) | Não |
 | `ruptura.html` | Risco de ruptura (EPI/fardamento por filial) | Sim (desde 29/10, mesmo login do Painel principal) |
 | `notas.html` / `recebimento.html` | Notas Fiscais do NFe Master (setor, entrega prevista, cruzamento SD1 pela `mv_nfe_sd1`) e Recebimento do almoxarifado | Sim (publicado; `mv_nfe_sd1` desde 04/11) |
 | `notas.html?aba=sla` | SLA de lançamento (emissão → pré-nota → lançamento) | Sim (publicado) |

@@ -91,7 +91,7 @@
 ## los.html — Menu inicial
 Página com os links para todas as telas. Sem banco de dados. Repaginada em 27/10 (mesmo visual do ruptura/estoque):
 seções Ressuprimento (formulário, gerente, painel principal), Estoque (risco de ruptura, posição) e Compras e consumo (compras, fechamento).
-**Manutenção saiu do menu** (a página `manutencao.html` continua existindo).
+**Manutenção de veículos foi apagada em 24/11/2026** (tela, sync_bens.py, tabela `bens` e a gravação do sync.py no projeto antigo).
 
 ## formulario.html — Solicitação de ressuprimento (almoxarife, sem login)
 - Escolhe filial e CCs, mostra itens dos grupos permitidos (`cc_grupos`) com quantidade sugerida pelo
@@ -161,9 +161,6 @@ agora amarra SC × pedido por **nº SC + filial**. "Top descrições" (campo ine
   001205 de 22/10, R$ 129,6 mil de material de linha viva na matrícula 023546). Falhas de processo: retirada em outra filial sem
   transferência; kit de equipe lançado como admissional numa pessoa. Justificativas curtas do Top 8 de Out/26 foram passadas no chat.
 
-## manutencao.html — Manutenção de veículos
-- Usa **outro projeto Supabase** (`vvwtqbehfwrgcmbjdniu`), não o do ressuprimento.
-- Tabelas: `bens` (lista de veículos) e `manutencao_veiculos` (cria e altera registros).
-- **Sem login** e grava com a chave pública → qualquer pessoa com o link pode criar/alterar registros,
-  a menos que o RLS daquele projeto bloqueie. Não temos acesso a esse projeto pelo conector.
-- Pendência: verificar RLS no projeto de manutenção.
+## manutencao.html — apagada em 24/11/2026
+- Usava outro projeto Supabase (`vvwtqbehfwrgcmbjdniu`, fora da conta do ressuprimento). Apagar esse projeto é feito
+  direto na conta dele (Settings → General → Delete project).

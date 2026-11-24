@@ -5,7 +5,7 @@
  * Quem pode ver cada painel é definido na tela "Acessos" (acessos.html), só para administradores.
  * O banco responde pela função acesso_nivel(painel): 'editar', 'ver' ou 'nenhum' (admin = editar).
  * 'ver' (somente visualização): a trava barra as gravações feitas pelo cliente Supabase da página (variável global db).
- *   Telas que gravam por fetch() direto (compras, fardamento, manutencao) não são cobertas pelo 'ver'.
+ *   Telas que gravam por fetch() direto (compras, fardamento) não são cobertas pelo 'ver'.
  */
 (function () {
   var S = document.currentScript || {};
@@ -18,7 +18,7 @@
     'index': 'Painel de Ressuprimento', 'gerente': 'Painel do Gerente', 'formulario': 'Solicitação de Ressuprimento',
     'ruptura': 'Risco de Ruptura', 'estoque': 'Posição de Estoque', 'compras': 'Compras', 'fechamento': 'Fechamento de Consumo',
     'notas': 'Notas Fiscais / Recebimento', 'separacao': 'Separação', 'descontos': 'Descontos de EPI',
-    'estoque-central': 'Estoque Central', 'fardamento': 'Fardamento', 'abrir-sc': 'Abrir SC', 'manutencao': 'Gestão de Manutenção',
+    'estoque-central': 'Estoque Central', 'fardamento': 'Fardamento', 'abrir-sc': 'Abrir SC',
     'inventario': 'Inventário rotativo — contar', 'inventario-coord': 'Inventário rotativo — coordenador',
     'acessos': 'Acessos (administração)'
   };
