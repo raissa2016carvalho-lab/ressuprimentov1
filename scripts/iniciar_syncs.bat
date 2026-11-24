@@ -61,12 +61,10 @@ call :rodar "sync_funcionarios" "sync_funcionarios.py"
 REM    Bloqueio de produtos SB1 (aviso de item bloqueado/ativo)
 call :rodar "sync_itens_bloqueio" "sync_itens_bloqueio.py"
 
-REM ── VEÍCULOS  (manutencao.html) ──────────────────────────────────────────────
-call :rodar "sync_bens" "sync_bens.py"
-
 REM ── DESLIGADOS em 24/11/2026 (nenhuma tela usa o que eles gravavam):
 REM    sync_consumo_comp.py (consumo_mensal_comp) e sync_inventario.py (inventario_agg)
 REM    sync_sc_pedidos.py (legado): a tabela sc_pedidos virou uma visão da sc_pedidos_v2
+REM    sync_bens.py: a tela de Manutenção de veículos foi apagada
 
 REM ── ESTUDO DE CUSTO MÉDIO (fora do dia a dia; rodar à mão quando precisar) ────
 REM    É pesado (centenas de milhares de linhas). Tire o REM da linha abaixo só se quiser rodar sempre.
