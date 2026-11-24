@@ -8,6 +8,8 @@ Rodar com: py C:\\painel-protheus\\sync_movimentos_entrada.py
 
 05/11/2026: + D1_LOJA, D1_DTDIGIT (SLA de lançamento), F1_CHVNFE (amarração exata com o NFe Master),
             A2_CGC (CNPJ do fornecedor) e filtro D_E_L_E_T_ quando a tabela tiver essa coluna.
+24/11/2026: acha sozinha a tabela de fornecedores (LWHSA2001) e a do cabeçalho da nota (SF1) — antes procurava
+            LWHSA2010, que não existe, e o CNPJ vinha vazio. Grava a hora da rodada no sync_log.
 23/11/2026: + D1_PEDIDO (pedido de compra), mostrado na coluna Pedido do painel de Notas.
             O script confere quais colunas existem em LWHSD1010 / LWHSF1010 / LWHSA2010 antes de montar a consulta.
             No fim chama atualizar_nfe_sd1() para o painel de Notas ficar em dia.
@@ -80,10 +82,28 @@ def colunas(conn, tabela):
         return set()
 
 
+# O nome das tabelas muda no BEQ_LWH (ex.: fornecedores = LWHSA2001, não LWHSA2010).
+# Acha a tabela pelo nome parecido + a coluna que interessa.
+def achar_tabela(conn, parecido, coluna, padrao):
+    try:
+        df = pd.read_sql("SELECT TABLE_NAME FROM BEQ_LWH.INFORMATION_SCHEMA.COLUMNS "
+                         "WHERE COLUMN_NAME = ? AND TABLE_NAME LIKE ? ORDER BY TABLE_NAME", conn,
+                         params=[coluna, "LWH" + parecido + "%"])
+        nomes = [str(n).strip() for n in df["TABLE_NAME"]]
+        if nomes:
+            return padrao if padrao in nomes else nomes[0]
+    except Exception as e:
+        print(f"  ⚠ Não consegui procurar a tabela {parecido}: {e}")
+    return padrao
+
+
 def montar_sql(conn):
+    t_sf1 = achar_tabela(conn, "SF1", "F1_CHVNFE", "LWHSF1010")
+    t_sa2 = achar_tabela(conn, "SA2", "A2_CGC", "LWHSA2001")
+    print(f"  Tabelas: cabeçalho da nota = {t_sf1} · fornecedores = {t_sa2}")
     sd1 = colunas(conn, "LWHSD1010")
-    sf1 = colunas(conn, "LWHSF1010")
-    sa2 = colunas(conn, "LWHSA2010")
+    sf1 = colunas(conn, t_sf1)
+    sa2 = colunas(conn, t_sa2)
     tem = lambda cols, c: c in cols
     sel = [
         "RTRIM(D.D1_FILIAL) AS filial", "RTRIM(D.D1_COD) AS produto", "RTRIM(D.D1_NOME) AS descricao",
@@ -100,18 +120,22 @@ def montar_sql(conn):
     if tem(sd1, "D1_CHVNFE"):
         sel.append("RTRIM(D.D1_CHVNFE) AS chave_nfe")
     elif tem(sf1, "F1_CHVNFE"):
-        joins += ("\n LEFT JOIN BEQ_LWH.dbo.LWHSF1010 F ON F.F1_FILIAL = D.D1_FILIAL AND F.F1_DOC = D.D1_DOC"
-                  " AND F.F1_SERIE = D.D1_SERIE AND F.F1_FORNECE = D.D1_FORNECE"
+        # OUTER APPLY TOP 1: pega um cabeçalho só por nota (um JOIN comum duplicaria as linhas se a cópia repetir)
+        joins += ("\n OUTER APPLY (SELECT TOP 1 F1_CHVNFE FROM BEQ_LWH.dbo." + t_sf1 + " F WHERE F.F1_FILIAL = D.D1_FILIAL"
+                  " AND F.F1_DOC = D.D1_DOC AND F.F1_SERIE = D.D1_SERIE AND F.F1_FORNECE = D.D1_FORNECE"
                   + (" AND F.F1_LOJA = D.D1_LOJA" if usa_loja and tem(sf1, "F1_LOJA") else "")
-                  + (" AND F.D_E_L_E_T_ = ' '" if tem(sf1, "D_E_L_E_T_") else ""))
+                  + (" AND F.D_E_L_E_T_ = ' '" if tem(sf1, "D_E_L_E_T_") else "")
+                  + " AND ISNULL(F.F1_CHVNFE,'') <> '') F")
         sel.append("RTRIM(F.F1_CHVNFE) AS chave_nfe")
     else:
         sel.append("NULL AS chave_nfe")
     # CNPJ do fornecedor
     if tem(sa2, "A2_CGC") and tem(sa2, "A2_COD"):
-        joins += ("\n LEFT JOIN BEQ_LWH.dbo.LWHSA2010 A ON A.A2_COD = D.D1_FORNECE"
+        # OUTER APPLY TOP 1: o mesmo código de fornecedor pode aparecer em mais de uma filial do cadastro
+        joins += ("\n OUTER APPLY (SELECT TOP 1 A2_CGC FROM BEQ_LWH.dbo." + t_sa2 + " A WHERE A.A2_COD = D.D1_FORNECE"
                   + (" AND A.A2_LOJA = D.D1_LOJA" if usa_loja and tem(sa2, "A2_LOJA") else "")
-                  + (" AND A.D_E_L_E_T_ = ' '" if tem(sa2, "D_E_L_E_T_") else ""))
+                  + (" AND A.D_E_L_E_T_ = ' '" if tem(sa2, "D_E_L_E_T_") else "")
+                  + " AND ISNULL(A.A2_CGC,'') <> '') A")
         sel.append("RTRIM(A.A2_CGC) AS fornecedor_cnpj")
     else:
         sel.append("NULL AS fornecedor_cnpj")
@@ -187,6 +211,14 @@ def sincronizar():
             print(f"  {min(i+LOTE, len(registros))}/{len(registros)} enviados...")
 
         print(f"✅ {len(registros)} registros sincronizados!")
+        com_cnpj = sum(1 for r in registros if r["fornecedor_cnpj"])
+        com_chave = sum(1 for r in registros if r["chave_nfe"])
+        print(f"  CNPJ preenchido em {com_cnpj} linhas · chave da NF-e em {com_chave} linhas.")
+        try:
+            sb.table("sync_log").upsert({"chave": "movimentos_entrada", "atualizado_em": datetime.now().isoformat(),
+                                         "total": len(registros)}, on_conflict="chave").execute()
+        except Exception as e:
+            print(f"  ⚠ Não registrei a hora no sync_log: {e}")
 
         # Recalcula o cruzamento NF-e × SD1 do painel de Notas (SLA e "Lançada manual")
         try:
