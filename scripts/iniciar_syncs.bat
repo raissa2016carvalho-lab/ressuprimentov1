@@ -45,8 +45,7 @@ REM    Consumo SCP (requisições com status E)
 call :rodar "sync_consumo_scp" "sync_consumo_scp.py"
 REM    Devoluções TM001
 call :rodar "sync_movmult" "sync_movmult.py"
-REM    Consumo comparativo e anual
-call :rodar "sync_consumo_comp" "sync_consumo_comp.py"
+REM    Consumo anual (Posição de estoque)
 call :rodar "sync_consumo_anual" "sync_consumo_anual.py"
 
 REM ── ESTOQUE / RUPTURA / INVENTÁRIO  (estoque.html, ruptura.html) ─────────────
@@ -54,8 +53,6 @@ REM    Transferências SD2
 call :rodar "sync_sd2" "sync_sd2.py"
 REM    Movimentos SD3 (comparativo de estoque)
 call :rodar "sync_sd3" "sync_sd3.py"
-REM    Inventário
-call :rodar "sync_inventario" "sync_inventario.py"
 
 REM ── DESCONTOS DE EPI  (descontos.html, gerente.html) ─────────────────────────
 call :rodar "sync_descontos_epi" "sync_descontos_epi.py"
@@ -68,6 +65,9 @@ call :rodar "sync_itens_bloqueio" "sync_itens_bloqueio.py"
 
 REM ── VEÍCULOS  (manutencao.html) ──────────────────────────────────────────────
 call :rodar "sync_bens" "sync_bens.py"
+
+REM ── DESLIGADOS em 24/11/2026 (nenhuma tela usa o que eles gravavam):
+REM    sync_consumo_comp.py (consumo_mensal_comp) e sync_inventario.py (inventario_agg)
 
 REM ── ESTUDO DE CUSTO MÉDIO (fora do dia a dia; rodar à mão quando precisar) ────
 REM    É pesado (centenas de milhares de linhas). Tire o REM da linha abaixo só se quiser rodar sempre.
