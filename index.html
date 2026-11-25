@@ -2292,15 +2292,15 @@ function _montarFiltroMob(){
 function _atualizarCardTotalMob(){
   let el=document.getElementById('total-mob');if(!el)return;
   let sel=_selFiltroMob();if(!sel.length){el.innerHTML='';return}
-  let prontos=sel.filter(id=>_resumoMob[id]),t=0,a=0,r=0,e=0,v=0;
-  prontos.forEach(id=>{let x=_resumoMob[id];t+=x.total;a+=x.atend;r+=x.recebidos;e+=x.estoque;v+=x.valor||0});
+  let prontos=sel.filter(id=>_resumoMob[id]),t=0,a=0,r=0,e=0,v=0,np=0;
+  prontos.forEach(id=>{let x=_resumoMob[id];t+=x.total;a+=x.atend;r+=x.recebidos;e+=x.estoque;if(x.valor!=null){v+=x.valor;np++}});
   let pct=t?Math.round(a/t*100):0,cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';
   let falta=sel.length-prontos.length;
   el.innerHTML=`<div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;border-left:4px solid ${cor}">
     <div style="font-size:30px;font-weight:800;color:${cor};line-height:1">${pct}%</div>
     <div><div style="font-weight:700;font-size:13.5px;color:#0f172a">Atendimento total das ${sel.length} mobilizações filtradas</div>
     <div style="font-size:12px;color:#64748b;margin-top:2px">${a} de ${t} itens atendidos · ${r} recebidos · ${e} via estoque${falta?` · <i>calculando ${falta}...</i>`:''}</div></div>
-    <div style="margin-left:auto;text-align:right"><div style="font-size:20px;font-weight:800;color:#0f172a">${_fmtRMob(v)}</div><div style="font-size:11px;color:#64748b">valor estimado das filtradas</div></div></div>`;
+    ${np?`<div style="margin-left:auto;text-align:right"><div style="font-size:20px;font-weight:800;color:#0f172a">${_fmtRMob(v)}</div><div style="font-size:11px;color:#64748b">valor estimado${np<prontos.length?` (${np} de ${prontos.length} com preço)`:''}</div></div>`:''}</div>`;
 }
 function toggleFiltroMob(){let p=document.getElementById('painel-filtro-mob');if(p)p.style.display=p.style.display==='none'?'':'none'}
 function buscarFiltroMob(){let t=(document.getElementById('busca-filtro-mob').value||'').toLowerCase().trim();document.querySelectorAll('#lista-filtro-mob label').forEach(l=>{l.style.display=!t||l.dataset.nome.includes(t)?'flex':'none'})}
@@ -2332,6 +2332,9 @@ setTimeout(()=>carregarResumosMob(_mobsTodas),300);}
 const _SEM_GRUPO_MOB='Outras mobilizações';
 // ── Preço das mobilizações: último preço de compra (pedido mais recente, qualquer filial); sem compra, o preço do cadastro
 let _precoMobCache={};
+// Preço só nas mobilizações criadas depois de 25/11/2026 (a última que existia era a nº 45). As antigas ficam sem valor.
+const MOB_PRECO_A_PARTIR_ID=46;
+const _mobComPreco=m=>Number(m&&m.id)>=MOB_PRECO_A_PARTIR_ID;
 async function _precosMob(cods){
   let falta=[...new Set(cods)].filter(c=>!(c in _precoMobCache));if(!falta.length)return;
   for(let i=0;i<falta.length;i+=500){
@@ -2421,8 +2424,8 @@ function _atualizarGruposMob(){
       o.title=`${oa} de ${ot} itens atendidos nesta onda`;
     });
     let d=document.getElementById('mob-gdet-'+i);if(d)d.textContent=`· ${a} de ${t} itens atendidos`+(falta?` · calculando ${falta}...`:'');
-    let gv=document.getElementById('mob-gval-'+i);if(gv){let v=0,sp=0;prontos.forEach(m=>{v+=_resumoMob[m.id].valor||0;sp+=_resumoMob[m.id].semPreco||0});
-      gv.innerHTML=`💰 ${_fmtRMob(v)} <span>valor estimado${falta?' (calculando...)':''}</span>`;gv.title=sp?sp+' item(ns) sem preço não entram no valor':''}
+    let gv=document.getElementById('mob-gval-'+i);if(gv){let v=0,sp=0,np=0;prontos.forEach(m=>{let x=_resumoMob[m.id];if(x.valor==null)return;np++;v+=x.valor;sp+=x.semPreco||0});
+      gv.innerHTML=np?`💰 ${_fmtRMob(v)} <span>valor estimado${np<g.mobs.length?' ('+np+' de '+g.mobs.length+' mobilizações com preço)':''}${falta?' · calculando...':''}</span>`:'';gv.title=sp?sp+' item(ns) sem preço não entram no valor':''}
   });
 }
 Object.assign(window,{abrirGrupoMob,voltarGruposMob});
@@ -2470,8 +2473,9 @@ let gruposR={};
 });
 let itensAgrupados=Object.values(gruposR);
 // valor estimado: quantidade da mobilização × último preço de compra (ou preço do cadastro)
-let _valMob=0,_semPreco=0;
-try{
+let _valMob=null,_semPreco=0;
+if(_mobComPreco(m))try{
+  _valMob=0;
   let _codsM=itensAgrupados.map(it=>String(it.codigo||'').trim()).filter(c=>c&&c!=='MANUAL');
   await _precosMob(_codsM);
   itensAgrupados.forEach(it=>{let c=String(it.codigo||'').trim(),p=_precoMobCache[c]||0;if(p>0)_valMob+=p*(Number(it.total_mob)||0);else _semPreco++});
@@ -2493,7 +2497,7 @@ itensAgrupados.forEach(it=>{
   }
 });
 let total=(itensAgrupados.length-eliminados)||1;
-let totalAtend=recebidos+estoque;let pct=Math.round(totalAtend/total*100);_resumoMob[m.id]={total,atend:totalAtend,recebidos,estoque,valor:_valMob,semPreco:_semPreco};_atualizarCardTotalMob();_atualizarGruposMob();let cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';el.innerHTML=`<span style="font-weight:800;font-size:15px;color:${cor}">${pct}%</span><span style="color:#94a3b8;font-size:11px">atendimento</span><span class="mob-valor" title="Valor estimado: quantidade da mobilização × último preço de compra (sem compra: preço do cadastro)${_semPreco?' · '+_semPreco+' item(ns) sem preço':''}">${_fmtRMob(_valMob)}${_semPreco?' <i>+'+_semPreco+' s/ preço</i>':''}</span>`;} catch(e){console.error('resumo mob',e);}}}
+let totalAtend=recebidos+estoque;let pct=Math.round(totalAtend/total*100);_resumoMob[m.id]={total,atend:totalAtend,recebidos,estoque,valor:_valMob,semPreco:_semPreco};_atualizarCardTotalMob();_atualizarGruposMob();let cor=pct===100?'#16a34a':pct>0?'#1e40af':'#94a3b8';el.innerHTML=`<span style="font-weight:800;font-size:15px;color:${cor}">${pct}%</span><span style="color:#94a3b8;font-size:11px">atendimento</span>`+(_valMob==null?'':`<span class="mob-valor" title="Valor estimado: quantidade da mobilização × último preço de compra (sem compra: preço do cadastro)${_semPreco?' · '+_semPreco+' item(ns) sem preço':''}">${_fmtRMob(_valMob)}${_semPreco?' <i>+'+_semPreco+' s/ preço</i>':''}</span>`);} catch(e){console.error('resumo mob',e);}}}
 
 let _catsGlobal=null,_mobIdExcel=null;
 async function renderDetalheMob(mobId,container){container.innerHTML=`<div style="padding:6px;color:#64748b;font-size:13px">Carregando itens...</div>`;let[{data:mob},{data:itens},{data:scsLista},{data:estoqueData}]=await Promise.all([db.from(`mobilizacoes`).select(`*`).eq(`id`,mobId).maybeSingle(),db.from(`mobilizacao_itens`).select(`*`).eq(`mobilizacao_id`,mobId).order(`descricao`),db.from(`mobilizacao_scs`).select(`*`).eq(`mobilizacao_id`,mobId).order(`criado_em`),db.from(`mobilizacao_estoque`).select(`*`).eq(`mobilizacao_id`,mobId)]);if(!mob){container.innerHTML=`<div style="padding:12px;color:#ef4444">Mobilização não encontrada.</div>`;return;}mapaEstoque={};(estoqueData||[]).forEach(e=>{e.codigo&&(mapaEstoque[String(e.codigo||'').trim()]=Number(e.qtd_estoque)||0)});let numEquipes=mob.num_equipes,grupos={},_gExcl={};(itens||[]).filter(it=>{if(!it.excluido)return true;let k=String(it.codigo||'').trim()||('desc:'+String(it.descricao||'').trim());let g=_gExcl[k]=_gExcl[k]||{descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],por:it.excluido_por,em:it.excluido_em,motivo:it.motivo_exclusao};g.total_mob+=Number(it.total_mob)||0;g.ids.push(it.id);return false}).forEach(it=>{let chave=it.codigo&&String(it.codigo||'').trim()?`cod:`+String(it.codigo||'').trim():`desc:`+String(it.descricao||'').trim();grupos[chave]||(grupos[chave]={descricao:it.descricao,codigo:it.codigo,total_mob:0,ids:[],observacao:it.observacao||null,dt_entrega_manual:it.dt_entrega_manual||null}),grupos[chave].total_mob+=Number(it.total_mob)||0,grupos[chave].ids.push(it.id),it.observacao&&(grupos[chave].observacao=it.observacao),it.dt_entrega_manual&&(grupos[chave].dt_entrega_manual=it.dt_entrega_manual)});let itensExcluidosMob=Object.values(_gExcl),itensConsolidados=Object.values(grupos),numerosSc=(scsLista||[]).map(s=>s.sc_numero.trim()).filter(Boolean);function normalizarSc(sc){let s=String(sc||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function normalizarCodigo(cod){let s=String(cod||``).trim();return/^\d+$/.test(s)?s.replace(/^0+/,``)||`0`:s}function variantesSc(sc){let v=new Set([sc]);return/^\d+$/.test(sc)&&v.add(normalizarSc(sc)),[...v]}let numerosScNormalizados=new Set(numerosSc.map(normalizarSc)),pcsEncontrados=[],scSemPedido=[],avisoProtheus=``;if(numerosSc.length>0){let _scFilialMob={};(scsLista||[]).forEach(s=>{if(s.sc_numero&&s.filial)_scFilialMob[s.sc_numero.trim()]=s.filial;});let _scsPorFilial={};numerosSc.forEach(sc=>{let f=_scFilialMob[sc]||'';if(!_scsPorFilial[f])_scsPorFilial[f]=[];_scsPorFilial[f].push(sc);});let ePcs=null;// Buscar via sc_pedidos_v2 usando sc_numero + filial de cada SC da mobilização
