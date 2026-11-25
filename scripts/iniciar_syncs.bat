@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Maestro dos syncs - B&Q (nao feche esta janela)
+title Maestro dos syncs - BeQ - nao feche esta janela
 cd /d C:\painel-protheus
 
 REM ============================================================================
