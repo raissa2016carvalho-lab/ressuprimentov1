@@ -232,8 +232,32 @@ def _proximas(s, depois):
     return min(cands)
 
 
+_TRAVA = None
+def _so_um_maestro():
+    """Impede dois maestros ao mesmo tempo (o .bat aberto duas vezes rodaria tudo em dobro)."""
+    global _TRAVA
+    caminho = os.path.join(PASTA, "logs", "maestro.trava")
+    os.makedirs(os.path.dirname(caminho), exist_ok=True)
+    _TRAVA = open(caminho, "a+")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            _TRAVA.seek(0)
+            msvcrt.locking(_TRAVA.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(_TRAVA.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
 def maestro(rodada_inicial=True):
     os.chdir(PASTA)
+    if not _so_um_maestro():
+        print("\n⚠  Já existe um maestro rodando em outra janela. Esta não vai rodar nada.")
+        print("   Deixe só a outra janela aberta. (Para rodar um sync na hora: py rodar_syncs.py --agora <nome>)")
+        return
     _log("═" * 70)
     _log(f"Maestro dos syncs iniciado — {len(SYNCS)} syncs, um de cada vez. Não feche esta janela.")
     faltam = [s["arquivo"] for s in SYNCS if not os.path.exists(os.path.join(PASTA, s["arquivo"]))]
