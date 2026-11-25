@@ -110,3 +110,14 @@ create policy ger_admin on public.gerentes_cc for all to authenticated using (pu
 -- alter table public.descontos_decisao drop column if exists lote;
 -- drop policy if exists ger_le on public.gerentes_cc; drop policy if exists ger_admin on public.gerentes_cc;
 -- create policy logado_tudo on public.gerentes_cc for all to authenticated using (true) with check (true);
+
+-- ── 25/11/2026 (aplicado): lista própria de gerentes do painel de Descontos ─────────────────
+-- gerentes_cc_desconto (id, email, cc, criado_em, criado_por): começou com uma cópia da gerentes_cc (148 vínculos, 21 gerentes).
+-- Mantida à mão na aba "👥 Gerentes" do descontos.html (só administrador altera; todos os logados leem).
+-- descontos.html, gerente_descontos.js e o gatilho descontos_decisao_guarda passaram a usar esta tabela.
+-- A gerentes_cc continua sendo a do painel principal (aprovação de solicitações) e não muda.
+-- create table public.gerentes_cc_desconto (id bigserial primary key, email text not null, cc text not null,
+--   criado_em timestamptz not null default now(), criado_por text default (auth.jwt()->>'email'), unique (email, cc));
+-- RLS: gcd_le (select, authenticated, true) · gcd_admin (all, authenticated, is_admin())
+-- DESFAZER: voltar descontos.html / gerente_descontos.js para gerentes_cc, recriar descontos_decisao_guarda com gerentes_cc
+--           e drop table public.gerentes_cc_desconto;

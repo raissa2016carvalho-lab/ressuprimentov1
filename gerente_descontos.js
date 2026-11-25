@@ -23,7 +23,9 @@
     await iniciar();carregou=true;
     let [i,f]=$('dg-per').value.split('|');FECH=!!(ULT&&f<=ULT);
     $('dg-lista').innerHTML='<div style="padding:20px;color:#64748b;font-size:13px">Carregando...</div>';
-    let ccs=(typeof meusCC!=='undefined'&&meusCC?meusCC:[]).map(c=>String(c).trim());
+    // centros de custo do gerente pela lista do painel de Descontos (gerentes_cc_desconto)
+    let ccs=[];
+    try{let{data}=await db.from('gerentes_cc_desconto').select('cc').ilike('email',String(userEmail||'').trim());ccs=[...new Set((data||[]).map(x=>String(x.cc).trim()))]}catch(e){}
     if(!ccs.length){$('dg-resumo').innerHTML='';$('dg-lista').innerHTML='<div style="padding:20px;color:#64748b">Nenhum centro de custo ligado ao seu usuário.</div>';return}
     DG=[];
     for(let o=0;;o+=1000){let{data,error}=await db.from('descontos_epi').select('*').in('cc',ccs).gte('datinc',i).lte('datinc',f).order('nome').range(o,o+999);
