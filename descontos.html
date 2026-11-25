@@ -82,6 +82,7 @@ tr.abonar td{background:#f0fdf4}tr.descontar td{background:#fff7ed}
     <button class="btn" id="bt-lista" onclick="VISAO='lista';desenhar()">📋 Lista</button>
     <button class="btn" id="bt-analise" onclick="VISAO='analise';desenhar()">📊 Análise e gráficos</button>
     <button class="btn" id="bt-hist" onclick="VISAO='hist';desenhar()" title="Quem mudou o quê, e quando — com botão para desfazer">🕘 Histórico</button>
+    <button class="btn so-admin" id="bt-ger" onclick="VISAO='gerentes';desenhar()" title="Quem é o gerente de cada centro de custo, só para este painel">👥 Gerentes</button>
     <button class="btn" id="bt-desfazer" style="display:none;border-color:#ea580c;color:#ea580c" onclick="desfazerLote()">↩ Desfazer a última marcação em massa</button>
     <span style="flex:1"></span>
     <button class="btn so-admin" onclick="abrirEmail()" title="Texto pronto para mandar aos gerentes: linhas de desconto e quanto já foi tratado, por gerente">📧 E-mail de acompanhamento</button>
@@ -91,6 +92,7 @@ tr.abonar td{background:#f0fdf4}tr.descontar td{background:#fff7ed}
   <div class="kpis" id="kpis"></div>
   <div id="analise" style="display:none"></div>
   <div id="hist" style="display:none"></div>
+  <div id="ger" style="display:none"></div>
   <div class="tab" id="caixa-lista"><table>
     <thead><tr>
       <th>Emissão</th><th>SA</th><th>Fil.</th><th>Matrícula</th><th>Nome</th><th>Produto</th>
@@ -180,6 +182,9 @@ function desenhar(){
   $('bt-lista').style.borderColor=VISAO==='lista'?'#1e40af':'';$('bt-analise').style.borderColor=VISAO==='analise'?'#1e40af':'';
   $('caixa-lista').style.display=VISAO==='lista'?'':'none';$('analise').style.display=VISAO==='analise'?'':'none';
   $('hist').style.display=VISAO==='hist'?'':'none';$('bt-hist').style.borderColor=VISAO==='hist'?'#1e40af':'';
+  $('ger').style.display=VISAO==='gerentes'?'':'none';if($('bt-ger'))$('bt-ger').style.borderColor=VISAO==='gerentes'?'#1e40af':'';
+  $('kpis').style.display=VISAO==='gerentes'?'none':'';
+  if(VISAO==='gerentes')return carregarGerDesc();
   let L=filtrados();
   if(VISAO==='hist'){desenharKpis(L);return desenharHist()}
   if(VISAO==='analise'){desenharKpis(L);return desenharAnalise(L)}
@@ -429,6 +434,79 @@ async function voltarDecisao(chave,ant){
   DEC[chave]=Object.assign({},DEC[chave]||{},{decisao:ant});HIST=[];desenhar();
 }
 
+// ── Gerentes deste painel (tabela gerentes_cc_desconto): mesma ideia de Configurações → Gerentes do painel principal,
+//    mas a lista é só do Descontos. Administrador associa e-mail × centro de custo, um a um ou em lote.
+let GD_CCS=[],GD_LIG=[];
+async function carregarGerDesc(){
+  let el=$('ger');el.innerHTML='<div class="vazio">Carregando...</div>';
+  let[{data:ccs,error:e1},{data:lig,error:e2}]=await Promise.all([db.from('centros_custo').select('cc,nome,status').order('nome'),
+    db.from('gerentes_cc_desconto').select('id,email,cc').order('email')]);
+  if(e1||e2){el.innerHTML='<div class="vazio">Não consegui carregar: '+esc((e1||e2).message)+'</div>';return}
+  GD_LIG=lig||[];
+  // CCs válidos (código completo) e desbloqueados + qualquer CC que já tenha gerente ou desconto no período
+  let usados=new Set([...GD_LIG.map(g=>String(g.cc).trim()),...DADOS.map(d=>String(d.cc||'').trim())]);
+  GD_CCS=(ccs||[]).map(c=>({cc:String(c.cc).trim(),nome:String(c.nome||'').replace(/\s+/g,' ').trim(),status:c.status||'Desbloqueado'}))
+    .filter(c=>c.cc.length>5&&(c.status==='Desbloqueado'||usados.has(c.cc)));
+  let ger=[...new Set(GD_LIG.map(g=>g.email))].sort();
+  el.innerHTML=`<div class="aviso" style="background:#eff6ff;color:#1e3a8a">Quem aparece aqui como gerente de um centro de custo vê os descontos dele (na aba <b>Descontos de EPI</b> do painel do gerente) e entra no e-mail de acompanhamento. Esta lista é <b>só do painel de Descontos</b>: mudar aqui não mexe no painel principal.</div>
+    <div class="kpis" style="display:flex"><div>Centros de custo<b>${GD_CCS.length}</b></div><div>Com gerente<b>${GD_CCS.filter(c=>GD_LIG.some(g=>String(g.cc).trim()===c.cc)).length}</b></div><div>Sem gerente<b style="color:#b45309">${GD_CCS.filter(c=>!GD_LIG.some(g=>String(g.cc).trim()===c.cc)).length}</b></div><div>Gerentes<b>${ger.length}</b></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
+      <input id="gd-busca" placeholder="🔍 Buscar CC, nome ou e-mail" oninput="gdDesenhar()" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:12.5px;min-width:240px;font-family:inherit">
+      <label style="font-size:12.5px;color:#475569;display:flex;gap:5px;align-items:center"><input type="checkbox" id="gd-sem" onchange="gdDesenhar()"> Só sem gerente</label>
+      <span style="flex:1"></span>
+      <button class="btn" onclick="gdTodos(true)">Marcar todos da lista</button><button class="btn" onclick="gdTodos(false)">Limpar seleção</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-bottom:10px">
+      <b style="font-size:12.5px;color:#0f172a">Associar em lote:</b>
+      <input id="gd-email" list="gd-emails" placeholder="e-mail do gerente" oninput="gdBtn()" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:12.5px;min-width:260px;font-family:inherit">
+      <datalist id="gd-emails">${ger.map(e=>`<option value="${esc(e)}">`).join('')}</datalist>
+      <button class="btn" id="gd-btn" onclick="gdLote()" disabled style="opacity:.4">Associar aos <span id="gd-n">0</span> CC(s) marcados</button>
+      <span id="gd-msg" style="font-size:12.5px"></span>
+    </div>
+    <div id="gd-lista"></div>`;
+  gdDesenhar();
+}
+function gdDesenhar(){
+  let q=($('gd-busca')||{}).value||'',sem=$('gd-sem')&&$('gd-sem').checked;q=q.toLowerCase().trim();
+  let por={};GD_LIG.forEach(g=>{(por[String(g.cc).trim()]=por[String(g.cc).trim()]||[]).push(g)});
+  let L=GD_CCS.filter(c=>{let gs=por[c.cc]||[];if(sem&&gs.length)return false;
+    return !q||c.cc.includes(q)||c.nome.toLowerCase().includes(q)||gs.some(g=>g.email.includes(q))});
+  $('gd-lista').innerHTML=L.length?L.map(c=>{let gs=por[c.cc]||[];
+    return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px 12px;margin-bottom:6px;display:flex;gap:10px;align-items:flex-start">
+      <input type="checkbox" class="gd-cb" data-cc="${esc(c.cc)}" onchange="gdBtn()" style="margin-top:3px;width:16px;height:16px;cursor:pointer">
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">${esc(c.nome||'(sem nome)')} <span class="cz" style="font-family:ui-monospace,monospace">${esc(c.cc)}</span>${c.status!=='Desbloqueado'?' <span class="cz">· bloqueado</span>':''}</div>
+        <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">${gs.map(g=>`<span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:999px;padding:3px 6px 3px 11px;font-size:12.5px">${esc(g.email)}<button onclick="gdRemover(${Number(g.id)})" title="Tirar este gerente do CC" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:14px;padding:0 2px">✕</button></span>`).join('')||'<span class="cz" style="color:#b45309">Sem gerente</span>'}
+          <input placeholder="+ e-mail" list="gd-emails" data-cc="${esc(c.cc)}" onkeydown="if(event.key==='Enter')gdAdd(this.dataset.cc,this)" style="border:1px dashed #cbd5e1;border-radius:999px;padding:3px 10px;font-size:12px;width:190px;font-family:inherit"></div></div></div>`}).join('')
+    :'<div class="vazio">Nenhum centro de custo com esse filtro.</div>';
+  gdBtn();
+}
+function gdBtn(){let n=document.querySelectorAll('.gd-cb:checked').length,e=(($('gd-email')||{}).value||'').trim(),b=$('gd-btn');if($('gd-n'))$('gd-n').textContent=n;if(b){b.disabled=!(n&&e);b.style.opacity=n&&e?1:.4}}
+function gdTodos(on){document.querySelectorAll('.gd-cb').forEach(c=>c.checked=on);gdBtn()}
+const _emailOk=e=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+async function gdAdd(cc,inp){
+  let email=inp.value.trim().toLowerCase();if(!email)return;if(!_emailOk(email))return alert('E-mail inválido: '+email);
+  let{error}=await db.from('gerentes_cc_desconto').upsert({email,cc},{onConflict:'email,cc',ignoreDuplicates:true});
+  if(error)return alert('Não consegui salvar: '+error.message);
+  carregarGerDesc();
+}
+async function gdLote(){
+  let email=$('gd-email').value.trim().toLowerCase(),ccs=[...document.querySelectorAll('.gd-cb:checked')].map(c=>c.dataset.cc);
+  if(!email||!ccs.length)return;if(!_emailOk(email))return alert('E-mail inválido: '+email);
+  $('gd-msg').innerHTML='<span class="cz">Salvando...</span>';
+  let{error}=await db.from('gerentes_cc_desconto').upsert(ccs.map(cc=>({email,cc})),{onConflict:'email,cc',ignoreDuplicates:true});
+  if(error){$('gd-msg').innerHTML='<span style="color:#b91c1c">Erro: '+esc(error.message)+'</span>';return}
+  $('gd-msg').innerHTML='<span style="color:#047857">✓ '+esc(email)+' associado a '+ccs.length+' CC(s)</span>';
+  setTimeout(carregarGerDesc,900);
+}
+async function gdRemover(id){
+  let g=GD_LIG.find(x=>x.id===id)||{},email=g.email||'',cc=String(g.cc||'');
+  if(!confirm('Tirar '+email+' do centro de custo '+cc+'?\nEle deixa de ver os descontos desse CC.'))return;
+  let{error}=await db.from('gerentes_cc_desconto').delete().eq('id',id);
+  if(error)return alert('Não consegui remover: '+error.message);
+  carregarGerDesc();
+}
+Object.assign(window,{carregarGerDesc,gdDesenhar,gdBtn,gdTodos,gdAdd,gdLote,gdRemover});
+
 // ── E-mail de acompanhamento: por gerente, linhas geradas e quanto já foi tratado (período escolhido) ──
 let EMAIL_TXT='';
 const _nomeGer=e=>String(e).split('@')[0].split(/[._]/).filter(Boolean).map(p=>p[0].toUpperCase()+p.slice(1)).join(' ');
@@ -474,9 +552,9 @@ async function liberar(email){
   userEmail=email||'';$('user-email').textContent=userEmail;
   try{let{data}=await db.from('perfis_usuario').select('role').eq('email',userEmail.toLowerCase().trim()).maybeSingle();isAdmin=data&&data.role==='admin'}catch(e){}
   try{let{data}=await db.from('centros_custo').select('cc,nome');(data||[]).forEach(c=>NOME_CC[String(c.cc).trim()]=String(c.nome||'').replace(/\s+/g,' ').trim())}catch(e){}
-  try{let{data}=await db.from('gerentes_cc').select('cc,email');(data||[]).forEach(g=>{let c=String(g.cc).trim();(GER_CC[c]=GER_CC[c]||[]);let e=String(g.email||'').trim().toLowerCase();if(e&&!GER_CC[c].includes(e))GER_CC[c].push(e)})}catch(e){}
+  try{let{data}=await db.from('gerentes_cc_desconto').select('cc,email');(data||[]).forEach(g=>{let c=String(g.cc).trim();(GER_CC[c]=GER_CC[c]||[]);let e=String(g.email||'').trim().toLowerCase();if(e&&!GER_CC[c].includes(e))GER_CC[c].push(e)})}catch(e){}
   if(!isAdmin){
-    let{data}=await db.from('gerentes_cc').select('cc').ilike('email',userEmail.trim());
+    let{data}=await db.from('gerentes_cc_desconto').select('cc').ilike('email',userEmail.trim());
     MEUS_CC=[...new Set((data||[]).map(x=>String(x.cc).trim()))];
     if(!MEUS_CC.length)MEUS_CC=['__nenhum__'];
   }
