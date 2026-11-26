@@ -66,6 +66,7 @@ tr:hover td{background:#f8fafc}
   <div style="display:flex;gap:6px;margin-right:12px">
     <button id="btn-aba-pos" onclick="irAbaEstoque('posicao')" style="background:#1e40af;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">Posição</button>
     <button id="btn-aba-comp" onclick="irAbaEstoque('comparativo')" style="background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📊 Comparativo</button>
+    <button id="btn-aba-itens" onclick="irAbaEstoque('itens')" style="background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📋 Itens</button>
   </div>
   <div class="topo-right">
     <button class="btn-atualizar" onclick="carregar()">↻ Atualizar</button>
@@ -242,6 +243,7 @@ async function carregar() {
 
   document.getElementById('tag-sync').textContent = _todos.length.toLocaleString('pt-BR') + ' registros';
   aplicarFiltros();
+  if (window._itAtualizaEstoque) _itAtualizaEstoque(true);
 }
 
 // ── CONSUMO ANUAL ────────────────────────────────────────
@@ -657,6 +659,10 @@ let _abaAtual = 'posicao';
 function irAbaEstoque(aba){
   _abaAtual = aba;
   document.getElementById('aba-comparativo').style.display = aba==='comparativo'?'block':'none';
+  document.getElementById('aba-itens').style.display = aba==='itens'?'block':'none';
+  document.getElementById('btn-aba-itens').style.background = aba==='itens'?'#1e40af':'#f1f5f9';
+  document.getElementById('btn-aba-itens').style.color = aba==='itens'?'#fff':'#64748b';
+  if(aba==='itens' && !_itCarregado) carregarItensLista();
   document.querySelector('.filtros-wrap').style.display = aba==='posicao'?'':'none';
   document.querySelector('.pills').style.display = aba==='posicao'?'':'none';
   document.querySelector('.resumo').style.display = aba==='posicao'?'':'none';
@@ -1044,6 +1050,112 @@ window.abrirPopupComp=abrirPopupComp;
 window.baixarNotasEntrada=baixarNotasEntrada;
 window.exportarComparativo=exportarComparativo;
 window.exportarComparativoCompleto=exportarComparativoCompleto;
+</script>
+<div id="aba-itens" style="display:none;padding:24px">
+  <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">BUSCAR ITEM</label>
+      <input id="it-busca" placeholder="Código ou descrição..." oninput="_itPag=1;filtrarItensLista()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;width:280px">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">GRUPO</label>
+      <select id="it-grupo" onchange="_itPag=1;filtrarItensLista()" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:180px"><option value="">Todos os grupos</option></select>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#334155;padding-bottom:8px;cursor:pointer"><input type="checkbox" id="it-comest" onchange="_itPag=1;filtrarItensLista()"> Só com estoque</label>
+    <div style="margin-left:auto"><button onclick="exportarItensLista()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">⬇ Excel</button></div>
+  </div>
+  <div id="it-info" style="font-size:12.5px;color:#64748b;margin-bottom:8px"></div>
+  <div id="it-tabela" style="overflow-x:auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px"><div class="loading">Carregando itens...</div></div>
+  <div id="it-pag" style="display:flex;gap:6px;justify-content:center;align-items:center;margin-top:12px;flex-wrap:wrap"></div>
+</div>
+<script>
+// ── ABA ITENS: lista de todos os itens do cadastro, com link para o Google Imagens ──
+let _itTodos=[], _itFilt=[], _itPag=1, _itCarregado=false;
+const IT_POR_PAG=100;
+function _itEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function linkImagens(desc){
+  const q=String(desc||'').replace(/\s+/g,' ').trim();
+  return 'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(q);
+}
+async function carregarItensLista(){
+  const box=document.getElementById('it-tabela');
+  box.innerHTML='<div class="loading">Carregando itens...</div>';
+  let todos=[],off=0;
+  for(;;){
+    const{data,error}=await db.from('itens').select('codigo,descricao,grupo,unidade').order('codigo').range(off,off+999);
+    if(error){box.innerHTML='<div class="vazio">Erro ao carregar: '+_itEsc(error.message)+'</div>';return;}
+    if(!data||!data.length)break;
+    todos=todos.concat(data);
+    if(data.length<1000)break;
+    off+=1000;
+  }
+  _itTodos=todos.map(i=>({codigo:String(i.codigo||'').trim(),descricao:String(i.descricao||'').trim(),grupo:String(i.grupo||'').trim(),unidade:String(i.unidade||'').trim(),estoque:0}));
+  _itAtualizaEstoque(false);
+  const sel=document.getElementById('it-grupo');
+  [...new Set(_itTodos.map(i=>i.grupo).filter(Boolean))].sort().forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o)});
+  _itCarregado=true;
+  filtrarItensLista();
+}
+// estoque total (todas as filiais) vem da aba Posição; recalcula quando ela termina de carregar
+function _itAtualizaEstoque(redesenha){
+  if(!_itTodos.length)return;
+  const est={};
+  (_todos||[]).forEach(r=>{const c=String(r.codigo||'').trim();est[c]=(est[c]||0)+(Number(r.qtd_atual)||0)});
+  _itTodos.forEach(i=>{i.estoque=est[i.codigo]||0});
+  if(redesenha)filtrarItensLista();
+}
+function filtrarItensLista(){
+  const b=(document.getElementById('it-busca').value||'').trim().toUpperCase();
+  const g=document.getElementById('it-grupo').value;
+  const ce=document.getElementById('it-comest').checked;
+  const termos=b.split(/\s+/).filter(Boolean);
+  _itFilt=_itTodos.filter(i=>{
+    if(g&&i.grupo!==g)return false;
+    if(ce&&!(i.estoque>0))return false;
+    if(termos.length){const t=(i.codigo+' '+i.descricao).toUpperCase();if(!termos.every(x=>t.includes(x)))return false;}
+    return true;
+  });
+  renderItensLista();
+}
+function renderItensLista(){
+  const tot=_itFilt.length, pags=Math.max(1,Math.ceil(tot/IT_POR_PAG));
+  if(_itPag>pags)_itPag=pags;
+  const ini=(_itPag-1)*IT_POR_PAG, L=_itFilt.slice(ini,ini+IT_POR_PAG);
+  document.getElementById('it-info').textContent=tot.toLocaleString('pt-BR')+' item(ns)'+(tot?` · mostrando ${ini+1}–${ini+L.length}`:'');
+  const th='padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap';
+  const td='padding:8px 12px;font-size:13px;border-bottom:1px solid #f1f5f9';
+  document.getElementById('it-tabela').innerHTML=tot?`<table style="width:100%;border-collapse:collapse">
+    <thead><tr><th style="${th}">Código</th><th style="${th}">Descrição</th><th style="${th}">Grupo</th><th style="${th}">UM</th><th style="${th};text-align:right">Estoque (todas as filiais)</th><th style="${th};text-align:center">Imagem</th></tr></thead>
+    <tbody>${L.map(i=>`<tr>
+      <td style="${td};font-family:ui-monospace,monospace;white-space:nowrap">${_itEsc(i.codigo)}</td>
+      <td style="${td}">${_itEsc(i.descricao)}</td>
+      <td style="${td};color:#64748b">${_itEsc(i.grupo)}</td>
+      <td style="${td};color:#64748b">${_itEsc(i.unidade)}</td>
+      <td style="${td};text-align:right;font-weight:700;color:${i.estoque>0?'#0f172a':'#cbd5e1'}">${i.estoque?i.estoque.toLocaleString('pt-BR'):'—'}</td>
+      <td style="${td};text-align:center"><a href="${linkImagens(i.descricao)}" target="_blank" rel="noopener" title="Ver no Google Imagens" style="display:inline-block;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap">🔎 Google Imagens</a></td>
+    </tr>`).join('')}</tbody></table>`:'<div class="vazio">Nenhum item encontrado.</div>';
+  const pg=document.getElementById('it-pag');
+  if(pags<=1){pg.innerHTML='';return;}
+  const bt=(p,l,dis,at)=>`<button class="pag-btn ${at?'ativo':''}" ${dis?'disabled':''} onclick="_itPag=${p};renderItensLista();window.scrollTo({top:0})">${l}</button>`;
+  let h=bt(_itPag-1,'‹ Ant.',_itPag===1);
+  for(let p=Math.max(1,_itPag-3);p<=Math.min(pags,_itPag+3);p++)h+=bt(p,p,false,p===_itPag);
+  h+=bt(_itPag+1,'Próx. ›',_itPag===pags);
+  pg.innerHTML=h+`<span style="font-size:12px;color:#64748b;margin-left:6px">página ${_itPag} de ${pags}</span>`;
+}
+function exportarItensLista(){
+  if(!_itFilt.length){alert('Nenhum item para exportar.');return;}
+  const linhas=_itFilt.map(i=>({'Código':i.codigo,'Descrição':i.descricao,'Grupo':i.grupo,'UM':i.unidade,'Estoque (todas as filiais)':i.estoque,'Google Imagens':linkImagens(i.descricao)}));
+  if(window.XLSX){
+    const ws=XLSX.utils.json_to_sheet(linhas);
+    linhas.forEach((l,k)=>{const ref='F'+(k+2);if(ws[ref])ws[ref].l={Target:l['Google Imagens']};});
+    ws['!cols']=[{wch:12},{wch:60},{wch:24},{wch:6},{wch:14},{wch:50}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Itens');XLSX.writeFile(wb,'lista_itens.xlsx');
+  }else{
+    const csv=[Object.keys(linhas[0]).join(';')].concat(linhas.map(l=>Object.values(l).map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';'))).join('\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download='lista_itens.csv';a.click();
+  }
+}
+window.filtrarItensLista=filtrarItensLista;window.renderItensLista=renderItensLista;window.exportarItensLista=exportarItensLista;
 </script>
 <script src="/bq-acesso.js" data-painel="estoque"></script>
 </body>
